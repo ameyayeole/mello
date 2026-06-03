@@ -1,0 +1,49 @@
+{
+  "cli": {
+    "version": ">= 7.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "YOUR_DEV_SUPABASE_URL",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "YOUR_DEV_SUPABASE_ANON_KEY"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "ios-simulator": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://vtrsagvueljzbbtpeenu.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_-DZwjVLqXcAY7GL--bzZ_Q_PmM76PTQ",
+        "GOOGLE_MAPS_IOS_KEY": "AIzaSyCrtxnyQe5ELAwW6rvTErJklaB4PKL8uaE",
+        "GOOGLE_MAPS_ANDROID_KEY": "AIzaSyCrtxnyQe5ELAwW6rvTErJklaB4PKL8uaE"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "your@apple.com",
+        "ascAppId": "XXXXXXXXXX",
+        "appleTeamId": "XXXXXXXXXX"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "production"
+      }
+    }
+  }
+}
