@@ -11,7 +11,6 @@ export async function signInWithGoogle(): Promise<void> {
     scheme: 'mello',
     path: 'auth/callback',
   });
-  console.log('[MELLO auth] 1 redirectUri', redirectUri);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -20,13 +19,11 @@ export async function signInWithGoogle(): Promise<void> {
       skipBrowserRedirect: true,
     },
   });
-  console.log('[MELLO auth] 2 signInWithOAuth done', { hasUrl: !!data?.url, error: error?.message });
 
   if (error) throw error;
   if (!data.url) throw new Error('No OAuth URL returned');
 
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-  console.log('[MELLO auth] 3 browser result', result.type);
 
   // User dismissed/cancelled the browser
   if (result.type !== 'success') return;
@@ -51,14 +48,10 @@ export async function signInWithGoogle(): Promise<void> {
   if (params.error_description) throw new Error(params.error_description);
   if (params.error) throw new Error(params.error);
 
-  console.log('[MELLO auth] 4 params', { code: !!params.code, token: !!params.access_token, err: params.error });
-
   if (params.code) {
-    console.log('[MELLO auth] 5 exchanging code...');
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
       params.code
     );
-    console.log('[MELLO auth] 6 exchange done', exchangeError?.message ?? 'OK');
     if (exchangeError) throw exchangeError;
     return;
   }
@@ -107,13 +100,11 @@ export async function createProfile(
   userId: string,
   profile: Partial<Profile>
 ): Promise<Profile> {
-  console.log('[MELLO profile] A insert start', userId);
   const { data, error } = await supabase
     .from('profiles')
     .insert({ id: userId, ...profile })
     .select()
     .single();
-  console.log('[MELLO profile] B insert done', error?.message ?? 'OK');
 
   if (error) throw error;
   return data as Profile;

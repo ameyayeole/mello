@@ -23,21 +23,26 @@ export async function getEventDetail(eventId: string): Promise<EventDetail> {
     .select(`
       *,
       host:profiles!host_id(*),
-      participants:event_participants(user:profiles(*))
+      participants:event_participants(status, user:profiles(*))
     `)
     .eq('id', eventId)
     .single();
 
   if (error) throw error;
 
-  const participants = ((data as any).participants ?? []).map(
-    (p: any) => p.user
-  );
+  // Flatten participants and attach each one's join status.
+  const participants = ((data as any).participants ?? []).map((p: any) => ({
+    ...p.user,
+    status: p.status ?? 'approved',
+  }));
+  const approvedCount = participants.filter(
+    (p: any) => p.status === 'approved'
+  ).length;
 
   return {
     ...(data as any),
     participants,
-    participant_count: participants.length,
+    participant_count: approvedCount,
   } as EventDetail;
 }
 
@@ -53,6 +58,7 @@ export async function createEvent(params: {
   endsAt?: Date;
   maxPeople?: number;
   isPublic: boolean;
+  requiresApproval: boolean;
 }): Promise<string> {
   const { data, error } = await supabase
     .from('events')
@@ -67,6 +73,7 @@ export async function createEvent(params: {
       ends_at: params.endsAt?.toISOString(),
       max_people: params.maxPeople,
       is_public: params.isPublic,
+      requires_approval: params.requiresApproval,
     })
     .select('id')
     .single();
@@ -75,10 +82,46 @@ export async function createEvent(params: {
   return (data as any).id as string;
 }
 
-export async function joinEvent(eventId: string, userId: string): Promise<void> {
+// Joins directly when the event is open, or creates a pending request when the
+// event requires host approval.
+export async function joinEvent(
+  eventId: string,
+  userId: string,
+  requiresApproval = false
+): Promise<void> {
+  const { error } = await supabase.from('event_participants').insert({
+    event_id: eventId,
+    user_id: userId,
+    status: requiresApproval ? 'pending' : 'approved',
+  });
+
+  if (error) throw error;
+}
+
+// Host approves a pending join request.
+export async function approveParticipant(
+  eventId: string,
+  userId: string
+): Promise<void> {
   const { error } = await supabase
     .from('event_participants')
-    .insert({ event_id: eventId, user_id: userId });
+    .update({ status: 'approved' })
+    .eq('event_id', eventId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
+// Host rejects a pending request (removes the row).
+export async function rejectParticipant(
+  eventId: string,
+  userId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('event_participants')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('user_id', userId);
 
   if (error) throw error;
 }

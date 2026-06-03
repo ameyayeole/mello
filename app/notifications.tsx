@@ -21,6 +21,7 @@ import { relativeTime } from '@/utils/time';
 const NOTIFICATION_ICONS: Record<string, string> = {
   friend_request: '👋',
   join_request: '🙋',
+  join_approved: '✅',
   event_update: '📣',
   new_message: '💬',
   event_starting_soon: '⏰',
@@ -35,10 +36,14 @@ function NotifRow({ notif }: { notif: Notification }) {
       </Text>
       <View style={styles.rowText}>
         <Text style={styles.rowTitle}>
-          {notif.sender?.name ?? 'Someone'}
-          {' '}
+          {notif.type === 'join_approved'
+            ? `Your request to join ${(notif.payload as any)?.eventTitle ?? 'the event'} was approved 🎉`
+            : `${notif.sender?.name ?? 'Someone'} `}
           {notif.type === 'friend_request' && 'sent you a friend request'}
-          {notif.type === 'join_request' && 'joined your event'}
+          {notif.type === 'join_request' &&
+            ((notif.payload as any)?.pending
+              ? 'requested to join your event'
+              : 'joined your event')}
           {notif.type === 'new_message' && 'sent a message'}
           {notif.type === 'event_starting_soon' && 'Event starting soon!'}
           {notif.type === 'friend_joined_event' && 'joined an event with you'}

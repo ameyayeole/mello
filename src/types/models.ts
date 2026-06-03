@@ -13,10 +13,13 @@ export type FriendStatus = 'pending' | 'accepted' | 'blocked';
 export type NotificationType =
   | 'friend_request'
   | 'join_request'
+  | 'join_approved'
   | 'event_update'
   | 'new_message'
   | 'event_starting_soon'
   | 'friend_joined_event';
+
+export type ParticipantStatus = 'pending' | 'approved';
 
 export interface Profile {
   id: string;
@@ -50,6 +53,7 @@ export interface NearbyEvent {
   ends_at: string | null;
   max_people: number | null;
   is_public: boolean;
+  requires_approval: boolean;
   distance_m: number;
   participant_count: number;
   lat: number;
@@ -57,8 +61,13 @@ export interface NearbyEvent {
   host?: Profile;
 }
 
+export interface EventParticipant extends Profile {
+  status: ParticipantStatus;
+}
+
 export interface EventDetail extends NearbyEvent {
-  participants: Profile[];
+  // All participants (both approved and pending). The UI splits these.
+  participants: EventParticipant[];
 }
 
 export interface Message {

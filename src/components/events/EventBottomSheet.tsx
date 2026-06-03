@@ -13,7 +13,13 @@ import BottomSheet, {
 } from '@gorhom/bottom-sheet';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { getEventDetail, joinEvent, leaveEvent } from '@/services/events.service';
+import {
+  getEventDetail,
+  joinEvent,
+  leaveEvent,
+  approveParticipant,
+  rejectParticipant,
+} from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
@@ -54,21 +60,39 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       },
     }));
 
-    const isParticipant =
-      event?.participants?.some((p) => p.id === user?.id) ?? false;
     const isHost = event?.host_id === user?.id;
+    const myStatus = event?.participants?.find((p) => p.id === user?.id)?.status;
+    const isParticipant = myStatus === 'approved';
+    const isPending = myStatus === 'pending';
     const isFull =
       event?.max_people != null &&
       (event.participant_count ?? 0) >= event.max_people;
 
+    const approved = event?.participants?.filter((p) => p.status === 'approved') ?? [];
+    const pending = event?.participants?.filter((p) => p.status === 'pending') ?? [];
+
+    const invalidate = () =>
+      qc.invalidateQueries({ queryKey: ['eventDetail', event?.id] });
+
     const joinMutation = useMutation({
-      mutationFn: () => joinEvent(event!.id, user!.id),
-      onSuccess: () => qc.invalidateQueries({ queryKey: ['eventDetail', event?.id] }),
+      mutationFn: () =>
+        joinEvent(event!.id, user!.id, event!.requires_approval),
+      onSuccess: invalidate,
     });
 
     const leaveMutation = useMutation({
       mutationFn: () => leaveEvent(event!.id, user!.id),
-      onSuccess: () => qc.invalidateQueries({ queryKey: ['eventDetail', event?.id] }),
+      onSuccess: invalidate,
+    });
+
+    const approveMutation = useMutation({
+      mutationFn: (uid: string) => approveParticipant(event!.id, uid),
+      onSuccess: invalidate,
+    });
+
+    const rejectMutation = useMutation({
+      mutationFn: (uid: string) => rejectParticipant(event!.id, uid),
+      onSuccess: invalidate,
     });
 
     const activity = event ? ACTIVITY_MAP[event.activity] : null;
@@ -122,23 +146,56 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 </View>
               </View>
 
-              {/* Participants avatars */}
-              {(event.participants?.length ?? 0) > 0 && (
+              {/* Approved participants avatars */}
+              {approved.length > 0 && (
                 <View style={styles.participantsRow}>
-                  {event.participants.slice(0, 6).map((p) => (
+                  {approved.slice(0, 6).map((p) => (
                     <View key={p.id} style={styles.participantBubble}>
                       <Text style={styles.participantInitial}>
                         {p.name[0].toUpperCase()}
                       </Text>
                     </View>
                   ))}
-                  {event.participants.length > 6 && (
+                  {approved.length > 6 && (
                     <View style={styles.participantBubble}>
                       <Text style={styles.participantInitial}>
-                        +{event.participants.length - 6}
+                        +{approved.length - 6}
                       </Text>
                     </View>
                   )}
+                </View>
+              )}
+
+              {/* Host: pending join requests to approve/reject */}
+              {isHost && pending.length > 0 && (
+                <View style={styles.pendingSection}>
+                  <Text style={styles.pendingTitle}>
+                    Requests to join ({pending.length})
+                  </Text>
+                  {pending.map((p) => (
+                    <View key={p.id} style={styles.pendingRow}>
+                      <View style={styles.pendingAvatar}>
+                        <Text style={styles.participantInitial}>
+                          {p.name[0].toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={styles.pendingName}>{p.name}</Text>
+                      <TouchableOpacity
+                        style={styles.approveBtn}
+                        onPress={() => approveMutation.mutate(p.id)}
+                        disabled={approveMutation.isPending}
+                      >
+                        <Text style={styles.approveBtnText}>Approve</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.rejectBtn}
+                        onPress={() => rejectMutation.mutate(p.id)}
+                        disabled={rejectMutation.isPending}
+                      >
+                        <Text style={styles.rejectBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
               )}
 
@@ -148,15 +205,18 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   <TouchableOpacity
                     style={[
                       styles.joinBtn,
-                      (isParticipant || isFull) && styles.joinBtnSecondary,
+                      (isParticipant || isPending || isFull) &&
+                        styles.joinBtnSecondary,
                     ]}
                     onPress={() =>
                       isParticipant
                         ? leaveMutation.mutate()
+                        : isPending
+                        ? leaveMutation.mutate() // cancel pending request
                         : joinMutation.mutate()
                     }
                     disabled={
-                      (isFull && !isParticipant) ||
+                      (isFull && !isParticipant && !isPending) ||
                       joinMutation.isPending ||
                       leaveMutation.isPending
                     }
@@ -164,13 +224,18 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                     <Text
                       style={[
                         styles.joinBtnText,
-                        (isParticipant || isFull) && styles.joinBtnTextSecondary,
+                        (isParticipant || isPending || isFull) &&
+                          styles.joinBtnTextSecondary,
                       ]}
                     >
                       {isParticipant
                         ? 'Leave Event'
+                        : isPending
+                        ? 'Request Pending — Tap to Cancel'
                         : isFull
                         ? 'Event Full'
+                        : event.requires_approval
+                        ? 'Request to Join'
                         : 'Join Event'}
                     </Text>
                   </TouchableOpacity>
@@ -232,6 +297,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   participantInitial: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  pendingSection: { gap: 8, marginTop: 4 },
+  pendingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 8,
+  },
+  pendingAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingName: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
+  approveBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 100,
+  },
+  approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  rejectBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectBtnText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
   actions: { gap: 10 },
   joinBtn: {
     backgroundColor: COLORS.primary,

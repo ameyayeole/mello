@@ -35,6 +35,7 @@ export default function CreateEventScreen() {
   const [description, setDescription] = useState('');
   const [maxPeople, setMaxPeople] = useState('4');
   const [isPublic, setIsPublic] = useState(true);
+  const [requiresApproval, setRequiresApproval] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pinCoords, setPinCoords] = useState(
     userCoords ?? { lat: 19.076, lng: 72.8777 }
@@ -70,6 +71,7 @@ export default function CreateEventScreen() {
         lng: pinCoords.lng,
         locationName: locationName || undefined,
         startsAt,
+        requiresApproval,
         maxPeople: maxPeople ? parseInt(maxPeople) : undefined,
         isPublic,
       });
@@ -176,6 +178,24 @@ export default function CreateEventScreen() {
           <Switch
             value={isPublic}
             onValueChange={setIsPublic}
+            trackColor={{ true: COLORS.primary, false: COLORS.border }}
+            thumbColor={COLORS.surface}
+          />
+        </View>
+
+        {/* Join policy */}
+        <View style={styles.row}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.label}>Require approval to join</Text>
+            <Text style={styles.rowSubtitle}>
+              {requiresApproval
+                ? 'You approve each person who wants to join'
+                : 'Anyone can join instantly'}
+            </Text>
+          </View>
+          <Switch
+            value={requiresApproval}
+            onValueChange={setRequiresApproval}
             trackColor={{ true: COLORS.primary, false: COLORS.border }}
             thumbColor={COLORS.surface}
           />
