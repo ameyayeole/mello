@@ -8,25 +8,35 @@ export function useAuth() {
     useAuthStore();
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) {
-        const profile = await getProfile(data.session.user.id);
+    // Fetch the profile OUTSIDE any auth callback. Calling Supabase from inside
+    // onAuthStateChange deadlocks the auth client (documented gotcha).
+    async function loadProfile(userId: string) {
+      try {
+        const profile = await getProfile(userId);
         setUser(profile);
+      } catch {
+        setUser(null);
       }
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
       setLoading(false);
+      if (data.session?.user) loadProfile(data.session.user.id);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
+        // Synchronous only — no awaited Supabase calls here.
         setSession(newSession);
+        setLoading(false);
         if (newSession?.user) {
-          const profile = await getProfile(newSession.user.id);
-          setUser(profile);
+          // Defer the Supabase call so it runs after the callback returns,
+          // breaking the auth deadlock.
+          setTimeout(() => loadProfile(newSession.user.id), 0);
         } else {
           setUser(null);
         }
-        setLoading(false);
       }
     );
 

@@ -65,9 +65,12 @@ export default function ProfileSetupScreen() {
 
     try {
       setLoading(true);
+      console.log('[MELLO profile] handleSave start. hasPhoto:', !!photoBase64);
       let photoUrl: string | undefined;
       if (photoBase64) {
+        console.log('[MELLO profile] uploading avatar...');
         photoUrl = await uploadAvatar(session.user.id, photoBase64);
+        console.log('[MELLO profile] avatar uploaded');
       }
 
       const profile = await createProfile(session.user.id, {
@@ -78,8 +81,10 @@ export default function ProfileSetupScreen() {
         interests: Array.from(interests),
       });
 
+      console.log('[MELLO profile] setUser, navigating to app');
       setUser(profile);
     } catch (e: any) {
+      console.log('[MELLO profile] ERROR', e?.message);
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);

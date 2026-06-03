@@ -107,11 +107,13 @@ export async function createProfile(
   userId: string,
   profile: Partial<Profile>
 ): Promise<Profile> {
+  console.log('[MELLO profile] A insert start', userId);
   const { data, error } = await supabase
     .from('profiles')
     .insert({ id: userId, ...profile })
     .select()
     .single();
+  console.log('[MELLO profile] B insert done', error?.message ?? 'OK');
 
   if (error) throw error;
   return data as Profile;

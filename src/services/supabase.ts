@@ -1,6 +1,27 @@
 import { AppState } from 'react-native';
-import { createClient, processLock } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+
+// React Native runs a single JS thread, so the cross-tab auth lock is
+// unnecessary — and supabase-js's default lock can deadlock here, hanging
+// sign-in and token refresh forever. A no-op lock runs work immediately.
+const noopLock = async <R>(
+  _name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>
+): Promise<R> => fn();
+
+// Supabase requests have no timeout by default; on RN a request can occasionally
+// hang forever, freezing sign-in. Abort any request that takes too long so it
+// surfaces as a quick, retriable error instead of an infinite spinner.
+const REQUEST_TIMEOUT_MS = 12000;
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer)
+  );
+};
 
 // expo-secure-store rejects/hangs on values larger than ~2KB. Supabase session
 // tokens exceed that, which deadlocks every authenticated request. This adapter
@@ -122,9 +143,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     // PKCE returns an auth `code` in the query string (correct for mobile),
     // instead of the implicit flow's tokens in the URL hash fragment.
     flowType: 'pkce',
-    // processLock avoids the navigator.locks deadlock that hangs auth calls
-    // (sign-in, token refresh) in React Native.
-    lock: processLock,
+    // No-op lock — prevents the auth deadlock that hangs sign-in in RN.
+    lock: noopLock,
+  },
+  global: {
+    // Hard timeout on every request so a stuck network call can't freeze the app.
+    fetch: fetchWithTimeout,
   },
 });
 
