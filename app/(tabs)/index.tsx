@@ -116,7 +116,7 @@ export default function DashboardScreen() {
 
         {/* Joined events */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Events you're joining</Text>
+          <Text style={styles.sectionTitle}>Events you're joining bla bla</Text>
           {joinedQuery.isLoading ? (
             <Text style={styles.emptyText}>Loading...</Text>
           ) : joinedQuery.data?.length === 0 ? (
