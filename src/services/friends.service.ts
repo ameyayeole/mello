@@ -1,7 +1,28 @@
 import { supabase } from './supabase';
 import { Friendship, Profile } from '@/types/models';
 
-export async function getFriends(userId: string): Promise<Friendship[]> {
+/**
+ * The relationship the current user has with another user. Drives which
+ * action (Add / Requested / Accept / Friends) the UI should show.
+ */
+export type RelationshipStatus =
+  | 'none' // no friendship row exists
+  | 'friends' // accepted friendship
+  | 'request_sent' // current user sent a pending request
+  | 'request_received' // other user sent a pending request to the current user
+  | 'blocked';
+
+export interface Relationship {
+  status: RelationshipStatus;
+  friendshipId: string | null;
+}
+
+/**
+ * Fetches every friendship row that involves the user (any status), with both
+ * profiles joined. This is the single source of truth the friends UI derives
+ * accepted friends, pending requests, and per-user relationship state from.
+ */
+export async function getAllFriendships(userId: string): Promise<Friendship[]> {
   const { data, error } = await supabase
     .from('friendships')
     .select(`
@@ -9,8 +30,7 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
       requester:profiles!requester_id(*),
       addressee:profiles!addressee_id(*)
     `)
-    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-    .eq('status', 'accepted');
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
 
   if (error) throw error;
 
@@ -20,15 +40,31 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
   })) as Friendship[];
 }
 
-export async function getPendingRequests(userId: string): Promise<Friendship[]> {
-  const { data, error } = await supabase
-    .from('friendships')
-    .select('*, requester:profiles!requester_id(*)')
-    .eq('addressee_id', userId)
-    .eq('status', 'pending');
+/**
+ * Resolves the relationship between `userId` and `otherUserId` from a list of
+ * friendships (typically the cached result of `getAllFriendships`).
+ */
+export function getRelationship(
+  friendships: Friendship[],
+  userId: string,
+  otherUserId: string
+): Relationship {
+  const f = friendships.find(
+    (x) =>
+      (x.requester_id === userId && x.addressee_id === otherUserId) ||
+      (x.requester_id === otherUserId && x.addressee_id === userId)
+  );
 
-  if (error) throw error;
-  return (data ?? []) as unknown as Friendship[];
+  if (!f) return { status: 'none', friendshipId: null };
+
+  if (f.status === 'accepted') return { status: 'friends', friendshipId: f.id };
+  if (f.status === 'blocked') return { status: 'blocked', friendshipId: f.id };
+
+  // pending
+  return {
+    status: f.requester_id === userId ? 'request_sent' : 'request_received',
+    friendshipId: f.id,
+  };
 }
 
 export async function sendFriendRequest(

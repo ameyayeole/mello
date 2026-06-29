@@ -80,6 +80,21 @@ export interface Message {
   sender?: Profile;
 }
 
+export interface DirectMessage {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  type: 'text';
+  created_at: string;
+  sender?: Profile;
+}
+
+export interface FriendConversation {
+  friend: Profile;
+  lastMessage: DirectMessage | null;
+}
+
 export interface Friendship {
   id: string;
   requester_id: string;

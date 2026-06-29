@@ -9,29 +9,41 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { useFriends } from '@/hooks/useFriends';
 import { usePresence } from '@/hooks/usePresence';
 import { useAuthStore } from '@/stores/authStore';
-import { searchUsers, sendFriendRequest } from '@/services/friends.service';
+import { searchUsers } from '@/services/friends.service';
 import { COLORS } from '@/constants/colors';
 import { Profile, Friendship } from '@/types/models';
+
+// A profile's name can be an empty string, so name[0] may be undefined.
+// Always go through this to avoid crashing on `undefined.toUpperCase()`.
+function avatarInitial(name?: string | null) {
+  return (name?.trim()?.[0] ?? '?').toUpperCase();
+}
 
 function FriendRow({
   friendship,
   isOnline,
+  onPress,
 }: {
   friendship: Friendship;
   isOnline: boolean;
+  onPress: () => void;
 }) {
-  const friend = friendship.friend!;
+  const friend = friendship.friend;
+  if (!friend) return null;
   return (
-    <View style={styles.friendRow}>
+    <TouchableOpacity
+      style={styles.friendRow}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.avatarWrapper}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarInitial}>
-            {friend.name[0].toUpperCase()}
-          </Text>
+          <Text style={styles.avatarInitial}>{avatarInitial(friend.name)}</Text>
         </View>
         <View
           style={[styles.onlineDot, !isOnline && styles.offlineDot]}
@@ -43,16 +55,21 @@ function FriendRow({
           {isOnline ? 'Online now' : 'Offline'}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 export default function FriendsScreen() {
   const user = useAuthStore((s) => s.user);
-  const { friendsQuery, pendingQuery, accept, remove } = useFriends();
+  const router = useRouter();
+  const { friends, pending, sendRequest, accept, relationshipWith } =
+    useFriends();
   const { isOnline } = usePresence();
   const [searchQuery, setSearchQuery] = useState('');
-  const qc = useQueryClient();
+
+  function openProfile(userId: string) {
+    router.push(`/friends/${userId}`);
+  }
 
   const searchResultsQuery = useQuery({
     queryKey: ['userSearch', searchQuery],
@@ -60,17 +77,12 @@ export default function FriendsScreen() {
     enabled: searchQuery.length >= 2,
   });
 
-  async function handleAddFriend(targetId: string) {
-    try {
-      await sendFriendRequest(user!.id, targetId);
-      Alert.alert('Sent!', 'Friend request sent.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    }
+  function handleAddFriend(targetId: string) {
+    sendRequest.mutate(targetId, {
+      onSuccess: () => Alert.alert('Sent!', 'Friend request sent.'),
+      onError: (e: any) => Alert.alert('Error', e.message),
+    });
   }
-
-  const friends = friendsQuery.data ?? [];
-  const pending = pendingQuery.data ?? [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -92,20 +104,44 @@ export default function FriendsScreen() {
         <FlatList
           data={searchResultsQuery.data?.filter((u) => u.id !== user?.id) ?? []}
           keyExtractor={(u) => u.id}
-          renderItem={({ item }) => (
-            <View style={styles.searchRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarInitial}>{item.name[0].toUpperCase()}</Text>
+          renderItem={({ item }) => {
+            const rel = relationshipWith(item.id);
+            return (
+              <View style={styles.searchRow}>
+                <TouchableOpacity
+                  style={styles.searchRowMain}
+                  onPress={() => openProfile(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarInitial}>
+                      {avatarInitial(item.name)}
+                    </Text>
+                  </View>
+                  <Text style={styles.friendName}>{item.name}</Text>
+                </TouchableOpacity>
+                {rel.status === 'friends' ? (
+                  <Text style={styles.statusLabel}>Friends</Text>
+                ) : rel.status === 'request_sent' ? (
+                  <Text style={styles.statusLabel}>Requested</Text>
+                ) : rel.status === 'request_received' ? (
+                  <TouchableOpacity
+                    style={styles.acceptBtn}
+                    onPress={() => accept.mutate(rel.friendshipId!)}
+                  >
+                    <Text style={styles.acceptBtnText}>Accept</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.addBtn}
+                    onPress={() => handleAddFriend(item.id)}
+                  >
+                    <Text style={styles.addBtnText}>+ Add</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <Text style={styles.friendName}>{item.name}</Text>
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => handleAddFriend(item.id)}
-              >
-                <Text style={styles.addBtnText}>+ Add</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            );
+          }}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No users found.</Text>
@@ -141,7 +177,13 @@ export default function FriendsScreen() {
               );
             }
             const f = item.data as Friendship;
-            return <FriendRow friendship={f} isOnline={isOnline(f.friend?.id ?? '')} />;
+            return (
+              <FriendRow
+                friendship={f}
+                isOnline={isOnline(f.friend?.id ?? '')}
+                onPress={() => f.friend && openProfile(f.friend.id)}
+              />
+            );
           }}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
@@ -217,6 +259,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 8,
   },
+  searchRowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   avatarWrapper: { position: 'relative' },
   avatar: {
     width: 44,
@@ -249,6 +297,13 @@ const styles = StyleSheet.create({
     borderRadius: 100,
   },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  statusLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
   acceptBtn: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 14,

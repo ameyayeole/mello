@@ -187,7 +187,10 @@ export async function getJoinedEvents(userId: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('event_participants')
     .select('event:events(*, event_participants(count))')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    // Only approved participants belong in chats — pending join requests
+    // (awaiting host approval) must not show the event chat yet.
+    .eq('status', 'approved');
 
   if (error) throw error;
   return ((data ?? []) as any[])

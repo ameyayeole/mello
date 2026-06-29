@@ -9,44 +9,27 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { useEventChat } from '@/hooks/useEventChat';
+import { useDirectChat } from '@/hooks/useDirectChat';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { Message } from '@/types/models';
+import { DirectMessage } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
 
 function MessageBubble({
   message,
   isMine,
 }: {
-  message: Message;
+  message: DirectMessage;
   isMine: boolean;
 }) {
-  if (message.type === 'system') {
-    return (
-      <View style={styles.systemRow}>
-        <Text style={styles.systemText}>{message.content}</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
-      {!isMine && (
-        <View style={styles.senderAvatar}>
-          <Text style={styles.senderInitial}>
-            {message.sender?.name?.[0]?.toUpperCase() ?? '?'}
-          </Text>
-        </View>
-      )}
       <View style={[styles.bubble, isMine && styles.bubbleMine]}>
-        {!isMine && (
-          <Text style={styles.senderName}>{message.sender?.name}</Text>
-        )}
         <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
           {message.content}
         </Text>
@@ -58,35 +41,43 @@ function MessageBubble({
   );
 }
 
-export default function GroupChatScreen() {
-  const { eventId } = useLocalSearchParams<{ eventId: string }>();
+export default function DirectChatScreen() {
+  const { friendId } = useLocalSearchParams<{ friendId: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { messages, send } = useEventChat(eventId);
+  const { messages, send } = useDirectChat(friendId);
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList>(null);
 
-  // Just the event title for the chat header (lightweight; avoids loading the
-  // full event detail with participants).
-  const { data: event } = useQuery({
-    queryKey: ['eventTitle', eventId],
+  const { data: friend } = useQuery({
+    queryKey: ['profileName', friendId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('events')
-        .select('title')
-        .eq('id', eventId)
+        .from('profiles')
+        .select('name')
+        .eq('id', friendId)
         .single();
       if (error) throw error;
-      return data as { title: string };
+      return data as { name: string };
     },
-    enabled: !!eventId,
+    enabled: !!friendId,
   });
 
   function handleSend() {
     const text = input.trim();
     if (!text || !user) return;
     setInput('');
-    send.mutate({ senderId: user.id, content: text });
+    send.mutate(
+      { content: text },
+      {
+        onError: (e: any) => {
+          // Restore the text so it isn't lost, and surface the real reason
+          // (e.g. direct_messages table/RLS not set up yet).
+          setInput(text);
+          Alert.alert('Message not sent', e?.message ?? 'Something went wrong.');
+        },
+      }
+    );
   }
 
   return (
@@ -96,7 +87,7 @@ export default function GroupChatScreen() {
           <Text style={styles.backBtn}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {event?.title ?? 'Event Chat'}
+          {friend?.name ?? 'Chat'}
         </Text>
         <View style={{ width: 32 }} />
       </View>
@@ -104,7 +95,6 @@ export default function GroupChatScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <FlatList
           ref={listRef}
@@ -118,25 +108,29 @@ export default function GroupChatScreen() {
           onContentSizeChange={() =>
             listRef.current?.scrollToEnd({ animated: true })
           }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyEmoji}>👋</Text>
+              <Text style={styles.emptyText}>
+                Say hi to {friend?.name ?? 'your friend'}!
+              </Text>
+            </View>
+          }
         />
 
-        <View style={styles.inputBar}>
+        <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
-            placeholder="Send a message..."
+            placeholder="Message..."
             placeholderTextColor={COLORS.textMuted}
             value={input}
             onChangeText={setInput}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
+            multiline
           />
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!input.trim() || send.isPending) && styles.sendBtnDisabled,
-            ]}
+            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
             onPress={handleSend}
-            disabled={!input.trim() || send.isPending}
+            disabled={!input.trim()}
           >
             <Text style={styles.sendBtnText}>↑</Text>
           </TouchableOpacity>
@@ -156,9 +150,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surface,
   },
-  backBtn: { fontSize: 22, color: COLORS.textPrimary },
+  backBtn: { fontSize: 24, color: COLORS.textPrimary, width: 32 },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
@@ -167,67 +160,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  messageList: { padding: 16, gap: 8 },
-  systemRow: { alignItems: 'center', marginVertical: 4 },
-  systemText: { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
-  bubbleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginBottom: 4,
-  },
-  bubbleRowMine: { flexDirection: 'row-reverse' },
-  senderAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  senderInitial: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  messageList: { padding: 16, gap: 8, flexGrow: 1 },
+  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  bubbleRowMine: { justifyContent: 'flex-end' },
   bubble: {
-    maxWidth: '75%',
+    maxWidth: '78%',
     backgroundColor: COLORS.surface,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
     padding: 12,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   bubbleMine: {
     backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
   },
-  senderName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-  },
   bubbleText: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 20 },
   bubbleTextMine: { color: '#fff' },
-  bubbleTime: { fontSize: 11, color: COLORS.textMuted },
-  bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
-  inputBar: {
+  bubbleTime: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  bubbleTimeMine: { color: 'rgba(255,255,255,0.8)' },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
+  emptyEmoji: { fontSize: 44 },
+  emptyText: { fontSize: 15, color: COLORS.textSecondary },
+  inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    gap: 8,
     padding: 12,
-    gap: 10,
-    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    borderRadius: 22,
+    maxHeight: 120,
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
     color: COLORS.textPrimary,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   sendBtn: {
     width: 40,
@@ -237,6 +215,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: COLORS.disabled },
-  sendBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  sendBtnDisabled: { backgroundColor: COLORS.border },
+  sendBtnText: { color: '#fff', fontSize: 20, fontWeight: '800' },
 });

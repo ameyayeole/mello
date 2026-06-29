@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { sendFriendRequest } from '@/services/friends.service';
+import { useFriends } from '@/hooks/useFriends';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { Profile } from '@/types/models';
@@ -21,6 +21,8 @@ export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
   const me = useAuthStore((s) => s.user);
+  const { sendRequest, accept, remove, relationshipWith } = useFriends();
+  const rel = relationshipWith(userId);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile', userId],
@@ -35,13 +37,30 @@ export default function UserProfileScreen() {
     },
   });
 
-  async function handleAddFriend() {
-    try {
-      await sendFriendRequest(me!.id, userId);
-      Alert.alert('Sent!', 'Friend request sent.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    }
+  function handleAddFriend() {
+    sendRequest.mutate(userId, {
+      onSuccess: () => Alert.alert('Sent!', 'Friend request sent.'),
+      onError: (e: any) => Alert.alert('Error', e.message),
+    });
+  }
+
+  function handleUnfriend() {
+    if (!rel.friendshipId) return;
+    Alert.alert(
+      'Remove friend',
+      `Remove ${profile?.name ?? 'this person'} from your friends?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unfriend',
+          style: 'destructive',
+          onPress: () =>
+            remove.mutate(rel.friendshipId!, {
+              onError: (e: any) => Alert.alert('Error', e.message),
+            }),
+        },
+      ]
+    );
   }
 
   if (isLoading || !profile) {
@@ -62,7 +81,7 @@ export default function UserProfileScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.avatar}>
           <Text style={styles.avatarInitial}>
-            {profile.name[0].toUpperCase()}
+            {(profile.name?.trim()?.[0] ?? '?').toUpperCase()}
           </Text>
         </View>
         <Text style={styles.name}>{profile.name}</Text>
@@ -90,12 +109,13 @@ export default function UserProfileScreen() {
           )}
         </View>
 
-        {profile.interests.length > 0 && (
+        {(profile.interests?.length ?? 0) > 0 && (
           <View style={styles.interestsSection}>
             <Text style={styles.sectionLabel}>Interests</Text>
             <View style={styles.pills}>
               {profile.interests.map((id) => {
                 const a = ACTIVITY_MAP[id];
+                if (!a) return null;
                 return (
                   <View key={id} style={styles.pill}>
                     <Text style={styles.pillEmoji}>{a.emoji}</Text>
@@ -107,11 +127,41 @@ export default function UserProfileScreen() {
           </View>
         )}
 
-        {me?.id !== userId && (
-          <TouchableOpacity style={styles.addBtn} onPress={handleAddFriend}>
-            <Text style={styles.addBtnText}>+ Add Friend</Text>
-          </TouchableOpacity>
-        )}
+        {me?.id !== userId &&
+          (rel.status === 'friends' ? (
+            <View style={styles.friendActions}>
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => router.push(`/(tabs)/chats/dm/${userId}`)}
+              >
+                <Text style={styles.addBtnText}>💬 Message</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addBtn, styles.statusBtn]}
+                onPress={handleUnfriend}
+                disabled={remove.isPending}
+              >
+                <Text style={styles.statusBtnText}>
+                  {remove.isPending ? 'Removing…' : '✓ Friends'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : rel.status === 'request_sent' ? (
+            <View style={[styles.addBtn, styles.statusBtn]}>
+              <Text style={styles.statusBtnText}>Request Sent</Text>
+            </View>
+          ) : rel.status === 'request_received' ? (
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => accept.mutate(rel.friendshipId!)}
+            >
+              <Text style={styles.addBtnText}>Accept Request</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.addBtn} onPress={handleAddFriend}>
+              <Text style={styles.addBtnText}>+ Add Friend</Text>
+            </TouchableOpacity>
+          ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -181,4 +231,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  friendActions: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  statusBtn: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
+  statusBtnText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 16 },
 });
