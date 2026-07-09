@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,38 @@ import {
   SafeAreaView,
   Switch,
   Alert,
-  ActivityIndicator,
   Platform,
   Modal,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 // Google Maps on Android, Apple Maps on iOS.
 const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
 import { createEvent } from '@/services/events.service';
+import { uploadEventPhoto } from '@/services/storage.service';
+import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
+import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
+import PlaceSearch, { PlaceResult } from '@/components/PlaceSearch';
 import { ACTIVITIES } from '@/constants/activities';
+import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
+import {
+  Button,
+  Icon,
+  IconButton,
+  IconName,
+  MelloPin,
+  PressableScale,
+} from '@/components/ui';
 
 // ─── Pure-JS date/time span picker ──────────────────────────────────────────
 // No native datetime module (not in the build), so we render a custom calendar
@@ -133,11 +149,15 @@ function DateTimeField({
 
   return (
     <View>
-      <TouchableOpacity style={styles.dateField} onPress={openPicker}>
+      <TouchableOpacity
+        style={styles.dateField}
+        onPress={openPicker}
+        activeOpacity={0.7}
+      >
+        <Icon name="calendar" size={16} color={COLORS.primary} />
         <Text style={styles.dateFieldText}>
-          {fmtDayLong(value)}  ·  {fmtTime(value)}
+          {fmtDayLong(value)} · {fmtTime(value)}
         </Text>
-        <Text style={styles.dateFieldIcon}>📅</Text>
       </TouchableOpacity>
 
       <Modal
@@ -224,7 +244,10 @@ function DateTimeField({
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chipScroll}
-              contentOffset={{ x: Math.max(0, curMin / 30 - 1) * TIME_CHIP_W, y: 0 }}
+              contentOffset={{
+                x: Math.max(0, curMin / 30 - 1) * TIME_CHIP_W,
+                y: 0,
+              }}
             >
               {TIME_SLOTS.map((m) => {
                 const sel = m === curMin;
@@ -237,7 +260,10 @@ function DateTimeField({
                     onPress={() => pickTime(m)}
                   >
                     <Text
-                      style={[styles.timeChipText, sel && styles.chipTextActive]}
+                      style={[
+                        styles.timeChipText,
+                        sel && styles.chipTextActive,
+                      ]}
                     >
                       {fmtTime(t)}
                     </Text>
@@ -246,12 +272,12 @@ function DateTimeField({
               })}
             </ScrollView>
 
-            <TouchableOpacity
-              style={styles.calDone}
+            <Button
+              label="Done"
+              height={46}
               onPress={() => setOpen(false)}
-            >
-              <Text style={styles.calDoneText}>Done</Text>
-            </TouchableOpacity>
+              style={{ marginTop: 16 }}
+            />
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -261,6 +287,7 @@ function DateTimeField({
 
 export default function CreateEventScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const userCoords = useLocationStore((s) => s.coords);
 
@@ -276,11 +303,61 @@ export default function CreateEventScreen() {
   );
   const [isPublic, setIsPublic] = useState(true);
   const [requiresApproval, setRequiresApproval] = useState(false);
+  const [womenOnly, setWomenOnly] = useState(false);
+  // Safety popup #2 (once ever, before the first hosting) and #9 (full-screen
+  // confirm every time "Female-only" is switched on).
+  const [firstHostVisible, setFirstHostVisible] = useState(false);
+  const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
+  const [titleFocused, setTitleFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pinCoords, setPinCoords] = useState(
     userCoords ?? { lat: 19.076, lng: 72.8777 }
   );
   const [locationName, setLocationName] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const miniMapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    hasSeenSafetyFlag(user.id, 'first_host').then((seen) => {
+      if (!cancelled && !seen) setFirstHostVisible(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  function dismissFirstHost() {
+    setFirstHostVisible(false);
+    if (user) markSafetyFlagSeen(user.id, 'first_host');
+  }
+
+  function onSearchResult(r: PlaceResult) {
+    setPinCoords({ lat: r.lat, lng: r.lng });
+    setLocationName(r.name);
+    miniMapRef.current?.animateToRegion(
+      {
+        latitude: r.lat,
+        longitude: r.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      600
+    );
+  }
+
+  async function pickPhoto() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  }
 
   async function onMapPress(e: any) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -305,6 +382,10 @@ export default function CreateEventScreen() {
 
     try {
       setLoading(true);
+      let imageUrl: string | undefined;
+      if (photoUri) {
+        imageUrl = await uploadEventPhoto(user.id, photoUri);
+      }
       const eventId = await createEvent({
         hostId: user.id,
         activity,
@@ -316,9 +397,17 @@ export default function CreateEventScreen() {
         startsAt: startDate,
         endsAt: endDate,
         requiresApproval,
+        womenOnly,
         maxPeople: maxPeople ? parseInt(maxPeople) : undefined,
         isPublic,
+        imageUrl,
       });
+      // Refresh the lists that should now include this event so it appears
+      // immediately instead of waiting for the next poll.
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['exploreFeed'] });
+      queryClient.invalidateQueries({ queryKey: ['myEvents'] });
+      queryClient.invalidateQueries({ queryKey: ['joinedEvents'] });
       router.back();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -330,87 +419,129 @@ export default function CreateEventScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Event</Text>
-        <TouchableOpacity
-          onPress={handleCreate}
-          disabled={loading || !title.trim()}
-        >
-          {loading ? (
-            <ActivityIndicator color={COLORS.primary} />
-          ) : (
-            <Text
-              style={[
-                styles.createText,
-                !title.trim() && styles.createTextDisabled,
-              ]}
-            >
-              Create
-            </Text>
-          )}
-        </TouchableOpacity>
+        <IconButton
+          icon="close"
+          onPress={() => router.back()}
+          accessibilityLabel="Cancel"
+        />
+        <Text style={styles.headerTitle}>New event</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Activity picker */}
-        <Text style={styles.label}>Activity</Text>
-        <View style={styles.activityRow}>
-          {ACTIVITIES.map((a) => (
-            <TouchableOpacity
-              key={a.id}
-              style={[
-                styles.activityChip,
-                activity === a.id && styles.activityChipActive,
-              ]}
-              onPress={() => setActivity(a.id)}
-            >
-              <Text style={styles.activityEmoji}>{a.emoji}</Text>
-              <Text
-                style={[
-                  styles.activityLabel,
-                  activity === a.id && styles.activityLabelActive,
-                ]}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Category picker */}
+        <Text style={styles.label}>CATEGORY</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryRow}
+          style={{ flexGrow: 0, marginHorizontal: -20 }}
+        >
+          {ACTIVITIES.map((a) => {
+            const sel = activity === a.id;
+            const cat = categoryStyle(a.id);
+            return (
+              <PressableScale
+                key={a.id}
+                scaleTo={0.92}
+                style={styles.categoryItem}
+                onPress={() => setActivity(a.id)}
               >
-                {a.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <View
+                  style={[
+                    styles.categoryTile,
+                    sel && {
+                      backgroundColor: cat.tint,
+                      borderColor: cat.accent,
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                >
+                  <Icon
+                    name={a.id as IconName}
+                    size={24}
+                    color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.categoryLabel,
+                    sel && { color: cat.accent, fontFamily: FONTS.bold },
+                  ]}
+                >
+                  {a.label}
+                </Text>
+              </PressableScale>
+            );
+          })}
+        </ScrollView>
 
         {/* Title */}
-        <Text style={styles.label}>Event title *</Text>
+        <Text style={styles.label}>EVENT TITLE</Text>
         <TextInput
-          style={styles.input}
-          placeholder="e.g. Morning coffee at Starbucks"
-          placeholderTextColor={COLORS.textMuted}
+          style={[styles.input, titleFocused && styles.inputFocused]}
+          placeholder="e.g. Sunset rooftop drinks"
+          placeholderTextColor="rgba(15,24,44,0.40)"
           value={title}
           onChangeText={setTitle}
+          onFocus={() => setTitleFocused(true)}
+          onBlur={() => setTitleFocused(false)}
         />
 
         {/* Description */}
-        <Text style={styles.label}>Description</Text>
+        <Text style={styles.label}>DESCRIPTION</Text>
         <TextInput
           style={[styles.input, styles.multiline]}
-          placeholder="Tell people what this event is about..."
-          placeholderTextColor={COLORS.textMuted}
+          placeholder="Tell people what this event is about…"
+          placeholderTextColor="rgba(15,24,44,0.40)"
           value={description}
           onChangeText={setDescription}
           multiline
         />
 
+        {/* Cover photo */}
+        <Text style={styles.label}>COVER PHOTO</Text>
+        {photoUri ? (
+          <View>
+            <View style={styles.photoPicker}>
+              <Image
+                source={{ uri: photoUri }}
+                style={styles.photoPreview}
+                contentFit="cover"
+              />
+            </View>
+            <TouchableOpacity onPress={() => setPhotoUri(null)} hitSlop={8}>
+              <Text style={styles.photoRemove}>Remove photo</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.photoPlaceholder}
+            onPress={pickPhoto}
+            activeOpacity={0.7}
+          >
+            <View style={styles.photoAddIcon}>
+              <Icon name="camera" size={20} color={COLORS.primary} />
+            </View>
+            <Text style={styles.photoPlaceholderText}>Add a photo</Text>
+          </TouchableOpacity>
+        )}
+
         {/* When */}
-        <Text style={styles.label}>Starts</Text>
+        <Text style={styles.label}>STARTS</Text>
         <DateTimeField
           value={startDate}
           onChange={(d) => {
             setStartDate(d);
             // Keep the end after the start: bump it forward by 2h if needed.
-            if (endDate <= d) setEndDate(new Date(d.getTime() + 2 * 60 * 60 * 1000));
+            if (endDate <= d)
+              setEndDate(new Date(d.getTime() + 2 * 60 * 60 * 1000));
           }}
         />
-        <Text style={styles.label}>Ends</Text>
+        <Text style={styles.label}>ENDS</Text>
         <DateTimeField
           value={endDate}
           onChange={setEndDate}
@@ -424,57 +555,100 @@ export default function CreateEventScreen() {
         </Text>
 
         {/* Max people */}
-        <Text style={styles.label}>Max participants</Text>
+        <Text style={styles.label}>MAX PARTICIPANTS</Text>
         <TextInput
           style={[styles.input, styles.shortInput]}
           placeholder="e.g. 4"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor="rgba(15,24,44,0.40)"
           value={maxPeople}
           onChangeText={setMaxPeople}
           keyboardType="numeric"
         />
 
-        {/* Privacy */}
-        <View style={styles.row}>
-          <View>
-            <Text style={styles.label}>Public event</Text>
-            <Text style={styles.rowSubtitle}>
-              {isPublic ? 'Visible to everyone on the map' : 'Only friends can see'}
-            </Text>
+        {/* Safety & visibility */}
+        <View style={styles.safetyCard}>
+          <View style={styles.safetyHeader}>
+            <Icon name="shield" size={16} color={COLORS.success} />
+            <Text style={styles.safetyTitle}>Safety</Text>
           </View>
-          <Switch
-            value={isPublic}
-            onValueChange={setIsPublic}
-            trackColor={{ true: COLORS.primary, false: COLORS.border }}
-            thumbColor={COLORS.surface}
-          />
-        </View>
-
-        {/* Join policy */}
-        <View style={styles.row}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.label}>Require approval to join</Text>
-            <Text style={styles.rowSubtitle}>
-              {requiresApproval
-                ? 'You approve each person who wants to join'
-                : 'Anyone can join instantly'}
-            </Text>
+          <View style={styles.safetyRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.safetyLabel}>Public event</Text>
+              <Text style={styles.safetySub}>
+                {isPublic
+                  ? 'Visible to everyone on the map'
+                  : 'Only friends can see'}
+              </Text>
+            </View>
+            <Switch
+              value={isPublic}
+              onValueChange={setIsPublic}
+              trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
+              thumbColor={COLORS.surface}
+            />
           </View>
-          <Switch
-            value={requiresApproval}
-            onValueChange={setRequiresApproval}
-            trackColor={{ true: COLORS.primary, false: COLORS.border }}
-            thumbColor={COLORS.surface}
-          />
+          <View style={styles.safetyRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.safetyLabel}>Approve who joins</Text>
+              <Text style={styles.safetySub}>
+                {requiresApproval
+                  ? 'You approve each person who wants to join'
+                  : 'Anyone can join instantly'}
+              </Text>
+            </View>
+            <Switch
+              value={requiresApproval}
+              onValueChange={setRequiresApproval}
+              trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
+              thumbColor={COLORS.surface}
+            />
+          </View>
+          {/* Female-only hosting is offered to female profiles only. */}
+          {user?.gender === 'female' && (
+            <View style={styles.safetyRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.safetyLabel}>Female-only event</Text>
+                <Text style={styles.safetySub}>
+                  {womenOnly
+                    ? 'Only women can see and join this event'
+                    : 'Anyone can see and join'}
+                </Text>
+              </View>
+              <Switch
+                value={womenOnly}
+                onValueChange={(on) =>
+                  on ? setWomenOnlyConfirmVisible(true) : setWomenOnly(false)
+                }
+                trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
+                thumbColor={COLORS.surface}
+              />
+            </View>
+          )}
         </View>
 
         {/* Location picker map */}
-        <Text style={styles.label}>Location (tap map to set)</Text>
+        <Text style={styles.label}>LOCATION</Text>
+        <PlaceSearch
+          onResult={onSearchResult}
+          placeholder="Search for a place"
+          style={styles.locationSearch}
+          bias={userCoords ?? pinCoords}
+        />
         {locationName ? (
-          <Text style={styles.locationName}>📍 {locationName}</Text>
-        ) : null}
+          <View style={styles.locationRow}>
+            <Icon name="location" size={15} color={COLORS.primary} />
+            <Text style={styles.locationName} numberOfLines={1}>
+              {locationName}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.locationHint}>
+            Search above or tap the map to drop your pin.
+          </Text>
+        )}
         <View style={styles.mapWrapper}>
           <MapView
+            ref={miniMapRef}
             style={styles.miniMap}
             provider={MAP_PROVIDER}
             initialRegion={{
@@ -486,91 +660,188 @@ export default function CreateEventScreen() {
             onPress={onMapPress}
           >
             <Marker
-              coordinate={{ latitude: pinCoords.lat, longitude: pinCoords.lng }}
-            />
+              coordinate={{
+                latitude: pinCoords.lat,
+                longitude: pinCoords.lng,
+              }}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <MelloPin height={40} />
+            </Marker>
           </MapView>
         </View>
       </ScrollView>
+
+      <View style={styles.footer}>
+        <Button
+          label="Publish event"
+          onPress={handleCreate}
+          loading={loading}
+          disabled={!title.trim()}
+        />
+      </View>
+
+      {/* Safety popup #2: hosting your first event (once ever). */}
+      <SafetyPopup
+        visible={firstHostVisible}
+        icon="pin"
+        title="Hosting? Here's how to do it well"
+        body={[
+          'Pick a public, easy-to-find spot for open events.',
+          "Be honest about the vibe and who it's for.",
+          "You're in charge — you can remove or report anyone.",
+        ]}
+        primaryLabel="Start hosting"
+        onPrimary={dismissFirstHost}
+        onClose={dismissFirstHost}
+      />
+
+      {/* Safety popup #9: confirm creating a female-only event (every time). */}
+      <FemaleOnlyConfirmModal
+        visible={womenOnlyConfirmVisible}
+        onConfirm={() => {
+          setWomenOnly(true);
+          setWomenOnlyConfirmVisible(false);
+        }}
+        onBack={() => {
+          setWomenOnly(false);
+          setWomenOnlyConfirmVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.surface },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    gap: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   headerTitle: {
+    flex: 1,
+    fontFamily: FONTS.heavy,
     fontSize: 17,
-    fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  cancelText: { fontSize: 16, color: COLORS.textSecondary },
-  createText: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
-  createTextDisabled: { color: COLORS.textMuted },
-  scroll: { padding: 20, gap: 8 },
+  scroll: { padding: 20, paddingTop: 8, gap: 7, paddingBottom: 24 },
   label: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginTop: 8,
+    fontFamily: FONTS.bold,
+    fontSize: 11.5,
+    letterSpacing: 0.3,
+    color: 'rgba(15,24,44,0.5)',
+    marginTop: 10,
+    marginBottom: 3,
   },
-  activityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  activityChip: {
-    flexDirection: 'row',
+  categoryRow: { gap: 9, paddingHorizontal: 20 },
+  categoryItem: { width: 62, alignItems: 'center', gap: 6 },
+  categoryTile: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: 'rgba(15,24,44,0.08)',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 100,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    justifyContent: 'center',
   },
-  activityChipActive: { borderColor: COLORS.primary, backgroundColor: '#FFF0EF' },
-  activityEmoji: { fontSize: 14 },
-  activityLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
-  activityLabelActive: { color: COLORS.primary },
+  categoryLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: 'rgba(15,24,44,0.55)',
+  },
   input: {
+    height: 48,
     backgroundColor: COLORS.surface,
     borderRadius: 14,
-    padding: 14,
-    fontSize: 16,
+    paddingHorizontal: 15,
+    fontFamily: FONTS.semibold,
+    fontSize: 15,
     color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
+  inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
+  multiline: {
+    height: undefined,
+    minHeight: 80,
+    paddingVertical: 12,
+    textAlignVertical: 'top',
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+  },
   shortInput: { width: 120 },
+  photoPicker: {
+    height: 170,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: COLORS.background,
+  },
+  photoPreview: { width: '100%', height: '100%' },
+  photoPlaceholder: {
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    borderColor: 'rgba(15,24,44,0.2)',
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+  },
+  photoAddIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoPlaceholderText: {
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    color: 'rgba(15,24,44,0.5)',
+  },
+  photoRemove: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: COLORS.error,
+    marginTop: 8,
+    marginLeft: 4,
+  },
   chipScroll: { gap: 8, paddingVertical: 2 },
   dateField: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
+    gap: 9,
+    height: 48,
+    backgroundColor: COLORS.background,
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  dateFieldText: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-  dateFieldIcon: { fontSize: 16 },
+  dateFieldText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13.5,
+    color: COLORS.textPrimary,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(15,24,44,0.45)',
     justifyContent: 'center',
     padding: 24,
   },
   calCard: {
-    backgroundColor: COLORS.background,
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
   },
   calHeader: {
     flexDirection: 'row',
@@ -579,14 +850,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: 12,
   },
-  calNav: { fontSize: 28, fontWeight: '700', color: COLORS.primary, width: 32, textAlign: 'center' },
-  calMonthLabel: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
+  calNav: {
+    fontSize: 28,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+    width: 32,
+    textAlign: 'center',
+  },
+  calMonthLabel: {
+    fontFamily: FONTS.heavy,
+    fontSize: 17,
+    color: COLORS.textPrimary,
+  },
   calWeekRow: { flexDirection: 'row' },
   calWeekday: {
     flex: 1,
     textAlign: 'center',
+    fontFamily: FONTS.bold,
     fontSize: 12,
-    fontWeight: '700',
     color: COLORS.textMuted,
     marginBottom: 4,
   },
@@ -605,24 +886,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   calDaySel: { backgroundColor: COLORS.primary },
-  calDayText: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-  calDayTextSel: { color: '#fff', fontWeight: '800' },
-  calDayTextDisabled: { color: COLORS.border },
+  calDayText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  calDayTextSel: { color: '#fff', fontFamily: FONTS.heavy },
+  calDayTextDisabled: { color: COLORS.disabled },
   calTimeLabel: {
+    fontFamily: FONTS.bold,
     fontSize: 14,
-    fontWeight: '700',
     color: COLORS.textPrimary,
     marginTop: 12,
     marginBottom: 8,
   },
-  calDone: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 100,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  calDoneText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   timeChip: {
     width: 78,
     paddingVertical: 10,
@@ -632,23 +909,80 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
   },
-  timeChipText: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
-  chipActive: { borderColor: COLORS.primary, backgroundColor: '#FFF0EF' },
+  timeChipText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  chipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryTint,
+  },
   chipTextActive: { color: COLORS.primary },
   spanSummary: {
-    fontSize: 13,
+    fontFamily: FONTS.semibold,
+    fontSize: 12.5,
     color: COLORS.textSecondary,
     marginTop: 6,
-    fontWeight: '600',
   },
-  row: {
+  safetyCard: {
+    backgroundColor: 'rgba(31,164,99,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(31,164,99,0.22)',
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 14,
+    gap: 12,
+  },
+  safetyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  safetyTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: 12.5,
+    color: COLORS.success,
+  },
+  safetyRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'space-between',
   },
-  rowSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  locationName: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
+  safetyLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13.5,
+    color: COLORS.textPrimary,
+  },
+  safetySub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  locationSearch: { marginTop: 4, marginBottom: 8 },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  locationName: {
+    flex: 1,
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  locationHint: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 6,
+  },
   mapWrapper: { borderRadius: 16, overflow: 'hidden', height: 200 },
   miniMap: { flex: 1 },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(15,24,44,0.08)',
+    backgroundColor: COLORS.surface,
+  },
 });

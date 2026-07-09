@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   TextInput,
   SafeAreaView,
   FlatList,
@@ -12,12 +11,26 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useEventChat } from '@/hooks/useEventChat';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
 import { Message } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
+import {
+  Avatar,
+  CategoryTile,
+  Icon,
+  IconButton,
+  PressableScale,
+} from '@/components/ui';
+import {
+  SosButton,
+  MoneyGuardBanner,
+  useMoneyGuard,
+} from '@/components/safety';
 
 function MessageBubble({
   message,
@@ -35,26 +48,31 @@ function MessageBubble({
   }
 
   return (
-    <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
+    <Animated.View
+      entering={FadeInDown.duration(250)}
+      style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}
+    >
       {!isMine && (
-        <View style={styles.senderAvatar}>
-          <Text style={styles.senderInitial}>
-            {message.sender?.name?.[0]?.toUpperCase() ?? '?'}
-          </Text>
-        </View>
+        <Avatar
+          name={message.sender?.name}
+          photoUrl={message.sender?.photo_url}
+          size={26}
+        />
       )}
-      <View style={[styles.bubble, isMine && styles.bubbleMine]}>
+      <View style={{ maxWidth: '74%' }}>
         {!isMine && (
           <Text style={styles.senderName}>{message.sender?.name}</Text>
         )}
-        <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
-          {message.content}
-        </Text>
-        <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
-          {formatChatTime(message.created_at)}
-        </Text>
+        <View style={[styles.bubble, isMine && styles.bubbleMine]}>
+          <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
+            {message.content}
+          </Text>
+          <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
+            {formatChatTime(message.created_at)}
+          </Text>
+        </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -66,21 +84,31 @@ export default function GroupChatScreen() {
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList>(null);
 
-  // Just the event title for the chat header (lightweight; avoids loading the
-  // full event detail with participants).
+  // Lightweight header info (title + activity for the category tile, plus
+  // what the SOS sheet needs for "Share my plan" and reporting the host).
   const { data: event } = useQuery({
     queryKey: ['eventTitle', eventId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('events')
-        .select('title')
+        .select('title, activity, starts_at, location_name, host_id')
         .eq('id', eventId)
         .single();
       if (error) throw error;
-      return data as { title: string };
+      return data as {
+        title: string;
+        activity: string;
+        starts_at: string;
+        location_name: string | null;
+        host_id: string;
+      };
     },
     enabled: !!eventId,
   });
+
+  // Scam guard (#11): warn the recipient when a message looks like a money
+  // request, once per conversation per day.
+  const moneyGuard = useMoneyGuard(eventId, messages, user?.id);
 
   function handleSend() {
     const text = input.trim();
@@ -92,26 +120,41 @@ export default function GroupChatScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backBtn}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {event?.title ?? 'Event Chat'}
-        </Text>
-        <View style={{ width: 32 }} />
+        <IconButton
+          icon="back"
+          onPress={() => router.back()}
+          accessibilityLabel="Go back"
+        />
+        {event?.activity ? (
+          <CategoryTile activity={event.activity} size={38} radius={11} />
+        ) : null}
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {event?.title ?? 'Event chat'}
+          </Text>
+          <Text style={styles.headerSub}>Group chat</Text>
+        </View>
+        <SosButton
+          event={event ?? null}
+          onReport={
+            event ? () => router.push(`/friends/${event.host_id}`) : undefined
+          }
+        />
       </View>
 
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => (
-            <MessageBubble message={item} isMine={item.sender_id === user?.id} />
+            <MessageBubble
+              message={item}
+              isMine={item.sender_id === user?.id}
+            />
           )}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
@@ -120,26 +163,38 @@ export default function GroupChatScreen() {
           }
         />
 
+        <MoneyGuardBanner
+          visible={moneyGuard.visible}
+          onDismiss={moneyGuard.dismiss}
+          onReport={() => {
+            moneyGuard.dismiss();
+            if (moneyGuard.flaggedSenderId)
+              router.push(`/friends/${moneyGuard.flaggedSenderId}`);
+          }}
+        />
+
         <View style={styles.inputBar}>
           <TextInput
             style={styles.input}
-            placeholder="Send a message..."
-            placeholderTextColor={COLORS.textMuted}
+            placeholder="Message…"
+            placeholderTextColor="rgba(15,24,44,0.40)"
             value={input}
             onChangeText={setInput}
             onSubmitEditing={handleSend}
             returnKeyType="send"
           />
-          <TouchableOpacity
+          <PressableScale
+            scaleTo={0.85}
             style={[
               styles.sendBtn,
               (!input.trim() || send.isPending) && styles.sendBtnDisabled,
             ]}
             onPress={handleSend}
             disabled={!input.trim() || send.isPending}
+            accessibilityLabel="Send message"
           >
-            <Text style={styles.sendBtnText}>↑</Text>
-          </TouchableOpacity>
+            <Icon name="send" size={19} color="#fff" strokeWidth={2} />
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -152,91 +207,110 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    gap: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(15,24,44,0.08)',
   },
-  backBtn: { fontSize: 22, color: COLORS.textPrimary },
+  headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-    fontSize: 17,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
+    fontSize: 14.5,
     color: COLORS.textPrimary,
   },
-  messageList: { padding: 16, gap: 8 },
+  headerSub: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11.5,
+    color: COLORS.success,
+    marginTop: 1,
+  },
+  messageList: { padding: 16, gap: 10 },
   systemRow: { alignItems: 'center', marginVertical: 4 },
-  systemText: { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
+  systemText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11.5,
+    color: 'rgba(15,24,44,0.4)',
+    backgroundColor: 'rgba(15,24,44,0.06)',
+    paddingHorizontal: 13,
+    paddingVertical: 5,
+    borderRadius: 100,
+    overflow: 'hidden',
+  },
   bubbleRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    marginBottom: 4,
   },
-  bubbleRowMine: { flexDirection: 'row-reverse' },
-  senderAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  bubbleRowMine: { justifyContent: 'flex-end' },
+  senderName: {
+    fontFamily: FONTS.bold,
+    fontSize: 10.5,
+    color: 'rgba(15,24,44,0.6)',
+    marginLeft: 12,
+    marginBottom: 3,
   },
-  senderInitial: { color: '#fff', fontSize: 12, fontWeight: '700' },
   bubble: {
-    maxWidth: '75%',
     backgroundColor: COLORS.surface,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
-    padding: 12,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   bubbleMine: {
     backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
+    shadowOpacity: 0,
   },
-  senderName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
+  bubbleText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: COLORS.textPrimary,
   },
-  bubbleText: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 20 },
   bubbleTextMine: { color: '#fff' },
-  bubbleTime: { fontSize: 11, color: COLORS.textMuted },
+  bubbleTime: {
+    fontFamily: FONTS.medium,
+    fontSize: 10.5,
+    color: 'rgba(15,24,44,0.35)',
+    marginTop: 3,
+    alignSelf: 'flex-end',
+  },
   bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
     gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: 'rgba(15,24,44,0.08)',
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    borderRadius: 22,
+    height: 42,
+    backgroundColor: '#F0F1F3',
+    borderRadius: 100,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
     color: COLORS.textPrimary,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: COLORS.disabled },
-  sendBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
 });

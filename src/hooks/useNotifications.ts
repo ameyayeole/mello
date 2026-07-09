@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import { updatePushToken } from '@/services/notifications.service';
 
 Notifications.setNotificationHandler({
@@ -32,8 +33,21 @@ export function useNotifications() {
     );
 
     responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((_response) => {
-        // User tapped notification — navigate based on response.notification.request.content.data
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data as Record<
+          string,
+          unknown
+        >;
+        // Tapping the pre-event safety reminder opens safety sheet #4
+        // (rendered by the tabs layout).
+        if (data?.type === 'event_safety_reminder' && data.eventId) {
+          useUIStore.getState().setSafetyReminderEvent({
+            id: String(data.eventId),
+            title: String(data.title ?? 'your event'),
+            location_name: (data.locationName as string | null) ?? null,
+            starts_at: String(data.startsAt ?? new Date().toISOString()),
+          });
+        }
       });
 
     return () => {

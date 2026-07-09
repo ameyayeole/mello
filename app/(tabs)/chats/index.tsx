@@ -3,79 +3,117 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   SafeAreaView,
   FlatList,
+  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { getJoinedEvents, getMyEvents } from '@/services/events.service';
 import { getFriendConversations } from '@/services/dm.service';
-import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
 import { NearbyEvent, FriendConversation } from '@/types/models';
 import { formatEventTime, formatChatTime } from '@/utils/time';
+import {
+  Avatar,
+  Button,
+  CategoryTile,
+  Icon,
+  PressableScale,
+} from '@/components/ui';
 
 type Tab = 'events' | 'friends';
 
-function avatarInitial(name?: string | null) {
-  return (name?.trim()?.[0] ?? '?').toUpperCase();
-}
-
-function EventChatRow({ event }: { event: NearbyEvent }) {
+function EventChatRow({ event, index }: { event: NearbyEvent; index: number }) {
   const router = useRouter();
-  const activity = ACTIVITY_MAP[event.activity];
 
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
-    >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarEmoji}>{activity?.emoji ?? '💬'}</Text>
-      </View>
-      <View style={styles.rowInfo}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {event.title}
-        </Text>
-        <Text style={styles.rowSub}>{formatEventTime(event.starts_at)}</Text>
-      </View>
-      <View style={styles.participantBadge}>
-        <Text style={styles.participantCount}>
-          {event.participant_count ?? 0} joined
-        </Text>
-      </View>
-    </TouchableOpacity>
+    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}>
+      <PressableScale
+        style={styles.row}
+        scaleTo={0.98}
+        onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+      >
+        <CategoryTile activity={event.activity} size={48} radius={14} />
+        <View style={styles.rowInfo}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {event.title}
+          </Text>
+          <Text style={styles.rowSub} numberOfLines={1}>
+            {formatEventTime(event.starts_at)}
+          </Text>
+        </View>
+        <View style={styles.countPill}>
+          <Text style={styles.countPillText}>
+            {event.participant_count ?? 0} going
+          </Text>
+        </View>
+      </PressableScale>
+    </Animated.View>
   );
 }
 
-function FriendChatRow({ convo }: { convo: FriendConversation }) {
+function FriendChatRow({
+  convo,
+  index,
+}: {
+  convo: FriendConversation;
+  index: number;
+}) {
   const router = useRouter();
   const { friend, lastMessage } = convo;
 
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
-    >
-      <View style={[styles.avatar, styles.avatarFriend]}>
-        <Text style={styles.avatarInitial}>{avatarInitial(friend.name)}</Text>
+    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}>
+      <PressableScale
+        style={styles.row}
+        scaleTo={0.98}
+        onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
+      >
+        <Avatar name={friend.name} photoUrl={friend.photo_url} size={48} />
+        <View style={styles.rowInfo}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {friend.name}
+          </Text>
+          <Text style={styles.rowSub} numberOfLines={1}>
+            {lastMessage ? lastMessage.content : 'Tap to start chatting'}
+          </Text>
+        </View>
+        {lastMessage && (
+          <Text style={styles.rowTime}>
+            {formatChatTime(lastMessage.created_at)}
+          </Text>
+        )}
+      </PressableScale>
+    </Animated.View>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  text,
+  ctaLabel,
+  onCta,
+}: {
+  icon: 'chat' | 'userPlus';
+  title: string;
+  text: string;
+  ctaLabel: string;
+  onCta: () => void;
+}) {
+  return (
+    <View style={styles.empty}>
+      <View style={styles.emptyIcon}>
+        <Icon name={icon} size={38} color={COLORS.primary} />
       </View>
-      <View style={styles.rowInfo}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {friend.name}
-        </Text>
-        <Text style={styles.rowSub} numberOfLines={1}>
-          {lastMessage ? lastMessage.content : 'Tap to start chatting'}
-        </Text>
-      </View>
-      {lastMessage && (
-        <Text style={styles.rowTime}>
-          {formatChatTime(lastMessage.created_at)}
-        </Text>
-      )}
-    </TouchableOpacity>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyText}>{text}</Text>
+      <Button label={ctaLabel} height={44} onPress={onCta} style={{ marginTop: 8 }} />
+    </View>
   );
 }
 
@@ -113,75 +151,67 @@ export default function ChatsListScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Chats</Text>
+        <Text style={styles.title}>Inbox</Text>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'events' && styles.tabActive]}
-          onPress={() => setTab('events')}
-        >
-          <Text
-            style={[styles.tabText, tab === 'events' && styles.tabTextActive]}
-          >
-            Events
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'friends' && styles.tabActive]}
-          onPress={() => setTab('friends')}
-        >
-          <Text
-            style={[styles.tabText, tab === 'friends' && styles.tabTextActive]}
-          >
-            Friends
-          </Text>
-        </TouchableOpacity>
+      {/* Segmented tab switcher */}
+      <View style={styles.segmentWrap}>
+        <View style={styles.segment}>
+          {(['events', 'friends'] as Tab[]).map((t) => (
+            <Pressable
+              key={t}
+              style={[styles.segmentTab, tab === t && styles.segmentTabActive]}
+              onPress={() => setTab(t)}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  tab === t && styles.segmentTextActive,
+                ]}
+              >
+                {t === 'events' ? 'Events' : 'Direct'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {tab === 'events' ? (
         eventChats.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>💬</Text>
-            <Text style={styles.emptyTitle}>No event chats yet</Text>
-            <Text style={styles.emptyText}>
-              Join or create an event to start chatting with participants.
-            </Text>
-            <TouchableOpacity
-              style={styles.exploreBtn}
-              onPress={() => router.push('/(tabs)/map')}
-            >
-              <Text style={styles.exploreBtnText}>Explore Map</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="chat"
+            title="No event chats yet"
+            text="Join or create an event to start chatting with people going."
+            ctaLabel="Explore map"
+            onCta={() => router.push('/(tabs)/map')}
+          />
         ) : (
           <FlatList
             data={eventChats}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <EventChatRow event={item} />}
+            renderItem={({ item, index }) => (
+              <EventChatRow event={item} index={index} />
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
             contentContainerStyle={styles.list}
           />
         )
       ) : conversations.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyEmoji}>🧑‍🤝‍🧑</Text>
-          <Text style={styles.emptyTitle}>No friends yet</Text>
-          <Text style={styles.emptyText}>
-            Add friends to start direct conversations.
-          </Text>
-          <TouchableOpacity
-            style={styles.exploreBtn}
-            onPress={() => router.push('/(tabs)/friends')}
-          >
-            <Text style={styles.exploreBtnText}>Find Friends</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          icon="userPlus"
+          title="No friends yet"
+          text="Add friends to start direct conversations."
+          ctaLabel="Find friends"
+          onCta={() => router.push('/friends')}
+        />
       ) : (
         <FlatList
           data={conversations}
           keyExtractor={(item) => item.friend.id}
-          renderItem={({ item }) => <FriendChatRow convo={item} />}
+          renderItem={({ item, index }) => (
+            <FriendChatRow convo={item} index={index} />
+          )}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.list}
         />
       )}
@@ -190,80 +220,111 @@ export default function ChatsListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { padding: 20, paddingBottom: 8 },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary },
-  tabs: {
+  container: { flex: 1, backgroundColor: COLORS.surface },
+  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
+  title: {
+    fontFamily: FONTS.heavy,
+    fontSize: 24,
+    letterSpacing: -0.48,
+    color: COLORS.textPrimary,
+  },
+  segmentWrap: { paddingHorizontal: 20, paddingBottom: 14 },
+  segment: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
+    gap: 4,
+    backgroundColor: '#F0F1F3',
     borderRadius: 100,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    padding: 4,
   },
-  tabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  tabText: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary },
-  tabTextActive: { color: '#fff' },
-  list: { padding: 16, gap: 2 },
+  segmentTab: {
+    flex: 1,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
+  },
+  segmentTabActive: {
+    backgroundColor: COLORS.surface,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  segmentText: {
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    color: 'rgba(15,24,44,0.5)',
+  },
+  segmentTextActive: { color: COLORS.textPrimary },
+  list: { paddingBottom: 20 },
+  separator: {
+    height: 1,
+    backgroundColor: 'rgba(15,24,44,0.06)',
+    marginLeft: 81,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    marginBottom: 8,
+    gap: 13,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFF0EF',
-    alignItems: 'center',
-    justifyContent: 'center',
+  rowInfo: { flex: 1, minWidth: 0 },
+  rowTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 14.5,
+    color: COLORS.textPrimary,
   },
-  avatarFriend: { backgroundColor: COLORS.primary },
-  avatarEmoji: { fontSize: 22 },
-  avatarInitial: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  rowInfo: { flex: 1 },
-  rowTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
-  rowSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  rowTime: { fontSize: 12, color: COLORS.textMuted },
-  participantBadge: {
+  rowSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    color: COLORS.textSecondary,
+    marginTop: 3,
+  },
+  rowTime: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: 'rgba(15,24,44,0.4)',
+  },
+  countPill: {
     backgroundColor: COLORS.background,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 100,
   },
-  participantCount: { fontSize: 12, color: COLORS.textSecondary },
+  countPillText: {
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    color: 'rgba(15,24,44,0.55)',
+  },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
-    gap: 12,
+    gap: 8,
   },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
+  emptyIcon: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: COLORS.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 17,
+    color: COLORS.textPrimary,
+  },
   emptyText: {
-    fontSize: 15,
+    fontFamily: FONTS.medium,
+    fontSize: 13.5,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 19,
+    maxWidth: 240,
   },
-  exploreBtn: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 100,
-    marginTop: 8,
-  },
-  exploreBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

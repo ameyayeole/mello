@@ -21,16 +21,23 @@ export type NotificationType =
 
 export type ParticipantStatus = 'pending' | 'approved';
 
+export type Gender = 'male' | 'female' | 'non-binary' | 'other';
+
 export interface Profile {
   id: string;
   name: string;
   photo_url: string | null;
+  // Up to 6 gallery photos. The first is mirrored into photo_url (the avatar).
+  photos: string[];
   age: number | null;
+  gender: Gender | null;
   bio: string | null;
   city: string | null;
   interests: ActivityId[];
   events_hosted: number;
+  events_attended: number;
   friends_count: number;
+  thumbs_count: number;
   is_ghost_mode: boolean;
   expo_push_token: string | null;
   last_seen: string;
@@ -48,17 +55,34 @@ export interface NearbyEvent {
   activity: ActivityId;
   title: string;
   description: string | null;
+  image_url: string | null;
   location_name: string | null;
   starts_at: string;
   ends_at: string | null;
   max_people: number | null;
   is_public: boolean;
   requires_approval: boolean;
-  distance_m: number;
+  // Optional so the app still works before migration 018 is applied.
+  women_only?: boolean;
+  distance_m: number | null;
   participant_count: number;
   lat: number;
   lng: number;
+  // Flattened host fields, returned by events_within_radius since migration
+  // 017. Optional so the app still works before that migration is applied.
+  host_name?: string;
+  host_photo_url?: string | null;
   host?: Profile;
+}
+
+// A ranked event for the Explore feed. Flattened host fields + the social/score
+// signals returned by the explore_feed() RPC.
+export interface ExploreEvent extends NearbyEvent {
+  host_name: string;
+  host_photo_url: string | null;
+  created_at: string;
+  friends_count: number;
+  score: number;
 }
 
 export interface EventParticipant extends Profile {

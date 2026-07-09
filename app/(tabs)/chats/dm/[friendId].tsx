@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   TextInput,
   SafeAreaView,
   FlatList,
@@ -13,12 +12,16 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useDirectChat } from '@/hooks/useDirectChat';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
 import { DirectMessage } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
+import { Avatar, Icon, IconButton, PressableScale } from '@/components/ui';
+import { MoneyGuardBanner, useMoneyGuard } from '@/components/safety';
 
 function MessageBubble({
   message,
@@ -28,7 +31,10 @@ function MessageBubble({
   isMine: boolean;
 }) {
   return (
-    <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
+    <Animated.View
+      entering={FadeInDown.duration(250)}
+      style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}
+    >
       <View style={[styles.bubble, isMine && styles.bubbleMine]}>
         <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
           {message.content}
@@ -37,7 +43,7 @@ function MessageBubble({
           {formatChatTime(message.created_at)}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -49,16 +55,24 @@ export default function DirectChatScreen() {
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList>(null);
 
+  // Scam guard (#11): warn when an incoming message looks like a money
+  // request, once per conversation per day.
+  const moneyGuard = useMoneyGuard(
+    friendId ? `dm.${friendId}` : undefined,
+    messages,
+    user?.id
+  );
+
   const { data: friend } = useQuery({
     queryKey: ['profileName', friendId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('name')
+        .select('name, photo_url')
         .eq('id', friendId)
         .single();
       if (error) throw error;
-      return data as { name: string };
+      return data as { name: string; photo_url: string | null };
     },
     enabled: !!friendId,
   });
@@ -74,7 +88,10 @@ export default function DirectChatScreen() {
           // Restore the text so it isn't lost, and surface the real reason
           // (e.g. direct_messages table/RLS not set up yet).
           setInput(text);
-          Alert.alert('Message not sent', e?.message ?? 'Something went wrong.');
+          Alert.alert(
+            'Message not sent',
+            e?.message ?? 'Something went wrong.'
+          );
         },
       }
     );
@@ -83,13 +100,18 @@ export default function DirectChatScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backBtn}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {friend?.name ?? 'Chat'}
-        </Text>
-        <View style={{ width: 32 }} />
+        <IconButton
+          icon="back"
+          onPress={() => router.back()}
+          accessibilityLabel="Go back"
+        />
+        <Avatar name={friend?.name} photoUrl={friend?.photo_url} size={38} />
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {friend?.name ?? 'Chat'}
+          </Text>
+          <Text style={styles.headerSub}>Direct message</Text>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -101,7 +123,10 @@ export default function DirectChatScreen() {
           data={messages}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => (
-            <MessageBubble message={item} isMine={item.sender_id === user?.id} />
+            <MessageBubble
+              message={item}
+              isMine={item.sender_id === user?.id}
+            />
           )}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
@@ -110,30 +135,46 @@ export default function DirectChatScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>👋</Text>
+              <Avatar
+                name={friend?.name}
+                photoUrl={friend?.photo_url}
+                size={62}
+              />
+              <Text style={styles.emptyName}>{friend?.name ?? 'Friend'}</Text>
               <Text style={styles.emptyText}>
-                Say hi to {friend?.name ?? 'your friend'}!
+                Say hi — you're now connected on Mello.
               </Text>
             </View>
           }
         />
 
-        <View style={styles.inputRow}>
+        <MoneyGuardBanner
+          visible={moneyGuard.visible}
+          onDismiss={moneyGuard.dismiss}
+          onReport={() => {
+            moneyGuard.dismiss();
+            router.push(`/friends/${friendId}`);
+          }}
+        />
+
+        <View style={styles.inputBar}>
           <TextInput
             style={styles.input}
-            placeholder="Message..."
-            placeholderTextColor={COLORS.textMuted}
+            placeholder="Message…"
+            placeholderTextColor="rgba(15,24,44,0.40)"
             value={input}
             onChangeText={setInput}
             multiline
           />
-          <TouchableOpacity
+          <PressableScale
+            scaleTo={0.85}
             style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
             onPress={handleSend}
             disabled={!input.trim()}
+            accessibilityLabel="Send message"
           >
-            <Text style={styles.sendBtnText}>↑</Text>
-          </TouchableOpacity>
+            <Icon name="send" size={19} color="#fff" strokeWidth={2} />
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -146,75 +187,108 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
+    gap: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: 'rgba(15,24,44,0.08)',
   },
-  backBtn: { fontSize: 24, color: COLORS.textPrimary, width: 32 },
+  headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-    fontSize: 17,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
+    fontSize: 14.5,
     color: COLORS.textPrimary,
   },
-  messageList: { padding: 16, gap: 8, flexGrow: 1 },
+  headerSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 11.5,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
+  messageList: { padding: 16, gap: 10, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubble: {
-    maxWidth: '78%',
+    maxWidth: '74%',
     backgroundColor: COLORS.surface,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
-    padding: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   bubbleMine: {
     backgroundColor: COLORS.primary,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
+    shadowOpacity: 0,
   },
-  bubbleText: { fontSize: 15, color: COLORS.textPrimary, lineHeight: 20 },
+  bubbleText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: COLORS.textPrimary,
+  },
   bubbleTextMine: { color: '#fff' },
   bubbleTime: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 4,
+    fontFamily: FONTS.medium,
+    fontSize: 10.5,
+    color: 'rgba(15,24,44,0.35)',
+    marginTop: 3,
     alignSelf: 'flex-end',
   },
-  bubbleTimeMine: { color: 'rgba(255,255,255,0.8)' },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
-  emptyEmoji: { fontSize: 44 },
-  emptyText: { fontSize: 15, color: COLORS.textSecondary },
-  inputRow: {
+  bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    gap: 6,
+  },
+  emptyName: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    marginTop: 6,
+  },
+  emptyText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
-    padding: 12,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: 'rgba(15,24,44,0.08)',
   },
   input: {
     flex: 1,
+    minHeight: 42,
     maxHeight: 120,
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    backgroundColor: '#F0F1F3',
+    borderRadius: 21,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
+    paddingVertical: 11,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
     color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: COLORS.border },
-  sendBtnText: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  sendBtnDisabled: { backgroundColor: COLORS.disabled },
 });

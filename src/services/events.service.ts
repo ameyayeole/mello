@@ -1,5 +1,33 @@
 import { supabase } from './supabase';
-import { Coords, NearbyEvent, EventDetail, ActivityId } from '@/types/models';
+import {
+  Coords,
+  NearbyEvent,
+  EventDetail,
+  ExploreEvent,
+  ActivityId,
+} from '@/types/models';
+
+// One page of the ranked Explore feed. Pass coords when known so proximity can
+// factor into the score; pass an activity to filter the feed.
+export async function getExploreFeed(params: {
+  userId: string;
+  coords?: Coords | null;
+  activity?: ActivityId;
+  limit?: number;
+  offset?: number;
+}): Promise<ExploreEvent[]> {
+  const { data, error } = await supabase.rpc('explore_feed', {
+    p_user_id: params.userId,
+    user_lat: params.coords?.lat ?? null,
+    user_lng: params.coords?.lng ?? null,
+    activity_filter: params.activity ?? null,
+    p_limit: params.limit ?? 10,
+    p_offset: params.offset ?? 0,
+  });
+
+  if (error) throw error;
+  return (data ?? []) as ExploreEvent[];
+}
 
 export async function getNearbyEvents(
   coords: Coords,
@@ -15,6 +43,26 @@ export async function getNearbyEvents(
 
   if (error) throw error;
   return (data ?? []) as NearbyEvent[];
+}
+
+// Title/location text search over upcoming public events, for the search
+// screen. Returned rows come straight from the events table, so the geo fields
+// (lat/lng/distance_m) are absent — search results don't need them.
+export async function searchEvents(query: string): Promise<NearbyEvent[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select(
+      'id, host_id, activity, title, description, image_url, location_name, starts_at, ends_at, max_people, is_public, requires_approval'
+    )
+    .eq('is_active', true)
+    .eq('is_public', true)
+    .or(`title.ilike.%${query}%,location_name.ilike.%${query}%`)
+    .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
+    .order('starts_at', { ascending: true })
+    .limit(20);
+
+  if (error) throw error;
+  return (data ?? []) as unknown as NearbyEvent[];
 }
 
 export async function getEventDetail(eventId: string): Promise<EventDetail> {
@@ -59,6 +107,8 @@ export async function createEvent(params: {
   maxPeople?: number;
   isPublic: boolean;
   requiresApproval: boolean;
+  womenOnly?: boolean;
+  imageUrl?: string;
 }): Promise<string> {
   const { data, error } = await supabase
     .from('events')
@@ -67,6 +117,7 @@ export async function createEvent(params: {
       activity: params.activity,
       title: params.title,
       description: params.description,
+      image_url: params.imageUrl,
       location: `SRID=4326;POINT(${params.lng} ${params.lat})`,
       location_name: params.locationName,
       starts_at: params.startsAt.toISOString(),
@@ -74,6 +125,9 @@ export async function createEvent(params: {
       max_people: params.maxPeople,
       is_public: params.isPublic,
       requires_approval: params.requiresApproval,
+      // Only sent when set, so creating regular events still works before
+      // migration 018 adds the column.
+      ...(params.womenOnly ? { women_only: true } : {}),
     })
     .select('id')
     .single();

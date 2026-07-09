@@ -1,16 +1,13 @@
 import { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ACTIVITIES } from '@/constants/activities';
+import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
+import { Button, Icon, IconName, PressableScale } from '@/components/ui';
 
 export default function InterestsScreen() {
   const router = useRouter();
@@ -31,91 +28,133 @@ export default function InterestsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.stepRow}>
+        <Text style={styles.stepText}>Step 2 of 2</Text>
+        <View style={styles.stepTrack}>
+          <View style={styles.stepFill} />
+        </View>
+      </View>
+
       <View style={styles.header}>
         <Text style={styles.title}>What are you into?</Text>
         <Text style={styles.subtitle}>
-          Pick your interests so we can match you with the right events.
+          Pick a few — we'll show events to match.
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.grid}>
-        {ACTIVITIES.map((activity) => {
-          const isSelected = selected.has(activity.id);
+        {ACTIVITIES.map((activity, i) => {
+          const sel = selected.has(activity.id);
+          const cat = categoryStyle(activity.id);
           return (
-            <TouchableOpacity
+            <Animated.View
               key={activity.id}
-              style={[styles.card, isSelected && styles.cardSelected]}
-              onPress={() => toggle(activity.id)}
+              entering={FadeInDown.delay(60 + i * 40).duration(350)}
             >
-              <Text style={styles.emoji}>{activity.emoji}</Text>
-              <Text
-                style={[styles.label, isSelected && styles.labelSelected]}
+              <PressableScale
+                scaleTo={0.93}
+                style={[
+                  styles.pill,
+                  sel && {
+                    backgroundColor: cat.tint,
+                    borderColor: cat.accent,
+                    borderWidth: 1.5,
+                  },
+                ]}
+                onPress={() => toggle(activity.id)}
               >
-                {activity.label}
-              </Text>
-            </TouchableOpacity>
+                <Icon
+                  name={activity.id as IconName}
+                  size={20}
+                  color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
+                />
+                <Text style={[styles.pillLabel, sel && { color: cat.accent }]}>
+                  {activity.label}
+                </Text>
+              </PressableScale>
+            </Animated.View>
           );
         })}
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.primaryBtn,
-            selected.size === 0 && styles.primaryBtnDisabled,
-          ]}
+        <Button
+          label={
+            selected.size > 0
+              ? `Continue · ${selected.size} selected`
+              : 'Continue'
+          }
           onPress={handleContinue}
           disabled={selected.size === 0}
-        >
-          <Text style={styles.primaryBtnText}>
-            Continue {selected.size > 0 ? `(${selected.size})` : ''}
-          </Text>
-        </TouchableOpacity>
+        />
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { padding: 24, paddingTop: 48 },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 8,
+  container: { flex: 1, backgroundColor: COLORS.surface },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 18,
   },
-  subtitle: { fontSize: 16, color: COLORS.textSecondary, lineHeight: 24 },
+  stepText: {
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    color: 'rgba(15,24,44,0.45)',
+  },
+  stepTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(15,24,44,0.08)',
+    overflow: 'hidden',
+  },
+  stepFill: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+  },
+  header: { paddingHorizontal: 22, paddingBottom: 6 },
+  title: {
+    fontFamily: FONTS.heavy,
+    fontSize: 24,
+    letterSpacing: -0.48,
+    color: COLORS.textPrimary,
+  },
+  subtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 13.5,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 16,
-    gap: 12,
+    gap: 10,
+    padding: 22,
+    paddingTop: 16,
   },
-  card: {
-    width: '47%',
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 100,
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  cardSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#FFF0EF',
+  pillLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+    color: 'rgba(15,24,44,0.7)',
   },
-  emoji: { fontSize: 32 },
-  label: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
-  labelSelected: { color: COLORS.primary },
-  footer: { padding: 24 },
-  primaryBtn: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  primaryBtnDisabled: { backgroundColor: COLORS.disabled },
-  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  footer: { padding: 22, paddingTop: 12 },
 });

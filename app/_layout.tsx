@@ -3,9 +3,19 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  useFonts,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
+
+SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
@@ -24,15 +34,10 @@ function AuthGuard() {
     const inAuth = seg[0] === 'auth';
 
     if (!session) {
-      // Logged out: allow the onboarding flow AND the auth (login/signup) screens.
       if (!inOnboarding && !inAuth) router.replace('/onboarding/welcome');
     } else if (!user) {
-      // Logged in but no profile yet: force profile setup.
       if (seg[1] !== 'profile-setup') router.replace('/auth/profile-setup');
     } else {
-      // Fully authed. Only bounce to the tabs if they're stranded on an
-      // onboarding/auth screen — NOT when opening modal routes like
-      // events/create, notifications, or profile (those sit on top of tabs).
       if (inOnboarding || inAuth) router.replace('/(tabs)');
     }
   }, [session, user, isLoading, segments]);
@@ -54,24 +59,39 @@ function RootLayoutInner() {
           name="events/create"
           options={{ presentation: 'modal' }}
         />
-        <Stack.Screen
-          name="profile/index"
-          options={{ presentation: 'modal' }}
-        />
+        <Stack.Screen name="friends" />
         <Stack.Screen
           name="profile/settings"
           options={{ presentation: 'modal' }}
         />
+        <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="profile/blocked" />
         <Stack.Screen
           name="notifications"
           options={{ presentation: 'modal' }}
         />
+        <Stack.Screen name="search" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>

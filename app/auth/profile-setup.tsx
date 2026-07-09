@@ -3,22 +3,22 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   TextInput,
   SafeAreaView,
   ScrollView,
-  Image,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
-import { createProfile, updateProfile } from '@/services/auth.service';
-import { uploadAvatar } from '@/services/storage.service';
-import { supabase } from '@/services/supabase';
+import { createProfile, signOut } from '@/services/auth.service';
+import { uploadProfilePhotos } from '@/services/storage.service';
+import { PhotoGridPicker } from '@/components/PhotoGridPicker';
 import { ACTIVITIES } from '@/constants/activities';
+import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
+import { Button, Icon, IconName, PressableScale } from '@/components/ui';
 
 export default function ProfileSetupScreen() {
   const session = useAuthStore((s) => s.session);
@@ -27,24 +27,10 @@ export default function ProfileSetupScreen() {
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [bio, setBio] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [interests, setInterests] = useState<Set<ActivityId>>(new Set());
+  const [focused, setFocused] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  async function pickPhoto() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-      base64: true,
-    });
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-      setPhotoBase64(result.assets[0].base64 ?? null);
-    }
-  }
 
   function toggleInterest(id: ActivityId) {
     setInterests((prev) => {
@@ -65,16 +51,14 @@ export default function ProfileSetupScreen() {
 
     try {
       setLoading(true);
-      let photoUrl: string | undefined;
-      if (photoBase64) {
-        photoUrl = await uploadAvatar(session.user.id, photoBase64);
-      }
+      const photoUrls = await uploadProfilePhotos(session.user.id, photos);
 
       const profile = await createProfile(session.user.id, {
         name: name.trim(),
         age: ageNum,
         bio: bio.trim() || undefined,
-        photo_url: photoUrl,
+        photo_url: photoUrls[0],
+        photos: photoUrls,
         interests: Array.from(interests),
       });
 
@@ -86,150 +70,211 @@ export default function ProfileSetupScreen() {
     }
   }
 
+  const inputStyle = (key: string) => [
+    styles.input,
+    focused === key && styles.inputFocused,
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Set up your profile</Text>
+      <PressableScale style={styles.backBtn} scaleTo={0.88} onPress={() => signOut()}>
+        <Icon name="back" size={22} color={COLORS.textPrimary} />
+      </PressableScale>
 
-        <TouchableOpacity style={styles.avatarWrapper} onPress={pickPhoto}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarPlaceholderText}>📷</Text>
-              <Text style={styles.avatarPlaceholderLabel}>Add photo</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Animated.View entering={FadeInDown.duration(400)}>
+          <Text style={styles.title}>Set up your profile</Text>
+          <Text style={styles.subtitle}>
+            This is how people see you at events.
+          </Text>
+        </Animated.View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Your name"
-            placeholderTextColor={COLORS.textMuted}
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Age"
-            placeholderTextColor={COLORS.textMuted}
-            value={age}
-            onChangeText={setAge}
-            keyboardType="numeric"
-          />
-          <TextInput
-            style={[styles.input, styles.bioInput]}
-            placeholder="Short bio (optional)"
-            placeholderTextColor={COLORS.textMuted}
-            value={bio}
-            onChangeText={setBio}
-            multiline
-          />
-        </View>
+        <Animated.View entering={FadeInDown.delay(80).duration(400)}>
+          <Text style={styles.fieldLabel}>YOUR PHOTOS</Text>
+          <Text style={styles.fieldHint}>
+            Add up to 6 — the first is your main photo.
+          </Text>
+          <PhotoGridPicker photos={photos} onChange={setPhotos} max={6} />
+        </Animated.View>
 
-        <Text style={styles.sectionLabel}>Your interests</Text>
-        <View style={styles.grid}>
-          {ACTIVITIES.map((a) => {
-            const sel = interests.has(a.id);
-            return (
-              <TouchableOpacity
-                key={a.id}
-                style={[styles.pill, sel && styles.pillSelected]}
-                onPress={() => toggleInterest(a.id)}
-              >
-                <Text style={styles.pillEmoji}>{a.emoji}</Text>
-                <Text style={[styles.pillLabel, sel && styles.pillLabelSelected]}>
-                  {a.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.saveBtn, !name && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={loading || !name}
+        <Animated.View
+          entering={FadeInDown.delay(140).duration(400)}
+          style={styles.form}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.saveBtnText}>Save & Continue</Text>
-          )}
-        </TouchableOpacity>
+          <View>
+            <Text style={styles.fieldLabel}>DISPLAY NAME</Text>
+            <TextInput
+              style={inputStyle('name')}
+              placeholder="Your name"
+              placeholderTextColor="rgba(15,24,44,0.40)"
+              value={name}
+              onChangeText={setName}
+              onFocus={() => setFocused('name')}
+              onBlur={() => setFocused(null)}
+            />
+          </View>
+          <View>
+            <Text style={styles.fieldLabel}>AGE</Text>
+            <TextInput
+              style={inputStyle('age')}
+              placeholder="18+"
+              placeholderTextColor="rgba(15,24,44,0.40)"
+              value={age}
+              onChangeText={setAge}
+              onFocus={() => setFocused('age')}
+              onBlur={() => setFocused(null)}
+              keyboardType="numeric"
+            />
+          </View>
+          <View>
+            <Text style={styles.fieldLabel}>BIO</Text>
+            <TextInput
+              style={[...inputStyle('bio'), styles.bioInput]}
+              placeholder="Coffee, climbing, live music…"
+              placeholderTextColor="rgba(15,24,44,0.40)"
+              value={bio}
+              onChangeText={setBio}
+              onFocus={() => setFocused('bio')}
+              onBlur={() => setFocused(null)}
+              multiline
+            />
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+          <Text style={styles.fieldLabel}>WHAT ARE YOU INTO?</Text>
+          <View style={styles.grid}>
+            {ACTIVITIES.map((a) => {
+              const sel = interests.has(a.id);
+              const cat = categoryStyle(a.id);
+              return (
+                <PressableScale
+                  key={a.id}
+                  scaleTo={0.94}
+                  style={[
+                    styles.pill,
+                    sel && {
+                      backgroundColor: cat.tint,
+                      borderColor: cat.accent,
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                  onPress={() => toggleInterest(a.id)}
+                >
+                  <Icon
+                    name={a.id as IconName}
+                    size={18}
+                    color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
+                  />
+                  <Text
+                    style={[styles.pillLabel, sel && { color: cat.accent }]}
+                  >
+                    {a.label}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </View>
+        </Animated.View>
       </ScrollView>
+
+      <View style={styles.footer}>
+        <Button
+          label={
+            interests.size > 0
+              ? `Continue · ${interests.size} selected`
+              : 'Continue'
+          }
+          onPress={handleSave}
+          loading={loading}
+          disabled={!name}
+        />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: 24, paddingTop: 40, gap: 16 },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 8,
-  },
-  avatarWrapper: { alignSelf: 'center' },
-  avatar: { width: 96, height: 96, borderRadius: 48 },
-  avatarPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
+  backBtn: {
+    marginTop: 8,
+    marginLeft: 16,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarPlaceholderText: { fontSize: 24 },
-  avatarPlaceholderLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
+  scroll: { padding: 22, paddingTop: 12, gap: 22, paddingBottom: 20 },
+  title: {
+    fontFamily: FONTS.heavy,
+    fontSize: 24,
+    letterSpacing: -0.48,
+    color: COLORS.textPrimary,
   },
-  form: { gap: 12 },
+  subtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 13.5,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+  },
+  fieldLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: 11.5,
+    letterSpacing: 0.3,
+    color: 'rgba(15,24,44,0.5)',
+    marginBottom: 7,
+  },
+  fieldHint: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    color: COLORS.textMuted,
+    marginTop: -3,
+    marginBottom: 10,
+  },
+  form: { gap: 14 },
   input: {
+    height: 48,
     backgroundColor: COLORS.surface,
     borderRadius: 14,
-    padding: 16,
-    fontSize: 16,
+    paddingHorizontal: 15,
+    fontFamily: FONTS.semibold,
+    fontSize: 15,
     color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  bioInput: { minHeight: 80, textAlignVertical: 'top' },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+  inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
+  bioInput: {
+    height: undefined,
+    minHeight: 80,
+    paddingVertical: 12,
+    textAlignVertical: 'top',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 9,
+    height: 44,
+    paddingHorizontal: 16,
     borderRadius: 100,
     backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: COLORS.border,
   },
-  pillSelected: { borderColor: COLORS.primary, backgroundColor: '#FFF0EF' },
-  pillEmoji: { fontSize: 16 },
-  pillLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
-  pillLabelSelected: { color: COLORS.primary },
-  saveBtn: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 8,
+  pillLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+    color: 'rgba(15,24,44,0.7)',
   },
-  saveBtnDisabled: { backgroundColor: COLORS.disabled },
-  saveBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  footer: {
+    paddingHorizontal: 22,
+    paddingTop: 10,
+    paddingBottom: 8,
+    backgroundColor: COLORS.background,
+  },
 });

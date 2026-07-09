@@ -96,7 +96,10 @@ export async function removeFriend(friendshipId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function searchUsers(query: string): Promise<Profile[]> {
+export async function searchUsers(
+  query: string,
+  currentUserId?: string
+): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -104,5 +107,19 @@ export async function searchUsers(query: string): Promise<Profile[]> {
     .limit(20);
 
   if (error) throw error;
-  return (data ?? []) as Profile[];
+  let results = (data ?? []) as Profile[];
+
+  if (currentUserId) {
+    // Hide the current user and anyone they've blocked.
+    const { data: blocks } = await supabase
+      .from('blocks')
+      .select('blocked_id')
+      .eq('blocker_id', currentUserId);
+    const blockedIds = new Set((blocks ?? []).map((b: any) => b.blocked_id));
+    results = results.filter(
+      (p) => p.id !== currentUserId && !blockedIds.has(p.id)
+    );
+  }
+
+  return results;
 }

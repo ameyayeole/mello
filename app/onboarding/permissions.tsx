@@ -1,31 +1,41 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocation } from '@/hooks/useLocation';
 import { COLORS } from '@/constants/colors';
+import { FONTS } from '@/constants/typography';
+import { Button, Icon, IconName } from '@/components/ui';
 
-const PERMS = [
+const PERMS: { icon: IconName; title: string; desc: string }[] = [
   {
-    icon: '📍',
+    icon: 'location',
     title: 'Location',
-    desc: 'Show events near you and let others find you on the map.',
+    desc: 'Show events happening near you',
   },
   {
-    icon: '🔔',
+    icon: 'bell',
     title: 'Notifications',
-    desc: 'Get notified when someone joins your event or sends you a message.',
+    desc: 'RSVP updates, messages & reminders',
   },
   {
-    icon: '📷',
+    icon: 'camera',
     title: 'Camera & Photos',
-    desc: 'Upload a profile photo so people recognise you at events.',
+    desc: 'Upload a photo so people recognise you',
   },
 ];
+
+function StepBar({ step, total }: { step: number; total: number }) {
+  return (
+    <View style={styles.stepRow}>
+      <Text style={styles.stepText}>
+        Step {step} of {total}
+      </Text>
+      <View style={styles.stepTrack}>
+        <View style={[styles.stepFill, { width: `${(step / total) * 100}%` }]} />
+      </View>
+    </View>
+  );
+}
 
 export default function PermissionsScreen() {
   const router = useRouter();
@@ -38,30 +48,51 @@ export default function PermissionsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StepBar step={1} total={2} />
       <View style={styles.content}>
-        <Text style={styles.title}>A few permissions needed</Text>
-        <Text style={styles.subtitle}>
-          MELLO works best with access to the following:
-        </Text>
+        <Animated.View entering={FadeInDown.duration(400)}>
+          <Text style={styles.title}>A few quick permissions</Text>
+          <Text style={styles.subtitle}>
+            Mello only uses these while you're using the app.
+          </Text>
+        </Animated.View>
 
         <View style={styles.list}>
-          {PERMS.map((p) => (
-            <View key={p.title} style={styles.item}>
-              <Text style={styles.icon}>{p.icon}</Text>
-              <View style={styles.itemText}>
-                <Text style={styles.itemTitle}>{p.title}</Text>
-                <Text style={styles.itemDesc}>{p.desc}</Text>
+          {PERMS.map((p, i) => (
+            <Animated.View
+              key={p.title}
+              entering={FadeInDown.delay(100 + i * 80).duration(400)}
+              style={styles.card}
+            >
+              <View style={styles.cardIcon}>
+                <Icon name={p.icon} size={23} color={COLORS.primary} />
               </View>
-            </View>
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle}>{p.title}</Text>
+                <Text style={styles.cardDesc}>{p.desc}</Text>
+              </View>
+            </Animated.View>
           ))}
         </View>
 
+        <Animated.View
+          entering={FadeInDown.delay(380).duration(400)}
+          style={styles.safetyNote}
+        >
+          <Icon name="shield" size={18} color={COLORS.success} />
+          <Text style={styles.safetyText}>
+            Your exact location is never shown to others — only your
+            approximate area.
+          </Text>
+        </Animated.View>
+
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleAllow}>
-            <Text style={styles.primaryBtnText}>Allow & Continue</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/onboarding/interests')}>
-            <Text style={styles.skipLink}>Skip for now</Text>
+          <Button label="Allow & continue" onPress={handleAllow} />
+          <TouchableOpacity
+            onPress={() => router.push('/onboarding/interests')}
+            hitSlop={10}
+          >
+            <Text style={styles.skipLink}>Maybe later</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -70,43 +101,108 @@ export default function PermissionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.surface },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+  stepText: {
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    color: 'rgba(15,24,44,0.45)',
+  },
+  stepTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(15,24,44,0.08)',
+    overflow: 'hidden',
+  },
+  stepFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+  },
   content: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'space-between',
-    paddingTop: 48,
-    paddingBottom: 40,
+    paddingHorizontal: 22,
+    paddingTop: 14,
+    paddingBottom: 26,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontFamily: FONTS.heavy,
+    fontSize: 24,
+    letterSpacing: -0.48,
     color: COLORS.textPrimary,
-    marginBottom: 8,
   },
-  subtitle: { fontSize: 16, color: COLORS.textSecondary, lineHeight: 24 },
-  list: { gap: 20 },
-  item: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
-  icon: { fontSize: 28, width: 40, textAlign: 'center' },
-  itemText: { flex: 1 },
-  itemTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
-  itemDesc: {
-    fontSize: 14,
+  subtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 13.5,
     color: COLORS.textSecondary,
-    lineHeight: 20,
+    marginTop: 6,
+  },
+  list: { gap: 13, marginTop: 24 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 18,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  cardIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardText: { flex: 1 },
+  cardTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  cardDesc: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    lineHeight: 16,
+    color: 'rgba(15,24,44,0.5)',
     marginTop: 2,
   },
-  actions: { gap: 12 },
-  primaryBtn: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
+  safetyNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginTop: 18,
+    padding: 13,
+    backgroundColor: 'rgba(31,164,99,0.09)',
+    borderRadius: 12,
   },
-  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  safetyText: {
+    flex: 1,
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(15,24,44,0.65)',
+  },
+  actions: { marginTop: 'auto', gap: 14 },
   skipLink: {
     textAlign: 'center',
-    color: COLORS.textSecondary,
-    fontSize: 15,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: 'rgba(15,24,44,0.5)',
   },
 });
