@@ -10,25 +10,21 @@ import {
   Switch,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-
-// Google Maps on Android, Apple Maps on iOS.
-const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
-import { createEvent } from '@/services/events.service';
+import { getEventDetail, updateEvent } from '@/services/events.service';
 import { uploadEventPhoto } from '@/services/storage.service';
-import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
-import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
+import { FemaleOnlyConfirmModal } from '@/components/safety';
 import PlaceSearch, { PlaceResult } from '@/components/PlaceSearch';
 import DateTimeField, {
-  roundUpTo30,
   sameDay,
   fmtTime,
   fmtDayLong,
@@ -37,7 +33,7 @@ import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { ActivityId } from '@/types/models';
+import { ActivityId, Coords } from '@/types/models';
 import {
   Button,
   Icon,
@@ -47,56 +43,73 @@ import {
   PressableScale,
 } from '@/components/ui';
 
-export default function CreateEventScreen() {
+// Google Maps on Android, Apple Maps on iOS.
+const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
+
+// Host edits an existing event. Mirrors the create screen, prefilled from the
+// event. The events table only stores a PostGIS point (no lat/lng columns are
+// selectable from the client), so the map starts at the user's position and
+// the location is only written back when the host actually picks a new one.
+export default function EditEventScreen() {
+  const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const userCoords = useLocationStore((s) => s.coords);
 
+  const { data: event, isLoading } = useQuery({
+    queryKey: ['eventDetail', eventId],
+    queryFn: () => getEventDetail(eventId),
+    enabled: !!eventId,
+  });
+
   const [activity, setActivity] = useState<ActivityId>('coffee');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [maxPeople, setMaxPeople] = useState('4');
-  const [startDate, setStartDate] = useState<Date>(() =>
-    roundUpTo30(new Date(Date.now() + 60 * 60 * 1000))
-  );
-  const [endDate, setEndDate] = useState<Date>(() =>
-    roundUpTo30(new Date(Date.now() + 3 * 60 * 60 * 1000))
-  );
+  const [maxPeople, setMaxPeople] = useState('');
+  const [startDate, setStartDate] = useState<Date>(() => new Date());
+  const [endDate, setEndDate] = useState<Date>(() => new Date());
   const [isPublic, setIsPublic] = useState(true);
   const [requiresApproval, setRequiresApproval] = useState(false);
   const [womenOnly, setWomenOnly] = useState(false);
-  // Safety popup #2 (once ever, before the first hosting) and #9 (full-screen
-  // confirm every time "Female-only" is switched on).
-  const [firstHostVisible, setFirstHostVisible] = useState(false);
   const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
   const [titleFocused, setTitleFocused] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [pinCoords, setPinCoords] = useState(
-    userCoords ?? { lat: 19.076, lng: 72.8777 }
-  );
-  const [locationName, setLocationName] = useState('');
+  // The event's stored cover (kept unless removed) vs a newly picked local one.
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  // Only set when the host picks a new spot — untouched means "don't update".
+  const [newCoords, setNewCoords] = useState<Coords | null>(null);
+  const [locationName, setLocationName] = useState('');
+  const [seeded, setSeeded] = useState(false);
   const miniMapRef = useRef<MapView>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    hasSeenSafetyFlag(user.id, 'first_host').then((seen) => {
-      if (!cancelled && !seen) setFirstHostVisible(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+  const mapCenter = newCoords ?? userCoords ?? { lat: 19.076, lng: 72.8777 };
 
-  function dismissFirstHost() {
-    setFirstHostVisible(false);
-    if (user) markSafetyFlagSeen(user.id, 'first_host');
-  }
+  // Seed the form once from the fetched event.
+  useEffect(() => {
+    if (!event || seeded) return;
+    setActivity(event.activity);
+    setTitle(event.title);
+    setDescription(event.description ?? '');
+    setMaxPeople(event.max_people != null ? String(event.max_people) : '');
+    const starts = new Date(event.starts_at);
+    setStartDate(starts);
+    setEndDate(
+      event.ends_at
+        ? new Date(event.ends_at)
+        : new Date(starts.getTime() + 2 * 60 * 60 * 1000)
+    );
+    setIsPublic(event.is_public);
+    setRequiresApproval(event.requires_approval);
+    setWomenOnly(!!event.women_only);
+    setExistingImageUrl(event.image_url);
+    setLocationName(event.location_name ?? '');
+    setSeeded(true);
+  }, [event, seeded]);
 
   function onSearchResult(r: PlaceResult) {
-    setPinCoords({ lat: r.lat, lng: r.lng });
+    setNewCoords({ lat: r.lat, lng: r.lng });
     setLocationName(r.name);
     miniMapRef.current?.animateToRegion(
       {
@@ -123,7 +136,7 @@ export default function CreateEventScreen() {
 
   async function onMapPress(e: any) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
-    setPinCoords({ lat: latitude, lng: longitude });
+    setNewCoords({ lat: latitude, lng: longitude });
 
     const [place] = await Location.reverseGeocodeAsync({
       latitude,
@@ -135,8 +148,8 @@ export default function CreateEventScreen() {
     setLocationName(name);
   }
 
-  async function handleCreate() {
-    if (!title.trim() || !user) return;
+  async function handleSave() {
+    if (!title.trim() || !user || !event) return;
     if (endDate <= startDate) {
       Alert.alert('Invalid time', 'The end time must be after the start time.');
       return;
@@ -144,28 +157,27 @@ export default function CreateEventScreen() {
 
     try {
       setLoading(true);
-      let imageUrl: string | undefined;
+      // New local photo → upload it; photo removed → clear; otherwise keep.
+      let imageUrl: string | null = existingImageUrl;
       if (photoUri) {
         imageUrl = await uploadEventPhoto(user.id, photoUri);
       }
-      const eventId = await createEvent({
-        hostId: user.id,
+      await updateEvent(event.id, {
         activity,
         title: title.trim(),
-        description: description.trim() || undefined,
-        lat: pinCoords.lat,
-        lng: pinCoords.lng,
-        locationName: locationName || undefined,
+        description: description.trim() || null,
+        imageUrl,
+        ...(newCoords ? { lat: newCoords.lat, lng: newCoords.lng } : {}),
+        locationName: locationName || null,
         startsAt: startDate,
         endsAt: endDate,
+        maxPeople: maxPeople ? parseInt(maxPeople) : null,
+        isPublic,
         requiresApproval,
         womenOnly,
-        maxPeople: maxPeople ? parseInt(maxPeople) : undefined,
-        isPublic,
-        imageUrl,
       });
-      // Refresh the lists that should now include this event so it appears
-      // immediately instead of waiting for the next poll.
+      // Refresh everywhere this event appears.
+      queryClient.invalidateQueries({ queryKey: ['eventDetail', event.id] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
       queryClient.invalidateQueries({ queryKey: ['exploreFeed'] });
       queryClient.invalidateQueries({ queryKey: ['myEvents'] });
@@ -178,6 +190,16 @@ export default function CreateEventScreen() {
     }
   }
 
+  if (isLoading || !event || !seeded) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+      </SafeAreaView>
+    );
+  }
+
+  const currentPhoto = photoUri ?? existingImageUrl;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -186,7 +208,7 @@ export default function CreateEventScreen() {
           onPress={() => router.back()}
           accessibilityLabel="Cancel"
         />
-        <Text style={styles.headerTitle}>New event</Text>
+        <Text style={styles.headerTitle}>Edit event</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -266,18 +288,29 @@ export default function CreateEventScreen() {
 
         {/* Cover photo */}
         <Text style={styles.label}>COVER PHOTO</Text>
-        {photoUri ? (
+        {currentPhoto ? (
           <View>
             <View style={styles.photoPicker}>
               <Image
-                source={{ uri: photoUri }}
+                source={{ uri: currentPhoto }}
                 style={styles.photoPreview}
                 contentFit="cover"
               />
             </View>
-            <TouchableOpacity onPress={() => setPhotoUri(null)} hitSlop={8}>
-              <Text style={styles.photoRemove}>Remove photo</Text>
-            </TouchableOpacity>
+            <View style={styles.photoActions}>
+              <TouchableOpacity onPress={pickPhoto} hitSlop={8}>
+                <Text style={styles.photoChange}>Change photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setPhotoUri(null);
+                  setExistingImageUrl(null);
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.photoRemove}>Remove photo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <TouchableOpacity
@@ -394,7 +427,7 @@ export default function CreateEventScreen() {
           onResult={onSearchResult}
           placeholder="Search for a place"
           style={styles.locationSearch}
-          bias={userCoords ?? pinCoords}
+          bias={userCoords ?? mapCenter}
         />
         {locationName ? (
           <View style={styles.locationRow}>
@@ -403,62 +436,50 @@ export default function CreateEventScreen() {
               {locationName}
             </Text>
           </View>
-        ) : (
-          <Text style={styles.locationHint}>
-            Search above or tap the map to drop your pin.
-          </Text>
-        )}
+        ) : null}
+        <Text style={styles.locationHint}>
+          {newCoords
+            ? 'New spot picked — save to apply it.'
+            : 'Search above or tap the map to move the event.'}
+        </Text>
         <View style={styles.mapWrapper}>
           <MapView
             ref={miniMapRef}
             style={styles.miniMap}
             provider={MAP_PROVIDER}
             initialRegion={{
-              latitude: pinCoords.lat,
-              longitude: pinCoords.lng,
+              latitude: mapCenter.lat,
+              longitude: mapCenter.lng,
               latitudeDelta: 0.01,
               longitudeDelta: 0.01,
             }}
             onPress={onMapPress}
           >
-            <Marker
-              coordinate={{
-                latitude: pinCoords.lat,
-                longitude: pinCoords.lng,
-              }}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <MelloPin height={40} />
-            </Marker>
+            {newCoords && (
+              <Marker
+                coordinate={{
+                  latitude: newCoords.lat,
+                  longitude: newCoords.lng,
+                }}
+                anchor={{ x: 0.5, y: 1 }}
+              >
+                <MelloPin height={40} />
+              </Marker>
+            )}
           </MapView>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <Button
-          label="Publish event"
-          onPress={handleCreate}
+          label="Save changes"
+          onPress={handleSave}
           loading={loading}
           disabled={!title.trim()}
         />
       </View>
 
-      {/* Safety popup #2: hosting your first event (once ever). */}
-      <SafetyPopup
-        visible={firstHostVisible}
-        icon="pin"
-        title="Hosting? Here's how to do it well"
-        body={[
-          'Pick a public, easy-to-find spot for open events.',
-          "Be honest about the vibe and who it's for.",
-          "You're in charge — you can remove or report anyone.",
-        ]}
-        primaryLabel="Start hosting"
-        onPrimary={dismissFirstHost}
-        onClose={dismissFirstHost}
-      />
-
-      {/* Safety popup #9: confirm creating a female-only event (every time). */}
+      {/* Safety popup #9: confirm switching to female-only (every time). */}
       <FemaleOnlyConfirmModal
         visible={womenOnlyConfirmVisible}
         onConfirm={() => {
@@ -543,6 +564,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   photoPreview: { width: '100%', height: '100%' },
+  photoActions: {
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 8,
+    marginLeft: 4,
+  },
+  photoChange: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: COLORS.primary,
+  },
   photoPlaceholder: {
     height: 120,
     alignItems: 'center',
@@ -571,8 +603,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: 13,
     color: COLORS.error,
-    marginTop: 8,
-    marginLeft: 4,
   },
   spanSummary: {
     fontFamily: FONTS.semibold,

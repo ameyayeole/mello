@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { getNearbyEvents } from '@/services/events.service';
 import { useLocationStore } from '@/stores/locationStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -14,8 +14,12 @@ export interface SearchCenter {
 
 export function useNearbyEvents(center?: SearchCenter | null) {
   const coords = useLocationStore((s) => s.coords);
-  const activeFilter = useUIStore((s) => s.activeFilter);
+  const activities = useUIStore((s) => s.mapFilters.activities);
   const searchRadius = useUIStore((s) => s.searchRadius);
+
+  // A single selected activity can be filtered server-side; multi-selection is
+  // filtered client-side by the map, so fetch everything.
+  const serverActivity = activities.length === 1 ? activities[0] : null;
 
   const target =
     center ??
@@ -34,16 +38,20 @@ export function useNearbyEvents(center?: SearchCenter | null) {
       keyLat,
       keyLng,
       target?.radiusM,
-      activeFilter,
+      serverActivity,
     ],
     queryFn: () =>
       getNearbyEvents(
         { lat: target!.lat, lng: target!.lng },
         target!.radiusM,
-        activeFilter ?? undefined
+        serverActivity ?? undefined
       ),
     enabled: !!target,
     staleTime: CONFIG.mapStaletimeMs,
     refetchInterval: CONFIG.mapRefetchIntervalMs,
+    // Panning changes the query key (new ~100 m bucket); keep the previous
+    // pins on screen while the new area loads instead of unmounting them all —
+    // otherwise every pan makes the markers blink out and pop back in.
+    placeholderData: keepPreviousData,
   });
 }

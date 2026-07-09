@@ -23,6 +23,14 @@ export type ParticipantStatus = 'pending' | 'approved';
 
 export type Gender = 'male' | 'female' | 'non-binary' | 'other';
 
+export type KycStatus =
+  | 'none'
+  | 'in_progress'
+  | 'pending_review'
+  | 'approved'
+  | 'declined'
+  | 'expired';
+
 export interface Profile {
   id: string;
   name: string;
@@ -39,6 +47,8 @@ export interface Profile {
   friends_count: number;
   thumbs_count: number;
   is_ghost_mode: boolean;
+  kyc_status: KycStatus;
+  kyc_verified_at: string | null;
   expo_push_token: string | null;
   last_seen: string;
   created_at: string;

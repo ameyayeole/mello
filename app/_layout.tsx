@@ -59,18 +59,29 @@ function RootLayoutInner() {
           name="events/create"
           options={{ presentation: 'modal' }}
         />
+        <Stack.Screen name="events/host/[eventId]" />
+        <Stack.Screen name="events/attendees/[eventId]" />
+        <Stack.Screen
+          name="events/edit/[eventId]"
+          options={{ presentation: 'modal' }}
+        />
         <Stack.Screen name="friends" />
         <Stack.Screen
           name="profile/settings"
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
+        <Stack.Screen
+          name="profile/verify"
+          options={{ presentation: 'modal' }}
+        />
         <Stack.Screen name="profile/blocked" />
         <Stack.Screen
           name="notifications"
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen name="search" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="map-filters" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

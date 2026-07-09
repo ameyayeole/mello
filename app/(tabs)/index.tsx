@@ -339,7 +339,8 @@ export default function DashboardScreen() {
                     key={event.id}
                     event={event}
                     badge="hosting"
-                    onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+                    // Hosts land on the manage panel (attendees, requests, edit).
+                    onPress={() => router.push(`/events/host/${event.id}`)}
                   />
                 ))}
               </ScrollView>

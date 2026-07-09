@@ -136,6 +136,55 @@ export async function createEvent(params: {
   return (data as any).id as string;
 }
 
+// Host edits an existing event. Only the fields provided are updated; the
+// location is only touched when both lat and lng are passed (the edit screen
+// leaves it out when the pin wasn't moved).
+export async function updateEvent(
+  eventId: string,
+  params: {
+    activity?: ActivityId;
+    title?: string;
+    description?: string | null;
+    imageUrl?: string | null;
+    lat?: number;
+    lng?: number;
+    locationName?: string | null;
+    startsAt?: Date;
+    endsAt?: Date | null;
+    maxPeople?: number | null;
+    isPublic?: boolean;
+    requiresApproval?: boolean;
+    womenOnly?: boolean;
+  }
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (params.activity !== undefined) patch.activity = params.activity;
+  if (params.title !== undefined) patch.title = params.title;
+  if (params.description !== undefined) patch.description = params.description;
+  if (params.imageUrl !== undefined) patch.image_url = params.imageUrl;
+  if (params.lat !== undefined && params.lng !== undefined) {
+    patch.location = `SRID=4326;POINT(${params.lng} ${params.lat})`;
+  }
+  if (params.locationName !== undefined)
+    patch.location_name = params.locationName;
+  if (params.startsAt !== undefined)
+    patch.starts_at = params.startsAt.toISOString();
+  if (params.endsAt !== undefined)
+    patch.ends_at = params.endsAt?.toISOString() ?? null;
+  if (params.maxPeople !== undefined) patch.max_people = params.maxPeople;
+  if (params.isPublic !== undefined) patch.is_public = params.isPublic;
+  if (params.requiresApproval !== undefined)
+    patch.requires_approval = params.requiresApproval;
+  if (params.womenOnly !== undefined) patch.women_only = params.womenOnly;
+
+  const { error } = await supabase
+    .from('events')
+    .update(patch)
+    .eq('id', eventId);
+
+  if (error) throw error;
+}
+
 // Joins directly when the event is open, or creates a pending request when the
 // event requires host approval.
 export async function joinEvent(
@@ -179,6 +228,10 @@ export async function rejectParticipant(
 
   if (error) throw error;
 }
+
+// Host removes an approved attendee — the same row delete as rejecting a
+// pending request (RLS lets the host delete any participant row of their event).
+export const removeParticipant = rejectParticipant;
 
 export async function leaveEvent(eventId: string, userId: string): Promise<void> {
   const { error } = await supabase

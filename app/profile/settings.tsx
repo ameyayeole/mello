@@ -131,6 +131,19 @@ export default function SettingsScreen() {
               title="Blocked users"
               subtitle="Review and unblock people"
               onPress={() => router.push('/profile/blocked')}
+            />
+            <SettingsRow
+              icon="shield"
+              iconColor={COLORS.verified}
+              title="Verify your identity"
+              subtitle={
+                user?.kyc_status === 'approved'
+                  ? 'Verified — badge active'
+                  : user?.kyc_status === 'pending_review'
+                    ? 'Under review'
+                    : 'Get the verified badge'
+              }
+              onPress={() => router.push('/profile/verify')}
               last
             />
           </View>

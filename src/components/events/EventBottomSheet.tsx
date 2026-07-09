@@ -436,10 +436,20 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   />
                 )}
 
+                {isHost && (
+                  <Button
+                    label="Manage event"
+                    onPress={() => {
+                      sheetRef.current?.close();
+                      router.push(`/events/host/${event.id}`);
+                    }}
+                  />
+                )}
+
                 {(isParticipant || isHost) && (
                   <Button
                     label="Open chat"
-                    variant={isHost ? 'primary' : 'secondary'}
+                    variant="secondary"
                     onPress={() => {
                       sheetRef.current?.close();
                       router.push(`/(tabs)/chats/${event.id}`);

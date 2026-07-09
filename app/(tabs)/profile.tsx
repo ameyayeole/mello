@@ -116,7 +116,7 @@ export default function ProfileTabScreen() {
             <View style={styles.heroInfo}>
               <View style={styles.heroNameRow}>
                 <Text style={styles.heroName}>{user.name}</Text>
-                <VerifiedBadge size={18} />
+                {user.kyc_status === 'approved' && <VerifiedBadge size={18} />}
               </View>
               <View style={styles.heroMetaRow}>
                 <Icon name="thumbsUp" size={13} color="#fff" strokeWidth={2} />
