@@ -36,10 +36,12 @@ import {
   Icon,
   IconButton,
   IconName,
+  PremiumBadge,
   PressableScale,
   SectionLabel,
   VerifiedBadge,
 } from '@/components/ui';
+import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
 
 export default function UserProfileScreen() {
@@ -208,6 +210,7 @@ export default function UserProfileScreen() {
       <View style={styles.header}>
         <IconButton
           icon="back"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Go back"
         />
@@ -252,7 +255,11 @@ export default function UserProfileScreen() {
             <View style={styles.heroNameRow}>
               <Text style={styles.heroName}>{profile.name}</Text>
               <VerifiedBadge size={18} />
+              {isPremium(profile) && <PremiumBadge size={18} />}
             </View>
+            {profile.username ? (
+              <Text style={styles.heroUsername}>@{profile.username}</Text>
+            ) : null}
             <View style={styles.heroMetaRow}>
               <Icon name="thumbsUp" size={13} color="#fff" strokeWidth={2} />
               <Text style={styles.heroThumbs}>
@@ -401,18 +408,40 @@ export default function UserProfileScreen() {
             </>
           ) : rel.status === 'request_sent' ? (
             <Button
-              label="Request sent"
+              label="Requested · tap to withdraw"
               variant="secondary"
               height={46}
               style={{ flex: 1 }}
+              disabled={remove.isPending}
+              onPress={() =>
+                remove.mutate(rel.friendshipId!, {
+                  onError: (e: any) => Alert.alert('Error', e.message),
+                })
+              }
             />
           ) : rel.status === 'request_received' ? (
-            <Button
-              label="Accept request"
-              height={46}
-              style={{ flex: 1 }}
-              onPress={() => accept.mutate(rel.friendshipId!)}
-            />
+            <>
+              <Button
+                label="Accept request"
+                height={46}
+                style={{ flex: 1 }}
+                disabled={accept.isPending}
+                onPress={() => accept.mutate(rel.friendshipId!)}
+              />
+              <PressableScale
+                scaleTo={0.92}
+                style={styles.squareBtn}
+                disabled={remove.isPending}
+                onPress={() =>
+                  remove.mutate(rel.friendshipId!, {
+                    onError: (e: any) => Alert.alert('Error', e.message),
+                  })
+                }
+                accessibilityLabel="Decline request"
+              >
+                <Icon name="close" size={20} color="rgba(15,24,44,0.6)" />
+              </PressableScale>
+            </>
           ) : (
             <Button
               label="Add friend"
@@ -516,6 +545,12 @@ const styles = StyleSheet.create({
   },
   heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   heroName: { fontFamily: FONTS.heavy, fontSize: 23, color: '#fff' },
+  heroUsername: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 1,
+  },
   heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',

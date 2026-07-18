@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -11,18 +12,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
   getEventDetail,
+  getEventDistanceM,
   joinEvent,
   leaveEvent,
   approveParticipant,
   rejectParticipant,
 } from '@/services/events.service';
+import { hasWrapped } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
+import { useLocationStore } from '@/stores/locationStore';
+import { CONFIG } from '@/constants/config';
+import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { EventDetail, ParticipantStatus } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
-import { sharePlan } from '@/utils/sharePlan';
+import { shareEvent } from '@/utils/shareEvent';
 import {
   hasSeenSafetyFlag,
   markSafetyFlagSeen,
@@ -40,6 +47,7 @@ import {
   CategoryTile,
   Icon,
   IconName,
+  PremiumBadge,
   PressableScale,
   SectionLabel,
 } from '@/components/ui';
@@ -83,10 +91,36 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       enabled: !!eventId,
     });
 
+    // Distance user↔event for the Mello+ >10 km join gate. The detail query
+    // can't provide it (no lat/lng in SELECT *); fails soft to "no gate" when
+    // location is off or migration 024 isn't applied yet.
+    const coords = useLocationStore((s) => s.coords);
+    const { data: gateDistanceM } = useQuery({
+      queryKey: ['eventDistance', eventId],
+      queryFn: () => getEventDistanceM(eventId!, coords!),
+      enabled: !!eventId && !!coords,
+      staleTime: 5 * 60_000,
+      retry: 1,
+    });
+
+    const premiumUser = isPremium(user);
+    const tooFar =
+      !premiumUser &&
+      gateDistanceM != null &&
+      gateDistanceM > CONFIG.freeJoinRadiusMeters;
+
     useImperativeHandle(ref, () => ({
       open(id: string) {
         setEventId(id);
-        sheetRef.current?.snapToIndex(0);
+        // On a cold start (opened from a deep link) the sheet isn't laid out
+        // yet when this fires, so an immediate snapToIndex is silently dropped.
+        // Retry across a few frames; snapping again once open is a no-op.
+        let tries = 0;
+        const snap = () => {
+          sheetRef.current?.snapToIndex(0);
+          if (tries++ < 5) requestAnimationFrame(snap);
+        };
+        requestAnimationFrame(snap);
       },
       close() {
         sheetRef.current?.close();
@@ -109,30 +143,91 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
 
     const approved =
       event?.participants?.filter((p) => p.status === 'approved') ?? [];
-    const pending =
-      event?.participants?.filter((p) => p.status === 'pending') ?? [];
+    // Mello+ members' requests surface first for the host.
+    const pending = (
+      event?.participants?.filter((p) => p.status === 'pending') ?? []
+    ).sort((a, b) => Number(isPremium(b)) - Number(isPremium(a)));
 
-    const invalidate = () =>
-      qc.invalidateQueries({ queryKey: ['eventDetail', event?.id] });
+    const detailKey = ['eventDetail', eventId] as const;
+    const invalidate = () => qc.invalidateQueries({ queryKey: detailKey });
+
+    // Optimistic cache helpers — patch the eventDetail so the UI (button label,
+    // participant list, count) updates the instant a button is tapped, before
+    // the Supabase round-trip. onError rolls the snapshot back if it fails.
+    const setMyParticipation = (status: ParticipantStatus | null) => {
+      qc.setQueryData<EventDetail>(detailKey, (prev) => {
+        if (!prev || !user) return prev;
+        const others = prev.participants.filter((p) => p.id !== user.id);
+        const participants = status
+          ? [...others, { ...user, status }]
+          : others;
+        return {
+          ...prev,
+          participants,
+          participant_count: participants.filter(
+            (p) => p.status === 'approved'
+          ).length,
+        };
+      });
+    };
+
+    const patchParticipant = (
+      uid: string,
+      status: ParticipantStatus | null
+    ) => {
+      qc.setQueryData<EventDetail>(detailKey, (prev) => {
+        if (!prev) return prev;
+        const participants =
+          status === null
+            ? prev.participants.filter((p) => p.id !== uid)
+            : prev.participants.map((p) =>
+                p.id === uid ? { ...p, status } : p
+              );
+        return {
+          ...prev,
+          participants,
+          participant_count: participants.filter(
+            (p) => p.status === 'approved'
+          ).length,
+        };
+      });
+    };
 
     const joinMutation = useMutation({
       mutationFn: () => joinEvent(event!.id, user!.id, event!.requires_approval),
+      onMutate: () => {
+        const prev = qc.getQueryData<EventDetail>(detailKey);
+        setMyParticipation(event!.requires_approval ? 'pending' : 'approved');
+        return { prev };
+      },
+      onError: (_e, _v, ctx) => {
+        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
+        Alert.alert("Couldn't join", 'Please check your connection and try again.');
+      },
       onSuccess: () => {
-        invalidate();
         // Pre-event safety reminder (#4). Pending requests get no reminder —
         // the host may never approve them.
         if (event && !event.requires_approval) {
           scheduleEventSafetyReminder(event);
         }
       },
+      onSettled: invalidate,
     });
 
     const leaveMutation = useMutation({
       mutationFn: () => leaveEvent(event!.id, user!.id),
+      onMutate: () => {
+        const prev = qc.getQueryData<EventDetail>(detailKey);
+        setMyParticipation(null);
+        return { prev };
+      },
+      onError: (_e, _v, ctx) => {
+        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
+      },
       onSuccess: () => {
-        invalidate();
         if (event) cancelEventSafetyReminder(event.id);
       },
+      onSettled: invalidate,
     });
 
     // ─── Pre-join safety queue (#3 first join, #10 women-only, #5 new host,
@@ -141,6 +236,13 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
 
     async function handleJoinPress() {
       if (!event || !user) return;
+
+      // Beyond the free 10 km radius: browsing is fine, joining needs Mello+.
+      if (tooFar) {
+        router.push('/premium?reason=distance');
+        return;
+      }
+
       const queue: QueuedSafetyPopup[] = [];
 
       if (!(await hasSeenSafetyFlag(user.id, 'first_join'))) {
@@ -236,12 +338,28 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
 
     const approveMutation = useMutation({
       mutationFn: (uid: string) => approveParticipant(event!.id, uid),
-      onSuccess: invalidate,
+      onMutate: (uid: string) => {
+        const prev = qc.getQueryData<EventDetail>(detailKey);
+        patchParticipant(uid, 'approved');
+        return { prev };
+      },
+      onError: (_e, _v, ctx) => {
+        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
+      },
+      onSettled: invalidate,
     });
 
     const rejectMutation = useMutation({
       mutationFn: (uid: string) => rejectParticipant(event!.id, uid),
-      onSuccess: invalidate,
+      onMutate: (uid: string) => {
+        const prev = qc.getQueryData<EventDetail>(detailKey);
+        patchParticipant(uid, null);
+        return { prev };
+      },
+      onError: (_e, _v, ctx) => {
+        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
+      },
+      onSettled: invalidate,
     });
 
     const activity = event ? ACTIVITY_MAP[event.activity] : null;
@@ -264,6 +382,27 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
             />
           ) : (
             <>
+              {/* Safety + share live top-left as icons (not bottom pills). */}
+              <View style={styles.headerActions}>
+                <SosButton
+                  variant="icon"
+                  event={event}
+                  onReport={() => {
+                    sheetRef.current?.close();
+                    router.push(`/friends/${event.host_id}`);
+                  }}
+                />
+                <PressableScale
+                  scaleTo={0.9}
+                  style={styles.shareBtn}
+                  onPress={() => shareEvent(event)}
+                  accessibilityLabel="Share this event"
+                  accessibilityRole="button"
+                >
+                  <Icon name="share" size={18} color={COLORS.primary} strokeWidth={2} />
+                </PressableScale>
+              </View>
+
               {event.image_url && (
                 <Image
                   source={{ uri: event.image_url }}
@@ -301,6 +440,15 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 </View>
               )}
 
+              {tooFar && !isParticipant && !isPending && (
+                <View style={styles.premiumPill}>
+                  <Icon name="crown" size={13} color={PREMIUM_GOLD} strokeWidth={2} />
+                  <Text style={styles.premiumPillText}>
+                    Beyond your 10 km — join with Mello+
+                  </Text>
+                </View>
+              )}
+
               {event.women_only && (
                 <View style={styles.womenOnlyPill}>
                   <Icon name="user" size={13} color={COLORS.secondary} strokeWidth={2} />
@@ -318,7 +466,10 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.hostLabel}>Hosted by</Text>
-                    <Text style={styles.hostName}>{event.host.name}</Text>
+                    <View style={styles.hostNameRow}>
+                      <Text style={styles.hostName}>{event.host.name}</Text>
+                      {isPremium(event.host) && <PremiumBadge size={13} />}
+                    </View>
                   </View>
                   <View style={styles.spotsPill}>
                     <Text style={styles.spotsPillText}>
@@ -371,7 +522,12 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   {pending.map((p) => (
                     <View key={p.id} style={styles.pendingRow}>
                       <Avatar name={p.name} photoUrl={p.photo_url} size={38} />
-                      <Text style={styles.pendingName}>{p.name}</Text>
+                      <View style={styles.pendingNameWrap}>
+                        <Text style={styles.pendingName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {isPremium(p) && <PremiumBadge size={13} />}
+                      </View>
                       <PressableScale
                         scaleTo={0.92}
                         style={styles.approveBtn}
@@ -401,20 +557,33 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
 
               {/* Actions */}
               <View style={styles.actions}>
-                {!isHost && (
+                {/* Ended event + attendee: the wrap replaces join/leave. */}
+                {hasWrapped(event) && (isParticipant || isHost) && (
+                  <Button
+                    label="Open the event wrap"
+                    onPress={() => {
+                      sheetRef.current?.close();
+                      router.push(`/events/wrap/${event.id}`);
+                    }}
+                  />
+                )}
+
+                {!isHost && !hasWrapped(event) && (
                   <Button
                     label={
                       isParticipant
                         ? 'Leave event'
                         : isPending
-                          ? 'Request pending — tap to cancel'
+                          ? 'Request pending'
                           : womenOnlyLocked
                             ? 'Female-only event'
                             : isFull
                               ? 'Event full'
-                              : event.requires_approval
-                                ? 'Request to join'
-                                : 'Join event'
+                              : tooFar
+                                ? 'Join with Mello+'
+                                : event.requires_approval
+                                  ? 'Request to join'
+                                  : 'Join event'
                     }
                     variant={
                       isParticipant || isPending || isFull || womenOnlyLocked
@@ -446,6 +615,18 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   />
                 )}
 
+                {/* Approved guest of a live/upcoming event: scan to check in. */}
+                {isParticipant && !hasWrapped(event) && (
+                  <Button
+                    label="Check in"
+                    variant="secondary"
+                    onPress={() => {
+                      sheetRef.current?.close();
+                      router.push(`/events/scan/${event.id}`);
+                    }}
+                  />
+                )}
+
                 {(isParticipant || isHost) && (
                   <Button
                     label="Open chat"
@@ -456,28 +637,6 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                     }}
                   />
                 )}
-
-                {/* Safety row: share your plan with a trusted contact + SOS. */}
-                <View style={styles.safetyRow}>
-                  {(isParticipant || isHost) && (
-                    <PressableScale
-                      scaleTo={0.95}
-                      style={styles.sharePlanBtn}
-                      onPress={() => sharePlan(event)}
-                    >
-                      <Icon name="send" size={14} color={COLORS.success} strokeWidth={2} />
-                      <Text style={styles.sharePlanText}>Share my plan</Text>
-                    </PressableScale>
-                  )}
-                  <SosButton
-                    variant="pill"
-                    event={event}
-                    onReport={() => {
-                      sheetRef.current?.close();
-                      router.push(`/friends/${event.host_id}`);
-                    }}
-                  />
-                </View>
               </View>
             </>
           )}
@@ -567,11 +726,16 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: COLORS.textSecondary,
   },
+  hostNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 1,
+  },
   hostName: {
     fontFamily: FONTS.bold,
     fontSize: 14,
     color: COLORS.textPrimary,
-    marginTop: 1,
   },
   spotsPill: {
     backgroundColor: 'rgba(31,164,99,0.10)',
@@ -632,8 +796,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 10,
   },
-  pendingName: {
+  pendingNameWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  pendingName: {
+    flexShrink: 1,
     fontFamily: FONTS.bold,
     fontSize: 14,
     color: COLORS.textPrimary,
@@ -656,6 +826,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actions: { gap: 10, marginTop: 4 },
+  premiumPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 100,
+    backgroundColor: PREMIUM_GOLD_TINT,
+  },
+  premiumPillText: {
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    color: PREMIUM_GOLD,
+  },
   womenOnlyPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -671,25 +856,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.secondary,
   },
-  safetyRow: {
+  headerActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+  },
+  shareBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    marginTop: 2,
-  },
-  sharePlanBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 34,
-    paddingHorizontal: 13,
-    borderRadius: 100,
-    backgroundColor: 'rgba(31,164,99,0.10)',
-  },
-  sharePlanText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.success,
   },
 });

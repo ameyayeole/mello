@@ -1,205 +1,186 @@
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useRef, useState, ComponentType } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  useWindowDimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  withDelay,
-  withSpring,
-  Easing,
+  useAnimatedScrollHandler,
+  interpolate,
+  interpolateColor,
+  Extrapolation,
+  SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, MelloPin } from '@/components/ui';
+import { Button } from '@/components/ui';
+import { DiscoverScene } from '@/components/onboarding/scenes/DiscoverScene';
+import { CreateScene } from '@/components/onboarding/scenes/CreateScene';
+import { SwipeScene } from '@/components/onboarding/scenes/SwipeScene';
+import { SafetyScene } from '@/components/onboarding/scenes/SafetyScene';
 
-// Decorative map illustration: grid, roads, park, pins, cluster — per design.
-function MapHero() {
-  const pulse = useSharedValue(0);
-  pulse.value = withRepeat(
-    withSequence(
-      withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
-      withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) })
-    ),
-    -1
-  );
-  const clusterStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + pulse.value * 0.08 }],
-  }));
+const SLIDES: {
+  key: string;
+  headline: string;
+  sub: string;
+  Scene: ComponentType;
+}[] = [
+  {
+    key: 'discover',
+    headline: 'See what’s happening\naround you',
+    sub: 'Live plans from real people nearby: coffee, gigs, treks, game nights.',
+    Scene: DiscoverScene,
+  },
+  {
+    key: 'create',
+    headline: 'Drop a pin,\nmake a plan',
+    sub: 'Pick a spot on the map, set a time, and your event is live in seconds.',
+    Scene: CreateScene,
+  },
+  {
+    key: 'swipe',
+    headline: 'Swipe events, save\nthe ones you like',
+    sub: 'Flick through what’s on around you and build your wishlist.',
+    Scene: SwipeScene,
+  },
+  {
+    key: 'safety',
+    headline: 'Real people,\nverified and safe',
+    sub: 'ID-verified hosts, women-only events, and safety tools in every plan.',
+    Scene: SafetyScene,
+  },
+];
 
-  const drop1 = useSharedValue(-40);
-  const drop2 = useSharedValue(-40);
-  drop1.value = withDelay(200, withSpring(0, { damping: 12 }));
-  drop2.value = withDelay(420, withSpring(0, { damping: 12 }));
-  const pin1Style = useAnimatedStyle(() => ({
-    transform: [{ translateY: drop1.value }],
-    opacity: drop1.value < -30 ? 0 : 1,
-  }));
-  const pin2Style = useAnimatedStyle(() => ({
-    transform: [{ translateY: drop2.value }],
-    opacity: drop2.value < -30 ? 0 : 1,
-  }));
-
-  return (
-    <View style={styles.mapWrap}>
-      {/* grid */}
-      {Array.from({ length: 10 }).map((_, i) => (
-        <View key={`v${i}`} style={[styles.gridLineV, { left: `${(i + 1) * 10}%` }]} />
-      ))}
-      {Array.from({ length: 12 }).map((_, i) => (
-        <View key={`h${i}`} style={[styles.gridLineH, { top: `${(i + 1) * 8}%` }]} />
-      ))}
-      {/* roads */}
-      <View style={[styles.road, { top: '22%', height: 16, transform: [{ rotate: '-16deg' }] }]} />
-      <View style={[styles.road, { top: '56%', height: 12, transform: [{ rotate: '10deg' }] }]} />
-      {/* park */}
-      <View style={styles.park} />
-      {/* pins */}
-      <Animated.View style={[styles.pinA, pin1Style]}>
-        <MelloPin height={48} />
-      </Animated.View>
-      <Animated.View style={[styles.pinB, pin2Style]}>
-        <MelloPin height={38} />
-      </Animated.View>
-      {/* cluster */}
-      <Animated.View style={[styles.cluster, clusterStyle]}>
-        <Text style={styles.clusterText}>9</Text>
-      </Animated.View>
-      {/* fade to white */}
-      <Svg style={styles.fade} pointerEvents="none">
-        <Defs>
-          <LinearGradient id="mapFade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#fff" stopOpacity={0} />
-            <Stop offset="1" stopColor="#fff" stopOpacity={1} />
-          </LinearGradient>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#mapFade)" />
-      </Svg>
-    </View>
-  );
+function Dot({ index, scrollX, width }: { index: number; scrollX: SharedValue<number>; width: number }) {
+  const dotStyle = useAnimatedStyle(() => {
+    const page = scrollX.value / width;
+    return {
+      width: interpolate(page, [index - 1, index, index + 1], [6, 20, 6], Extrapolation.CLAMP),
+      backgroundColor: interpolateColor(
+        page,
+        [index - 1, index, index + 1],
+        ['rgba(15,24,44,0.15)', COLORS.primary, 'rgba(15,24,44,0.15)']
+      ),
+    };
+  });
+  return <Animated.View style={[styles.dot, dotStyle]} />;
 }
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const scrollRef = useRef<Animated.ScrollView>(null);
+  const scrollX = useSharedValue(0);
+  const [index, setIndex] = useState(0);
+
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollX.value = e.contentOffset.x;
+  });
+
+  function onMomentumEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
+  }
+
+  const isLast = index === SLIDES.length - 1;
+
+  function handleNext() {
+    if (isLast) {
+      router.push('/onboarding/permissions');
+    } else {
+      scrollRef.current?.scrollTo({ x: (index + 1) * width, animated: true });
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <MapHero />
-      <View style={styles.content}>
-        <Animated.View entering={FadeInDown.delay(150).duration(500)}>
-          <Text style={styles.headline}>Real plans,{'\n'}real people, nearby</Text>
-          <Text style={styles.sub}>
-            See what's happening around you and join in — coffee, climbs, gigs,
-            game nights.
-          </Text>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500)}
-          style={styles.actions}
+      {!isLast && (
+        <TouchableOpacity
+          style={styles.skip}
+          hitSlop={12}
+          onPress={() => router.push('/onboarding/permissions')}
         >
-          <View style={styles.dots}>
-            <View style={[styles.dot, styles.dotActive]} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
+          <Text style={styles.skipText}>Skip</Text>
+        </TouchableOpacity>
+      )}
+
+      <Animated.ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={onScroll}
+        onMomentumScrollEnd={onMomentumEnd}
+        scrollEventThrottle={16}
+        style={styles.scroller}
+      >
+        {SLIDES.map(({ key, headline, sub, Scene }) => (
+          <View key={key} style={{ width }}>
+            <View style={styles.sceneWrap}>
+              <Scene />
+            </View>
+            <View style={styles.textBlock}>
+              <Text style={styles.headline}>{headline}</Text>
+              <Text style={styles.sub}>{sub}</Text>
+            </View>
           </View>
-          <Button
-            label="Get started"
-            onPress={() => router.push('/onboarding/permissions')}
-          />
-          <TouchableOpacity
-            onPress={() => router.push('/auth/login')}
-            hitSlop={10}
-          >
-            <Text style={styles.loginLink}>
-              Already have an account?{' '}
-              <Text style={styles.loginLinkBold}>Sign in</Text>
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
+        ))}
+      </Animated.ScrollView>
+
+      <Animated.View entering={FadeInDown.delay(250).duration(500)} style={styles.actions}>
+        <View style={styles.dots}>
+          {SLIDES.map((s, i) => (
+            <Dot key={s.key} index={i} scrollX={scrollX} width={width} />
+          ))}
+        </View>
+        <Button label={isLast ? 'Get started' : 'Next'} onPress={handleNext} />
+        <TouchableOpacity onPress={() => router.push('/auth/login')} hitSlop={10}>
+          <Text style={styles.loginLink}>
+            Already have an account?{' '}
+            <Text style={styles.loginLinkBold}>Sign in</Text>
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.surface },
-  mapWrap: {
-    flex: 1,
-    backgroundColor: '#E9ECEF',
-    overflow: 'hidden',
-  },
-  gridLineV: {
+  skip: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 2,
-    backgroundColor: 'rgba(15,24,44,0.05)',
+    top: 62,
+    right: 22,
+    zIndex: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
-  gridLineH: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: 'rgba(15,24,44,0.05)',
+  skipText: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: 'rgba(15,24,44,0.45)',
   },
-  road: {
-    position: 'absolute',
-    left: '-10%',
-    width: '130%',
-    backgroundColor: '#fff',
-  },
-  park: {
-    position: 'absolute',
-    top: '34%',
-    left: '12%',
-    width: 110,
-    height: 110,
-    borderRadius: 22,
-    backgroundColor: 'rgba(31,164,99,0.10)',
-  },
-  pinA: { position: 'absolute', top: '28%', left: '26%' },
-  pinB: { position: 'absolute', top: '46%', left: '60%' },
-  cluster: {
-    position: 'absolute',
-    top: '60%',
-    left: '40%',
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    borderWidth: 3,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 6,
-  },
-  clusterText: { fontFamily: FONTS.heavy, fontSize: 14, color: '#fff' },
-  fade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -1,
-    height: 150,
-  },
-  content: {
-    paddingHorizontal: 26,
-    paddingBottom: 18,
-    paddingTop: 8,
-    backgroundColor: COLORS.surface,
+  scroller: { flex: 1 },
+  sceneWrap: { flex: 1 },
+  textBlock: {
+    paddingHorizontal: 30,
+    paddingTop: 4,
+    paddingBottom: 10,
+    minHeight: 118,
   },
   headline: {
     fontFamily: FONTS.heavy,
-    fontSize: 29,
-    lineHeight: 33,
-    letterSpacing: -0.58,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: -0.56,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
@@ -209,22 +190,19 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 10,
   },
-  actions: { marginTop: 20, gap: 14 },
+  actions: {
+    paddingHorizontal: 26,
+    paddingBottom: 18,
+    gap: 14,
+  },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 6,
-    marginBottom: 4,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15,24,44,0.15)',
-  },
-  dotActive: { width: 20, backgroundColor: COLORS.primary },
+  dot: { height: 6, borderRadius: 10 },
   loginLink: {
     textAlign: 'center',
     fontFamily: FONTS.semibold,

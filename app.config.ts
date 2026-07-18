@@ -11,6 +11,9 @@ export default (): ExpoConfig => ({
   ios: {
     bundleIdentifier: 'com.yourcompany.mello',
     supportsTablet: false,
+    // Takes effect on the next native rebuild; until then the login screen
+    // hides the Apple button (module gated in auth.service).
+    usesAppleSignIn: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSLocationWhenInUseUsageDescription:
@@ -56,6 +59,7 @@ export default (): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
+    'expo-apple-authentication',
     'expo-web-browser',
     'expo-image',
     'expo-location',
@@ -70,6 +74,16 @@ export default (): ExpoConfig => ({
       {
         photosPermission:
           'Allow MELLO to access your photos to set a profile picture.',
+      },
+    ],
+    // Live door-scanner. Only active after a native rebuild; until then the
+    // check-in screen falls back to photo-scan + code (module gated in
+    // checkin.service → isLiveScannerAvailable).
+    [
+      'expo-camera',
+      {
+        cameraPermission:
+          'Allow MELLO to use the camera to scan attendees at your event.',
       },
     ],
   ],

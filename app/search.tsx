@@ -16,6 +16,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { NearbyEvent, Profile } from '@/types/models';
 import { formatEventTime } from '@/utils/time';
+import { BOOST_ACCENT, BOOST_EMOJI, BOOST_TINT, isBoosted } from '@/utils/boost';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
@@ -39,9 +40,16 @@ function EventResult({
     <PressableScale style={styles.row} onPress={onPress} scaleTo={0.98}>
       <CategoryTile activity={event.activity} size={38} radius={11} />
       <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {event.title}
-        </Text>
+        <View style={styles.rowTitleRow}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {event.title}
+          </Text>
+          {isBoosted(event) && (
+            <View style={styles.boostBadge}>
+              <Text style={styles.boostBadgeText}>{BOOST_EMOJI}</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {formatEventTime(event.starts_at)}
           {event.location_name ? ` · ${event.location_name}` : ''}
@@ -246,11 +254,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   rowText: { flex: 1, minWidth: 0 },
+  rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rowTitle: {
+    flexShrink: 1,
     fontFamily: FONTS.bold,
     fontSize: 14,
     color: COLORS.textPrimary,
   },
+  boostBadge: {
+    backgroundColor: BOOST_TINT,
+    paddingHorizontal: 6,
+    height: 18,
+    borderRadius: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boostBadgeText: { fontSize: 10, color: BOOST_ACCENT },
   rowMeta: {
     fontFamily: FONTS.medium,
     fontSize: 12,

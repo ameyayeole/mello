@@ -10,13 +10,22 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { getEventDetail } from '@/services/events.service';
+import {
+  countEventSavers,
+  getEventDetail,
+  getEventSavers,
+} from '@/services/events.service';
+import { getEventFeedback, hasWrapped } from '@/services/wrap.service';
+import { useWrap } from '@/hooks/useWrap';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
+import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import ParticipantRow from '@/components/events/ParticipantRow';
+import BoostCard from '@/components/events/BoostCard';
 import {
+  Avatar,
   Button,
   CategoryTile,
   Icon,
@@ -28,7 +37,12 @@ import {
 const PREVIEW_COUNT = 3;
 
 export default function HostPanelScreen() {
-  const { eventId } = useLocalSearchParams<{ eventId: string }>();
+  // celebrate=1 is passed only right after the in-map creation flow finishes:
+  // same screen, but it opens on a "you're hosting!" note.
+  const { eventId, celebrate } = useLocalSearchParams<{
+    eventId: string;
+    celebrate?: string;
+  }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
@@ -40,12 +54,38 @@ export default function HostPanelScreen() {
   });
 
   const isHost = !!event && event.host_id === user?.id;
+  const premium = isPremium(user);
+  const ended = !!event && hasWrapped(event);
+
+  // Post-event: anonymous feedback aggregate + encore demand.
+  const { status: wrapStatus } = useWrap(ended ? eventId : undefined);
+  const { data: feedbackSummary } = useQuery({
+    queryKey: ['eventFeedback', eventId],
+    queryFn: () => getEventFeedback(eventId!),
+    enabled: !!eventId && ended && isHost,
+    staleTime: 60_000,
+  });
   const attendees = (event?.participants ?? []).filter(
     (p) => p.status === 'approved' && p.id !== user?.id
   );
-  const requests = (event?.participants ?? []).filter(
-    (p) => p.status === 'pending'
-  );
+  // Mello+ members' requests surface first.
+  const requests = (event?.participants ?? [])
+    .filter((p) => p.status === 'pending')
+    .sort((a, b) => Number(isPremium(b)) - Number(isPremium(a)));
+
+  // Wishlist insight: every host gets the count; only Mello+ hosts get names.
+  const { data: saversCount = 0 } = useQuery({
+    queryKey: ['eventSaversCount', eventId],
+    queryFn: () => countEventSavers(eventId),
+    enabled: isHost,
+    retry: 1,
+  });
+  const { data: savers = [] } = useQuery({
+    queryKey: ['eventSavers', eventId],
+    queryFn: () => getEventSavers(eventId),
+    enabled: isHost && premium,
+    retry: 1,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['eventDetail', eventId] });
@@ -67,6 +107,7 @@ export default function HostPanelScreen() {
         <View style={styles.header}>
           <IconButton
             icon="back"
+            variant="ghost"
             onPress={() => router.back()}
             accessibilityLabel="Go back"
           />
@@ -84,11 +125,12 @@ export default function HostPanelScreen() {
       <View style={styles.header}>
         <IconButton
           icon="back"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Go back"
         />
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Manage event
+          {celebrate === '1' ? 'Your new event' : 'Manage event'}
         </Text>
         <PressableScale
           scaleTo={0.93}
@@ -104,6 +146,22 @@ export default function HostPanelScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
+        {celebrate === '1' && (
+          <Animated.View
+            entering={FadeInDown.duration(400)}
+            style={styles.congratsCard}
+          >
+            <Text style={styles.congratsEmoji}>🎉</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.congratsTitle}>You're hosting!</Text>
+              <Text style={styles.congratsSub}>
+                Your event is live on the map. We'll let you know as people
+                join — this is your event HQ.
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Event info */}
         <Animated.View entering={FadeInDown.duration(350)} style={styles.card}>
           {event.image_url && (
@@ -147,6 +205,90 @@ export default function HostPanelScreen() {
           )}
         </Animated.View>
 
+        {/* Door check-in — hidden once the event has wrapped */}
+        {!ended && (
+          <Animated.View entering={FadeInDown.delay(20).duration(350)}>
+            <PressableScale
+              scaleTo={0.98}
+              style={styles.checkinCard}
+              onPress={() => router.push(`/events/checkin/${event.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel="Open door check-in"
+            >
+              <View style={styles.checkinIcon}>
+                <Icon name="scan" size={22} color="#fff" strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.checkinTitle}>Check in guests</Text>
+                <Text style={styles.checkinSub}>
+                  Show your QR — guests scan to check in
+                </Text>
+              </View>
+              <Icon name="chevronRight" size={20} color={COLORS.textMuted} />
+            </PressableScale>
+          </Animated.View>
+        )}
+
+        {/* Boost — sell the ₹69 boost, or show the live boost's impact */}
+        <Animated.View entering={FadeInDown.delay(30).duration(350)}>
+          <BoostCard
+            event={event}
+            saversCount={saversCount}
+            onBoosted={invalidate}
+          />
+        </Animated.View>
+
+        {/* Post-event: how it landed */}
+        {ended && (
+          <Animated.View entering={FadeInDown.delay(45).duration(350)}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>After the event</Text>
+            </View>
+            <View style={styles.wrapPanel}>
+              <View style={styles.wrapStatsRow}>
+                <View style={styles.wrapStat}>
+                  <Text style={styles.wrapStatValue}>
+                    👍 {feedbackSummary?.upCount ?? 0}
+                  </Text>
+                  <Text style={styles.wrapStatLabel}>loved it</Text>
+                </View>
+                <View style={styles.wrapStatDivider} />
+                <View style={styles.wrapStat}>
+                  <Text style={styles.wrapStatValue}>
+                    👎 {feedbackSummary?.downCount ?? 0}
+                  </Text>
+                  <Text style={styles.wrapStatLabel}>not great</Text>
+                </View>
+                <View style={styles.wrapStatDivider} />
+                <View style={styles.wrapStat}>
+                  <Text style={styles.wrapStatValue}>
+                    🔁 {wrapStatus?.encoreCount ?? 0}
+                  </Text>
+                  <Text style={styles.wrapStatLabel}>want it again</Text>
+                </View>
+              </View>
+              {(feedbackSummary?.notes?.length ?? 0) > 0 && (
+                <View style={styles.wrapNotes}>
+                  {feedbackSummary!.notes.slice(0, 3).map((n, i) => (
+                    <Text key={i} style={styles.wrapNoteText}>
+                      “{n}”
+                    </Text>
+                  ))}
+                  <Text style={styles.wrapNotesHint}>
+                    Feedback is anonymous.
+                  </Text>
+                </View>
+              )}
+              <Button
+                label="Open the event wrap"
+                variant="secondary"
+                height={44}
+                onPress={() => router.push(`/events/wrap/${event.id}`)}
+              />
+            </View>
+          </Animated.View>
+        )}
+
         {/* Join requests */}
         {requests.length > 0 && (
           <Animated.View entering={FadeInDown.delay(60).duration(350)}>
@@ -177,6 +319,61 @@ export default function HostPanelScreen() {
                 />
               ))}
             </View>
+          </Animated.View>
+        )}
+
+        {/* Wishlist insight (Mello+): who saved this event */}
+        {saversCount > 0 && (
+          <Animated.View entering={FadeInDown.delay(90).duration(350)}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Wishlisted · {saversCount}
+              </Text>
+            </View>
+            {premium ? (
+              <View style={styles.saversCard}>
+                {savers.slice(0, 8).map((s) => (
+                  <PressableScale
+                    key={s.id}
+                    scaleTo={0.94}
+                    style={styles.saverChip}
+                    onPress={() => router.push(`/friends/${s.id}`)}
+                  >
+                    <Avatar name={s.name} photoUrl={s.photo_url} size={24} />
+                    <Text style={styles.saverName} numberOfLines={1}>
+                      {s.name}
+                    </Text>
+                  </PressableScale>
+                ))}
+                {savers.length > 8 && (
+                  <View style={styles.saverChip}>
+                    <Text style={styles.saverName}>+{savers.length - 8}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <PressableScale
+                scaleTo={0.98}
+                style={styles.saversLocked}
+                onPress={() => router.push('/premium?reason=wishlist')}
+                accessibilityRole="button"
+                accessibilityLabel="See who wishlisted this event with Mello+"
+              >
+                <View style={styles.saversLockedIcon}>
+                  <Icon name="crown" size={18} color={PREMIUM_GOLD} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.saversLockedTitle}>
+                    {saversCount} {saversCount === 1 ? 'person has' : 'people have'}{' '}
+                    wishlisted this
+                  </Text>
+                  <Text style={styles.saversLockedSub}>
+                    See who with Mello+
+                  </Text>
+                </View>
+                <Icon name="chevronRight" size={18} color={PREMIUM_GOLD} />
+              </PressableScale>
+            )}
           </Animated.View>
         )}
 
@@ -265,6 +462,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   scroll: { padding: 20, paddingTop: 8, gap: 18, paddingBottom: 32 },
+  congratsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    backgroundColor: COLORS.primaryTint,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,94,91,0.25)',
+    padding: 15,
+  },
+  congratsEmoji: { fontSize: 30, lineHeight: 36 },
+  checkinCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,94,91,0.28)',
+    padding: 14,
+  },
+  checkinIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkinTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  checkinSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  congratsTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  congratsSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 18,
@@ -332,6 +581,49 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: COLORS.primary,
   },
+  wrapPanel: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    gap: 14,
+  },
+  wrapStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  wrapStat: { alignItems: 'center', flex: 1 },
+  wrapStatValue: {
+    fontFamily: FONTS.heavy,
+    fontSize: 17,
+    color: COLORS.textPrimary,
+  },
+  wrapStatLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 11.5,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  wrapStatDivider: { width: 1, height: 30, backgroundColor: COLORS.border },
+  wrapNotes: {
+    gap: 6,
+    backgroundColor: COLORS.background,
+    borderRadius: 13,
+    padding: 12,
+  },
+  wrapNoteText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: COLORS.textPrimary,
+  },
+  wrapNotesHint: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
   rows: { gap: 8 },
   emptyCard: {
     backgroundColor: COLORS.surface,
@@ -344,5 +636,61 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  saversCard: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(15,24,44,0.07)',
+    padding: 12,
+  },
+  saverChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    height: 34,
+    paddingLeft: 5,
+    paddingRight: 12,
+    borderRadius: 100,
+    backgroundColor: COLORS.background,
+    maxWidth: 160,
+  },
+  saverName: {
+    flexShrink: 1,
+    fontFamily: FONTS.bold,
+    fontSize: 12.5,
+    color: COLORS.textPrimary,
+  },
+  saversLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(201,147,10,0.35)',
+    padding: 12,
+  },
+  saversLockedIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: PREMIUM_GOLD_TINT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saversLockedTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+    color: COLORS.textPrimary,
+  },
+  saversLockedSub: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    color: PREMIUM_GOLD,
+    marginTop: 1,
   },
 });

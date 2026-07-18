@@ -4,7 +4,8 @@ import { Icon, IconName } from './Icon';
 import { PressableScale } from './PressableScale';
 
 // 40×40 circular icon button. 'plain' = grey fill, 'surface' = white + border,
-// 'tint' = coral tint fill with coral icon.
+// 'tint' = coral tint fill with coral icon, 'ghost' = no fill (bare icon, used
+// for header back/close buttons).
 export function IconButton({
   icon,
   onPress,
@@ -18,7 +19,7 @@ export function IconButton({
 }: {
   icon: IconName;
   onPress?: () => void;
-  variant?: 'plain' | 'surface' | 'tint';
+  variant?: 'plain' | 'surface' | 'tint' | 'ghost';
   size?: number;
   iconSize?: number;
   color?: string;

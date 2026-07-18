@@ -14,6 +14,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
+import InAppNotification from '@/components/InAppNotification';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,12 +34,16 @@ function AuthGuard() {
     const inOnboarding = seg[0] === 'onboarding';
     const inAuth = seg[0] === 'auth';
 
+    // Password recovery: exchanging the emailed code signs the user in, but
+    // they still need to type their new password — don't yank them to the map.
+    if (inAuth && seg[1] === 'reset-password') return;
+
     if (!session) {
       if (!inOnboarding && !inAuth) router.replace('/onboarding/welcome');
     } else if (!user) {
       if (seg[1] !== 'profile-setup') router.replace('/auth/profile-setup');
     } else {
-      if (inOnboarding || inAuth) router.replace('/(tabs)');
+      if (inOnboarding || inAuth) router.replace('/(tabs)/map');
     }
   }, [session, user, isLoading, segments]);
 
@@ -56,7 +61,11 @@ function RootLayoutInner() {
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
-          name="events/create"
+          name="events/swipe"
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="events/wishlist"
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen name="events/host/[eventId]" />
@@ -72,6 +81,14 @@ function RootLayoutInner() {
         />
         <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen
+          name="profile/change-password"
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="profile/change-email"
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen
           name="profile/verify"
           options={{ presentation: 'modal' }}
         />
@@ -82,7 +99,9 @@ function RootLayoutInner() {
         />
         <Stack.Screen name="search" options={{ presentation: 'modal' }} />
         <Stack.Screen name="map-filters" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
       </Stack>
+      <InAppNotification />
     </>
   );
 }

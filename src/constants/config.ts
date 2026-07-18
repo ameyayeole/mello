@@ -6,4 +6,7 @@ export const CONFIG = {
   mapRefetchIntervalMs: 60_000,
   mapStaletimeMs: 30_000,
   locationDistanceIntervalMeters: 50,
+  // Mello+ free-tier limits
+  freeJoinRadiusMeters: 10_000,
+  freeDailySwipes: 10,
 } as const;

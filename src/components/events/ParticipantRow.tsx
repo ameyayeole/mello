@@ -12,8 +12,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { EventParticipant } from '@/types/models';
+import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
-import { Avatar, Icon, PressableScale } from '@/components/ui';
+import { Avatar, Icon, PremiumBadge, PressableScale } from '@/components/ui';
 
 // One attendee / join-request row in the host panel. Tapping the avatar or
 // name opens the person's profile. Approved attendees get message + overflow
@@ -114,6 +115,7 @@ export default function ParticipantRow({
         <Text style={styles.name} numberOfLines={1}>
           {person.name}
         </Text>
+        {isPremium(person) && <PremiumBadge size={13} />}
       </PressableScale>
 
       {person.status === 'pending' ? (
@@ -212,7 +214,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   name: {
-    flex: 1,
+    flexShrink: 1,
     fontFamily: FONTS.bold,
     fontSize: 14,
     color: COLORS.textPrimary,

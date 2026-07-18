@@ -56,6 +56,7 @@ export default function EventAttendeesScreen() {
       <View style={styles.header}>
         <IconButton
           icon="back"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Go back"
         />

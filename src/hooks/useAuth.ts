@@ -16,26 +16,34 @@ export function useAuth() {
         setUser(profile);
       } catch {
         setUser(null);
+      } finally {
+        // Only settle loading once the profile question is resolved, so the
+        // AuthGuard never sees the transient session-but-no-user state and
+        // flashes the profile-setup screen.
+        setLoading(false);
       }
     }
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      setLoading(false);
-      if (data.session?.user) loadProfile(data.session.user.id);
+      if (data.session?.user) {
+        loadProfile(data.session.user.id);
+      } else {
+        setLoading(false);
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         // Synchronous only — no awaited Supabase calls here.
         setSession(newSession);
-        setLoading(false);
         if (newSession?.user) {
           // Defer the Supabase call so it runs after the callback returns,
           // breaking the auth deadlock.
           setTimeout(() => loadProfile(newSession.user.id), 0);
         } else {
           setUser(null);
+          setLoading(false);
         }
       }
     );

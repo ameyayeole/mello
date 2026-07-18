@@ -15,7 +15,10 @@ const PAGE_SIZE = 10;
 // of the "loads, then shows empty" flash. Rounding to ~2 decimals (~1 km) keeps
 // the key stable, and keepPreviousData keeps the current feed on screen while a
 // genuinely-new query (e.g. a filter change) loads in the background.
-export function useExploreFeed() {
+// `boostedOnly` powers the Explore "🔥 Hot" tab — the same ranked feed, filtered
+// to currently-boosted events. It's part of the query key so the two tabs cache
+// independently.
+export function useExploreFeed(boostedOnly = false, enabled = true) {
   const user = useAuthStore((s) => s.user);
   const coords = useLocationStore((s) => s.coords);
   const activeFilter = useUIStore((s) => s.activeFilter);
@@ -24,7 +27,7 @@ export function useExploreFeed() {
   const lng = coords ? Math.round(coords.lng * 100) / 100 : null;
 
   return useInfiniteQuery({
-    queryKey: ['exploreFeed', user?.id, lat, lng, activeFilter],
+    queryKey: ['exploreFeed', user?.id, lat, lng, activeFilter, boostedOnly],
     queryFn: ({ pageParam }) =>
       getExploreFeed({
         userId: user!.id,
@@ -32,12 +35,13 @@ export function useExploreFeed() {
         activity: activeFilter ?? undefined,
         limit: PAGE_SIZE,
         offset: pageParam,
+        boostedOnly,
       }),
     initialPageParam: 0,
     // Stop paging once a page comes back short (no more rows).
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < PAGE_SIZE ? undefined : allPages.length * PAGE_SIZE,
-    enabled: !!user,
+    enabled: !!user && enabled,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     refetchOnWindowFocus: false,

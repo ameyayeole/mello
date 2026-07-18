@@ -62,7 +62,7 @@ function FriendRow({
 export default function FriendsScreen() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
-  const { friends, pending, sendRequest, accept, relationshipWith } =
+  const { friends, pending, sendRequest, accept, remove, relationshipWith } =
     useFriends();
   const { isOnline } = usePresence();
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,6 +89,7 @@ export default function FriendsScreen() {
       <View style={styles.header}>
         <IconButton
           icon="back"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Go back"
         />
@@ -128,12 +129,23 @@ export default function FriendsScreen() {
                   activeOpacity={0.7}
                 >
                   <Avatar name={item.name} photoUrl={item.photo_url} size={46} />
-                  <Text style={styles.friendName}>{item.name}</Text>
+                  <View style={styles.searchRowInfo}>
+                    <Text style={styles.friendName}>{item.name}</Text>
+                    {item.username ? (
+                      <Text style={styles.searchUsername}>@{item.username}</Text>
+                    ) : null}
+                  </View>
                 </TouchableOpacity>
                 {rel.status === 'friends' ? (
                   <Text style={styles.statusLabel}>Friends</Text>
                 ) : rel.status === 'request_sent' ? (
-                  <Text style={styles.statusLabel}>Requested</Text>
+                  <PressableScale
+                    scaleTo={0.92}
+                    style={styles.requestedBtn}
+                    onPress={() => remove.mutate(rel.friendshipId!)}
+                  >
+                    <Text style={styles.requestedBtnText}>Requested</Text>
+                  </PressableScale>
                 ) : rel.status === 'request_received' ? (
                   <PressableScale
                     scaleTo={0.92}
@@ -197,6 +209,14 @@ export default function FriendsScreen() {
                       onPress={() => accept.mutate(req.id)}
                     >
                       <Text style={styles.acceptBtnText}>Accept</Text>
+                    </PressableScale>
+                    <PressableScale
+                      scaleTo={0.92}
+                      style={styles.declineBtn}
+                      onPress={() => remove.mutate(req.id)}
+                      accessibilityLabel="Decline request"
+                    >
+                      <Icon name="close" size={16} color="rgba(15,24,44,0.55)" />
                     </PressableScale>
                   </View>
                 </Animated.View>
@@ -308,6 +328,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   friendInfo: { flex: 1, minWidth: 0 },
+  searchRowInfo: { flex: 1, minWidth: 0 },
+  searchUsername: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
   friendName: {
     fontFamily: FONTS.bold,
     fontSize: 14,
@@ -333,6 +360,31 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: COLORS.textSecondary,
     paddingHorizontal: 10,
+  },
+  requestedBtn: {
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: 'rgba(15,24,44,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestedBtnText: {
+    fontFamily: FONTS.bold,
+    fontSize: 12.5,
+    color: COLORS.textSecondary,
+  },
+  declineBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: 'rgba(15,24,44,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   acceptBtn: {
     height: 34,

@@ -55,12 +55,12 @@ export async function uploadProfilePhoto(
   userId: string,
   uri: string
 ): Promise<string> {
-  const compressed = await compressForUpload(uri);
+  const encoded = await encodeForUpload(uri, { maxWidth: 1280 });
   const path = `${userId}/photo-${Date.now()}-${Math.random()
     .toString(36)
-    .slice(2, 7)}.jpg`;
+    .slice(2, 7)}.${encoded.ext}`;
 
-  await uploadFileFromUri('avatars', path, compressed, 'image/jpeg');
+  await uploadFileFromUri('avatars', path, encoded.uri, encoded.contentType);
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   return data.publicUrl;
@@ -82,25 +82,44 @@ export async function uploadProfilePhotos(
   );
 }
 
+interface EncodedImage {
+  uri: string;
+  contentType: string;
+  ext: string;
+}
+
 /**
- * Compresses a local image to a 1280-px-wide JPEG before upload.
- * Prevents EMSGSIZE ("Message too long") on iOS when full-resolution photos
- * from the camera roll (5–15 MB) exceed the simulator/device socket buffer.
+ * The single encoder every image upload goes through: resizes to what a phone
+ * viewport actually needs (`maxWidth`) and re-encodes as WEBP, falling back to
+ * JPEG where WEBP encoding isn't supported. Keeping files small also prevents
+ * EMSGSIZE ("Message too long") on iOS, where full-resolution camera-roll
+ * photos (5–15 MB) overflow the socket buffer.
  */
-async function compressForUpload(uri: string): Promise<string> {
+async function encodeForUpload(
+  uri: string,
+  { maxWidth }: { maxWidth: number }
+): Promise<EncodedImage> {
   // The currently installed native binary predates expo-image-manipulator being
   // added, so the module may be missing at runtime. Fall back to the original
   // file rather than crashing — the picker's low `quality` setting keeps files
   // small enough to upload in that case.
   const { requireOptionalNativeModule } = await import('expo-modules-core');
-  if (!requireOptionalNativeModule('ExpoImageManipulator')) return uri;
+  if (!requireOptionalNativeModule('ExpoImageManipulator')) {
+    return { uri, contentType: 'image/jpeg', ext: 'jpg' };
+  }
 
   const { ImageManipulator, SaveFormat } = await import('expo-image-manipulator');
   const ref = await ImageManipulator.manipulate(uri)
-    .resize({ width: 1280 })
+    .resize({ width: maxWidth })
     .renderAsync();
-  const result = await ref.saveAsync({ compress: 0.75, format: SaveFormat.JPEG });
-  return result.uri;
+
+  try {
+    const webp = await ref.saveAsync({ compress: 0.75, format: SaveFormat.WEBP });
+    return { uri: webp.uri, contentType: 'image/webp', ext: 'webp' };
+  } catch {
+    const jpeg = await ref.saveAsync({ compress: 0.75, format: SaveFormat.JPEG });
+    return { uri: jpeg.uri, contentType: 'image/jpeg', ext: 'jpg' };
+  }
 }
 
 /**
@@ -118,11 +137,84 @@ export async function uploadEventPhoto(
   userId: string,
   uri: string
 ): Promise<string> {
-  const compressed = await compressForUpload(uri);
-  const path = `${userId}/${Date.now()}.jpg`;
+  const encoded = await encodeForUpload(uri, { maxWidth: 1280 });
+  const path = `${userId}/${Date.now()}.${encoded.ext}`;
 
-  await uploadFileFromUri('event-photos', path, compressed, 'image/jpeg');
+  await uploadFileFromUri('event-photos', path, encoded.uri, encoded.contentType);
 
   const { data } = supabase.storage.from('event-photos').getPublicUrl(path);
   return data.publicUrl;
+}
+
+/**
+ * Uploads a chat photo (event chat or DM) to the chat-media bucket, sized for
+ * a message bubble on a phone screen (~260pt at 3x), not full resolution.
+ */
+export async function uploadChatPhoto(
+  userId: string,
+  uri: string
+): Promise<string> {
+  const encoded = await encodeForUpload(uri, { maxWidth: 800 });
+  const path = `${userId}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}.${encoded.ext}`;
+
+  await uploadFileFromUri('chat-media', path, encoded.uri, encoded.contentType);
+
+  const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
+ * Uploads a post-event wrap photo to the shared pool. Reuses the public
+ * event-photos bucket (016 policies: public read, uid-folder write) with a
+ * wrap-prefixed filename so pool photos are distinguishable from covers.
+ */
+export async function uploadWrapPhoto(
+  userId: string,
+  eventId: string,
+  uri: string
+): Promise<string> {
+  const encoded = await encodeForUpload(uri, { maxWidth: 1280 });
+  const path = `${userId}/wrap-${eventId}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}.${encoded.ext}`;
+
+  await uploadFileFromUri('event-photos', path, encoded.uri, encoded.contentType);
+
+  const { data } = supabase.storage.from('event-photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
+ * Whether saving to the camera roll is possible. expo-media-library ships JS
+ * only for now — the native module arrives with the next binary build, so the
+ * gallery hides its "Download all" button until then.
+ */
+export async function isMediaLibraryAvailable(): Promise<boolean> {
+  const { requireOptionalNativeModule } = await import('expo-modules-core');
+  return !!requireOptionalNativeModule('ExpoMediaLibrary');
+}
+
+/**
+ * Downloads remote photo URLs into the app cache and saves each to the
+ * device photo library. Returns the number saved. Throws if permission is
+ * denied; call isMediaLibraryAvailable() first.
+ */
+export async function saveImagesToLibrary(urls: string[]): Promise<number> {
+  const MediaLibrary = await import('expo-media-library');
+  const { status } = await MediaLibrary.requestPermissionsAsync();
+  if (status !== 'granted') {
+    throw new Error('Photo library permission was not granted.');
+  }
+
+  let saved = 0;
+  for (const url of urls) {
+    const ext = url.split('.').pop()?.split('?')[0] ?? 'jpg';
+    const target = `${FileSystem.cacheDirectory}wrap-${Date.now()}-${saved}.${ext}`;
+    const dl = await FileSystem.downloadAsync(url, target);
+    await MediaLibrary.saveToLibraryAsync(dl.uri);
+    saved += 1;
+  }
+  return saved;
 }

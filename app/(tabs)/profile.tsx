@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,17 +13,25 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
+import { getSavedEvents, unsaveEvent } from '@/services/events.service';
+import EventBottomSheet, {
+  EventBottomSheetRef,
+} from '@/components/events/EventBottomSheet';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Gender } from '@/types/models';
+import { formatEventTime } from '@/utils/time';
+import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { Gender, NearbyEvent } from '@/types/models';
 import {
   Avatar,
   Icon,
   IconButton,
   IconName,
+  PremiumBadge,
   PressableScale,
   SectionLabel,
   VerifiedBadge,
@@ -42,6 +50,30 @@ export default function ProfileTabScreen() {
   const { width } = useWindowDimensions();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const queryClient = useQueryClient();
+  const sheetRef = useRef<EventBottomSheetRef>(null);
+
+  // Wishlist: events saved from the swipe deck's bookmark button.
+  const { data: wishlist = [] } = useQuery({
+    queryKey: ['savedEvents', user?.id],
+    queryFn: () => getSavedEvents(user!.id),
+    enabled: !!user,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const removeSaved = useMutation({
+    mutationFn: (eventId: string) => unsaveEvent(user!.id, eventId),
+    onMutate: (eventId) => {
+      queryClient.setQueryData<NearbyEvent[]>(
+        ['savedEvents', user?.id],
+        (events = []) => events.filter((e) => e.id !== eventId)
+      );
+      queryClient.setQueryData<string[]>(
+        ['savedEventIds', user?.id],
+        (ids = []) => ids.filter((i) => i !== eventId)
+      );
+    },
+  });
 
   if (!user) return null;
 
@@ -117,7 +149,11 @@ export default function ProfileTabScreen() {
               <View style={styles.heroNameRow}>
                 <Text style={styles.heroName}>{user.name}</Text>
                 {user.kyc_status === 'approved' && <VerifiedBadge size={18} />}
+                {isPremium(user) && <PremiumBadge size={18} />}
               </View>
+              {user.username ? (
+                <Text style={styles.heroUsername}>@{user.username}</Text>
+              ) : null}
               <View style={styles.heroMetaRow}>
                 <Icon name="thumbsUp" size={13} color="#fff" strokeWidth={2} />
                 <Text style={styles.heroThumbs}>{user.thumbs_count ?? 0}</Text>
@@ -167,6 +203,34 @@ export default function ProfileTabScreen() {
           </PressableScale>
         </Animated.View>
 
+        {/* Mello+ status / upsell */}
+        <Animated.View entering={FadeInDown.delay(90).duration(400)}>
+          <PressableScale
+            scaleTo={0.98}
+            style={styles.premiumCard}
+            onPress={() => router.push('/premium')}
+            accessibilityRole="button"
+            accessibilityLabel="Mello+"
+          >
+            <View style={styles.premiumCardIcon}>
+              <Icon name="crown" size={19} color={PREMIUM_GOLD} strokeWidth={2} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.premiumCardTitle}>
+                {isPremium(user) ? 'Mello+ active' : 'Get Mello+'}
+              </Text>
+              <Text style={styles.premiumCardSub}>
+                {isPremium(user)
+                  ? user.premium_until
+                    ? `Until ${new Date(user.premium_until).toLocaleDateString()}`
+                    : 'All premium perks unlocked'
+                  : 'Whole-city events, filters & unlimited swipes'}
+              </Text>
+            </View>
+            <Icon name="chevronRight" size={18} color={PREMIUM_GOLD} />
+          </PressableScale>
+        </Animated.View>
+
         {/* Bio prompt card */}
         {user.bio ? (
           <Animated.View
@@ -200,6 +264,63 @@ export default function ProfileTabScreen() {
                 );
               })}
             </View>
+          </Animated.View>
+        )}
+
+        {/* Wishlist: events bookmarked on the swipe deck */}
+        {wishlist.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(190).duration(400)}>
+            <SectionLabel style={styles.sectionLabel}>Wishlist</SectionLabel>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.wishlistRow}
+            >
+              {wishlist.map((e) => {
+                const cat = categoryStyle(e.activity);
+                const emoji = ACTIVITY_MAP[e.activity]?.emoji ?? '📍';
+                return (
+                  <PressableScale
+                    key={e.id}
+                    scaleTo={0.96}
+                    style={styles.wishCard}
+                    onPress={() => sheetRef.current?.open(e.id)}
+                  >
+                    <View
+                      style={[styles.wishMedia, { backgroundColor: cat.tint }]}
+                    >
+                      {e.image_url ? (
+                        <Image
+                          source={{ uri: e.image_url }}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                          transition={150}
+                        />
+                      ) : (
+                        <Text style={styles.wishEmoji}>{emoji}</Text>
+                      )}
+                      <PressableScale
+                        scaleTo={0.85}
+                        style={styles.wishRemove}
+                        onPress={() => removeSaved.mutate(e.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${e.title} from wishlist`}
+                      >
+                        <Icon name="close" size={12} color="#fff" strokeWidth={2.6} />
+                      </PressableScale>
+                    </View>
+                    <View style={styles.wishBody}>
+                      <Text style={styles.wishTitle} numberOfLines={2}>
+                        {e.title}
+                      </Text>
+                      <Text style={styles.wishTime} numberOfLines={1}>
+                        {formatEventTime(e.starts_at)}
+                      </Text>
+                    </View>
+                  </PressableScale>
+                );
+              })}
+            </ScrollView>
           </Animated.View>
         )}
       </ScrollView>
@@ -264,6 +385,8 @@ export default function ProfileTabScreen() {
           </View>
         </View>
       </Modal>
+
+      <EventBottomSheet ref={sheetRef} />
     </SafeAreaView>
   );
 }
@@ -329,6 +452,12 @@ const styles = StyleSheet.create({
   },
   heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   heroName: { fontFamily: FONTS.heavy, fontSize: 23, color: '#fff' },
+  heroUsername: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 1,
+  },
   heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -381,6 +510,35 @@ const styles = StyleSheet.create({
     width: 1,
     height: 26,
     backgroundColor: 'rgba(15,24,44,0.1)',
+  },
+  premiumCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(201,147,10,0.35)',
+    padding: 13,
+  },
+  premiumCardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: PREMIUM_GOLD_TINT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumCardTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  premiumCardSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 1,
   },
   promptCard: {
     backgroundColor: COLORS.surface,
@@ -453,6 +611,47 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
   viewerDotActive: { backgroundColor: '#fff' },
+  wishlistRow: { gap: 10, paddingRight: 4 },
+  wishCard: {
+    width: 148,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  wishMedia: {
+    height: 86,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wishEmoji: { fontSize: 34 },
+  wishRemove: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(15,24,44,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wishBody: { padding: 10, paddingTop: 8, gap: 3 },
+  wishTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: COLORS.textPrimary,
+  },
+  wishTime: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+  },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
     flexDirection: 'row',

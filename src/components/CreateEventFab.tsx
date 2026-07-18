@@ -1,15 +1,26 @@
 import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
+import { useUIStore } from '@/stores/uiStore';
 import { Icon, PressableScale } from '@/components/ui';
 
-export default function CreateEventFab() {
+// Starts the in-map creation flow (no standalone create screen anymore — the
+// map itself is the form). Screens other than the map hop to the map tab with
+// the flow already armed.
+export default function CreateEventFab({ onPress }: { onPress?: () => void }) {
   const router = useRouter();
+  const setCreatingEvent = useUIStore((s) => s.setCreatingEvent);
   return (
     <PressableScale
       style={styles.fab}
       scaleTo={0.88}
-      onPress={() => router.push('/events/create')}
+      onPress={
+        onPress ??
+        (() => {
+          setCreatingEvent(true);
+          router.push('/(tabs)/map');
+        })
+      }
       accessibilityLabel="Create event"
       accessibilityRole="button"
     >

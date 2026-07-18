@@ -3,16 +3,20 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   SafeAreaView,
   Platform,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Animated, {
+  Easing,
+  FadeIn,
   FadeInDown,
+  FadeOut,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
@@ -21,6 +25,7 @@ const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 import { useNearbyEvents } from '@/hooks/useNearbyEvents';
 import { useFriends } from '@/hooks/useFriends';
 import { useLocation } from '@/hooks/useLocation';
+import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
 import { useLocationStore } from '@/stores/locationStore';
 import { useUIStore } from '@/stores/uiStore';
 import EventBottomSheet, {
@@ -28,12 +33,18 @@ import EventBottomSheet, {
 } from '@/components/events/EventBottomSheet';
 import PlaceSearch, { PlaceResult } from '@/components/PlaceSearch';
 import CreateEventFab from '@/components/CreateEventFab';
-import { ACTIVITIES, ACTIVITY_MAP } from '@/constants/activities';
-import { categoryStyle } from '@/constants/categoryStyle';
+import SwipeDeckTeaser from '@/components/map/SwipeDeckTeaser';
+import HotEventsSheet from '@/components/map/HotEventsSheet';
+import CreateEventFlow, {
+  CreateEventFlowRef,
+} from '@/components/map/CreateEventFlow';
+import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { ActivityId } from '@/types/models';
-import { Avatar, Icon, IconName, PressableScale } from '@/components/ui';
+import { NearbyEvent } from '@/types/models';
+import { BOOST_ACCENT, BOOST_EMOJI } from '@/utils/boost';
+import { isBoosted } from '@/utils/boost';
+import { Avatar, Icon, PressableScale } from '@/components/ui';
 import { clusterPoints, Cluster } from '@/utils/clusterEvents';
 import { applyMapFilters, countActiveMapFilters } from '@/utils/mapFilters';
 
@@ -80,10 +91,12 @@ function regionRadiusM(region: Region): number {
 export default function MapScreen() {
   const router = useRouter();
   const coords = useLocationStore((s) => s.coords);
-  const { mapFilters, setMapFilters } = useUIStore();
+  const { mapFilters, setMapFilters, creatingEvent, setCreatingEvent } =
+    useUIStore();
   const { requestAndStart } = useLocation();
   const { friends } = useFriends();
   const sheetRef = useRef<EventBottomSheetRef>(null);
+  useSelectedEventSheet(sheetRef);
   const mapRef = useRef<MapView>(null);
   const didCenter = useRef(false);
   // Where the map is looking; pins load for this region, not the GPS position.
@@ -108,6 +121,37 @@ export default function MapScreen() {
   );
   const filterCount = countActiveMapFilters(mapFilters);
 
+  // Currently-boosted events in view, for the "🔥 Hot events" button + sheet.
+  const [hotOpen, setHotOpen] = useState(false);
+  const boostedEvents = useMemo(() => events.filter(isBoosted), [events]);
+
+  // ── In-map event creation ──────────────────────────────────────────────────
+  // While creatingEvent is on, the rest of the map UI steps aside: the filter
+  // button morphs into an X on the other side of the search bar, chips/FABs/
+  // pins fade out, and CreateEventFlow owns the interaction.
+  const flowRef = useRef<CreateEventFlowRef>(null);
+  const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
+  // 0 = browse chrome, 1 = create chrome (X in, filter out).
+  const createProg = useSharedValue(0);
+  useEffect(() => {
+    createProg.value = withTiming(creatingEvent ? 1 : 0, {
+      duration: 320,
+      easing: Easing.inOut(Easing.cubic),
+    });
+  }, [creatingEvent]);
+  const xBtnStyle = useAnimatedStyle(() => ({
+    width: interpolate(createProg.value, [0, 1], [0, 44]),
+    marginRight: interpolate(createProg.value, [0, 1], [0, 10]),
+    opacity: createProg.value,
+    transform: [{ scale: interpolate(createProg.value, [0, 1], [0.6, 1]) }],
+  }));
+  const filterBtnStyle = useAnimatedStyle(() => ({
+    width: interpolate(createProg.value, [0, 1], [44, 0]),
+    marginLeft: interpolate(createProg.value, [0, 1], [10, 0]),
+    opacity: 1 - createProg.value,
+    transform: [{ scale: interpolate(createProg.value, [0, 1], [1, 0.6]) }],
+  }));
+
   // Pins only pop on the first batch of events and briefly after a cluster is
   // tapped — not on every pan/zoom that mounts new markers.
   const didInitialPop = useRef(false);
@@ -115,15 +159,6 @@ export default function MapScreen() {
   const initialPop = !didInitialPop.current && events.length > 0;
   if (initialPop) didInitialPop.current = true;
   const shouldPop = initialPop || Date.now() < popUntil.current;
-
-  function toggleActivity(id: ActivityId) {
-    setMapFilters({
-      ...mapFilters,
-      activities: mapFilters.activities.includes(id)
-        ? mapFilters.activities.filter((a) => a !== id)
-        : [...mapFilters.activities, id],
-    });
-  }
 
   // Below this zoom the map is a few hundred metres wide; show every pin so
   // events at the same venue stay individually tappable.
@@ -162,12 +197,15 @@ export default function MapScreen() {
   }
 
   function goToPlace(r: PlaceResult) {
+    // Always zoom tight onto the searched coordinate (street level) rather than
+    // framing the place's whole boundary. A fixed small delta keeps the zoom
+    // consistent whether or not the result carries a bounding box.
     mapRef.current?.animateToRegion(
       {
         latitude: r.lat,
         longitude: r.lng,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
+        latitudeDelta: 0.003,
+        longitudeDelta: 0.003,
       },
       600
     );
@@ -210,20 +248,37 @@ export default function MapScreen() {
       };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(e) =>
+        setMapSize({
+          w: e.nativeEvent.layout.width,
+          h: e.nativeEvent.layout.height,
+        })
+      }
+    >
       <MapView
         ref={mapRef}
         style={styles.map}
         provider={MAP_PROVIDER}
         initialRegion={initialRegion}
         onMapReady={() => setRegion((r) => r ?? initialRegion)}
-        onRegionChangeComplete={setRegion}
+        onRegionChangeComplete={(r) => {
+          setRegion(r);
+          if (creatingEvent) flowRef.current?.handleRegionSettled(r);
+        }}
+        onPress={(e) => {
+          if (creatingEvent)
+            flowRef.current?.handleMapPress(e.nativeEvent.coordinate);
+        }}
         showsUserLocation
         showsMyLocationButton={false}
       >
-        {clusters.map((cluster) => {
+        {!creatingEvent &&
+        clusters.map((cluster) => {
           if (cluster.items.length === 1) {
             const event = cluster.items[0];
+            const boosted = isBoosted(event);
             return (
               <Marker
                 key={event.id}
@@ -232,24 +287,37 @@ export default function MapScreen() {
                   longitude: event.lng,
                 }}
                 anchor={{ x: 0.5, y: 0.5 }}
+                // Boosted pins draw above the rest of the field.
+                zIndex={boosted ? 10 : 1}
                 onPress={() => sheetRef.current?.open(event.id)}
               >
                 {/* Outer wrap stays static so the marker anchor never moves;
                     only the inner content scales in. */}
                 <View style={styles.pinWrap}>
                   <PopPin pop={shouldPop}>
-                    <View style={styles.pinBubble}>
+                    <View
+                      style={[
+                        styles.pinBubble,
+                        boosted && styles.pinBubbleBoosted,
+                      ]}
+                    >
                       <Text style={styles.pinEmoji}>
                         {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
                       </Text>
                     </View>
-                    <View style={styles.pinAvatar}>
-                      <Avatar
-                        name={event.host_name}
-                        photoUrl={event.host_photo_url}
-                        size={22}
-                      />
-                    </View>
+                    {boosted ? (
+                      <View style={styles.pinFlame}>
+                        <Text style={styles.pinFlameText}>{BOOST_EMOJI}</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.pinAvatar}>
+                        <Avatar
+                          name={event.host_name}
+                          photoUrl={event.host_photo_url}
+                          size={22}
+                        />
+                      </View>
+                    )}
                   </PopPin>
                 </View>
               </Marker>
@@ -276,86 +344,92 @@ export default function MapScreen() {
         })}
       </MapView>
 
+      {/* In-map event creation overlay (pin + wizard card) */}
+      <CreateEventFlow
+        ref={flowRef}
+        active={creatingEvent}
+        mapRef={mapRef}
+        mapW={mapSize.w}
+        mapH={mapSize.h}
+        onExit={() => setCreatingEvent(false)}
+      />
+
       {/* Search + activity filter chips */}
       <SafeAreaView style={styles.filterOverlay} pointerEvents="box-none">
         <Animated.View
           entering={FadeInDown.duration(400)}
           style={styles.searchRow}
         >
+          {/* X slides in on the left while the filter collapses on the right,
+              nudging the (same-width) search bar over — create-mode chrome. */}
+          <Animated.View style={[styles.morphSlot, xBtnStyle]}>
+            <PressableScale
+              scaleTo={0.9}
+              style={styles.roundBtn}
+              onPress={() => setCreatingEvent(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel event creation"
+            >
+              <Icon name="close" size={18} color={COLORS.textPrimary} />
+            </PressableScale>
+          </Animated.View>
           <PlaceSearch
-            onResult={goToPlace}
-            placeholder="Search this area"
+            onResult={(r) => {
+              if (creatingEvent) flowRef.current?.handlePlace(r);
+              else goToPlace(r);
+            }}
+            placeholder={creatingEvent ? 'Search for a spot' : 'Search this area'}
             bias={coords}
             style={styles.searchInput}
           />
-          <PressableScale
-            scaleTo={0.9}
-            style={styles.filterBtn}
-            onPress={() => router.push('/map-filters')}
-            accessibilityRole="button"
-            accessibilityLabel="Open filters"
-          >
-            <Icon name="filter" size={19} color={COLORS.textPrimary} />
-            {filterCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{filterCount}</Text>
-              </View>
-            )}
-          </PressableScale>
+          <Animated.View style={[styles.morphSlot, filterBtnStyle]}>
+            <PressableScale
+              scaleTo={0.9}
+              style={styles.roundBtn}
+              onPress={() => router.push('/map-filters')}
+              accessibilityRole="button"
+              accessibilityLabel="Open filters"
+            >
+              <Icon name="filter" size={19} color={COLORS.textPrimary} />
+              {filterCount > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{filterCount}</Text>
+                </View>
+              )}
+            </PressableScale>
+          </Animated.View>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filters}
+        {/* "🔥 N hot" — live-content pill; only exists while boosted events
+            are actually in view, and steps aside during event creation. */}
+        {!creatingEvent && boostedEvents.length > 0 && (
+          <Animated.View
+            entering={FadeInDown.delay(60).duration(400)}
+            exiting={FadeOut.duration(200)}
+            style={styles.hotPillRow}
           >
             <PressableScale
               scaleTo={0.93}
-              style={[
-                styles.filterChip,
-                mapFilters.activities.length === 0 && styles.allChipActive,
-              ]}
-              onPress={() => setMapFilters({ ...mapFilters, activities: [] })}
+              style={styles.hotPill}
+              onPress={() => setHotOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${boostedEvents.length} hot events`}
             >
-              <Text
-                style={[
-                  styles.filterText,
-                  mapFilters.activities.length === 0 && styles.allTextActive,
-                ]}
-              >
-                All
+              <Text style={styles.hotPillText}>
+                {BOOST_EMOJI} {boostedEvents.length} hot
               </Text>
             </PressableScale>
-            {ACTIVITIES.map((a) => {
-              const active = mapFilters.activities.includes(a.id);
-              const cat = categoryStyle(a.id);
-              return (
-                <PressableScale
-                  key={a.id}
-                  scaleTo={0.93}
-                  style={[
-                    styles.filterChip,
-                    active && {
-                      backgroundColor: cat.tint,
-                      borderWidth: 1.5,
-                      borderColor: cat.accent,
-                    },
-                  ]}
-                  onPress={() => toggleActivity(a.id as ActivityId)}
-                >
-                  <Icon name={a.id as IconName} size={14} color={cat.accent} />
-                  <Text
-                    style={[styles.filterText, active && { color: cat.accent }]}
-                  >
-                    {a.label}
-                  </Text>
-                </PressableScale>
-              );
-            })}
-          </ScrollView>
-        </Animated.View>
+          </Animated.View>
+        )}
       </SafeAreaView>
 
+      {/* Browse-mode chrome: FABs + teaser step aside while creating */}
+      {!creatingEvent && (
+      <Animated.View
+        entering={FadeIn.duration(250)}
+        exiting={FadeOut.duration(200)}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="box-none"
+      >
       {/* Recenter on the user's location */}
       <PressableScale
         style={styles.locateFab}
@@ -378,10 +452,34 @@ export default function MapScreen() {
         accessibilityLabel="Go to my location"
         accessibilityRole="button"
       >
-        <Icon name="location" size={22} color={COLORS.primary} />
+        <Icon name="crosshair" size={22} color="#5F6368" strokeWidth={2} />
       </PressableScale>
 
-      <CreateEventFab />
+      {/* Swipe-deck peek cards, tucked behind the tab bar bottom-left */}
+      <SwipeDeckTeaser />
+
+      <CreateEventFab onPress={() => setCreatingEvent(true)} />
+      </Animated.View>
+      )}
+
+      <HotEventsSheet
+        visible={hotOpen}
+        events={boostedEvents}
+        onClose={() => setHotOpen(false)}
+        onSelect={(event: NearbyEvent) => {
+          setHotOpen(false);
+          mapRef.current?.animateToRegion(
+            {
+              latitude: event.lat,
+              longitude: event.lng,
+              latitudeDelta: 0.02,
+              longitudeDelta: 0.02,
+            },
+            500
+          );
+          sheetRef.current?.open(event.id);
+        }}
+      />
 
       <EventBottomSheet ref={sheetRef} onDismiss={() => {}} />
     </View>
@@ -400,13 +498,20 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
     paddingHorizontal: 16,
     paddingTop: 12,
     zIndex: 30,
   },
   searchInput: { flex: 1 },
-  filterBtn: {
+  // Animated slot the X / filter buttons live in; its width collapses to zero
+  // so the fixed-size button inside is clipped away as it makes room.
+  morphSlot: {
+    height: 44,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roundBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -438,39 +543,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#fff',
   },
-  filters: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 11,
-    gap: 8,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 34,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 14,
-    borderRadius: 100,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  allChipActive: {
-    backgroundColor: COLORS.primary,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  filterText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.textPrimary,
-  },
-  allTextActive: { color: '#fff' },
   pinWrap: {
     width: 60,
     height: 60,
@@ -498,6 +570,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
+  pinBubbleBoosted: {
+    borderWidth: 3,
+    borderColor: BOOST_ACCENT,
+    shadowColor: BOOST_ACCENT,
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  pinFlame: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: BOOST_ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinFlameText: { fontSize: 12, lineHeight: 15 },
   pinEmoji: { fontSize: 27, lineHeight: 34 },
   clusterBubble: {
     minWidth: 46,
@@ -544,5 +638,30 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
+  },
+  hotPillRow: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    alignItems: 'flex-start',
+  },
+  hotPill: {
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 100,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: BOOST_ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  hotPillText: {
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    color: BOOST_ACCENT,
   },
 });

@@ -87,6 +87,9 @@ function ProfileTabIcon({ focused }: { focused: boolean }) {
 }
 
 export default function TabLayout() {
+  // The in-map event creation flow takes the whole screen: the tab bar steps
+  // aside with the rest of the chrome until the flow closes.
+  const creatingEvent = useUIStore((s) => s.creatingEvent);
   return (
     <>
     <WelcomeSafetyPopup />
@@ -98,6 +101,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: 'rgba(15,24,44,0.22)',
         tabBarStyle: {
+          display: creatingEvent ? 'none' : 'flex',
           backgroundColor: COLORS.surface,
           borderTopWidth: 1,
           borderTopColor: 'rgba(15,24,44,0.08)',

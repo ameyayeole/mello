@@ -19,6 +19,9 @@ export interface PlaceResult {
   lat: number;
   lng: number;
   name: string;
+  // Photon bounding box for the place, as [west, north, east, south].
+  // Present for areas (cities, parks…) but not point features (a house).
+  extent?: [number, number, number, number];
 }
 
 interface Suggestion extends PlaceResult {
@@ -26,6 +29,33 @@ interface Suggestion extends PlaceResult {
 }
 
 const DEBOUNCE_MS = 280;
+
+// Turn a place into a map region whose zoom fits how big the place is: a city
+// fills the viewport from its bounding box, while a precise address (no box)
+// falls back to a tight street-level zoom.
+const FALLBACK_DELTA = 0.008;
+const MIN_DELTA = 0.004;
+const MAX_DELTA = 1.5;
+
+// `maxDelta` caps how far out we're willing to zoom. On the full-screen map we
+// pass a small cap so searching a big place (e.g. a city) still zooms in near
+// the coordinate instead of framing the whole boundary far away.
+export function regionForPlace(r: PlaceResult, maxDelta = MAX_DELTA) {
+  let latDelta = FALLBACK_DELTA;
+  let lngDelta = FALLBACK_DELTA;
+  if (r.extent) {
+    const [west, north, east, south] = r.extent;
+    // Pad by 30% so the place isn't flush against the screen edges.
+    latDelta = Math.abs(north - south) * 1.3;
+    lngDelta = Math.abs(east - west) * 1.3;
+  }
+  return {
+    latitude: r.lat,
+    longitude: r.lng,
+    latitudeDelta: Math.min(Math.max(latDelta, MIN_DELTA), maxDelta),
+    longitudeDelta: Math.min(Math.max(lngDelta, MIN_DELTA), maxDelta),
+  };
+}
 
 // Photon (https://photon.komoot.io) is a keyless geocoding autocomplete built on
 // OpenStreetMap. Each feature already carries coordinates, so a tap resolves to a
@@ -97,6 +127,9 @@ export default function PlaceSearch({
           lat: f.geometry.coordinates[1],
           lng: f.geometry.coordinates[0],
           name: buildLabel(f.properties) || q,
+          extent: Array.isArray(f.properties?.extent)
+            ? (f.properties.extent as [number, number, number, number])
+            : undefined,
         }))
         .filter((s: Suggestion) => s.name);
       setSuggestions(items);
@@ -116,7 +149,7 @@ export default function PlaceSearch({
     setSuggestions([]);
     setOpen(false);
     Keyboard.dismiss();
-    onResult({ lat: s.lat, lng: s.lng, name: s.name });
+    onResult({ lat: s.lat, lng: s.lng, name: s.name, extent: s.extent });
   }
 
   // Return key: take the top suggestion, or fall back to the device geocoder.

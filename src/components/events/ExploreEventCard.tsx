@@ -7,23 +7,9 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { relativeTime, formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
+import { shortLocation } from '@/utils/location';
+import { BOOST_ACCENT, BOOST_EMOJI, BOOST_TINT, isBoosted } from '@/utils/boost';
 import { Avatar, Icon, VerifiedBadge, PressableScale } from '@/components/ui';
-
-// Google addresses arrive as "226, Halav Pool, Halav Pool, Mumbai, …" — keep
-// just the first meaningful, non-repeated place name.
-function shortLocation(name: string): string {
-  const seen = new Set<string>();
-  const parts = name
-    .split(',')
-    .map((s) => s.trim())
-    .filter((p) => {
-      const key = p.toLowerCase();
-      if (!p || seen.has(key) || /^\d+[-/]?\d*$/.test(p)) return false;
-      seen.add(key);
-      return true;
-    });
-  return parts[0] ?? name;
-}
 
 // Post-style card: host header → text → meta → social proof, photo last.
 export default function ExploreEventCard({
@@ -62,6 +48,11 @@ export default function ExploreEventCard({
               {subBits.join(' · ')}
             </Text>
           </View>
+          {isBoosted(event) && (
+            <View style={styles.boostBadge}>
+              <Text style={styles.boostBadgeText}>{BOOST_EMOJI} Boosted</Text>
+            </View>
+          )}
           <View style={[styles.categoryBadge, { backgroundColor: cat.tint }]}>
             <Text style={styles.categoryEmoji}>{activity.emoji}</Text>
           </View>
@@ -167,6 +158,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   categoryEmoji: { fontSize: 15 },
+  boostBadge: {
+    backgroundColor: BOOST_TINT,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 100,
+  },
+  boostBadgeText: {
+    fontFamily: FONTS.heavy,
+    fontSize: 11,
+    color: BOOST_ACCENT,
+  },
   title: {
     fontFamily: FONTS.bold,
     fontSize: 16,

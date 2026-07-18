@@ -100,11 +100,22 @@ export async function searchUsers(
   query: string,
   currentUserId?: string
 ): Promise<Profile[]> {
-  const { data, error } = await supabase
+  // Match display names and @usernames. Falls back to name-only if the
+  // username column doesn't exist yet (migration 029 not applied).
+  const q = query.replace(/^@/, '');
+  let { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .ilike('name', `%${query}%`)
+    .or(`name.ilike.%${q}%,username.ilike.%${q}%`)
     .limit(20);
+
+  if (error) {
+    ({ data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .ilike('name', `%${q}%`)
+      .limit(20));
+  }
 
   if (error) throw error;
   let results = (data ?? []) as Profile[];

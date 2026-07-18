@@ -57,6 +57,11 @@ export function fmtTime(d: Date) {
 export function fmtDayLong(d: Date) {
   return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
+// Compact label for the side-by-side start/end fields, where the full long date
+// won't fit at half width: "12 Jan · 10:00 AM".
+export function fmtDayShort(d: Date) {
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
 
 // Build a 6-week grid of Date cells (null padding before/after the month).
 function buildMonthCells(year: number, month: number): (Date | null)[] {
@@ -73,10 +78,12 @@ export default function DateTimeField({
   value,
   onChange,
   minDate,
+  compact,
 }: {
   value: Date;
   onChange: (d: Date) => void;
   minDate?: Date;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(value.getFullYear());
@@ -119,13 +126,15 @@ export default function DateTimeField({
   return (
     <View>
       <TouchableOpacity
-        style={styles.dateField}
+        style={[styles.dateField, compact && styles.dateFieldCompact]}
         onPress={openPicker}
         activeOpacity={0.7}
       >
         <Icon name="calendar" size={16} color={COLORS.primary} />
-        <Text style={styles.dateFieldText}>
-          {fmtDayLong(value)} · {fmtTime(value)}
+        <Text style={styles.dateFieldText} numberOfLines={1}>
+          {compact
+            ? `${fmtDayShort(value)} · ${fmtTime(value)}`
+            : `${fmtDayLong(value)} · ${fmtTime(value)}`}
         </Text>
       </TouchableOpacity>
 
@@ -265,7 +274,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
   },
+  dateFieldCompact: {
+    gap: 6,
+    paddingHorizontal: 11,
+  },
   dateFieldText: {
+    flexShrink: 1,
     fontFamily: FONTS.semibold,
     fontSize: 13.5,
     color: COLORS.textPrimary,

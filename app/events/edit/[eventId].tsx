@@ -23,7 +23,7 @@ import { useLocationStore } from '@/stores/locationStore';
 import { getEventDetail, updateEvent } from '@/services/events.service';
 import { uploadEventPhoto } from '@/services/storage.service';
 import { FemaleOnlyConfirmModal } from '@/components/safety';
-import PlaceSearch, { PlaceResult } from '@/components/PlaceSearch';
+import PlaceSearch, { PlaceResult, regionForPlace } from '@/components/PlaceSearch';
 import DateTimeField, {
   sameDay,
   fmtTime,
@@ -45,6 +45,9 @@ import {
 
 // Google Maps on Android, Apple Maps on iOS.
 const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
+
+const TITLE_MAX = 60;
+const DESCRIPTION_MAX = 500;
 
 // Host edits an existing event. Mirrors the create screen, prefilled from the
 // event. The events table only stores a PostGIS point (no lat/lng columns are
@@ -111,15 +114,7 @@ export default function EditEventScreen() {
   function onSearchResult(r: PlaceResult) {
     setNewCoords({ lat: r.lat, lng: r.lng });
     setLocationName(r.name);
-    miniMapRef.current?.animateToRegion(
-      {
-        latitude: r.lat,
-        longitude: r.lng,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      },
-      600
-    );
+    miniMapRef.current?.animateToRegion(regionForPlace(r), 600);
   }
 
   async function pickPhoto() {
@@ -205,6 +200,7 @@ export default function EditEventScreen() {
       <View style={styles.header}>
         <IconButton
           icon="close"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Cancel"
         />
@@ -273,7 +269,11 @@ export default function EditEventScreen() {
           onChangeText={setTitle}
           onFocus={() => setTitleFocused(true)}
           onBlur={() => setTitleFocused(false)}
+          maxLength={TITLE_MAX}
         />
+        <Text style={styles.charCount}>
+          {title.length}/{TITLE_MAX}
+        </Text>
 
         {/* Description */}
         <Text style={styles.label}>DESCRIPTION</Text>
@@ -284,10 +284,16 @@ export default function EditEventScreen() {
           value={description}
           onChangeText={setDescription}
           multiline
+          maxLength={DESCRIPTION_MAX}
         />
+        <Text style={styles.charCount}>
+          {description.length}/{DESCRIPTION_MAX}
+        </Text>
 
         {/* Cover photo */}
-        <Text style={styles.label}>COVER PHOTO</Text>
+        <Text style={styles.label}>
+          COVER PHOTO <Text style={styles.labelOptional}>(optional)</Text>
+        </Text>
         {currentPhoto ? (
           <View>
             <View style={styles.photoPicker}>
@@ -326,22 +332,30 @@ export default function EditEventScreen() {
         )}
 
         {/* When */}
-        <Text style={styles.label}>STARTS</Text>
-        <DateTimeField
-          value={startDate}
-          onChange={(d) => {
-            setStartDate(d);
-            // Keep the end after the start: bump it forward by 2h if needed.
-            if (endDate <= d)
-              setEndDate(new Date(d.getTime() + 2 * 60 * 60 * 1000));
-          }}
-        />
-        <Text style={styles.label}>ENDS</Text>
-        <DateTimeField
-          value={endDate}
-          onChange={setEndDate}
-          minDate={startDate}
-        />
+        <View style={styles.whenRow}>
+          <View style={styles.whenCol}>
+            <Text style={styles.label}>STARTS</Text>
+            <DateTimeField
+              compact
+              value={startDate}
+              onChange={(d) => {
+                setStartDate(d);
+                // Keep the end after the start: bump it forward by 2h if needed.
+                if (endDate <= d)
+                  setEndDate(new Date(d.getTime() + 2 * 60 * 60 * 1000));
+              }}
+            />
+          </View>
+          <View style={styles.whenCol}>
+            <Text style={styles.label}>ENDS</Text>
+            <DateTimeField
+              compact
+              value={endDate}
+              onChange={setEndDate}
+              minDate={startDate}
+            />
+          </View>
+        </View>
         <Text style={styles.spanSummary}>
           {fmtDayLong(startDate)} · {fmtTime(startDate)} →{' '}
           {sameDay(startDate, endDate)
@@ -519,6 +533,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 3,
   },
+  labelOptional: {
+    fontFamily: FONTS.medium,
+    color: 'rgba(15,24,44,0.32)',
+    letterSpacing: 0,
+  },
+  charCount: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: 'rgba(15,24,44,0.35)',
+    textAlign: 'right',
+    marginTop: 4,
+  },
   categoryRow: { gap: 9, paddingHorizontal: 20 },
   categoryItem: { width: 62, alignItems: 'center', gap: 6 },
   categoryTile: {
@@ -610,6 +636,8 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 6,
   },
+  whenRow: { flexDirection: 'row', gap: 10 },
+  whenCol: { flex: 1 },
   safetyCard: {
     backgroundColor: 'rgba(31,164,99,0.08)',
     borderWidth: 1,

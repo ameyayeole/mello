@@ -22,6 +22,8 @@ export interface MapFilters {
   womenOnly: boolean;
   // Only events hosted by an accepted friend.
   friendsOnly: boolean;
+  // Only events from KYC-verified hosts (Mello+ filter, migration 024).
+  verifiedHostsOnly: boolean;
   groupSize: GroupSize;
 }
 
@@ -33,6 +35,7 @@ export const DEFAULT_MAP_FILTERS: MapFilters = {
   instantJoinOnly: false,
   womenOnly: false,
   friendsOnly: false,
+  verifiedHostsOnly: false,
   groupSize: 'any',
 };
 
@@ -47,6 +50,7 @@ export function countActiveMapFilters(f: MapFilters): number {
   if (f.instantJoinOnly) n++;
   if (f.womenOnly) n++;
   if (f.friendsOnly) n++;
+  if (f.verifiedHostsOnly) n++;
   if (f.groupSize !== 'any') n++;
   return n;
 }
@@ -119,6 +123,9 @@ export function applyMapFilters(
     if (f.instantJoinOnly && e.requires_approval) return false;
     if (f.womenOnly && !e.women_only) return false;
     if (f.friendsOnly && !opts.friendIds.has(e.host_id)) return false;
+    // host_verified is absent before migration 024 — treat unknown as a pass
+    // so the filter never blanks the whole map.
+    if (f.verifiedHostsOnly && e.host_verified === false) return false;
     if (!inGroupSize(e, f.groupSize)) return false;
     return true;
   });

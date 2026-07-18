@@ -10,6 +10,8 @@ import {
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useUIStore } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
+import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
@@ -82,6 +84,16 @@ function OptionChip({
   );
 }
 
+// Small gold "Mello+" tag on premium-only filters.
+function PlusTag() {
+  return (
+    <View style={plusStyles.tag}>
+      <Icon name="crown" size={11} color={PREMIUM_GOLD} strokeWidth={2.2} />
+      <Text style={plusStyles.tagText}>Mello+</Text>
+    </View>
+  );
+}
+
 function ToggleRow({
   icon,
   iconColor,
@@ -89,6 +101,7 @@ function ToggleRow({
   subtitle,
   value,
   onChange,
+  premiumOnly = false,
   last = false,
 }: {
   icon: IconName;
@@ -97,13 +110,17 @@ function ToggleRow({
   subtitle: string;
   value: boolean;
   onChange: (v: boolean) => void;
+  premiumOnly?: boolean;
   last?: boolean;
 }) {
   return (
     <View style={[styles.toggleRow, !last && styles.toggleRowBorder]}>
       <Icon name={icon} size={20} color={iconColor} />
       <View style={styles.toggleText}>
-        <Text style={styles.toggleTitle}>{title}</Text>
+        <View style={styles.toggleTitleRow}>
+          <Text style={styles.toggleTitle}>{title}</Text>
+          {premiumOnly && <PlusTag />}
+        </View>
         <Text style={styles.toggleSub}>{subtitle}</Text>
       </View>
       <Switch
@@ -118,6 +135,7 @@ function ToggleRow({
 export default function MapFiltersScreen() {
   const router = useRouter();
   const { mapFilters, setMapFilters } = useUIStore();
+  const premium = isPremium(useAuthStore((s) => s.user));
   // Edited locally; the map only updates when "Show events" is tapped.
   const [draft, setDraft] = useState<MapFilters>(mapFilters);
 
@@ -125,7 +143,15 @@ export default function MapFiltersScreen() {
     setDraft((d) => ({ ...d, ...p }));
   }
 
+  // Premium filters bounce free users to the paywall instead of applying.
+  function requirePremium(): boolean {
+    if (premium) return true;
+    router.push('/premium?reason=filters');
+    return false;
+  }
+
   function toggleActivity(id: ActivityId) {
+    if (!requirePremium()) return;
     patch({
       activities: draft.activities.includes(id)
         ? draft.activities.filter((a) => a !== id)
@@ -158,7 +184,10 @@ export default function MapFiltersScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Animated.View entering={FadeInDown.duration(350)}>
-          <SectionLabel style={styles.sectionLabel}>Activities</SectionLabel>
+          <View style={styles.sectionLabelRow}>
+            <SectionLabel style={styles.sectionLabel}>Activities</SectionLabel>
+            {!premium && <PlusTag />}
+          </View>
           <View style={styles.card}>
             <View style={styles.chipWrap}>
               {ACTIVITIES.map((a) => {
@@ -260,7 +289,23 @@ export default function MapFiltersScreen() {
               title="Spots available"
               subtitle="Hide events that are already full"
               value={draft.hasSpotsOnly}
-              onChange={(v) => patch({ hasSpotsOnly: v })}
+              premiumOnly={!premium}
+              onChange={(v) => {
+                if (!requirePremium()) return;
+                patch({ hasSpotsOnly: v });
+              }}
+            />
+            <ToggleRow
+              icon="shield"
+              iconColor={COLORS.verified}
+              title="Verified hosts"
+              subtitle="Only events from ID-verified hosts"
+              value={draft.verifiedHostsOnly}
+              premiumOnly={!premium}
+              onChange={(v) => {
+                if (!requirePremium()) return;
+                patch({ verifiedHostsOnly: v });
+              }}
             />
             <ToggleRow
               icon="check"
@@ -298,10 +343,37 @@ export default function MapFiltersScreen() {
   );
 }
 
+const plusStyles = StyleSheet.create({
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 100,
+    backgroundColor: PREMIUM_GOLD_TINT,
+  },
+  tagText: {
+    fontFamily: FONTS.bold,
+    fontSize: 10.5,
+    color: PREMIUM_GOLD,
+  },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 16, paddingBottom: 24, gap: 4 },
   sectionLabel: { marginTop: 14, marginBottom: 8, marginLeft: 4 },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  toggleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 20,

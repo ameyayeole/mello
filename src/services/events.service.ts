@@ -4,7 +4,10 @@ import {
   NearbyEvent,
   EventDetail,
   ExploreEvent,
+  ActivityMoment,
+  SavedEventItem,
   ActivityId,
+  Profile,
 } from '@/types/models';
 
 // One page of the ranked Explore feed. Pass coords when known so proximity can
@@ -15,6 +18,8 @@ export async function getExploreFeed(params: {
   activity?: ActivityId;
   limit?: number;
   offset?: number;
+  // Explore "🔥 Hot" tab: only currently-boosted events (migration 026).
+  boostedOnly?: boolean;
 }): Promise<ExploreEvent[]> {
   const { data, error } = await supabase.rpc('explore_feed', {
     p_user_id: params.userId,
@@ -23,10 +28,32 @@ export async function getExploreFeed(params: {
     activity_filter: params.activity ?? null,
     p_limit: params.limit ?? 10,
     p_offset: params.offset ?? 0,
+    p_boosted_only: params.boostedOnly ?? false,
   });
 
   if (error) throw error;
   return (data ?? []) as ExploreEvent[];
+}
+
+// One page of the Live activity feed — the Explore "Live" tab. Returns a stream
+// of heterogeneous "moment" rows (live_now / event_boosted / event_joined),
+// newest first. Pass coords when known so each moment carries its distance.
+export async function getActivityFeed(params: {
+  userId: string;
+  coords?: Coords | null;
+  limit?: number;
+  offset?: number;
+}): Promise<ActivityMoment[]> {
+  const { data, error } = await supabase.rpc('activity_feed', {
+    p_user_id: params.userId,
+    user_lat: params.coords?.lat ?? null,
+    user_lng: params.coords?.lng ?? null,
+    p_limit: params.limit ?? 20,
+    p_offset: params.offset ?? 0,
+  });
+
+  if (error) throw error;
+  return (data ?? []) as ActivityMoment[];
 }
 
 export async function getNearbyEvents(
@@ -52,12 +79,14 @@ export async function searchEvents(query: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, host_id, activity, title, description, image_url, location_name, starts_at, ends_at, max_people, is_public, requires_approval'
+      'id, host_id, activity, title, description, image_url, location_name, starts_at, ends_at, max_people, is_public, requires_approval, boosted_until'
     )
     .eq('is_active', true)
     .eq('is_public', true)
     .or(`title.ilike.%${query}%,location_name.ilike.%${query}%`)
     .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
+    // Boosted events surface first, then soonest.
+    .order('boosted_until', { ascending: false, nullsFirst: false })
     .order('starts_at', { ascending: true })
     .limit(20);
 
@@ -243,10 +272,147 @@ export async function leaveEvent(eventId: string, userId: string): Promise<void>
   if (error) throw error;
 }
 
+// ── Mello+ ───────────────────────────────────────────────────────────────────
+// Distance between the user and an event, for the >10 km join gate. The event
+// detail query (SELECT *) can't expose lat/lng from the geography column.
+export async function getEventDistanceM(
+  eventId: string,
+  coords: Coords
+): Promise<number | null> {
+  const { data, error } = await supabase.rpc('event_distance_m', {
+    p_event_id: eventId,
+    p_lat: coords.lat,
+    p_lng: coords.lng,
+  });
+
+  if (error) throw error;
+  return data as number | null;
+}
+
+// How many swipes the user has spent today (the DB trigger caps free users).
+export async function getTodaySwipeCount(userId: string): Promise<number> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const { count, error } = await supabase
+    .from('event_swipes')
+    .select('event_id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', start.toISOString());
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// Everyone who wishlisted this event. RLS only returns rows to the event's
+// host when they're premium; other callers just get an empty list.
+export async function getEventSavers(
+  eventId: string
+): Promise<Pick<Profile, 'id' | 'name' | 'photo_url'>[]> {
+  const { data, error } = await supabase
+    .from('saved_events')
+    .select('user:profiles(id, name, photo_url)')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => r.user).filter(Boolean);
+}
+
+// Wishlist count for the host's teaser — available to every host (the RPC
+// checks host ownership), so free hosts see what Mello+ would unlock.
+export async function countEventSavers(eventId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('count_event_savers', {
+    p_event_id: eventId,
+  });
+
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
+// ── Swipe deck ───────────────────────────────────────────────────────────────
+// One row per user/event judgement. Upsert so re-swiping an event (e.g. via a
+// stale deck after a refetch) never throws on the primary key.
+export async function recordSwipe(
+  userId: string,
+  eventId: string,
+  direction: 'like' | 'pass'
+): Promise<void> {
+  const { error } = await supabase
+    .from('event_swipes')
+    .upsert(
+      { user_id: userId, event_id: eventId, direction },
+      { onConflict: 'user_id,event_id' }
+    );
+
+  if (error) throw error;
+}
+
+// Undo: forget the user's judgement so the event re-enters their deck.
+export async function deleteSwipe(
+  userId: string,
+  eventId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('event_swipes')
+    .delete()
+    .eq('user_id', userId)
+    .eq('event_id', eventId);
+
+  if (error) throw error;
+}
+
+export async function getSwipedEventIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('event_swipes')
+    .select('event_id')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return (data ?? []).map((r: any) => r.event_id as string);
+}
+
+// Full event rows for the wishlist, newest save first, with the host and the
+// approved attendees' names/photos so the cards can show "Hosted By …" and an
+// avatar stack.
+export async function getSavedEvents(
+  userId: string
+): Promise<SavedEventItem[]> {
+  const { data, error } = await supabase
+    .from('saved_events')
+    .select(
+      'created_at, event:events(*, host:profiles!host_id(id, name, photo_url), event_participants(status, user:profiles(id, name, photo_url)))'
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return ((data ?? []) as any[])
+    .map((r) => r.event)
+    .filter((e) => e && e.is_active)
+    .map((e) => {
+      const attendees = ((e.event_participants ?? []) as any[])
+        .filter((p) => p.status === 'approved' && p.user)
+        .map((p) => p.user);
+      const { event_participants, host, ...rest } = e;
+      return {
+        ...rest,
+        host_name: host?.name,
+        host_photo_url: host?.photo_url ?? null,
+        attendees,
+        participant_count: attendees.length,
+      } as SavedEventItem;
+    });
+}
+
 export async function saveEvent(userId: string, eventId: string): Promise<void> {
+  // ignoreDuplicates = ON CONFLICT DO NOTHING: re-saving an already-saved
+  // event is a no-op and never needs an UPDATE policy on saved_events.
   const { error } = await supabase
     .from('saved_events')
-    .insert({ user_id: userId, event_id: eventId });
+    .upsert(
+      { user_id: userId, event_id: eventId },
+      { onConflict: 'user_id,event_id', ignoreDuplicates: true }
+    );
 
   if (error) throw error;
 }

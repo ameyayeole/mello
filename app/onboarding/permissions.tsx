@@ -24,31 +24,17 @@ const PERMS: { icon: IconName; title: string; desc: string }[] = [
   },
 ];
 
-function StepBar({ step, total }: { step: number; total: number }) {
-  return (
-    <View style={styles.stepRow}>
-      <Text style={styles.stepText}>
-        Step {step} of {total}
-      </Text>
-      <View style={styles.stepTrack}>
-        <View style={[styles.stepFill, { width: `${(step / total) * 100}%` }]} />
-      </View>
-    </View>
-  );
-}
-
 export default function PermissionsScreen() {
   const router = useRouter();
   const { requestAndStart } = useLocation();
 
   async function handleAllow() {
     await requestAndStart();
-    router.push('/onboarding/interests');
+    router.push('/auth/login');
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StepBar step={1} total={2} />
       <View style={styles.content}>
         <Animated.View entering={FadeInDown.duration(400)}>
           <Text style={styles.title}>A few quick permissions</Text>
@@ -81,7 +67,7 @@ export default function PermissionsScreen() {
         >
           <Icon name="shield" size={18} color={COLORS.success} />
           <Text style={styles.safetyText}>
-            Your exact location is never shown to others — only your
+            Your exact location is never shown to others, only your
             approximate area.
           </Text>
         </Animated.View>
@@ -89,7 +75,7 @@ export default function PermissionsScreen() {
         <View style={styles.actions}>
           <Button label="Allow & continue" onPress={handleAllow} />
           <TouchableOpacity
-            onPress={() => router.push('/onboarding/interests')}
+            onPress={() => router.push('/auth/login')}
             hitSlop={10}
           >
             <Text style={styles.skipLink}>Maybe later</Text>
@@ -102,35 +88,10 @@ export default function PermissionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.surface },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 18,
-  },
-  stepText: {
-    fontFamily: FONTS.bold,
-    fontSize: 13,
-    color: 'rgba(15,24,44,0.45)',
-  },
-  stepTrack: {
-    flex: 1,
-    height: 5,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15,24,44,0.08)',
-    overflow: 'hidden',
-  },
-  stepFill: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-  },
   content: {
     flex: 1,
     paddingHorizontal: 22,
-    paddingTop: 14,
+    paddingTop: 26,
     paddingBottom: 26,
   },
   title: {

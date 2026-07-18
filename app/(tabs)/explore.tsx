@@ -1,135 +1,133 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  ScrollView,
   ActivityIndicator,
   SafeAreaView,
   RefreshControl,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useExploreFeed } from '@/hooks/useExploreFeed';
-import { useUIStore } from '@/stores/uiStore';
+import { useExploreWraps } from '@/hooks/useExploreWraps';
+import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
 import ExploreEventCard from '@/components/events/ExploreEventCard';
+import WrapCard from '@/components/wrap/WrapCard';
+import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
 import CreateEventFab from '@/components/CreateEventFab';
-import { ACTIVITIES } from '@/constants/activities';
-import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { ActivityId, ExploreEvent } from '@/types/models';
-import { Icon, IconName, Button, PressableScale } from '@/components/ui';
+import { ExploreEvent, ExploreWrap } from '@/types/models';
+import { Icon, Button } from '@/components/ui';
+
+// One Instagram-style feed: upcoming events as post cards, with a wrapped
+// event's top-6 gallery woven in after every few events.
+type FeedItem =
+  | { kind: 'event'; key: string; event: ExploreEvent }
+  | { kind: 'wrap'; key: string; wrap: ExploreWrap };
+
+const EVENTS_PER_WRAP = 3;
+
+function mergeFeeds(events: ExploreEvent[], wraps: ExploreWrap[]): FeedItem[] {
+  const items: FeedItem[] = [];
+  let wrapIndex = 0;
+  events.forEach((event, i) => {
+    items.push({ kind: 'event', key: `event-${event.id}`, event });
+    if ((i + 1) % EVENTS_PER_WRAP === 0 && wrapIndex < wraps.length) {
+      const wrap = wraps[wrapIndex++];
+      items.push({ kind: 'wrap', key: `wrap-${wrap.event_id}`, wrap });
+    }
+  });
+  // No events left but wraps remain: let them close out the feed.
+  while (wrapIndex < wraps.length && events.length > 0) {
+    const wrap = wraps[wrapIndex++];
+    items.push({ kind: 'wrap', key: `wrap-${wrap.event_id}`, wrap });
+  }
+  return items;
+}
 
 export default function ExploreScreen() {
-  const { activeFilter, setFilter } = useUIStore();
   const sheetRef = useRef<EventBottomSheetRef>(null);
+  useSelectedEventSheet(sheetRef);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    isRefetching,
-    refetch,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useExploreFeed();
+  const explore = useExploreFeed();
+  const wrapsQuery = useExploreWraps();
 
-  const events = data?.pages.flat() ?? [];
+  const events = useMemo(
+    () => explore.data?.pages.flat() ?? [],
+    [explore.data]
+  );
+  const wraps = useMemo(
+    () => wrapsQuery.data?.pages.flat() ?? [],
+    [wrapsQuery.data]
+  );
+  const feed = useMemo(() => mergeFeeds(events, wraps), [events, wraps]);
+
+  const openEvent = (id: string) => sheetRef.current?.open(id);
+
+  function loadMore() {
+    if (explore.hasNextPage && !explore.isFetchingNextPage) {
+      explore.fetchNextPage();
+    }
+    // Keep the wrap supply ahead of the interleave ratio.
+    const wrapsNeeded = Math.ceil(events.length / EVENTS_PER_WRAP);
+    if (
+      wraps.length <= wrapsNeeded &&
+      wrapsQuery.hasNextPage &&
+      !wrapsQuery.isFetchingNextPage
+    ) {
+      wrapsQuery.fetchNextPage();
+    }
+  }
 
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Explore</Text>
         </View>
 
-        {/* Activity filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-          style={styles.filterBar}
-        >
-          <PressableScale
-            scaleTo={0.93}
-            style={[styles.filterChip, !activeFilter && styles.allChipActive]}
-            onPress={() => setFilter(null)}
-          >
-            <Text
-              style={[styles.filterText, !activeFilter && styles.allTextActive]}
-            >
-              All
-            </Text>
-          </PressableScale>
-          {ACTIVITIES.map((a) => {
-            const active = activeFilter === a.id;
-            const cat = categoryStyle(a.id);
-            return (
-              <PressableScale
-                key={a.id}
-                scaleTo={0.93}
-                style={[
-                  styles.filterChip,
-                  active && { backgroundColor: cat.tint },
-                ]}
-                onPress={() => setFilter(active ? null : (a.id as ActivityId))}
-              >
-                <Icon
-                  name={a.id as IconName}
-                  size={14}
-                  color={active ? cat.accent : cat.accent}
-                />
-                <Text
-                  style={[styles.filterText, active && { color: cat.accent }]}
-                >
-                  {a.label}
-                </Text>
-              </PressableScale>
-            );
-          })}
-        </ScrollView>
-
-        {/* Feed */}
-        {isLoading ? (
+        {explore.isLoading ? (
           <ActivityIndicator color={COLORS.primary} style={{ marginTop: 48 }} />
         ) : (
           <FlatList
-            data={events}
-            keyExtractor={(item: ExploreEvent) => item.id}
+            data={feed}
+            keyExtractor={(item) => item.key}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
+            ListHeaderComponent={<WrapEntryCard />}
             renderItem={({ item, index }) => (
               <Animated.View
-                entering={FadeInDown.delay(Math.min(index, 6) * 60).duration(
-                  350
-                )}
+                entering={FadeInDown.delay(Math.min(index, 6) * 60).duration(350)}
               >
-                <ExploreEventCard
-                  event={item}
-                  onPress={() => sheetRef.current?.open(item.id)}
-                />
+                {item.kind === 'event' ? (
+                  <ExploreEventCard
+                    event={item.event}
+                    onPress={() => openEvent(item.event.id)}
+                  />
+                ) : (
+                  <WrapCard wrap={item.wrap} />
+                )}
               </Animated.View>
             )}
             refreshControl={
               <RefreshControl
-                refreshing={isRefetching && !isFetchingNextPage}
-                onRefresh={refetch}
+                refreshing={explore.isRefetching && !explore.isFetchingNextPage}
+                onRefresh={() => {
+                  explore.refetch();
+                  wrapsQuery.refetch();
+                }}
                 tintColor={COLORS.primary}
               />
             }
             onEndReachedThreshold={0.5}
-            onEndReached={() => {
-              if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-            }}
+            onEndReached={loadMore}
             ListFooterComponent={
-              isFetchingNextPage ? (
+              explore.isFetchingNextPage ? (
                 <ActivityIndicator
                   color={COLORS.primary}
                   style={{ marginVertical: 16 }}
@@ -137,19 +135,19 @@ export default function ExploreScreen() {
               ) : null
             }
             ListEmptyComponent={
-              isError ? (
+              explore.isError ? (
                 <View style={styles.empty}>
                   <View style={styles.emptyIcon}>
                     <Icon name="close" size={36} color={COLORS.primary} />
                   </View>
                   <Text style={styles.emptyTitle}>Couldn't load the feed</Text>
                   <Text style={styles.emptyText}>
-                    {(error as any)?.message ?? String(error)}
+                    {(explore.error as any)?.message ?? String(explore.error)}
                   </Text>
                   <Button
                     label="Retry"
                     height={44}
-                    onPress={() => refetch()}
+                    onPress={() => explore.refetch()}
                     style={{ marginTop: 6 }}
                   />
                 </View>
@@ -160,7 +158,7 @@ export default function ExploreScreen() {
                   </View>
                   <Text style={styles.emptyTitle}>Nothing nearby yet</Text>
                   <Text style={styles.emptyText}>
-                    Be the first — drop a pin and get something going.
+                    Be the first, drop a pin and get something going.
                   </Text>
                 </View>
               )
@@ -179,39 +177,21 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 2 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
   title: {
     fontFamily: FONTS.heavy,
     fontSize: 22,
     letterSpacing: -0.44,
     color: COLORS.textPrimary,
   },
-  filterBar: { maxHeight: 52, flexGrow: 0 },
-  filters: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 7,
-    alignItems: 'center',
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 33,
-    gap: 6,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 13,
-    borderRadius: 100,
-  },
-  allChipActive: {
-    backgroundColor: COLORS.primary,
-  },
-  filterText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.textPrimary,
-  },
-  allTextActive: { color: '#fff' },
-  list: { padding: 16, paddingTop: 6, gap: 12 },
+  list: { padding: 16, paddingTop: 4, gap: 12 },
   empty: { alignItems: 'center', paddingTop: 70, gap: 10 },
   emptyIcon: {
     width: 84,
@@ -222,11 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  emptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
+  emptyTitle: { fontFamily: FONTS.bold, fontSize: 17, color: COLORS.textPrimary },
   emptyText: {
     fontFamily: FONTS.medium,
     color: COLORS.textSecondary,

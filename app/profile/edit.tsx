@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,12 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { updateProfile } from '@/services/auth.service';
+import {
+  normalizeUsername,
+  validateUsername,
+  checkUsernameAvailable,
+  suggestUsernames,
+} from '@/services/username';
 import { uploadProfilePhotos } from '@/services/storage.service';
 import { PhotoGridPicker } from '@/components/PhotoGridPicker';
 import { ACTIVITIES } from '@/constants/activities';
@@ -35,6 +41,12 @@ export default function EditProfileScreen() {
   const setUser = useAuthStore((s) => s.setUser);
 
   const [name, setName] = useState(user?.name ?? '');
+  const [username, setUsername] = useState(user?.username ?? '');
+  const [usernameStatus, setUsernameStatus] = useState<
+    'idle' | 'checking' | 'available' | 'taken' | 'invalid'
+  >('idle');
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [age, setAge] = useState(user?.age ? String(user.age) : '');
   const [gender, setGender] = useState<Gender | null>(user?.gender ?? null);
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -46,6 +58,42 @@ export default function EditProfileScreen() {
   );
   const [focused, setFocused] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Debounced availability check; the user's current handle is always "free".
+  useEffect(() => {
+    if (!username || username === user?.username) {
+      setUsernameStatus('idle');
+      setUsernameError(null);
+      setSuggestions([]);
+      return;
+    }
+    const formatError = validateUsername(username);
+    if (formatError) {
+      setUsernameStatus('invalid');
+      setUsernameError(formatError);
+      setSuggestions([]);
+      return;
+    }
+    setUsernameStatus('checking');
+    setUsernameError(null);
+    const timer = setTimeout(async () => {
+      try {
+        const available = await checkUsernameAvailable(username);
+        if (available) {
+          setUsernameStatus('available');
+          setSuggestions([]);
+        } else {
+          setUsernameStatus('taken');
+          setUsernameError(`The username @${username} isn't available.`);
+          setSuggestions(await suggestUsernames(name || username, username));
+        }
+      } catch {
+        setUsernameStatus('available');
+        setSuggestions([]);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [username, name, user?.username]);
 
   if (!user) return null;
 
@@ -68,11 +116,24 @@ export default function EditProfileScreen() {
       Alert.alert('Invalid age', 'You must be 18 or older to use MELLO.');
       return;
     }
+    const usernameChanged = username !== (user!.username ?? '');
+    if (usernameChanged) {
+      const formatError = validateUsername(username);
+      if (formatError) {
+        Alert.alert('Invalid username', formatError);
+        return;
+      }
+      if (usernameStatus === 'taken') {
+        Alert.alert('Username taken', `The username @${username} isn't available.`);
+        return;
+      }
+    }
 
     try {
       setLoading(true);
       const photoUrls = await uploadProfilePhotos(user!.id, photos);
       const updated = await updateProfile(user!.id, {
+        ...(usernameChanged ? { username } : {}),
         name: name.trim(),
         age: ageNum,
         gender,
@@ -100,13 +161,20 @@ export default function EditProfileScreen() {
       <View style={styles.header}>
         <IconButton
           icon="close"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Cancel"
         />
         <Text style={styles.headerTitle}>Edit profile</Text>
         <TouchableOpacity
           onPress={handleSave}
-          disabled={loading || !name.trim()}
+          disabled={
+            loading ||
+            !name.trim() ||
+            usernameStatus === 'taken' ||
+            usernameStatus === 'invalid' ||
+            usernameStatus === 'checking'
+          }
           hitSlop={8}
         >
           {loading ? (
@@ -143,6 +211,48 @@ export default function EditProfileScreen() {
               onFocus={() => setFocused('name')}
               onBlur={() => setFocused(null)}
             />
+          </View>
+
+          <View>
+            <Text style={styles.label}>USERNAME</Text>
+            <View
+              style={[
+                styles.usernameWrap,
+                focused === 'username' && styles.inputFocused,
+                (usernameStatus === 'taken' || usernameStatus === 'invalid') &&
+                  styles.inputError,
+              ]}
+            >
+              <Text style={styles.atPrefix}>@</Text>
+              <TextInput
+                style={styles.usernameInput}
+                placeholder="username"
+                placeholderTextColor="rgba(15,24,44,0.40)"
+                value={username}
+                onChangeText={(t) => setUsername(normalizeUsername(t))}
+                onFocus={() => setFocused('username')}
+                onBlur={() => setFocused(null)}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            {usernameError ? (
+              <Text style={styles.usernameError}>{usernameError}</Text>
+            ) : null}
+            {suggestions.length > 0 && (
+              <View style={styles.suggestionRow}>
+                {suggestions.map((s) => (
+                  <PressableScale
+                    key={s}
+                    scaleTo={0.94}
+                    style={styles.suggestionChip}
+                    onPress={() => setUsername(s)}
+                  >
+                    <Text style={styles.suggestionText}>@{s}</Text>
+                  </PressableScale>
+                ))}
+              </View>
+            )}
           </View>
 
           <View>
@@ -283,6 +393,53 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
+  inputError: { borderWidth: 1.5, borderColor: '#E5484D' },
+  usernameWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  atPrefix: {
+    fontFamily: FONTS.semibold,
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    marginRight: 1,
+  },
+  usernameInput: {
+    flex: 1,
+    height: '100%',
+    fontFamily: FONTS.semibold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  usernameError: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: '#E5484D',
+    marginTop: 6,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  suggestionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 100,
+    backgroundColor: COLORS.primaryTint,
+  },
+  suggestionText: {
+    fontFamily: FONTS.bold,
+    fontSize: 12.5,
+    color: COLORS.primary,
+  },
   bioInput: {
     height: undefined,
     minHeight: 80,

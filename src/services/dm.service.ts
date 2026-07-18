@@ -5,9 +5,11 @@ import { DirectMessage, FriendConversation, Profile } from '@/types/models';
 export async function getDirectMessages(
   userId: string,
   friendId: string,
-  limit = 50
+  limit = 50,
+  // "Delete chat" support: only messages after this ISO timestamp.
+  after?: string | null
 ): Promise<DirectMessage[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('direct_messages')
     .select('*, sender:profiles!sender_id(*)')
     .or(
@@ -16,7 +18,9 @@ export async function getDirectMessages(
     )
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (after) query = query.gt('created_at', after);
 
+  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as unknown as DirectMessage[]).reverse();
 }
@@ -24,16 +28,79 @@ export async function getDirectMessages(
 export async function sendDirectMessage(
   senderId: string,
   recipientId: string,
-  content: string
+  content: string,
+  type: DirectMessage['type'] = 'text'
 ): Promise<DirectMessage> {
   const { data, error } = await supabase
     .from('direct_messages')
-    .insert({ sender_id: senderId, recipient_id: recipientId, content, type: 'text' })
+    .insert({ sender_id: senderId, recipient_id: recipientId, content, type })
     .select('*, sender:profiles!sender_id(*)')
     .single();
 
   if (error) throw error;
   return data as unknown as DirectMessage;
+}
+
+// Marks everything this friend sent you as read (read receipts, migration
+// 031). Best-effort: pre-migration the column doesn't exist and this fails.
+export async function markDmRead(
+  userId: string,
+  friendId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('direct_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('recipient_id', userId)
+    .eq('sender_id', friendId)
+    .is('read_at', null);
+  if (error) throw error;
+}
+
+// Hard delete of your own DM (RLS in migration 030).
+export async function deleteDirectMessage(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('direct_messages')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// One pinned message per DM conversation, keyed on the sorted id pair.
+export function dmPairKey(a: string, b: string): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+export async function getDmPin(
+  userId: string,
+  friendId: string
+): Promise<DirectMessage | null> {
+  const { data, error } = await supabase
+    .from('dm_pins')
+    .select('message:direct_messages!message_id(*, sender:profiles!sender_id(*))')
+    .eq('pair_key', dmPairKey(userId, friendId))
+    .maybeSingle();
+  if (error) return null;
+  return ((data as any)?.message ?? null) as DirectMessage | null;
+}
+
+export async function setDmPin(
+  userId: string,
+  friendId: string,
+  messageId: string | null
+): Promise<void> {
+  const key = dmPairKey(userId, friendId);
+  if (!messageId) {
+    const { error } = await supabase.from('dm_pins').delete().eq('pair_key', key);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from('dm_pins')
+    .upsert(
+      { pair_key: key, message_id: messageId, pinned_by: userId },
+      { onConflict: 'pair_key' }
+    );
+  if (error) throw error;
 }
 
 // Inbox for the Friends tab: every accepted friend with their last message (if

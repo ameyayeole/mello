@@ -14,6 +14,30 @@ const glyphs: Record<string, Glyph> = {
     </>
   ),
   plus: <Path d="M12 5v14M5 12h14" />,
+  trash: (
+    <>
+      <Path d="M4 7h16M10 11v6M14 11v6" />
+      <Path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+    </>
+  ),
+  megaphone: (
+    <>
+      <Path d="M3 11v3l14 4V6L3 11Z" />
+      <Path d="M17 8a4 4 0 0 1 0 8M7 14.5V19a1.5 1.5 0 0 0 3 0v-3.6" />
+    </>
+  ),
+  bellOff: (
+    <>
+      <Path d="M8.7 4A6 6 0 0 1 18 8c0 4.5 1.2 7 2 8M6 8c0 7-3 9-3 9h13" />
+      <Path d="M13.7 21a2 2 0 0 1-3.4 0M3 3l18 18" />
+    </>
+  ),
+  copy: (
+    <>
+      <Rect x={9} y={9} width={11} height={11} rx={2} />
+      <Path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
   search: (
     <>
       <Circle cx={11} cy={11} r={7} />
@@ -55,13 +79,45 @@ const glyphs: Record<string, Glyph> = {
       <Circle cx={12} cy={10} r={2.5} />
     </>
   ),
+  // Google-Maps-style "my location" crosshair: ring + centre dot + N/E/S/W ticks.
+  crosshair: (
+    <>
+      <Circle cx={12} cy={12} r={7} />
+      <Path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+      <Circle cx={12} cy={12} r={1.4} fill="currentColor" />
+    </>
+  ),
   filter: <Path d="M3 5h18M6 12h12M10 19h4" />,
+  bookmark: <Path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z" />,
+  // fill="currentColor" resolves to the Svg's color prop (set in Icon below).
+  bookmarkFilled: (
+    <Path
+      d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"
+      fill="currentColor"
+    />
+  ),
+  refresh: <Path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />,
+  undo: <Path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 1 1 0 11H11" />,
   chevronRight: <Path d="m9 6 6 6-6 6" />,
   chevronDown: <Path d="m6 9 6 6 6-6" />,
   back: <Path d="M15 18l-6-6 6-6" />,
   check: <Path d="m5 13 4 4L19 7" />,
+  checkDouble: (
+    <>
+      <Path d="m2 13 4 4L15 8" />
+      <Path d="m9.5 14.5 2.5 2.5L22 8" />
+    </>
+  ),
   close: <Path d="M6 6 18 18M18 6 6 18" />,
   send: <Path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />,
+  share: (
+    <>
+      <Circle cx={18} cy={5} r={3} />
+      <Circle cx={6} cy={12} r={3} />
+      <Circle cx={18} cy={19} r={3} />
+      <Path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+    </>
+  ),
   mic: (
     <>
       <Rect x={9} y={3} width={6} height={11} rx={3} />
@@ -139,10 +195,27 @@ const glyphs: Record<string, Glyph> = {
     </>
   ),
   flag: <Path d="M5 21V4M5 4h13l-2.5 4L18 12H5" />,
+  crown: (
+    <>
+      <Path d="M3 8.5 7 12l5-6.5L17 12l4-3.5-1.6 9a2 2 0 0 1-2 1.5H6.6a2 2 0 0 1-2-1.5L3 8.5Z" />
+    </>
+  ),
   shieldAlert: (
     <>
       <Path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3Z" />
       <Path d="M12 8v4M12 15.5h.01" />
+    </>
+  ),
+  eye: (
+    <>
+      <Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <Circle cx={12} cy={12} r={3} />
+    </>
+  ),
+  eyeOff: (
+    <>
+      <Path d="M9.9 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17.5 17.5 0 0 1-2.2 3M14.1 14.1a3 3 0 0 1-4.2-4.2M6.6 6.6C4 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.5 0 2.9-.4 4.1-1.1" />
+      <Path d="M3 3l18 18" />
     </>
   ),
   image: (
@@ -150,6 +223,20 @@ const glyphs: Record<string, Glyph> = {
       <Rect x={3} y={4} width={18} height={16} rx={3} />
       <Path d="m3 16 5-5 4 4 3-3 6 6" />
       <Circle cx={15.5} cy={9} r={1.5} />
+    </>
+  ),
+  qr: (
+    <>
+      <Rect x={3} y={3} width={7} height={7} rx={1.5} />
+      <Rect x={14} y={3} width={7} height={7} rx={1.5} />
+      <Rect x={3} y={14} width={7} height={7} rx={1.5} />
+      <Path d="M14 14h3v3h-3zM21 14v.01M14 21h.01M17.5 21H21v-3.5" />
+    </>
+  ),
+  scan: (
+    <>
+      <Path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16" />
+      <Path d="M3 12h18" />
     </>
   ),
   // Category glyphs
@@ -218,6 +305,7 @@ export function Icon({
       height={size}
       viewBox="0 0 24 24"
       fill="none"
+      color={color}
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
@@ -240,6 +328,19 @@ export function VerifiedBadge({ size = 14 }: { size?: number }) {
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+// Gold filled circle with white crown — marks Mello+ members next to names.
+export function PremiumBadge({ size = 14 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={11} fill="#C9930A" />
+      <Path
+        d="M6.2 9.4 8.9 11.6 12 7.6l3.1 4 2.7-2.2-1.1 6a1.3 1.3 0 0 1-1.3 1H7.6a1.3 1.3 0 0 1-1.3-1l-1.1-6Z"
+        fill="#fff"
       />
     </Svg>
   );

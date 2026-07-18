@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
 import {
@@ -16,16 +17,20 @@ import {
   getJoinedEvents,
   getMyEvents,
 } from '@/services/events.service';
+import { getUnreadCount } from '@/services/notifications.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { ExploreEvent, NearbyEvent } from '@/types/models';
 import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
+import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import CreateEventFab from '@/components/CreateEventFab';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
+import WishlistButton from '@/components/events/WishlistButton';
+import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import {
   Avatar,
   CategoryTile,
@@ -170,6 +175,7 @@ export default function DashboardScreen() {
   const cityName = useLocationStore((s) => s.cityName);
   const coords = useLocationStore((s) => s.coords);
   const sheetRef = useRef<EventBottomSheetRef>(null);
+  useSelectedEventSheet(sheetRef);
 
   const nearbyQuery = useQuery({
     queryKey: ['dashboardNearby', user?.id, coords?.lat, coords?.lng],
@@ -190,6 +196,14 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
+  // Kept live by useNotifications, which invalidates this key whenever a
+  // notification row arrives over realtime.
+  const unreadQuery = useQuery({
+    queryKey: ['notificationsUnread', user?.id],
+    queryFn: () => getUnreadCount(user!.id),
+    enabled: !!user,
+  });
+
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hasJoined = (joinedQuery.data?.length ?? 0) > 0;
   const hasHosting = (myEventsQuery.data?.length ?? 0) > 0;
@@ -205,10 +219,20 @@ export default function DashboardScreen() {
               <Text style={styles.name}>{firstName}</Text>
             </View>
             <IconButton
+              icon="crown"
+              iconSize={20}
+              size={42}
+              color={PREMIUM_GOLD}
+              style={{ backgroundColor: PREMIUM_GOLD_TINT }}
+              onPress={() => router.push('/premium')}
+              accessibilityLabel="Mello+"
+            />
+            <WishlistButton size={42} iconSize={20} />
+            <IconButton
               icon="bell"
               iconSize={21}
               size={42}
-              badge
+              badge={(unreadQuery.data ?? 0) > 0}
               onPress={() => router.push('/notifications')}
               accessibilityLabel="Notifications"
             />
@@ -244,6 +268,36 @@ export default function DashboardScreen() {
               <Text style={styles.cityText}>{cityName}</Text>
             </Animated.View>
           ) : null}
+
+          {/* Post-event wrap prompt (hidden once completed) */}
+          <WrapEntryCard />
+
+          {/* Mello+ upsell (hidden once subscribed) */}
+          {!isPremium(user) && (
+            <Animated.View entering={FadeInDown.delay(20).duration(350)}>
+              <PressableScale
+                scaleTo={0.98}
+                style={styles.premiumBanner}
+                onPress={() => router.push('/premium')}
+                accessibilityRole="button"
+                accessibilityLabel="Get Mello+"
+              >
+                <View style={styles.premiumBannerIcon}>
+                  <Icon name="crown" size={20} color={PREMIUM_GOLD} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumBannerTitle}>
+                    Get Mello+ — 1st month free
+                  </Text>
+                  <Text style={styles.premiumBannerSub}>
+                    Whole-city events, premium filters & unlimited swipes ·
+                    then from ₹99/week
+                  </Text>
+                </View>
+                <Icon name="chevronRight" size={18} color={PREMIUM_GOLD} />
+              </PressableScale>
+            </Animated.View>
+          )}
 
           {/* Tonight near you */}
           {(nearbyQuery.data?.length ?? 0) > 0 && (
@@ -408,6 +462,36 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 12.5,
     color: COLORS.textSecondary,
+  },
+  premiumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(201,147,10,0.35)',
+    padding: 14,
+  },
+  premiumBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: PREMIUM_GOLD_TINT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumBannerTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: 14.5,
+    color: COLORS.textPrimary,
+  },
+  premiumBannerSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: COLORS.textSecondary,
+    marginTop: 1,
   },
   sectionHeader: {
     flexDirection: 'row',

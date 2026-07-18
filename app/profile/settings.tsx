@@ -11,8 +11,7 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { signOut } from '@/services/auth.service';
-import { updateProfile } from '@/services/auth.service';
+import { signOut, deleteAccount, updateProfile } from '@/services/auth.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import {
@@ -64,6 +63,7 @@ function SettingsRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const email = useAuthStore((s) => s.session?.user?.email);
   const clear = useAuthStore((s) => s.clear);
   const { ghostMode, setGhostMode } = useUIStore();
 
@@ -72,6 +72,39 @@ export default function SettingsScreen() {
     if (user) {
       await updateProfile(user.id, { is_ghost_mode: value });
     }
+  }
+
+  function handleDeleteAccount() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your profile, events, chats and photos. It cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () =>
+            // A second confirm — deletion is irreversible, one mis-tap
+            // shouldn't be enough.
+            Alert.alert('Are you absolutely sure?', 'There is no way back.', [
+              { text: 'Keep my account', style: 'cancel' },
+              {
+                text: 'Delete forever',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await deleteAccount();
+                    clear();
+                    router.replace('/onboarding/welcome');
+                  } catch (e: any) {
+                    Alert.alert('Error', e.message);
+                  }
+                },
+              },
+            ]),
+        },
+      ]
+    );
   }
 
   async function handleSignOut() {
@@ -101,6 +134,17 @@ export default function SettingsScreen() {
               icon="user"
               title="Edit profile"
               onPress={() => router.push('/profile/edit')}
+            />
+            <SettingsRow
+              icon="lock"
+              title="Change password"
+              onPress={() => router.push('/profile/change-password')}
+            />
+            <SettingsRow
+              icon="send"
+              title="Change email"
+              subtitle={email}
+              onPress={() => router.push('/profile/change-email')}
               last
             />
           </View>
@@ -150,6 +194,17 @@ export default function SettingsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(140).duration(350)}>
+          <SectionLabel style={styles.sectionLabel}>Danger zone</SectionLabel>
+          <View style={styles.card}>
+            <SettingsRow
+              icon="trash"
+              iconColor={COLORS.error}
+              title="Delete account"
+              subtitle="Permanently erase your account and data"
+              onPress={handleDeleteAccount}
+              last
+            />
+          </View>
           <Button
             label="Log out"
             variant="danger"

@@ -11,28 +11,18 @@ import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import {
   getNotifications,
   markAllRead,
+  markRead,
 } from '@/services/notifications.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { Notification } from '@/types/models';
 import { relativeTime } from '@/utils/time';
 import { Icon, IconButton, IconName, SectionLabel } from '@/components/ui';
-
-const NOTIFICATION_ICONS: Record<
-  string,
-  { icon: IconName; color: string; tint: string }
-> = {
-  friend_request: { icon: 'userPlus', color: '#1FA463', tint: 'rgba(31,164,99,0.12)' },
-  join_request: { icon: 'user', color: '#FF5E5B', tint: '#FFF0EF' },
-  join_approved: { icon: 'check', color: '#1FA463', tint: 'rgba(31,164,99,0.12)' },
-  event_update: { icon: 'bell', color: '#7C5CE0', tint: '#F0ECFC' },
-  new_message: { icon: 'chat', color: '#FF5E5B', tint: '#FFF0EF' },
-  event_starting_soon: { icon: 'clock', color: '#FF5E5B', tint: '#FFF0EF' },
-  friend_joined_event: { icon: 'heart', color: '#D6478E', tint: '#FBE7F1' },
-};
+import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
 
 function notifText(notif: Notification): React.ReactNode {
   const name = notif.sender?.name ?? 'Someone';
@@ -51,6 +41,13 @@ function notifText(notif: Notification): React.ReactNode {
       return (
         <>
           <Text style={styles.bold}>{name}</Text> sent you a friend request
+        </>
+      );
+    case 'friend_accepted':
+      return (
+        <>
+          <Text style={styles.bold}>{name}</Text> accepted your friend request
+          🎉
         </>
       );
     case 'join_request':
@@ -82,12 +79,72 @@ function notifText(notif: Notification): React.ReactNode {
           <Text style={styles.bold}>{name}</Text> updated an event
         </>
       );
+    case 'event_boosted':
+      return (
+        <>
+          🔥{' '}
+          <Text style={styles.bold}>
+            {(notif.payload as any)?.eventTitle ?? 'An event'}
+          </Text>{' '}
+          you wishlisted just got boosted
+        </>
+      );
+    case 'wrap_ready':
+      return (
+        <>
+          How was{' '}
+          <Text style={styles.bold}>
+            {(notif.payload as any)?.eventTitle ?? 'your event'}
+          </Text>
+          ? The wrap is ready 📸
+        </>
+      );
+    case 'note_received':
+      return (
+        <>
+          💌 Someone from{' '}
+          <Text style={styles.bold}>
+            {(notif.payload as any)?.eventTitle ?? 'your event'}
+          </Text>{' '}
+          left you a note
+        </>
+      );
+    case 'photo_liked':
+      return (
+        <>
+          <Text style={styles.bold}>{name}</Text> liked your photo
+        </>
+      );
+    case 'photo_commented':
+      return (
+        <>
+          <Text style={styles.bold}>{name}</Text> commented on your photo
+        </>
+      );
+    case 'encore_requested':
+      return (
+        <>
+          🔁 People want you to run{' '}
+          <Text style={styles.bold}>
+            {(notif.payload as any)?.eventTitle ?? 'your event'}
+          </Text>{' '}
+          back
+        </>
+      );
     default:
       return <Text style={styles.bold}>{name}</Text>;
   }
 }
 
-function NotifRow({ notif, index }: { notif: Notification; index: number }) {
+function NotifRow({
+  notif,
+  index,
+  onPress,
+}: {
+  notif: Notification;
+  index: number;
+  onPress: (notif: Notification) => void;
+}) {
   const style = NOTIFICATION_ICONS[notif.type] ?? {
     icon: 'bell' as IconName,
     color: COLORS.primary,
@@ -96,16 +153,21 @@ function NotifRow({ notif, index }: { notif: Notification; index: number }) {
   return (
     <Animated.View
       entering={FadeInDown.delay(Math.min(index, 10) * 40).duration(300)}
-      style={[styles.row, !notif.is_read && styles.rowUnread]}
     >
-      <View style={[styles.iconCircle, { backgroundColor: style.tint }]}>
-        <Icon name={style.icon} size={20} color={style.color} />
-      </View>
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle}>{notifText(notif)}</Text>
-        <Text style={styles.rowTime}>{relativeTime(notif.created_at)}</Text>
-      </View>
-      {!notif.is_read && <View style={styles.unreadDot} />}
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => onPress(notif)}
+        style={[styles.row, !notif.is_read && styles.rowUnread]}
+      >
+        <View style={[styles.iconCircle, { backgroundColor: style.tint }]}>
+          <Icon name={style.icon} size={20} color={style.color} />
+        </View>
+        <View style={styles.rowText}>
+          <Text style={styles.rowTitle}>{notifText(notif)}</Text>
+          <Text style={styles.rowTime}>{relativeTime(notif.created_at)}</Text>
+        </View>
+        {!notif.is_read && <View style={styles.unreadDot} />}
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -125,11 +187,79 @@ export default function NotificationsScreen() {
     enabled: !!user,
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['notifications', user?.id] });
+    qc.invalidateQueries({ queryKey: ['notificationsUnread', user?.id] });
+  };
+
   const markAll = useMutation({
     mutationFn: () => markAllRead(user!.id),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['notifications', user?.id] }),
+    onSuccess: invalidate,
   });
+
+  const markOne = useMutation({
+    mutationFn: (id: string) => markRead(id),
+    onSuccess: invalidate,
+  });
+
+  // Tapping a notification marks it read and jumps to what it's about:
+  // event-related ones open the event card (bottom sheet on the tab
+  // underneath), friend ones open the friends screen, messages open the chat.
+  const onPressNotif = (notif: Notification) => {
+    if (!notif.is_read) markOne.mutate(notif.id);
+
+    switch (notif.type) {
+      case 'friend_request':
+      case 'friend_accepted':
+        router.back();
+        router.push('/friends');
+        return;
+      case 'new_message': {
+        const friendId = (notif.payload as any)?.friendId as string | undefined;
+        if (friendId) {
+          router.back();
+          router.push(`/(tabs)/chats/dm/${friendId}`);
+          return;
+        }
+        if (notif.event_id) {
+          router.back();
+          router.push(`/(tabs)/chats/${notif.event_id}`);
+          return;
+        }
+        break;
+      }
+      case 'wrap_ready':
+        if (notif.event_id) {
+          router.push(`/events/wrap/${notif.event_id}`);
+          return;
+        }
+        break;
+      case 'photo_liked':
+      case 'photo_commented':
+        if (notif.event_id) {
+          router.push(`/events/wrap/gallery/${notif.event_id}`);
+          return;
+        }
+        break;
+      case 'note_received':
+        router.back();
+        router.push('/(tabs)/chats');
+        return;
+      case 'encore_requested':
+        if (notif.event_id) {
+          router.push(`/events/host/${notif.event_id}`);
+          return;
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (notif.event_id) {
+      useUIStore.getState().setSelectedEvent(notif.event_id);
+      router.back();
+    }
+  };
 
   const unread = (notifications ?? []).filter((n) => !n.is_read);
   const read = (notifications ?? []).filter((n) => n.is_read);
@@ -149,6 +279,7 @@ export default function NotificationsScreen() {
       <View style={styles.header}>
         <IconButton
           icon="close"
+          variant="ghost"
           onPress={() => router.back()}
           accessibilityLabel="Close"
         />
@@ -170,7 +301,12 @@ export default function NotificationsScreen() {
                 {item.label}
               </SectionLabel>
             ) : (
-              <NotifRow notif={item.notif} index={index} />
+              <NotifRow
+                notif={item.notif}
+                index={index}
+                onPress={onPressNotif}
+              />
+
             )
           }
           contentContainerStyle={styles.list}
