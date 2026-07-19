@@ -3,15 +3,20 @@ export const FONTS = {
   semibold: 'PlusJakartaSans_600SemiBold',
   bold: 'PlusJakartaSans_700Bold',
   heavy: 'PlusJakartaSans_800ExtraBold',
+  // Display / headings — Bricolage Grotesque (locked design language).
+  heading: 'BricolageGrotesque_800ExtraBold',
+  headingBold: 'BricolageGrotesque_700Bold',
 } as const;
 
 // React Native style objects for each scale step.
 // Use these anywhere you'd write fontSize/fontWeight inline.
+// Big headings use Bricolage Grotesque; body/labels use Plus Jakarta Sans.
 export const TYPE = {
-  display: { fontFamily: FONTS.heavy, fontSize: 48, lineHeight: 52, letterSpacing: -0.48 },
-  h1:      { fontFamily: FONTS.bold,    fontSize: 32, lineHeight: 38, letterSpacing: -0.32 },
-  h2:      { fontFamily: FONTS.bold,    fontSize: 26, lineHeight: 32 },
-  title:   { fontFamily: FONTS.bold,    fontSize: 22, lineHeight: 28 },
+  display: { fontFamily: FONTS.heading, fontSize: 38, lineHeight: 40, letterSpacing: -1.5 },
+  h1:      { fontFamily: FONTS.heading, fontSize: 28, lineHeight: 30, letterSpacing: -0.8 },
+  h2:      { fontFamily: FONTS.heading, fontSize: 26, lineHeight: 32, letterSpacing: -0.5 },
+  title:   { fontFamily: FONTS.heading, fontSize: 22, lineHeight: 28, letterSpacing: -0.4 },
+  section: { fontFamily: FONTS.heading, fontSize: 17, lineHeight: 22, letterSpacing: -0.3 },
   subtitle:{ fontFamily: FONTS.semibold, fontSize: 17, lineHeight: 22 },
   bodyLg:  { fontFamily: FONTS.medium,  fontSize: 16, lineHeight: 22 },
   body:    { fontFamily: FONTS.medium,  fontSize: 15, lineHeight: 20 },

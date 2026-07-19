@@ -171,6 +171,7 @@ export default function EditProfileScreen() {
           disabled={
             loading ||
             !name.trim() ||
+            photos.length === 0 ||
             usernameStatus === 'taken' ||
             usernameStatus === 'invalid' ||
             usernameStatus === 'checking'

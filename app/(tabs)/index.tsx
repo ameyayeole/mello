@@ -1,12 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
@@ -21,23 +18,22 @@ import { getUnreadCount } from '@/services/notifications.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
+import { categoryStyle } from '@/constants/categoryStyle';
 import { ExploreEvent, NearbyEvent } from '@/types/models';
 import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
-import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import CreateEventFab from '@/components/CreateEventFab';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
-import WishlistButton from '@/components/events/WishlistButton';
 import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import {
   Avatar,
+  AttendeeStack,
   CategoryTile,
   Icon,
   IconButton,
   PressableScale,
-  SectionLabel,
   VerifiedBadge,
 } from '@/components/ui';
 
@@ -48,6 +44,7 @@ function greeting(): string {
   return 'Good evening';
 }
 
+// Rich "Tonight near you" card: photo banner + host + attendees + Join.
 function NearbyCard({
   event,
   onPress,
@@ -57,120 +54,149 @@ function NearbyCard({
 }) {
   const activity = ACTIVITY_MAP[event.activity];
   return (
-    <PressableScale style={styles.nearbyCard} onPress={onPress} scaleTo={0.97}>
-      <View style={styles.nearbyTop}>
-        <CategoryTile activity={event.activity} size={36} radius={11} />
-        <Text style={styles.nearbyCat} numberOfLines={1}>
-          {activity.label}
-        </Text>
-        {event.distance_m != null && (
-          <Text style={styles.nearbyDistance}>
-            {formatDistance(event.distance_m)}
-          </Text>
+    <PressableScale style={styles.nearbyCard} onPress={onPress} scaleTo={0.98}>
+      <View style={styles.nearbyMedia}>
+        {event.image_url ? (
+          <Image
+            source={{ uri: event.image_url }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : (
+          <Text style={styles.mediaHint}>EVENT PHOTO</Text>
         )}
-      </View>
-
-      <Text style={styles.nearbyTitle} numberOfLines={1}>
-        {event.title}
-      </Text>
-
-      <View style={styles.nearbyHostRow}>
-        <Avatar
-          name={event.host_name}
-          photoUrl={event.host_photo_url}
-          size={20}
-        />
-        <Text style={styles.nearbyHost} numberOfLines={1}>
-          {event.host_name} · host
-        </Text>
-        <VerifiedBadge size={13} />
-      </View>
-
-      <View style={styles.nearbyFooter}>
-        <View style={styles.attendeeStack}>
-          {Array.from({
-            length: Math.min(event.participant_count, 3),
-          }).map((_, i) => (
-            <View
-              key={i}
-              style={[styles.attendeeRing, i > 0 && { marginLeft: -8 }]}
-            >
-              <Avatar name={String.fromCharCode(65 + i)} size={24} />
-            </View>
-          ))}
-          {event.participant_count > 3 && (
-            <View
-              style={[
-                styles.attendeeRing,
-                styles.attendeeOverflow,
-                { marginLeft: -8 },
-              ]}
-            >
-              <Text style={styles.attendeeOverflowText}>
-                +{event.participant_count - 3}
-              </Text>
-            </View>
-          )}
+        <View style={styles.mediaBadge}>
+          <Text style={styles.mediaBadgeEmoji}>{activity?.emoji ?? '📍'}</Text>
         </View>
-        {event.friends_count > 0 ? (
-          <View style={styles.goingPill}>
-            <Text style={styles.goingPillText}>
-              {event.friends_count}{' '}
-              {event.friends_count === 1 ? 'friend' : 'friends'}
+        {event.distance_m != null && (
+          <View style={styles.distanceBadge}>
+            <Text style={styles.distanceText}>
+              {formatDistance(event.distance_m)}
             </Text>
           </View>
-        ) : (
-          <Text style={styles.nearbyGoingText}>
-            {event.participant_count} going
-          </Text>
         )}
+      </View>
+
+      <View style={styles.nearbyBody}>
+        <View style={styles.nearbyHostRow}>
+          <Avatar name={event.host_name} photoUrl={event.host_photo_url} size={20} />
+          <Text style={styles.nearbyHostName} numberOfLines={1}>
+            {event.host_name}
+          </Text>
+          {event.host_verified && <VerifiedBadge size={13} />}
+          <Text style={styles.nearbyHostLabel}>is hosting</Text>
+        </View>
+
+        <Text style={styles.nearbyTitle} numberOfLines={1}>
+          {event.title}
+        </Text>
+        <Text style={styles.nearbyTime}>{formatEventTime(event.starts_at)}</Text>
+
+        <View style={styles.nearbyFooter}>
+          <AttendeeStack count={event.participant_count} size={27} />
+          <View style={styles.joinBtn}>
+            <Text style={styles.joinBtnText}>Join</Text>
+          </View>
+        </View>
       </View>
     </PressableScale>
   );
 }
 
-function UpcomingCard({
+// Full-width row: category tile + title + meta + Manage/View pill.
+function EventRow({
   event,
   badge,
   onPress,
 }: {
   event: NearbyEvent;
-  badge: 'going' | 'hosting';
+  badge: 'hosting' | 'going';
   onPress: () => void;
 }) {
+  const emoji = ACTIVITY_MAP[event.activity]?.emoji ?? '📍';
+  const cat = categoryStyle(event.activity);
   return (
-    <PressableScale style={styles.nearbyCard} onPress={onPress} scaleTo={0.97}>
-      <View style={styles.nearbyTop}>
-        <CategoryTile activity={event.activity} size={36} radius={11} />
-        <View style={{ flex: 1 }} />
-        {badge === 'going' ? (
-          <View style={styles.goingPill}>
-            <Text style={styles.goingPillText}>Going</Text>
-          </View>
-        ) : (
-          <View style={[styles.goingPill, styles.hostPill]}>
-            <Text style={[styles.goingPillText, styles.hostPillText]}>
-              Hosting
-            </Text>
-          </View>
-        )}
+    <PressableScale style={styles.eventRow} onPress={onPress} scaleTo={0.98}>
+      <View style={styles.eventThumb}>
+        <CategoryTile activity={event.activity} size={50} radius={14} />
+        <View style={[styles.eventEmoji, { backgroundColor: cat.accent }]}>
+          <Text style={{ fontSize: 11 }}>{emoji}</Text>
+        </View>
       </View>
-      <Text style={styles.nearbyTitle} numberOfLines={1}>
-        {event.title}
-      </Text>
-      <Text style={styles.rowMeta} numberOfLines={1}>
-        {formatEventTime(event.starts_at)}
-        {event.location_name ? ` · ${event.location_name}` : ''}
-        {event.distance_m != null
-          ? ` · ${formatDistance(event.distance_m)}`
-          : ''}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.eventTitle} numberOfLines={1}>
+          {event.title}
+        </Text>
+        <Text style={styles.eventMeta} numberOfLines={1}>
+          {formatEventTime(event.starts_at)}
+          {event.participant_count ? ` · ${event.participant_count} going` : ''}
+        </Text>
+      </View>
+      {badge === 'hosting' ? (
+        <View style={styles.managePill}>
+          <Text style={styles.managePillText}>Manage</Text>
+        </View>
+      ) : (
+        <View style={styles.viewPill}>
+          <Text style={styles.viewPillText}>View</Text>
+        </View>
+      )}
+    </PressableScale>
+  );
+}
+
+// A single hosting event as a rich, full-width card (photo banner + Manage).
+function HostingCard({
+  event,
+  onPress,
+}: {
+  event: NearbyEvent;
+  onPress: () => void;
+}) {
+  const activity = ACTIVITY_MAP[event.activity];
+  return (
+    <PressableScale style={styles.hostingCard} onPress={onPress} scaleTo={0.98}>
+      <View style={styles.hostingMedia}>
+        {event.image_url ? (
+          <Image
+            source={{ uri: event.image_url }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : (
+          <Text style={styles.mediaHint}>EVENT PHOTO</Text>
+        )}
+        <View style={styles.mediaBadge}>
+          <Text style={styles.mediaBadgeEmoji}>{activity?.emoji ?? '📍'}</Text>
+        </View>
+        <View style={styles.hostingBadge}>
+          <Text style={styles.hostingBadgeText}>You're hosting</Text>
+        </View>
+      </View>
+      <View style={styles.hostingBody}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.nearbyTitle} numberOfLines={1}>
+            {event.title}
+          </Text>
+          <Text style={styles.nearbyTime}>
+            {formatEventTime(event.starts_at)}
+            {event.participant_count ? ` · ${event.participant_count} going` : ''}
+          </Text>
+        </View>
+        <View style={styles.manageBtn}>
+          <Text style={styles.manageBtnText}>Manage</Text>
+        </View>
+      </View>
     </PressableScale>
   );
 }
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [showAllHosting, setShowAllHosting] = useState(false);
   const user = useAuthStore((s) => s.user);
   const cityName = useLocationStore((s) => s.cityName);
   const coords = useLocationStore((s) => s.coords);
@@ -179,8 +205,7 @@ export default function DashboardScreen() {
 
   const nearbyQuery = useQuery({
     queryKey: ['dashboardNearby', user?.id, coords?.lat, coords?.lng],
-    queryFn: () =>
-      getExploreFeed({ userId: user!.id, coords, limit: 10 }),
+    queryFn: () => getExploreFeed({ userId: user!.id, coords, limit: 10 }),
     enabled: !!user,
   });
 
@@ -210,28 +235,21 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.root}>
-      <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+      <View style={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <View style={styles.headerTop}>
             <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>{greeting()}</Text>
-              <Text style={styles.name}>{firstName}</Text>
+              <Text style={styles.name}>{firstName} 👋</Text>
             </View>
-            <IconButton
-              icon="crown"
-              iconSize={20}
-              size={42}
-              color={PREMIUM_GOLD}
-              style={{ backgroundColor: PREMIUM_GOLD_TINT }}
-              onPress={() => router.push('/premium')}
-              accessibilityLabel="Mello+"
-            />
-            <WishlistButton size={42} iconSize={20} />
             <IconButton
               icon="bell"
               iconSize={21}
               size={42}
+              color="#fff"
+              style={styles.headerBtn}
               badge={(unreadQuery.data ?? 0) > 0}
               onPress={() => router.push('/notifications')}
               accessibilityLabel="Notifications"
@@ -250,7 +268,7 @@ export default function DashboardScreen() {
             style={styles.searchBar}
             onPress={() => router.push('/search')}
           >
-            <Icon name="search" size={17} color="rgba(15,24,44,0.45)" />
+            <Icon name="search" size={17} color="rgba(255,255,255,0.55)" />
             <Text style={styles.searchText}>Search events & people</Text>
           </PressableScale>
         </View>
@@ -272,33 +290,6 @@ export default function DashboardScreen() {
           {/* Post-event wrap prompt (hidden once completed) */}
           <WrapEntryCard />
 
-          {/* Mello+ upsell (hidden once subscribed) */}
-          {!isPremium(user) && (
-            <Animated.View entering={FadeInDown.delay(20).duration(350)}>
-              <PressableScale
-                scaleTo={0.98}
-                style={styles.premiumBanner}
-                onPress={() => router.push('/premium')}
-                accessibilityRole="button"
-                accessibilityLabel="Get Mello+"
-              >
-                <View style={styles.premiumBannerIcon}>
-                  <Icon name="crown" size={20} color={PREMIUM_GOLD} strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumBannerTitle}>
-                    Get Mello+ — 1st month free
-                  </Text>
-                  <Text style={styles.premiumBannerSub}>
-                    Whole-city events, premium filters & unlimited swipes ·
-                    then from ₹99/week
-                  </Text>
-                </View>
-                <Icon name="chevronRight" size={18} color={PREMIUM_GOLD} />
-              </PressableScale>
-            </Animated.View>
-          )}
-
           {/* Tonight near you */}
           {(nearbyQuery.data?.length ?? 0) > 0 && (
             <Animated.View entering={FadeInDown.delay(30).duration(350)}>
@@ -316,7 +307,7 @@ export default function DashboardScreen() {
                 showsHorizontalScrollIndicator={false}
                 style={styles.nearbyScroll}
                 contentContainerStyle={styles.nearbyScrollContent}
-                snapToInterval={252}
+                snapToInterval={285}
                 decelerationRate="fast"
               >
                 {nearbyQuery.data!.map((event) => (
@@ -330,8 +321,45 @@ export default function DashboardScreen() {
             </Animated.View>
           )}
 
+          {/* You're hosting — one rich card, "See all" expands to a list */}
+          {hasHosting && (
+            <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>You're hosting</Text>
+                {myEventsQuery.data!.length > 1 && (
+                  <Text
+                    style={styles.seeAll}
+                    onPress={() => setShowAllHosting((v) => !v)}
+                  >
+                    {showAllHosting ? 'Show less' : 'See all'}
+                  </Text>
+                )}
+              </View>
+              {showAllHosting ? (
+                <View style={styles.rowList}>
+                  {myEventsQuery.data!.map((event) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      badge="hosting"
+                      onPress={() => router.push(`/events/host/${event.id}`)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <HostingCard
+                  event={myEventsQuery.data![0]}
+                  // Hosts land on the manage panel (attendees, requests, edit).
+                  onPress={() =>
+                    router.push(`/events/host/${myEventsQuery.data![0].id}`)
+                  }
+                />
+              )}
+            </Animated.View>
+          )}
+
           {/* Your upcoming */}
-          <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+          <Animated.View entering={FadeInDown.delay(90).duration(350)}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Your upcoming</Text>
               <Text
@@ -350,58 +378,31 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={styles.emptyTitle}>No plans yet</Text>
                 <Text style={styles.emptyText}>
-                  Explore the map and join something nearby.
+                  Explore what's happening and join something nearby.
                 </Text>
+                <PressableScale
+                  scaleTo={0.97}
+                  style={styles.exploreBtn}
+                  onPress={() => router.push('/(tabs)/explore')}
+                >
+                  <Text style={styles.exploreBtnText}>Explore events</Text>
+                </PressableScale>
               </View>
             ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.nearbyScroll}
-                contentContainerStyle={styles.nearbyScrollContent}
-                snapToInterval={252}
-                decelerationRate="fast"
-              >
+              <View style={styles.rowList}>
                 {joinedQuery.data!.map((event) => (
-                  <UpcomingCard
+                  <EventRow
                     key={event.id}
                     event={event}
                     badge="going"
                     onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
                   />
                 ))}
-              </ScrollView>
+              </View>
             )}
           </Animated.View>
-
-          {/* Hosting */}
-          {hasHosting && (
-            <Animated.View entering={FadeInDown.delay(120).duration(350)}>
-              <SectionLabel style={styles.sectionLabel}>
-                You're hosting
-              </SectionLabel>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.nearbyScroll}
-                contentContainerStyle={styles.nearbyScrollContent}
-                snapToInterval={252}
-                decelerationRate="fast"
-              >
-                {myEventsQuery.data!.map((event) => (
-                  <UpcomingCard
-                    key={event.id}
-                    event={event}
-                    badge="hosting"
-                    // Hosts land on the manage panel (attendees, requests, edit).
-                    onPress={() => router.push(`/events/host/${event.id}`)}
-                  />
-                ))}
-              </ScrollView>
-            </Animated.View>
-          )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
       <CreateEventFab />
       <EventBottomSheet ref={sheetRef} />
     </View>
@@ -412,46 +413,44 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
   header: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 14,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   greeting: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
-    color: 'rgba(15,24,44,0.45)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 4,
   },
   name: {
-    fontFamily: FONTS.heavy,
-    fontSize: 21,
-    letterSpacing: -0.42,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.heading,
+    fontSize: 25,
+    lineHeight: 26,
+    letterSpacing: -0.5,
+    color: '#fff',
   },
   searchBar: {
     height: 44,
-    marginTop: 14,
-    paddingHorizontal: 15,
+    marginTop: 16,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: COLORS.background,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 100,
   },
   searchText: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: 'rgba(15,24,44,0.45)',
+    fontSize: 13.5,
+    color: 'rgba(255,255,255,0.55)',
   },
-  scroll: { padding: 20, paddingBottom: 90, gap: 20 },
+  scroll: { padding: 20, paddingBottom: 100, gap: 20 },
   cityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -463,36 +462,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: COLORS.textSecondary,
   },
-  premiumBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(201,147,10,0.35)',
-    padding: 14,
-  },
-  premiumBannerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: PREMIUM_GOLD_TINT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  premiumBannerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 14.5,
-    color: COLORS.textPrimary,
-  },
-  premiumBannerSub: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: COLORS.textSecondary,
-    marginTop: 1,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -500,113 +469,238 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 16,
+    fontFamily: FONTS.heading,
+    fontSize: 17,
+    letterSpacing: -0.3,
     color: COLORS.textPrimary,
   },
-  sectionLabel: { marginBottom: 10 },
-  seeAll: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.primary,
-  },
+  seeAll: { fontFamily: FONTS.bold, fontSize: 12.5, color: COLORS.primary },
+
+  // Rich nearby card
   nearbyScroll: { marginHorizontal: -20 },
-  nearbyScrollContent: { paddingHorizontal: 20, gap: 12 },
+  nearbyScrollContent: { paddingHorizontal: 20, gap: 13 },
   nearbyCard: {
-    width: 240,
-    gap: 10,
+    width: 272,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
-    borderRadius: 18,
-    padding: 15,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  nearbyMedia: {
+    height: 120,
+    backgroundColor: '#E6E4E7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaHint: {
+    fontFamily: FONTS.semibold,
+    fontSize: 9,
+    letterSpacing: 0.5,
+    color: COLORS.textMuted,
+  },
+  mediaBadge: {
+    position: 'absolute',
+    top: 11,
+    left: 11,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  nearbyTop: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  nearbyCat: {
-    flex: 1,
-    fontFamily: FONTS.bold,
-    fontSize: 13,
-    color: 'rgba(15,24,44,0.6)',
+  mediaBadgeEmoji: { fontSize: 16 },
+  distanceBadge: {
+    position: 'absolute',
+    top: 11,
+    right: 11,
+    backgroundColor: 'rgba(23,21,26,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 100,
   },
-  nearbyDistance: {
+  distanceText: { fontFamily: FONTS.bold, fontSize: 10.5, color: '#fff' },
+  nearbyBody: { padding: 14 },
+  nearbyHostRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nearbyHostName: {
+    fontFamily: FONTS.heavy,
+    fontSize: 11.5,
+    color: COLORS.textPrimary,
+    flexShrink: 1,
+  },
+  nearbyHostLabel: {
     fontFamily: FONTS.semibold,
     fontSize: 11.5,
-    color: 'rgba(15,24,44,0.4)',
+    color: COLORS.textSecondary,
   },
   nearbyTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 16,
-    letterSpacing: -0.2,
+    fontFamily: FONTS.heading,
+    fontSize: 18,
+    lineHeight: 20,
+    letterSpacing: -0.4,
     color: COLORS.textPrimary,
+    marginTop: 9,
   },
-  nearbyHostRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  nearbyHost: {
+  nearbyTime: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
-    color: 'rgba(15,24,44,0.6)',
-    flexShrink: 1,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 6,
   },
   nearbyFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 2,
+    marginTop: 14,
   },
   attendeeStack: { flexDirection: 'row', alignItems: 'center' },
   attendeeRing: {
-    borderRadius: 14,
+    borderRadius: 15,
     borderWidth: 2,
     borderColor: COLORS.surface,
   },
   attendeeOverflow: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.primaryTint,
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  attendeeOverflowText: {
-    fontFamily: FONTS.heavy,
-    fontSize: 10,
-    color: COLORS.primary,
+  attendeeOverflowText: { fontFamily: FONTS.heavy, fontSize: 9.5, color: '#fff' },
+  joinBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 9,
+    borderRadius: 100,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
-  nearbyGoingText: {
-    fontFamily: FONTS.bold,
-    fontSize: 11.5,
-    color: 'rgba(15,24,44,0.5)',
+  joinBtnText: { fontFamily: FONTS.heading, fontSize: 13, color: '#fff' },
+
+  // You're hosting — rich full-width card
+  hostingCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
-  rowMeta: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: 'rgba(15,24,44,0.5)',
-    marginTop: 2,
+  hostingMedia: {
+    height: 120,
+    backgroundColor: '#E6E4E7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  goingPill: {
-    backgroundColor: 'rgba(31,164,99,0.10)',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+  hostingBadge: {
+    position: 'absolute',
+    top: 11,
+    right: 11,
+    backgroundColor: 'rgba(23,21,26,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 100,
   },
-  goingPillText: {
-    fontFamily: FONTS.bold,
-    fontSize: 11,
-    color: COLORS.success,
+  hostingBadgeText: { fontFamily: FONTS.bold, fontSize: 10.5, color: '#fff' },
+  hostingBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
   },
-  hostPill: { backgroundColor: COLORS.primaryTint },
-  hostPillText: { color: COLORS.primary },
+  manageBtn: {
+    backgroundColor: COLORS.primaryTint,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 100,
+  },
+  manageBtnText: { fontFamily: FONTS.heavy, fontSize: 11.5, color: COLORS.primary },
+
+  // Full-width event row
+  rowList: { gap: 10 },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 18,
+    padding: 11,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  eventThumb: { width: 50, height: 50 },
+  eventEmoji: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: 15,
+    letterSpacing: -0.2,
+    color: COLORS.textPrimary,
+  },
+  eventMeta: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  managePill: {
+    backgroundColor: COLORS.primaryTint,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 100,
+  },
+  managePillText: { fontFamily: FONTS.heavy, fontSize: 10, color: COLORS.primary },
+  viewPill: {
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 100,
+  },
+  viewPillText: { fontFamily: FONTS.heavy, fontSize: 10, color: COLORS.textPrimary },
+
+  // Empty state
   emptyCard: {
     alignItems: 'center',
     gap: 6,
     backgroundColor: COLORS.surface,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: COLORS.borderSoft,
     paddingVertical: 28,
     paddingHorizontal: 20,
   },
@@ -619,15 +713,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-  },
+  emptyTitle: { fontFamily: FONTS.heading, fontSize: 15, color: COLORS.textPrimary },
   emptyText: {
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
+  exploreBtn: {
+    marginTop: 14,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  exploreBtnText: { fontFamily: FONTS.heading, fontSize: 14, color: '#fff' },
 });

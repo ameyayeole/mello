@@ -10,6 +10,10 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  BricolageGrotesque_700Bold,
+  BricolageGrotesque_800ExtraBold,
+} from '@expo-google-fonts/bricolage-grotesque';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -112,6 +116,8 @@ export default function RootLayout() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
+    BricolageGrotesque_700Bold,
+    BricolageGrotesque_800ExtraBold,
   });
 
   useEffect(() => {

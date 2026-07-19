@@ -3,10 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -51,6 +52,7 @@ const FEEDBACK_META: Record<
 // one leaves, and undo brings the last swiped card back.
 export default function SwipeDeckScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const sheetRef = useRef<EventBottomSheetRef>(null);
   const {
@@ -237,25 +239,33 @@ export default function SwipeDeckScreen() {
 
   return (
     <View style={styles.root}>
-      <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+      <View style={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <IconButton
             icon="chevronDown"
+            color="#fff"
+            style={styles.headerBtn}
             onPress={() => router.back()}
             accessibilityLabel="Close"
           />
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Up for it?</Text>
+            <Text style={styles.headerTitle}>Tonight's picks</Text>
             <Text style={styles.headerSub}>
               {premium || outOfSwipes
-                ? 'Swipe right to wishlist, left to pass'
-                : `Swipe right to wishlist · ${swipesLeft} free ${
+                ? 'Swipe to save the vibe'
+                : `${swipesLeft} free ${
                     swipesLeft === 1 ? 'swipe' : 'swipes'
                   } left today`}
             </Text>
           </View>
-          <WishlistButton size={40} iconSize={20} />
+          <WishlistButton
+            size={40}
+            iconSize={20}
+            color="#fff"
+            style={styles.headerBtn}
+          />
         </View>
 
         {/* Deck */}
@@ -392,9 +402,27 @@ export default function SwipeDeckScreen() {
         <View style={styles.actions}>
           <PressableScale
             scaleTo={0.85}
+            style={[styles.actionBtn, !top && styles.actionDisabled]}
+            onPress={() => flingOut('pass')}
+            accessibilityRole="button"
+            accessibilityLabel="Pass on this event"
+          >
+            <Icon name="close" size={28} color={COLORS.textSecondary} strokeWidth={2.4} />
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.85}
+            style={[styles.actionBtn, styles.likeBtn, !top && styles.actionDisabled]}
+            onPress={() => flingOut('like')}
+            accessibilityRole="button"
+            accessibilityLabel="Like this event and add it to your wishlist"
+          >
+            <Icon name="heart" size={30} color="#fff" strokeWidth={2.4} />
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.85}
             style={[
               styles.actionBtn,
-              styles.smallActionBtn,
+              styles.undoBtn,
               // Free users always tap through (to the Mello+ paywall).
               premium && !canUndo && styles.actionDisabled,
             ]}
@@ -402,38 +430,15 @@ export default function SwipeDeckScreen() {
             accessibilityRole="button"
             accessibilityLabel="Undo last swipe"
           >
-            <Icon name="undo" size={20} color={COLORS.warning} strokeWidth={2.2} />
+            <Icon name="undo" size={22} color="#fff" strokeWidth={2.2} />
             {!premium && (
               <View style={styles.undoCrown}>
                 <Icon name="crown" size={10} color={PREMIUM_GOLD} strokeWidth={2.4} />
               </View>
             )}
           </PressableScale>
-          <PressableScale
-            scaleTo={0.85}
-            style={[styles.actionBtn, !top && styles.actionDisabled]}
-            onPress={() => flingOut('pass')}
-            accessibilityRole="button"
-            accessibilityLabel="Pass on this event"
-          >
-            <Icon name="close" size={26} color={COLORS.error} strokeWidth={2.6} />
-          </PressableScale>
-          <PressableScale
-            scaleTo={0.85}
-            style={[styles.actionBtn, !top && styles.actionDisabled]}
-            onPress={() => flingOut('like')}
-            accessibilityRole="button"
-            accessibilityLabel="Like this event and add it to your wishlist"
-          >
-            <Icon
-              name="heart"
-              size={26}
-              color={COLORS.success}
-              strokeWidth={2.4}
-            />
-          </PressableScale>
         </View>
-      </SafeAreaView>
+      </View>
 
       <EventBottomSheet ref={sheetRef} />
     </View>
@@ -448,19 +453,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 16,
+    backgroundColor: COLORS.accent,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
   },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   headerCenter: { alignItems: 'center' },
   headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 19,
-    letterSpacing: -0.38,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.heading,
+    fontSize: 17,
+    letterSpacing: -0.3,
+    color: '#fff',
   },
   headerSub: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
-    color: COLORS.textMuted,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
     marginTop: 1,
   },
   deckArea: {
@@ -502,7 +512,7 @@ const styles = StyleSheet.create({
     height: 38,
     paddingHorizontal: 16,
     borderRadius: 100,
-    shadowColor: '#0F182C',
+    shadowColor: '#000',
     shadowOpacity: 0.22,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -515,22 +525,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 22,
     paddingTop: 6,
-    paddingBottom: 18,
+    paddingBottom: 26,
   },
   actionBtn: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.14,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
-  smallActionBtn: { width: 50, height: 50, borderRadius: 25 },
+  likeBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primary,
+    borderWidth: 0,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  undoBtn: {
+    backgroundColor: COLORS.accent,
+    borderWidth: 0,
+  },
   actionDisabled: { opacity: 0.4 },
   premiumIcon: { backgroundColor: PREMIUM_GOLD_TINT },
   undoCrown: {
@@ -554,7 +581,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     paddingHorizontal: 28,
-    shadowColor: '#0F182C',
+    shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },

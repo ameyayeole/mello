@@ -1,37 +1,41 @@
 export const COLORS = {
   // Brand
-  primary: '#FF5E5B',
+  primary: '#F95B5B',
   primaryLight: '#FF8E8B',
-  primaryTint: '#FFF0EF',
-  secondary: '#950952',
-  accent: '#0F182C',
-  accentMid: '#2A3548',
+  primaryTint: '#FDECEC',
+  primaryDark: '#993232',
+  secondary: '#6D4AD6',
+  secondaryTint: '#EEE9FB',
+  accent: '#17151A',
+  accentMid: '#2A2730',
 
   // Surfaces
-  background: '#F5F5F5',
+  background: '#F2F2F4',
   surface: '#FFFFFF',
   white: '#FFFFFF',
 
   // Borders
-  border: 'rgba(15, 24, 44, 0.10)',
+  border: 'rgba(0, 0, 0, 0.10)',
+  borderSoft: 'rgba(0, 0, 0, 0.06)',
 
   // Text
-  textPrimary: '#0F182C',
-  textSecondary: 'rgba(15, 24, 44, 0.55)',
-  textMuted: 'rgba(15, 24, 44, 0.45)',
+  textPrimary: '#17151A',
+  textSecondary: '#8A8690',
+  textMuted: '#A8A2AA',
 
   // Status
-  success: '#1FA463',
-  verified: '#2A6FDB',
+  success: '#17915A',
+  successTint: '#E4F1EB',
+  verified: '#2C5AC7',
   error: '#EF4444',
-  warning: '#F59E0B',
+  warning: '#C8791E',
   online: '#22C55E',
-  disabled: '#C7CCD1',
+  disabled: '#D8D5DA',
 
   // Category accents
   catCoffee: '#C8791E',
-  catDrinks: '#FF5E5B',
-  catMusic: '#7C5CE0',
-  catTrekking: '#1FA463',
+  catDrinks: '#F95B5B',
+  catMusic: '#6D4AD6',
+  catTrekking: '#17915A',
   catGym: '#2A6FDB',
 } as const;

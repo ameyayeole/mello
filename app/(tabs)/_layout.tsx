@@ -97,14 +97,18 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Screens cross-fade with a small lateral shift toward the tab you
+        // came from. 150ms default: enough to read as motion, short enough
+        // that it never sits between you and the content.
+        animation: 'shift',
         tabBarShowLabel: false,
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: 'rgba(15,24,44,0.22)',
+        tabBarInactiveTintColor: '#BCB8C0',
         tabBarStyle: {
           display: creatingEvent ? 'none' : 'flex',
           backgroundColor: COLORS.surface,
           borderTopWidth: 1,
-          borderTopColor: 'rgba(15,24,44,0.08)',
+          borderTopColor: 'rgba(0,0,0,0.06)',
           height: 64,
           paddingBottom: 10,
           paddingTop: 8,

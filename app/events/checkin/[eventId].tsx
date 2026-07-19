@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -102,8 +103,16 @@ export default function HostCheckinScreen() {
   if (!isHost) {
     return (
       <SafeAreaView style={styles.container}>
+        <StatusBar style="light" />
         <View style={styles.header}>
-          <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Go back" />
+          <IconButton
+            icon="back"
+            variant="ghost"
+            color="#fff"
+            style={styles.headerBtn}
+            onPress={() => router.back()}
+            accessibilityLabel="Go back"
+          />
         </View>
         <Text style={styles.notHost}>Only the host can run check-in.</Text>
       </SafeAreaView>
@@ -112,10 +121,30 @@ export default function HostCheckinScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
       <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Go back" />
-        <Text style={styles.headerTitle} numberOfLines={1}>Check-in</Text>
-        <IconButton icon="refresh" variant="ghost" onPress={rotate} accessibilityLabel="Rotate code" />
+        <IconButton
+          icon="back"
+          variant="ghost"
+          color="#fff"
+          style={styles.headerBtn}
+          onPress={() => router.back()}
+          accessibilityLabel="Go back"
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle} numberOfLines={1}>Check in guests</Text>
+          <Text style={styles.headerSub}>
+            {inCount} of {attendees.length} checked in
+          </Text>
+        </View>
+        <IconButton
+          icon="refresh"
+          variant="ghost"
+          color="#fff"
+          style={styles.headerBtn}
+          onPress={rotate}
+          accessibilityLabel="Rotate code"
+        />
       </View>
 
       <FlatList
@@ -155,21 +184,20 @@ export default function HostCheckinScreen() {
               </Text>
             </Animated.View>
 
-            {/* Live progress */}
-            <View style={styles.progressCard}>
-              <Text style={styles.progressCount}>
-                {inCount}
-                <Text style={styles.progressTotal}> / {attendees.length}</Text>
+            <View style={styles.eventBlock}>
+              <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+              <Text style={styles.eventHint}>
+                Ask guests to scan this from their Mello app to check in.
               </Text>
-              <Text style={styles.progressLabel}>checked in</Text>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${attendees.length ? (inCount / attendees.length) * 100 : 0}%` },
-                  ]}
-                />
-              </View>
+            </View>
+
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${attendees.length ? (inCount / attendees.length) * 100 : 0}%` },
+                ]}
+              />
             </View>
 
             <Text style={styles.sectionTitle}>Attendees · {attendees.length}</Text>
@@ -206,7 +234,7 @@ export default function HostCheckinScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.accent },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -214,32 +242,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
+    fontFamily: FONTS.heading,
+    fontSize: 18,
+    letterSpacing: -0.3,
+    color: '#fff',
+  },
+  headerSub: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 1,
   },
   notHost: {
     fontFamily: FONTS.medium,
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     marginTop: 40,
     paddingHorizontal: 40,
   },
-  list: { padding: 20, paddingTop: 8, gap: 8, paddingBottom: 40 },
+  list: { padding: 20, paddingTop: 8, gap: 12, paddingBottom: 40 },
   qrCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
-    paddingVertical: 22,
+    borderRadius: 28,
+    paddingVertical: 26,
     alignItems: 'center',
     gap: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   qrHint: { fontFamily: FONTS.semibold, fontSize: 13, color: COLORS.textSecondary },
+  eventBlock: { alignItems: 'center', gap: 6, marginTop: 4 },
+  eventTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: 20,
+    letterSpacing: -0.4,
+    color: '#fff',
+  },
+  eventHint: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: 'rgba(255,255,255,0.55)',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
   qrBox: {
     backgroundColor: '#fff',
     borderRadius: 18,
@@ -270,18 +322,18 @@ const styles = StyleSheet.create({
   notchLeft: {
     width: 12, height: 24,
     borderTopRightRadius: 12, borderBottomRightRadius: 12,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.accent,
   },
   dashLine: {
     flex: 1,
     borderBottomWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: 'rgba(15,24,44,0.15)',
+    borderColor: 'rgba(0,0,0,0.15)',
   },
   notchRight: {
     width: 12, height: 24,
     borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.accent,
   },
   codeLabel: { fontFamily: FONTS.medium, fontSize: 12, color: COLORS.textMuted, marginBottom: -8 },
   code: {
@@ -310,29 +362,28 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     height: 7,
     borderRadius: 100,
-    backgroundColor: COLORS.background,
-    marginTop: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 100, backgroundColor: COLORS.success },
   sectionTitle: {
-    fontFamily: FONTS.heavy,
+    fontFamily: FONTS.heading,
     fontSize: 15,
-    color: COLORS.textPrimary,
+    color: '#fff',
     marginTop: 4,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255,255,255,0.1)',
     padding: 12,
   },
-  rowName: { fontFamily: FONTS.bold, fontSize: 14.5, color: COLORS.textPrimary },
-  rowSub: { fontFamily: FONTS.medium, fontSize: 12.5, color: COLORS.textSecondary, marginTop: 1 },
+  rowName: { fontFamily: FONTS.bold, fontSize: 14.5, color: '#fff' },
+  rowSub: { fontFamily: FONTS.medium, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 1 },
   inPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -340,14 +391,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 32,
     borderRadius: 100,
-    backgroundColor: 'rgba(31,164,99,0.12)',
+    backgroundColor: 'rgba(23,145,90,0.25)',
   },
-  inPillText: { fontFamily: FONTS.bold, fontSize: 12.5, color: COLORS.success },
-  waiting: { fontFamily: FONTS.semibold, fontSize: 12.5, color: COLORS.textMuted },
+  inPillText: { fontFamily: FONTS.bold, fontSize: 12.5, color: '#3ED88A' },
+  waiting: { fontFamily: FONTS.semibold, fontSize: 12.5, color: 'rgba(255,255,255,0.4)' },
   empty: {
     fontFamily: FONTS.medium,
     fontSize: 13.5,
-    color: COLORS.textSecondary,
+    color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
     marginTop: 24,
   },

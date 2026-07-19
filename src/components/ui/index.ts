@@ -6,6 +6,8 @@ export { Button } from './Button';
 export { PressableScale } from './PressableScale';
 export { IconButton } from './IconButton';
 export { CategoryTile } from './CategoryTile';
+export { CategoryPill } from './CategoryPill';
+export { AttendeeStack } from './AttendeeStack';
 export { ScreenHeader } from './ScreenHeader';
 export { SectionLabel } from './SectionLabel';
 export { MelloPin, MelloWordmark, CoralGlow } from './MelloLogo';

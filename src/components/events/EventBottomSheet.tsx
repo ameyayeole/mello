@@ -43,14 +43,17 @@ import {
 import { SafetyPopup, SosButton } from '@/components/safety';
 import {
   Avatar,
+  AttendeeStack,
   Button,
-  CategoryTile,
+  CategoryPill,
   Icon,
   IconName,
   PremiumBadge,
   PressableScale,
   SectionLabel,
+  VerifiedBadge,
 } from '@/components/ui';
+import { categoryStyle } from '@/constants/categoryStyle';
 
 // A safety popup queued to show before a join goes through (spec #3/#5/#8/#10).
 // Confirming one marks its flag seen and shows the next; the join fires only
@@ -70,6 +73,32 @@ interface QueuedSafetyPopup {
 export interface EventBottomSheetRef {
   open: (eventId: string) => void;
   close: () => void;
+}
+
+// Split an ISO start into the design's two-line form: a friendly day label
+// ("Tonight" / "Tomorrow" / "Sat, 12 Jul") and a short time ("8:30 PM").
+function splitEventTime(iso: string) {
+  const start = new Date(iso);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const timeShort = start.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  let dateShort: string;
+  if (start.toDateString() === now.toDateString()) {
+    dateShort = start.getHours() >= 17 ? 'Tonight' : 'Today';
+  } else if (start.toDateString() === tomorrow.toDateString()) {
+    dateShort = 'Tomorrow';
+  } else {
+    dateShort = start.toLocaleDateString([], {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  }
+  return { dateShort, timeShort };
 }
 
 interface Props {
@@ -368,11 +397,11 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       <BottomSheet
         ref={sheetRef}
         index={-1}
-        snapPoints={['50%', '85%']}
+        snapPoints={['58%', '90%']}
         enablePanDownToClose
         onClose={onDismiss}
         backgroundStyle={styles.sheetBg}
-        handleIndicatorStyle={styles.handle}
+        handleComponent={null}
       >
         <BottomSheetScrollView contentContainerStyle={styles.content}>
           {isLoading || !event ? (
@@ -382,63 +411,105 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
             />
           ) : (
             <>
-              {/* Safety + share live top-left as icons (not bottom pills). */}
-              <View style={styles.headerActions}>
-                <SosButton
-                  variant="icon"
-                  event={event}
-                  onReport={() => {
-                    sheetRef.current?.close();
-                    router.push(`/friends/${event.host_id}`);
-                  }}
-                />
-                <PressableScale
-                  scaleTo={0.9}
-                  style={styles.shareBtn}
-                  onPress={() => shareEvent(event)}
-                  accessibilityLabel="Share this event"
-                  accessibilityRole="button"
-                >
-                  <Icon name="share" size={18} color={COLORS.primary} strokeWidth={2} />
-                </PressableScale>
+              {/* Photo banner: category pill + safety/share, grab handle over it */}
+              <View style={styles.banner}>
+                {event.image_url ? (
+                  <Image
+                    source={{ uri: event.image_url }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <Text style={styles.bannerHint}>EVENT PHOTO</Text>
+                )}
+                <View style={styles.grab} />
+                <View style={styles.bannerPill}>
+                  <CategoryPill
+                    emoji={activity?.emoji ?? '📍'}
+                    label={activity?.label}
+                    color={categoryStyle(event.activity).accent}
+                  />
+                </View>
+                <View style={styles.bannerActions}>
+                  <SosButton
+                    variant="icon"
+                    event={event}
+                    onReport={() => {
+                      sheetRef.current?.close();
+                      router.push(`/friends/${event.host_id}`);
+                    }}
+                  />
+                  <PressableScale
+                    scaleTo={0.9}
+                    style={styles.shareBtn}
+                    onPress={() => shareEvent(event)}
+                    accessibilityLabel="Share this event"
+                    accessibilityRole="button"
+                  >
+                    <Icon name="share" size={18} color={COLORS.primary} strokeWidth={2} />
+                  </PressableScale>
+                </View>
               </View>
 
-              {event.image_url && (
-                <Image
-                  source={{ uri: event.image_url }}
-                  style={styles.cover}
-                  contentFit="cover"
-                  transition={200}
-                />
-              )}
-
-              {/* Title row */}
-              <View style={styles.header}>
-                <CategoryTile activity={event.activity} size={44} radius={13} />
-                <View style={styles.headerText}>
-                  <Text style={styles.title}>{event.title}</Text>
-                  <View style={styles.metaRow}>
-                    <Icon name="clock" size={13} color="rgba(15,24,44,0.6)" />
-                    <Text style={styles.metaText}>
-                      {formatEventTime(event.starts_at)}
+              {/* Host row */}
+              {event.host && (
+                <View style={styles.hostRow}>
+                  <Avatar
+                    name={event.host.name}
+                    photoUrl={event.host.photo_url}
+                    size={34}
+                  />
+                  <View style={styles.hostNameRow}>
+                    <Text style={styles.hostName} numberOfLines={1}>
+                      {event.host.name}
                     </Text>
-                    {event.distance_m != null && (
-                      <Text style={styles.distance}>
-                        · {formatDistance(event.distance_m)}
-                      </Text>
+                    {event.host_verified && <VerifiedBadge size={14} />}
+                    {isPremium(event.host) && <PremiumBadge size={13} />}
+                    <Text style={styles.hostLabel}>is hosting</Text>
+                  </View>
+                  <View style={styles.goingWrap}>
+                    <AttendeeStack
+                      count={event.participant_count}
+                      size={26}
+                      emptyLabel={null}
+                    />
+                    {event.participant_count > 0 && (
+                      <Text style={styles.goingText}>going</Text>
                     )}
                   </View>
                 </View>
-              </View>
-
-              {event.location_name && (
-                <View style={styles.locationRow}>
-                  <Icon name="location" size={15} color={COLORS.primary} />
-                  <Text style={styles.location} numberOfLines={1}>
-                    {event.location_name}
-                  </Text>
-                </View>
               )}
+
+              <Text style={styles.title}>{event.title}</Text>
+
+              {/* Date + location info cards */}
+              <View style={styles.infoRow}>
+                <View style={styles.infoCard}>
+                  <Icon name="calendar" size={20} color={COLORS.primary} strokeWidth={2} />
+                  <View style={{ minWidth: 0 }}>
+                    <Text style={styles.infoTitle} numberOfLines={1}>
+                      {splitEventTime(event.starts_at).dateShort}
+                    </Text>
+                    <Text style={styles.infoSub}>
+                      {splitEventTime(event.starts_at).timeShort}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCard}>
+                  <Icon name="location" size={20} color={COLORS.primary} strokeWidth={2} />
+                  <View style={{ minWidth: 0 }}>
+                    <Text style={styles.infoTitle} numberOfLines={1}>
+                      {event.location_name ?? 'Location'}
+                    </Text>
+                    <Text style={styles.infoSub}>
+                      {event.distance_m != null
+                        ? `${formatDistance(event.distance_m)} away`
+                        : 'Nearby'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
 
               {tooFar && !isParticipant && !isPending && (
                 <View style={styles.premiumPill}>
@@ -456,35 +527,8 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 </View>
               )}
 
-              {/* Host */}
-              {event.host && (
-                <View style={styles.hostRow}>
-                  <Avatar
-                    name={event.host.name}
-                    photoUrl={event.host.photo_url}
-                    size={38}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.hostLabel}>Hosted by</Text>
-                    <View style={styles.hostNameRow}>
-                      <Text style={styles.hostName}>{event.host.name}</Text>
-                      {isPremium(event.host) && <PremiumBadge size={13} />}
-                    </View>
-                  </View>
-                  <View style={styles.spotsPill}>
-                    <Text style={styles.spotsPillText}>
-                      {event.participant_count}
-                      {event.max_people ? `/${event.max_people}` : ''} going
-                    </Text>
-                  </View>
-                </View>
-              )}
-
               {event.description && (
-                <View style={styles.promptCard}>
-                  <Text style={styles.promptLabel}>What's the plan</Text>
-                  <Text style={styles.description}>{event.description}</Text>
-                </View>
+                <Text style={styles.description}>{event.description}</Text>
               )}
 
               {/* Approved participants stack */}
@@ -546,7 +590,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                         <Icon
                           name="close"
                           size={16}
-                          color="rgba(15,24,44,0.55)"
+                          color="rgba(0,0,0,0.55)"
                           strokeWidth={2}
                         />
                       </PressableScale>
@@ -569,40 +613,54 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 )}
 
                 {!isHost && !hasWrapped(event) && (
-                  <Button
-                    label={
-                      isParticipant
-                        ? 'Leave event'
-                        : isPending
-                          ? 'Request pending'
-                          : womenOnlyLocked
-                            ? 'Female-only event'
-                            : isFull
-                              ? 'Event full'
-                              : tooFar
-                                ? 'Join with Mello+'
-                                : event.requires_approval
-                                  ? 'Request to join'
-                                  : 'Join event'
-                    }
-                    variant={
-                      isParticipant || isPending || isFull || womenOnlyLocked
-                        ? 'secondary'
-                        : 'primary'
-                    }
-                    onPress={() =>
-                      isParticipant || isPending
-                        ? leaveMutation.mutate()
-                        : handleJoinPress()
-                    }
-                    disabled={
-                      ((isFull || womenOnlyLocked) &&
-                        !isParticipant &&
-                        !isPending) ||
-                      joinMutation.isPending ||
-                      leaveMutation.isPending
-                    }
-                  />
+                  <View style={styles.footerRow}>
+                    {event.max_people != null && (
+                      <View style={styles.spotsInfo}>
+                        <Text style={styles.spotsCount}>
+                          {event.participant_count}/{event.max_people}
+                        </Text>
+                        <Text style={styles.spotsLeft}>
+                          {Math.max(event.max_people - event.participant_count, 0)}{' '}
+                          spots left
+                        </Text>
+                      </View>
+                    )}
+                    <Button
+                      style={{ flex: 1 }}
+                      label={
+                        isParticipant
+                          ? 'Leave event'
+                          : isPending
+                            ? 'Request pending'
+                            : womenOnlyLocked
+                              ? 'Female-only event'
+                              : isFull
+                                ? 'Event full'
+                                : tooFar
+                                  ? 'Join with Mello+'
+                                  : event.requires_approval
+                                    ? 'Request to join'
+                                    : 'Join event'
+                      }
+                      variant={
+                        isParticipant || isPending || isFull || womenOnlyLocked
+                          ? 'secondary'
+                          : 'primary'
+                      }
+                      onPress={() =>
+                        isParticipant || isPending
+                          ? leaveMutation.mutate()
+                          : handleJoinPress()
+                      }
+                      disabled={
+                        ((isFull || womenOnlyLocked) &&
+                          !isParticipant &&
+                          !isPending) ||
+                        joinMutation.isPending ||
+                        leaveMutation.isPending
+                      }
+                    />
+                  </View>
                 )}
 
                 {isHost && (
@@ -667,103 +725,120 @@ export default EventBottomSheet;
 
 const styles = StyleSheet.create({
   sheetBg: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 24,
+    backgroundColor: COLORS.background,
+    borderRadius: 28,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: -8 },
   },
-  handle: {
-    backgroundColor: 'rgba(15,24,44,0.15)',
+  content: { padding: 20, paddingTop: 0, gap: 13 },
+  banner: {
+    height: 200,
+    marginHorizontal: -20,
+    marginBottom: 3,
+    backgroundColor: '#E3E1E4',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerHint: {
+    fontFamily: FONTS.semibold,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: COLORS.textMuted,
+  },
+  grab: {
+    position: 'absolute',
+    top: 12,
     width: 40,
     height: 5,
     borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.85)',
   },
-  content: { padding: 20, paddingTop: 8, gap: 14 },
-  cover: { width: '100%', height: 180, borderRadius: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerText: { flex: 1, minWidth: 0 },
+  bannerPill: { position: 'absolute', top: 22, left: 16 },
+  bannerActions: {
+    position: 'absolute',
+    top: 22,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   title: {
-    fontFamily: FONTS.bold,
-    fontSize: 19,
-    lineHeight: 24,
+    fontFamily: FONTS.heading,
+    fontSize: 24,
+    lineHeight: 26,
+    letterSpacing: -0.6,
     color: COLORS.textPrimary,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 4,
-  },
-  metaText: {
-    fontFamily: FONTS.semibold,
-    fontSize: 13,
-    color: 'rgba(15,24,44,0.6)',
-  },
-  distance: {
-    fontFamily: FONTS.bold,
-    fontSize: 13,
-    color: COLORS.primary,
-  },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  location: {
-    flex: 1,
-    fontFamily: FONTS.bold,
-    fontSize: 13.5,
-    color: COLORS.textPrimary,
-  },
-  hostRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: COLORS.background,
-    borderRadius: 14,
-    padding: 10,
-  },
-  hostLabel: {
-    fontFamily: FONTS.medium,
-    fontSize: 11.5,
-    color: COLORS.textSecondary,
-  },
+  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   hostNameRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 1,
   },
   hostName: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.textPrimary,
+    flexShrink: 1,
   },
-  spotsPill: {
-    backgroundColor: 'rgba(31,164,99,0.10)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 100,
+  hostLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12.5,
+    color: COLORS.textSecondary,
   },
-  spotsPillText: {
+  goingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  goingText: {
     fontFamily: FONTS.bold,
     fontSize: 11.5,
-    color: COLORS.success,
+    color: COLORS.textSecondary,
   },
-  promptCard: {
-    backgroundColor: COLORS.background,
+  infoRow: { flexDirection: 'row', gap: 9 },
+  infoCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
     borderRadius: 14,
-    padding: 14,
+    padding: 11,
   },
-  promptLabel: {
-    fontFamily: FONTS.semibold,
+  infoTitle: {
+    fontFamily: FONTS.heavy,
     fontSize: 12,
-    color: 'rgba(15,24,44,0.5)',
+    color: COLORS.textPrimary,
+  },
+  infoSub: {
+    fontFamily: FONTS.semibold,
+    fontSize: 10.5,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   description: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 21,
+    color: '#5C5860',
+  },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  spotsInfo: {},
+  spotsCount: {
+    fontFamily: FONTS.heading,
+    fontSize: 20,
     color: COLORS.textPrimary,
-    marginTop: 5,
+  },
+  spotsLeft: {
+    fontFamily: FONTS.semibold,
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: 3,
   },
   sectionLabel: { marginBottom: 8 },
   participantsRow: { flexDirection: 'row', alignItems: 'center' },

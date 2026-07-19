@@ -171,6 +171,7 @@ export default function ProfileSetupScreen() {
       case 'dob':
         return age !== null && age >= 18;
       case 'photos':
+        return photos.length > 0;
       case 'interests':
       case 'bio':
         return true;
@@ -202,6 +203,14 @@ export default function ProfileSetupScreen() {
     const formatError = validateUsername(username);
     if (formatError) {
       Alert.alert('Invalid username', formatError);
+      return;
+    }
+    if (photos.length === 0) {
+      Alert.alert(
+        'Add a photo',
+        'A profile picture is required. It also becomes the cover for events you host.'
+      );
+      setStepIndex(STEPS.indexOf('photos'));
       return;
     }
     if (usernameStatus === 'taken') {
@@ -276,7 +285,8 @@ export default function ProfileSetupScreen() {
     },
     photos: {
       title: 'Add your photos',
-      subtitle: 'Up to 6. The first one is your main photo.',
+      subtitle:
+        'At least one is required. Up to 6 — the first is your main photo.',
     },
     interests: {
       title: 'What are you into?',
@@ -517,9 +527,7 @@ export default function ProfileSetupScreen() {
                 ? 'Create profile'
                 : step === 'interests' && interests.size > 0
                   ? `Continue · ${interests.size} selected`
-                  : step === 'photos' && photos.length === 0
-                    ? 'Skip for now'
-                    : 'Continue'
+                  : 'Continue'
             }
             onPress={goNext}
             loading={loading}
