@@ -32,6 +32,68 @@ function sortKeys(v: unknown): unknown {
   return v;
 }
 
+// Didit gender code ("M" | "F" | "U") → profiles.gender check constraint.
+// Anything we can't confidently map (unknown / undetermined) is left untouched.
+function mapGender(code: unknown): string | null {
+  if (code === 'M') return 'male';
+  if (code === 'F') return 'female';
+  return null;
+}
+
+// Whole years between a YYYY-MM-DD date of birth and now.
+function ageFromDob(dob: string): number | null {
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getUTCFullYear() - d.getUTCFullYear();
+  const m = now.getUTCMonth() - d.getUTCMonth();
+  if (m < 0 || (m === 0 && now.getUTCDate() < d.getUTCDate())) age--;
+  return age;
+}
+
+// The status.updated webhook carries only status/session ids, so on approval we
+// fetch the full decision to read the fields extracted off the government ID.
+// The retrieve endpoint returns id_verifications as an array (one per ID node);
+// we take the first. Returns the profile fields to lock, or {} if unavailable.
+async function fetchVerifiedIdentity(
+  sessionId: string
+): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    `https://verification.didit.me/v3/session/${sessionId}/decision/`,
+    { headers: { 'x-api-key': Deno.env.get('DIDIT_API_KEY')! } }
+  );
+  if (!res.ok) {
+    console.error('didit decision fetch failed', res.status, await res.text());
+    return {};
+  }
+  const decision = await res.json();
+  const idv =
+    decision?.id_verifications?.[0] ?? decision?.decision?.id_verifications?.[0];
+  if (!idv) return {};
+
+  const out: Record<string, unknown> = {};
+
+  const fullName =
+    idv.full_name ??
+    [idv.first_name, idv.last_name].filter(Boolean).join(' ').trim();
+  if (fullName) out.name = fullName;
+
+  if (typeof idv.date_of_birth === 'string' && idv.date_of_birth) {
+    out.date_of_birth = idv.date_of_birth;
+    // profiles.age is CHECK (18..100). Prefer the document's own age field,
+    // fall back to computing it; drop it if out of range so the whole update
+    // (kyc_status included) isn't rejected by the constraint.
+    const age =
+      typeof idv.age === 'number' ? idv.age : ageFromDob(idv.date_of_birth);
+    if (age !== null && age >= 18 && age <= 100) out.age = age;
+  }
+
+  const gender = mapGender(idv.gender);
+  if (gender) out.gender = gender;
+
+  return out;
+}
+
 // Didit session status (exact case-sensitive literals) → profiles.kyc_status.
 const STATUS_MAP: Record<string, string> = {
   Approved: 'approved',
@@ -103,6 +165,8 @@ serve(async (req) => {
     const update: Record<string, unknown> = { kyc_status: kycStatus };
     if (parsed.status === 'Approved') {
       update.kyc_verified_at = new Date().toISOString();
+      // Lock name/dob/age/gender to the verified document (migration 036).
+      Object.assign(update, await fetchVerifiedIdentity(String(parsed.session_id)));
     } else if (parsed.status === 'Kyc Expired') {
       update.kyc_verified_at = null;
     }
