@@ -1,8 +1,75 @@
+import type { ComponentType } from 'react';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
+import * as SL from 'react-native-solar-icons/icons/linear';
+import * as SB from 'react-native-solar-icons/icons/bold';
 
-// Stroke icon set from the Mello design system (Solar Linear-Rounded style).
-// stroke-width 1.8 · round caps/joins · never filled.
+// Icons come from the real Solar set (react-native-solar-icons), matching the
+// design's `solar:*-linear` / `solar:*-bold` names. A handful of bare symbols
+// (close, check, plus…) that Solar has no clean equivalent for fall back to the
+// hand-drawn glyphs below.
+
+type SolarComp = ComponentType<{
+  width?: number;
+  height?: number;
+  color?: string;
+}>;
+
+// App icon name → Solar component name. Linear variant unless the name is in
+// BOLD_DEFAULTS (or the caller passes variant="bold").
+const SOLAR: Record<string, string> = {
+  back: 'AltArrowLeft',
+  chevronRight: 'AltArrowRight',
+  chevronDown: 'AltArrowDown',
+  bell: 'Bell',
+  bellOff: 'BellOff',
+  bookmark: 'Bookmark',
+  bookmarkFilled: 'Bookmark',
+  calendar: 'Calendar',
+  camera: 'Camera',
+  chat: 'ChatRound',
+  clock: 'ClockCircle',
+  copy: 'Copy',
+  crown: 'Crown',
+  crosshair: 'Gps',
+  gps: 'Gps',
+  dots: 'MenuDots',
+  edit: 'Pen',
+  eye: 'Eye',
+  eyeOff: 'EyeClosed',
+  filter: 'Tuning4',
+  flag: 'Flag',
+  globe: 'Global',
+  heart: 'Heart',
+  help: 'QuestionCircle',
+  image: 'Gallery',
+  location: 'MapPoint',
+  lock: 'LockPassword',
+  logout: 'Logout2',
+  mic: 'Microphone',
+  phone: 'Phone',
+  pin: 'MapPoint',
+  qr: 'QrCode',
+  refresh: 'Refresh',
+  scan: 'Scanner',
+  search: 'Magnifer',
+  send: 'Plain2',
+  settings: 'Settings',
+  share: 'Share',
+  shield: 'Shield',
+  shieldAlert: 'ShieldWarning',
+  thumbsUp: 'Like',
+  trash: 'TrashBinMinimalistic',
+  user: 'User',
+  userPlus: 'UserPlus',
+  warning: 'DangerTriangle',
+};
+
+// Names the design consistently shows filled — default them to the Bold style.
+const BOLD_DEFAULTS = new Set([
+  'location', 'pin', 'bell', 'camera', 'calendar', 'flag', 'shield',
+  'crown', 'thumbsUp', 'gps', 'crosshair',
+]);
 
 type Glyph = React.ReactNode;
 
@@ -288,10 +355,10 @@ const glyphs: Record<string, Glyph> = {
 
 export type IconName = keyof typeof glyphs;
 
-// True when a hand-drawn SVG glyph exists for this name. Category tiles use
-// this to fall back to the activity's emoji for types without a glyph yet.
+// True when a drawable glyph exists for this name (Solar or hand-drawn).
+// Category tiles use this to fall back to the activity's emoji otherwise.
 export function hasGlyph(name: string): name is IconName {
-  return name in glyphs;
+  return name in SOLAR || name in glyphs;
 }
 
 export function Icon({
@@ -299,12 +366,23 @@ export function Icon({
   size = 20,
   color = COLORS.textPrimary,
   strokeWidth = 1.8,
+  variant,
 }: {
   name: IconName;
   size?: number;
   color?: string;
   strokeWidth?: number;
+  variant?: 'linear' | 'bold';
 }) {
+  const solarName = SOLAR[name];
+  if (solarName) {
+    const bold = variant ? variant === 'bold' : BOLD_DEFAULTS.has(name);
+    const pack = bold ? SB : SL;
+    const Comp = ((pack as Record<string, SolarComp>)[solarName] ??
+      (SL as Record<string, SolarComp>)[solarName]) as SolarComp | undefined;
+    if (Comp) return <Comp width={size} height={size} color={color} />;
+  }
+  // Bare symbols (close, check, plus, undo…) keep the hand-drawn glyph.
   return (
     <Svg
       width={size}
@@ -352,46 +430,28 @@ export function PremiumBadge({ size = 14 }: { size?: number }) {
   );
 }
 
-// Filled tab-bar icons (design shows solid glyphs, icon-only nav).
+// Tab-bar icons from Solar: bold + coral when active, linear + grey otherwise.
+const TAB_SOLAR: Record<'home' | 'explore' | 'map' | 'inbox', string> = {
+  home: 'Home2',
+  explore: 'Compass',
+  map: 'Map',
+  inbox: 'ChatRound',
+};
+
 export function TabGlyph({
   name,
   active,
-  size = 25,
+  size = 26,
 }: {
   name: 'home' | 'explore' | 'map' | 'inbox';
   active: boolean;
   size?: number;
 }) {
-  const fill = active ? COLORS.primary : 'rgba(15,24,44,0.22)';
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      {name === 'home' && (
-        <Path
-          d="M11.3 2.3a1 1 0 0 1 1.4 0l8.7 8.2c.4.3.6.8.6 1.3v8.2a1 1 0 0 1-1 1h-5v-5H9v5H4a1 1 0 0 1-1-1v-8.2c0-.5.2-1 .6-1.3l7.7-7.2Z"
-          fill={fill}
-        />
-      )}
-      {name === 'explore' && (
-        <>
-          <Circle cx={12} cy={12} r={10} fill={fill} />
-          <Path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" fill="rgba(255,255,255,0.75)" />
-        </>
-      )}
-      {name === 'map' && (
-        <>
-          <Path
-            d="M12 2a7 7 0 0 1 7 7c0 5.5-7 13-7 13S5 14.5 5 9a7 7 0 0 1 7-7Z"
-            fill={fill}
-          />
-          <Circle cx={12} cy={9} r={2.8} fill="#fff" />
-        </>
-      )}
-      {name === 'inbox' && (
-        <Path
-          d="M12 3a9 9 0 0 1 9 9 8.99 8.99 0 0 1-9 9 8.96 8.96 0 0 1-4.58-1.25L3 21l1.25-4.42A8.96 8.96 0 0 1 3 12a9 9 0 0 1 9-9Z"
-          fill={fill}
-        />
-      )}
-    </Svg>
-  );
+  const color = active ? COLORS.primary : '#BCB8C0';
+  const pack = active ? SB : SL;
+  const Comp = (pack as Record<string, SolarComp>)[TAB_SOLAR[name]] as
+    | SolarComp
+    | undefined;
+  if (!Comp) return null;
+  return <Comp width={size} height={size} color={color} />;
 }

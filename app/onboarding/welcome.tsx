@@ -68,7 +68,7 @@ function Dot({ index, scrollX, width }: { index: number; scrollX: SharedValue<nu
       backgroundColor: interpolateColor(
         page,
         [index - 1, index, index + 1],
-        ['rgba(15,24,44,0.15)', COLORS.primary, 'rgba(15,24,44,0.15)']
+        ['rgba(0,0,0,0.12)', COLORS.primary, 'rgba(0,0,0,0.12)']
       ),
     };
   });
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   skipText: {
     fontFamily: FONTS.bold,
     fontSize: 14,
-    color: 'rgba(15,24,44,0.45)',
+    color: COLORS.textMuted,
   },
   scroller: { flex: 1 },
   sceneWrap: { flex: 1 },
@@ -177,10 +177,10 @@ const styles = StyleSheet.create({
     minHeight: 118,
   },
   headline: {
-    fontFamily: FONTS.heavy,
+    fontFamily: FONTS.heading,
     fontSize: 28,
     lineHeight: 32,
-    letterSpacing: -0.56,
+    letterSpacing: -0.7,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },

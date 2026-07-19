@@ -13,11 +13,13 @@ export default function WishlistButton({
   size = 42,
   iconSize = 20,
   raised = false,
+  color,
   style,
 }: {
   size?: number;
   iconSize?: number;
   raised?: boolean;
+  color?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const router = useRouter();
@@ -42,7 +44,7 @@ export default function WishlistButton({
       <Icon
         name={count > 0 ? 'bookmarkFilled' : 'bookmark'}
         size={iconSize}
-        color={count > 0 ? COLORS.primary : COLORS.textPrimary}
+        color={count > 0 ? COLORS.primary : color ?? COLORS.textPrimary}
         strokeWidth={2}
       />
       {count > 0 && (

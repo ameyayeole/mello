@@ -10,12 +10,18 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
-import { getSavedEvents, unsaveEvent } from '@/services/events.service';
+import {
+  getSavedEvents,
+  unsaveEvent,
+  getJoinedEvents,
+} from '@/services/events.service';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
@@ -28,9 +34,10 @@ import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import { Gender, NearbyEvent } from '@/types/models';
 import {
   Avatar,
+  CategoryPill,
+  CategoryTile,
   Icon,
   IconButton,
-  IconName,
   PremiumBadge,
   PressableScale,
   SectionLabel,
@@ -44,12 +51,49 @@ const GENDER_LABELS: Record<Gender, string> = {
   other: 'Other',
 };
 
+function EventRow({
+  event,
+  onPress,
+}: {
+  event: NearbyEvent;
+  onPress: () => void;
+}) {
+  const emoji = ACTIVITY_MAP[event.activity]?.emoji ?? '📍';
+  const cat = categoryStyle(event.activity);
+  return (
+    <PressableScale scaleTo={0.98} style={styles.eventRow} onPress={onPress}>
+      <View style={styles.eventThumb}>
+        <CategoryTile activity={event.activity} size={52} radius={14} />
+        <View style={[styles.eventEmoji, { backgroundColor: cat.accent }]}>
+          <Text style={{ fontSize: 11 }}>{emoji}</Text>
+        </View>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.eventTitle} numberOfLines={1}>
+          {event.title}
+        </Text>
+        <Text style={styles.eventMeta} numberOfLines={1}>
+          {formatEventTime(event.starts_at)}
+          {event.participant_count
+            ? ` · ${event.participant_count} going`
+            : ''}
+        </Text>
+      </View>
+      <View style={styles.eventCta}>
+        <Text style={styles.eventCtaText}>View details</Text>
+      </View>
+    </PressableScale>
+  );
+}
+
 export default function ProfileTabScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const { width } = useWindowDimensions();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [tab, setTab] = useState<'upcoming' | 'attended'>('upcoming');
   const queryClient = useQueryClient();
   const sheetRef = useRef<EventBottomSheetRef>(null);
 
@@ -61,6 +105,13 @@ export default function ProfileTabScreen() {
     staleTime: 60_000,
     retry: 1,
   });
+
+  const { data: joined = [] } = useQuery({
+    queryKey: ['joinedEvents', user?.id],
+    queryFn: () => getJoinedEvents(user!.id),
+    enabled: !!user,
+  });
+
   const removeSaved = useMutation({
     mutationFn: (eventId: string) => unsaveEvent(user!.id, eventId),
     onMutate: (eventId) => {
@@ -87,120 +138,141 @@ export default function ProfileTabScreen() {
   const mainPhoto = gallery[0] ?? null;
 
   const metaBits = [
+    user.username ? `@${user.username}` : null,
     user.age != null ? String(user.age) : null,
-    user.gender ? GENDER_LABELS[user.gender] : null,
     user.city ?? null,
   ].filter(Boolean);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My profile</Text>
-        <IconButton
-          icon="settings"
-          onPress={() => router.push('/profile/settings')}
-          accessibilityLabel="Settings"
-        />
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      {/* Dark header with the hero photo nested inside */}
+      <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
+        <View>
+          <View style={styles.headerBar}>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <View style={styles.headerActions}>
+              <IconButton
+                icon="share"
+                size={38}
+                iconSize={18}
+                color="#fff"
+                style={styles.headerBtn}
+                onPress={() => router.push('/profile/settings')}
+                accessibilityLabel="Share profile"
+              />
+              <IconButton
+                icon="settings"
+                size={38}
+                iconSize={18}
+                color="#fff"
+                style={styles.headerBtn}
+                onPress={() => router.push('/profile/settings')}
+                accessibilityLabel="Settings"
+              />
+            </View>
+          </View>
+
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <PressableScale
+              scaleTo={0.99}
+              style={styles.hero}
+              onPress={() => {
+                if (gallery.length > 0) {
+                  setViewerIndex(0);
+                  setViewerOpen(true);
+                } else {
+                  router.push('/profile/edit');
+                }
+              }}
+            >
+              {mainPhoto ? (
+                <Image
+                  source={{ uri: mainPhoto }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View style={styles.heroFallback}>
+                  <Avatar name={user.name} size={96} />
+                  <Text style={styles.heroFallbackHint}>
+                    Tap to add your photo
+                  </Text>
+                </View>
+              )}
+              <Svg style={styles.heroGradient} pointerEvents="none">
+                <Defs>
+                  <LinearGradient id="meFade" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#17151A" stopOpacity={0} />
+                    <Stop offset="1" stopColor="#17151A" stopOpacity={0.8} />
+                  </LinearGradient>
+                </Defs>
+                <Rect width="100%" height="100%" fill="url(#meFade)" />
+              </Svg>
+              <View style={styles.heroInfo}>
+                <View style={styles.heroNameRow}>
+                  <Text style={styles.heroName}>{user.name}</Text>
+                  {user.kyc_status === 'approved' && (
+                    <VerifiedBadge size={18} />
+                  )}
+                  {isPremium(user) && <PremiumBadge size={18} />}
+                </View>
+                {metaBits.length > 0 && (
+                  <Text style={styles.heroMeta}>{metaBits.join(' · ')}</Text>
+                )}
+              </View>
+              {gallery.length > 1 && (
+                <View style={styles.photoCountPill}>
+                  <Icon name="image" size={12} color="#fff" />
+                  <Text style={styles.photoCountText}>{gallery.length}</Text>
+                </View>
+              )}
+              <PressableScale
+                scaleTo={0.9}
+                style={styles.editBadge}
+                onPress={() => router.push('/profile/edit')}
+              >
+                <Icon name="edit" size={15} color={COLORS.textPrimary} />
+              </PressableScale>
+            </PressableScale>
+          </Animated.View>
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero photo card */}
-        <Animated.View entering={FadeInDown.duration(400)}>
-          <PressableScale
-            scaleTo={0.99}
-            style={styles.hero}
-            onPress={() => {
-              if (gallery.length > 0) {
-                setViewerIndex(0);
-                setViewerOpen(true);
-              } else {
-                router.push('/profile/edit');
-              }
-            }}
-          >
-            {mainPhoto ? (
-              <Image
-                source={{ uri: mainPhoto }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                transition={200}
-              />
-            ) : (
-              <View style={styles.heroFallback}>
-                <Avatar name={user.name} size={96} />
-                <Text style={styles.heroFallbackHint}>
-                  Tap to add your photo
-                </Text>
-              </View>
-            )}
-            <Svg style={styles.heroGradient} pointerEvents="none">
-              <Defs>
-                <LinearGradient id="meFade" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#0F182C" stopOpacity={0} />
-                  <Stop offset="1" stopColor="#0F182C" stopOpacity={0.6} />
-                </LinearGradient>
-              </Defs>
-              <Rect width="100%" height="100%" fill="url(#meFade)" />
-            </Svg>
-            <View style={styles.heroInfo}>
-              <View style={styles.heroNameRow}>
-                <Text style={styles.heroName}>{user.name}</Text>
-                {user.kyc_status === 'approved' && <VerifiedBadge size={18} />}
-                {isPremium(user) && <PremiumBadge size={18} />}
-              </View>
-              {user.username ? (
-                <Text style={styles.heroUsername}>@{user.username}</Text>
-              ) : null}
-              <View style={styles.heroMetaRow}>
-                <Icon name="thumbsUp" size={13} color="#fff" strokeWidth={2} />
-                <Text style={styles.heroThumbs}>{user.thumbs_count ?? 0}</Text>
-                {metaBits.length > 0 && (
-                  <Text style={styles.heroMeta}>· {metaBits.join(' · ')}</Text>
-                )}
-              </View>
-            </View>
-            <PressableScale
-              scaleTo={0.9}
-              style={styles.editBadge}
-              onPress={() => router.push('/profile/edit')}
-            >
-              <Icon name="edit" size={15} color={COLORS.textPrimary} />
-            </PressableScale>
-            {gallery.length > 1 && (
-              <View style={styles.photoCountPill}>
-                <Icon name="image" size={12} color="#fff" />
-                <Text style={styles.photoCountText}>{gallery.length}</Text>
-              </View>
-            )}
-          </PressableScale>
-        </Animated.View>
-
         {/* Stats */}
         <Animated.View
           entering={FadeInDown.delay(70).duration(400)}
           style={styles.stats}
         >
-          <View style={styles.stat}>
+          <View style={styles.statCard}>
             <Text style={styles.statValue}>{user.events_hosted}</Text>
             <Text style={styles.statLabel}>Hosted</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
+          <View style={styles.statCard}>
             <Text style={styles.statValue}>{user.events_attended ?? 0}</Text>
             <Text style={styles.statLabel}>Attended</Text>
           </View>
-          <View style={styles.statDivider} />
           <PressableScale
-            style={styles.stat}
+            style={styles.statCard}
             scaleTo={0.94}
             onPress={() => router.push('/friends')}
           >
             <Text style={styles.statValue}>{user.friends_count}</Text>
-            <Text style={styles.statLabel}>Friends ›</Text>
+            <Text style={styles.statLabel}>Friends</Text>
           </PressableScale>
+          <View style={[styles.statCard, styles.statCardAccent]}>
+            <Text style={[styles.statValue, styles.statValueAccent]}>
+              {user.thumbs_count ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, styles.statLabelAccent]}>
+              Thumbs
+            </Text>
+          </View>
         </Animated.View>
 
         {/* Mello+ status / upsell */}
@@ -237,7 +309,6 @@ export default function ProfileTabScreen() {
             entering={FadeInDown.delay(110).duration(400)}
             style={styles.promptCard}
           >
-            <Text style={styles.promptLabel}>About me</Text>
             <Text style={styles.promptText}>{user.bio}</Text>
           </Animated.View>
         ) : null}
@@ -245,31 +316,69 @@ export default function ProfileTabScreen() {
         {/* Interests */}
         {user.interests.length > 0 && (
           <Animated.View entering={FadeInDown.delay(150).duration(400)}>
-            <SectionLabel style={styles.sectionLabel}>Interests</SectionLabel>
+            <Text style={styles.interestsLabel}>Interests</Text>
             <View style={styles.pills}>
               {user.interests.map((id) => {
                 const a = ACTIVITY_MAP[id];
                 if (!a) return null;
-                const cat = categoryStyle(id);
                 return (
-                  <View
+                  <CategoryPill
                     key={id}
-                    style={[styles.pill, { backgroundColor: cat.tint }]}
-                  >
-                    <Icon name={id as IconName} size={15} color={cat.accent} />
-                    <Text style={[styles.pillLabel, { color: cat.accent }]}>
-                      {a.label}
-                    </Text>
-                  </View>
+                    emoji={a.emoji}
+                    label={a.label}
+                    color={categoryStyle(id).accent}
+                  />
                 );
               })}
             </View>
           </Animated.View>
         )}
 
+        {/* Upcoming / Attended tabs */}
+        <Animated.View entering={FadeInDown.delay(180).duration(400)}>
+          <View style={styles.tabs}>
+            <PressableScale scaleTo={0.96} onPress={() => setTab('upcoming')}>
+              <Text
+                style={[styles.tab, tab === 'upcoming' && styles.tabActive]}
+              >
+                Upcoming
+              </Text>
+              {tab === 'upcoming' && <View style={styles.tabBar} />}
+            </PressableScale>
+            <PressableScale scaleTo={0.96} onPress={() => setTab('attended')}>
+              <Text
+                style={[styles.tab, tab === 'attended' && styles.tabActive]}
+              >
+                Attended
+              </Text>
+              {tab === 'attended' && <View style={styles.tabBar} />}
+            </PressableScale>
+          </View>
+
+          {tab === 'upcoming' ? (
+            joined.length > 0 ? (
+              <View style={{ gap: 10 }}>
+                {joined.map((e) => (
+                  <EventRow
+                    key={e.id}
+                    event={e}
+                    onPress={() => sheetRef.current?.open(e.id)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.tabEmpty}>No upcoming plans yet.</Text>
+            )
+          ) : (
+            <Text style={styles.tabEmpty}>
+              Events you've been to will show up here.
+            </Text>
+          )}
+        </Animated.View>
+
         {/* Wishlist: events bookmarked on the swipe deck */}
         {wishlist.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(190).duration(400)}>
+          <Animated.View entering={FadeInDown.delay(210).duration(400)}>
             <SectionLabel style={styles.sectionLabel}>Wishlist</SectionLabel>
             <ScrollView
               horizontal
@@ -387,37 +496,46 @@ export default function ProfileTabScreen() {
       </Modal>
 
       <EventBottomSheet ref={sheetRef} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
+    backgroundColor: COLORS.accent,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    paddingBottom: 16,
+  },
+  headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surface,
+    paddingTop: 12,
   },
   headerTitle: {
-    fontFamily: FONTS.heavy,
+    fontFamily: FONTS.heading,
     fontSize: 22,
-    letterSpacing: -0.44,
-    color: COLORS.textPrimary,
+    letterSpacing: -0.4,
+    color: '#fff',
   },
-  scroll: { padding: 16, gap: 12, paddingBottom: 28 },
+  headerActions: { flexDirection: 'row', gap: 10 },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  scroll: { padding: 16, gap: 12, paddingBottom: 90 },
   hero: {
-    height: 300,
-    borderRadius: 20,
+    height: 250,
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 22,
     overflow: 'hidden',
     backgroundColor: COLORS.surface,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   heroFallback: {
     position: 'absolute',
@@ -440,7 +558,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 110,
+    height: 130,
   },
   heroInfo: {
     position: 'absolute',
@@ -448,69 +566,68 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 16,
-    paddingBottom: 14,
   },
   heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  heroName: { fontFamily: FONTS.heavy, fontSize: 23, color: '#fff' },
-  heroUsername: {
+  heroName: {
+    fontFamily: FONTS.heading,
+    fontSize: 24,
+    letterSpacing: -0.4,
+    color: '#fff',
+  },
+  heroMeta: {
     fontFamily: FONTS.semibold,
     fontSize: 13,
     color: 'rgba(255,255,255,0.85)',
-    marginTop: 1,
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     marginTop: 5,
-  },
-  heroThumbs: { fontFamily: FONTS.bold, fontSize: 12, color: '#fff' },
-  heroMeta: {
-    fontFamily: FONTS.semibold,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
   },
   editBadge: {
     position: 'absolute',
     top: 12,
     right: 12,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stats: {
+  photoCountPill: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    paddingVertical: 14,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    gap: 5,
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: 100,
+    backgroundColor: 'rgba(23,21,26,0.5)',
   },
-  stat: { alignItems: 'center', flex: 1 },
+  photoCountText: { fontFamily: FONTS.bold, fontSize: 11.5, color: '#fff' },
+  stats: { flexDirection: 'row', gap: 9 },
+  statCard: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+  },
+  statCardAccent: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   statValue: {
-    fontFamily: FONTS.heavy,
-    fontSize: 19,
+    fontFamily: FONTS.heading,
+    fontSize: 20,
     color: COLORS.textPrimary,
   },
+  statValueAccent: { color: '#fff' },
   statLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
-    color: 'rgba(15,24,44,0.5)',
+    fontSize: 10.5,
+    color: COLORS.textSecondary,
     marginTop: 1,
   },
-  statDivider: {
-    width: 1,
-    height: 26,
-    backgroundColor: 'rgba(15,24,44,0.1)',
-  },
+  statLabelAccent: { color: 'rgba(255,255,255,0.85)' },
   premiumCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -542,41 +659,95 @@ const styles = StyleSheet.create({
   },
   promptCard: {
     backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
     borderRadius: 16,
-    padding: 16,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  promptLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: 12,
-    color: 'rgba(15,24,44,0.5)',
+    padding: 14,
   },
   promptText: {
-    fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontFamily: FONTS.semibold,
+    fontSize: 13.5,
     lineHeight: 20,
     color: COLORS.textPrimary,
-    marginTop: 5,
   },
-  sectionLabel: { marginTop: 6, marginBottom: 10, marginLeft: 4 },
-  photoCountPill: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
+  interestsLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tabs: {
+    flexDirection: 'row',
+    gap: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    marginBottom: 14,
+  },
+  tab: {
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+    color: COLORS.textMuted,
+    paddingBottom: 10,
+  },
+  tabActive: { fontFamily: FONTS.heading, color: COLORS.textPrimary },
+  tabBar: {
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: COLORS.accent,
+    marginTop: -2.5,
+  },
+  tabEmpty: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    paddingVertical: 10,
+  },
+  eventRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    height: 26,
-    paddingHorizontal: 10,
-    borderRadius: 100,
-    backgroundColor: 'rgba(15,24,44,0.45)',
+    gap: 12,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 18,
+    padding: 11,
   },
-  photoCountText: { fontFamily: FONTS.bold, fontSize: 11.5, color: '#fff' },
-  viewer: { flex: 1, backgroundColor: '#0F182C' },
+  eventThumb: { width: 52, height: 52 },
+  eventEmoji: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: 15,
+    letterSpacing: -0.2,
+    color: COLORS.textPrimary,
+  },
+  eventMeta: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  eventCta: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 100,
+  },
+  eventCtaText: { fontFamily: FONTS.heavy, fontSize: 10, color: '#fff' },
+  sectionLabel: { marginTop: 6, marginBottom: 10, marginLeft: 4 },
+  viewer: { flex: 1, backgroundColor: '#17151A' },
   viewerPage: { flex: 1, justifyContent: 'center' },
   viewerImage: { width: '100%', height: '100%' },
   viewerTop: {
@@ -590,11 +761,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
-  viewerCounter: {
-    fontFamily: FONTS.bold,
-    fontSize: 14,
-    color: '#fff',
-  },
+  viewerCounter: { fontFamily: FONTS.bold, fontSize: 14, color: '#fff' },
   viewerDots: {
     position: 'absolute',
     bottom: 46,
@@ -617,17 +784,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: COLORS.surface,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
   },
-  wishMedia: {
-    height: 86,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  wishMedia: { height: 86, alignItems: 'center', justifyContent: 'center' },
   wishEmoji: { fontSize: 34 },
   wishRemove: {
     position: 'absolute',
@@ -636,7 +796,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(15,24,44,0.55)',
+    backgroundColor: 'rgba(23,21,26,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -652,14 +812,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
   },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
-    height: 34,
-    borderRadius: 100,
-  },
-  pillLabel: { fontFamily: FONTS.bold, fontSize: 12.5 },
 });

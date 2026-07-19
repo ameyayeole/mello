@@ -299,8 +299,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       const minWait = new Promise((r) => setTimeout(r, 1700));
       try {
         const create = (async () => {
+          // No cover photo? Fall back to the host's profile picture so the
+          // event never shows up blank in the feed.
           let imageUrl: string | undefined;
           if (photoUri) imageUrl = await uploadEventPhoto(user.id, photoUri);
+          else imageUrl = user.photo_url ?? undefined;
           return createEvent({
             hostId: user.id,
             activity,
@@ -325,7 +328,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         queryClient.invalidateQueries({ queryKey: ['joinedEvents'] });
         setSubmitState('success');
         setTimeout(() => {
-          router.push(`/events/host/${eventId}?celebrate=1`);
+          router.push(`/events/created/${eventId}`);
           onExit();
         }, 1300);
       } catch (e: any) {
@@ -694,6 +697,19 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         </Text>
                       </PressableScale>
                     )}
+                    {!photoUri && (
+                      <View style={styles.photoFallback}>
+                        <Avatar
+                          name={user?.name}
+                          photoUrl={user?.photo_url}
+                          size={34}
+                        />
+                        <Text style={styles.photoFallbackText}>
+                          If you skip this, we&apos;ll use your profile picture
+                          as the event photo.
+                        </Text>
+                      </View>
+                    )}
                   </Animated.View>
                 )}
 
@@ -946,7 +962,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 3,
   },
-  typeScroll: { marginTop: 14, marginHorizontal: -4 },
+  typeScroll: { flex: 1, marginTop: 14, marginHorizontal: -4 },
   typeScrollContent: { paddingHorizontal: 4, paddingBottom: 8 },
   typeSection: { marginBottom: 18 },
   typeSectionLabel: {
@@ -1116,6 +1132,22 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  photoFallback: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: COLORS.background,
+  },
+  photoFallbackText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.textSecondary,
   },
   safetyHeader: {
     flexDirection: 'row',
