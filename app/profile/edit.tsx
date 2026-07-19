@@ -97,6 +97,10 @@ export default function EditProfileScreen() {
 
   if (!user) return null;
 
+  // Name, age and gender come off the verified government ID and are locked to
+  // it once KYC is approved (migration 036 enforces this server-side too).
+  const identityLocked = user.kyc_status === 'approved';
+
   function toggleInterest(id: ActivityId) {
     setInterests((prev) => {
       const next = new Set(prev);
@@ -202,15 +206,19 @@ export default function EditProfileScreen() {
 
         <View style={styles.form}>
           <View>
-            <Text style={styles.label}>DISPLAY NAME</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>DISPLAY NAME</Text>
+              {identityLocked && <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>}
+            </View>
             <TextInput
-              style={inputStyle('name')}
+              style={[...inputStyle('name'), identityLocked && styles.inputLocked]}
               placeholder="Your name"
               placeholderTextColor="rgba(15,24,44,0.40)"
               value={name}
               onChangeText={setName}
               onFocus={() => setFocused('name')}
               onBlur={() => setFocused(null)}
+              editable={!identityLocked}
             />
           </View>
 
@@ -257,9 +265,12 @@ export default function EditProfileScreen() {
           </View>
 
           <View>
-            <Text style={styles.label}>AGE</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>AGE</Text>
+              {identityLocked && <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>}
+            </View>
             <TextInput
-              style={inputStyle('age')}
+              style={[...inputStyle('age'), identityLocked && styles.inputLocked]}
               placeholder="18+"
               placeholderTextColor="rgba(15,24,44,0.40)"
               value={age}
@@ -267,20 +278,31 @@ export default function EditProfileScreen() {
               onFocus={() => setFocused('age')}
               onBlur={() => setFocused(null)}
               keyboardType="numeric"
+              editable={!identityLocked}
             />
           </View>
 
           <View>
-            <Text style={styles.label}>GENDER</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>GENDER</Text>
+              {identityLocked && <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>}
+            </View>
             <View style={styles.grid}>
               {GENDERS.map((g) => {
                 const sel = gender === g.id;
                 return (
                   <PressableScale
                     key={g.id}
-                    scaleTo={0.94}
-                    style={[styles.pill, sel && styles.pillSelected]}
-                    onPress={() => setGender(sel ? null : g.id)}
+                    scaleTo={identityLocked ? 1 : 0.94}
+                    style={[
+                      styles.pill,
+                      sel && styles.pillSelected,
+                      identityLocked && !sel && styles.pillLocked,
+                    ]}
+                    onPress={() => {
+                      if (identityLocked) return;
+                      setGender(sel ? null : g.id);
+                    }}
                   >
                     <Text
                       style={[styles.pillLabel, sel && styles.pillLabelSel]}
@@ -292,6 +314,12 @@ export default function EditProfileScreen() {
               })}
             </View>
           </View>
+
+          {identityLocked && (
+            <Text style={styles.lockedNote}>
+              Your name, age and gender are locked to your verified ID.
+            </Text>
+          )}
 
           <View>
             <Text style={styles.label}>BIO</Text>
@@ -395,6 +423,26 @@ const styles = StyleSheet.create({
   },
   inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
   inputError: { borderWidth: 1.5, borderColor: '#E5484D' },
+  inputLocked: { backgroundColor: 'rgba(15,24,44,0.04)', color: COLORS.textSecondary },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  lockedTag: {
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    letterSpacing: 0.3,
+    color: COLORS.verified,
+    marginBottom: 7,
+  },
+  lockedNote: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: COLORS.textMuted,
+    marginTop: -4,
+  },
   usernameWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,6 +513,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: COLORS.primaryTint,
   },
+  pillLocked: { opacity: 0.5 },
   pillLabel: {
     fontFamily: FONTS.bold,
     fontSize: 13.5,

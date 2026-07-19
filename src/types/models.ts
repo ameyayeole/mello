@@ -96,6 +96,9 @@ export interface Profile {
   photos: string[];
   age: number | null;
   gender: Gender | null;
+  // Read off the verified ID and locked once kyc_status === 'approved'
+  // (migration 036). Absent before that migration / verification.
+  date_of_birth?: string | null;
   bio: string | null;
   city: string | null;
   interests: ActivityId[];
