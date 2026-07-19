@@ -44,7 +44,7 @@ import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
 import DateTimeField, { roundUpTo30, fmtDayShort, fmtTime } from '@/components/DateTimeField';
 import { PlaceResult } from '@/components/PlaceSearch';
-import { ACTIVITIES, ACTIVITY_MAP } from '@/constants/activities';
+import { ACTIVITIES_BY_SECTION, ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
@@ -466,41 +466,66 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     <Text style={styles.stepSub}>
                       Pick a type — your pin updates live.
                     </Text>
-                    <View style={styles.typeGrid}>
-                      {ACTIVITIES.map((a) => {
-                        const sel = activity === a.id;
-                        const cat = categoryStyle(a.id);
-                        return (
-                          <PressableScale
-                            key={a.id}
-                            scaleTo={0.9}
-                            style={styles.typeItem}
-                            onPress={() => setActivity(a.id)}
-                          >
-                            <View
-                              style={[
-                                styles.typeTile,
-                                sel && {
-                                  backgroundColor: cat.tint,
-                                  borderColor: cat.accent,
-                                  borderWidth: 1.5,
-                                },
-                              ]}
-                            >
-                              <Text style={styles.typeEmoji}>{a.emoji}</Text>
-                            </View>
-                            <Text
-                              style={[
-                                styles.typeLabel,
-                                sel && { color: cat.accent, fontFamily: FONTS.bold },
-                              ]}
-                            >
-                              {a.label}
-                            </Text>
-                          </PressableScale>
-                        );
-                      })}
-                    </View>
+                    <ScrollView
+                      style={styles.typeScroll}
+                      contentContainerStyle={styles.typeScrollContent}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {ACTIVITIES_BY_SECTION.map(({ section, activities }) => (
+                        <View key={section.id} style={styles.typeSection}>
+                          <Text style={styles.typeSectionLabel}>
+                            {section.label}
+                          </Text>
+                          <View style={styles.typeGrid}>
+                            {activities.map((a) => {
+                              const sel = activity === a.id;
+                              const cat = categoryStyle(a.id);
+                              return (
+                                <PressableScale
+                                  key={a.id}
+                                  scaleTo={0.9}
+                                  style={styles.typeItem}
+                                  onPress={() => setActivity(a.id)}
+                                >
+                                  <View
+                                    style={[
+                                      styles.typeTile,
+                                      sel && {
+                                        backgroundColor: cat.tint,
+                                        borderColor: cat.accent,
+                                        borderWidth: 1.5,
+                                      },
+                                    ]}
+                                  >
+                                    <Text style={styles.typeEmoji}>{a.emoji}</Text>
+                                  </View>
+                                  <Text
+                                    style={[
+                                      styles.typeLabel,
+                                      sel && {
+                                        color: cat.accent,
+                                        fontFamily: FONTS.bold,
+                                      },
+                                    ]}
+                                    numberOfLines={1}
+                                  >
+                                    {a.label}
+                                  </Text>
+                                </PressableScale>
+                              );
+                            })}
+                            {Array.from({
+                              length: (4 - (activities.length % 4)) % 4,
+                            }).map((_, i) => (
+                              <View
+                                key={`spacer-${i}`}
+                                style={styles.typeItem}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
                   </Animated.View>
                 )}
 
@@ -921,12 +946,22 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 3,
   },
+  typeScroll: { marginTop: 14, marginHorizontal: -4 },
+  typeScrollContent: { paddingHorizontal: 4, paddingBottom: 8 },
+  typeSection: { marginBottom: 18 },
+  typeSectionLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: COLORS.textSecondary,
+    marginBottom: 12,
+  },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: 14,
-    marginTop: 18,
   },
   typeItem: { width: '23%', alignItems: 'center', gap: 6 },
   typeTile: {

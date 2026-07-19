@@ -1,11 +1,55 @@
 export type ActivityId =
-  | 'coffee'
-  | 'gym'
-  | 'drinks'
-  | 'trekking'
-  | 'study'
-  | 'music'
+  // Nightlife & Parties
   | 'parties'
+  | 'drinks'
+  | 'house_party'
+  | 'club_night'
+  | 'boiler_room'
+  | 'karaoke'
+  // Music & Live
+  | 'music'
+  | 'live_gig'
+  | 'open_mic'
+  | 'jam_session'
+  | 'standup'
+  | 'concert'
+  | 'dj_set'
+  // Sports
+  | 'cricket'
+  | 'football'
+  | 'badminton'
+  | 'volleyball'
+  | 'basketball'
+  | 'table_tennis'
+  | 'tennis'
+  | 'running'
+  | 'cycling'
+  | 'swimming'
+  // Wellness
+  | 'gym'
+  | 'yoga'
+  | 'meditation'
+  // Food & Drinks
+  | 'coffee'
+  | 'food'
+  | 'brunch'
+  // Outdoors & Travel
+  | 'trekking'
+  | 'camping'
+  | 'beach'
+  | 'road_trip'
+  // Creative & Culture
+  | 'art'
+  | 'photography'
+  | 'dance'
+  | 'movies'
+  // Social & Growth
+  | 'study'
+  | 'volunteering'
+  | 'networking'
+  | 'book_club'
+  | 'board_games'
+  // Play
   | 'gaming';
 
 export type FriendStatus = 'pending' | 'accepted' | 'blocked';

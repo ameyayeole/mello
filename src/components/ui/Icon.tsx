@@ -288,6 +288,12 @@ const glyphs: Record<string, Glyph> = {
 
 export type IconName = keyof typeof glyphs;
 
+// True when a hand-drawn SVG glyph exists for this name. Category tiles use
+// this to fall back to the activity's emoji for types without a glyph yet.
+export function hasGlyph(name: string): name is IconName {
+  return name in glyphs;
+}
+
 export function Icon({
   name,
   size = 20,
