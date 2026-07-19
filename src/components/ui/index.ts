@@ -1,5 +1,6 @@
-export { Icon, VerifiedBadge, PremiumBadge, TabGlyph } from './Icon';
+export { Icon, VerifiedBadge, PremiumBadge, TabGlyph, hasGlyph } from './Icon';
 export type { IconName } from './Icon';
+export { ActivityGlyph } from './ActivityGlyph';
 export { Avatar } from './Avatar';
 export { Button } from './Button';
 export { PressableScale } from './PressableScale';

@@ -1,9 +1,11 @@
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { ActivityId } from '@/types/models';
 import { categoryStyle } from '@/constants/categoryStyle';
-import { Icon, IconName } from './Icon';
+import { ACTIVITY_MAP } from '@/constants/activities';
+import { Icon, IconName, hasGlyph } from './Icon';
 
 // Rounded-square tile with the category's stroke icon on its tint background.
+// Types without a hand-drawn glyph fall back to their emoji.
 export function CategoryTile({
   activity,
   size = 38,
@@ -26,11 +28,17 @@ export function CategoryTile({
         },
       ]}
     >
-      <Icon
-        name={activity as IconName}
-        size={Math.round(size * 0.5)}
-        color={accent}
-      />
+      {hasGlyph(activity) ? (
+        <Icon
+          name={activity as IconName}
+          size={Math.round(size * 0.5)}
+          color={accent}
+        />
+      ) : (
+        <Text style={{ fontSize: Math.round(size * 0.5) }}>
+          {ACTIVITY_MAP[activity as ActivityId]?.emoji ?? '📍'}
+        </Text>
+      )}
     </View>
   );
 }

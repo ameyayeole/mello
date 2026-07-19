@@ -32,7 +32,7 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
-import { Button, Icon, IconName, PressableScale } from '@/components/ui';
+import { ActivityGlyph, Button, Icon, PressableScale } from '@/components/ui';
 
 const STEPS = ['name', 'username', 'dob', 'photos', 'interests', 'bio'] as const;
 type Step = (typeof STEPS)[number];
@@ -477,8 +477,8 @@ export default function ProfileSetupScreen() {
                         ]}
                         onPress={() => toggleInterest(a.id)}
                       >
-                        <Icon
-                          name={a.id as IconName}
+                        <ActivityGlyph
+                          activity={a.id}
                           size={18}
                           color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
                         />

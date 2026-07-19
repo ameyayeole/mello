@@ -26,7 +26,7 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
-import { Icon, IconButton, IconName, PressableScale } from '@/components/ui';
+import { ActivityGlyph, IconButton, PressableScale } from '@/components/ui';
 
 const GENDERS: { id: Gender; label: string }[] = [
   { id: 'male', label: 'Male' },
@@ -327,8 +327,8 @@ export default function EditProfileScreen() {
                   ]}
                   onPress={() => toggleInterest(a.id)}
                 >
-                  <Icon
-                    name={a.id as IconName}
+                  <ActivityGlyph
+                    activity={a.id}
                     size={17}
                     color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
                   />

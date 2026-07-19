@@ -10,6 +10,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import LottieView from 'lottie-react-native';
 import {
   countEventSavers,
   getEventDetail,
@@ -420,6 +421,17 @@ export default function HostPanelScreen() {
           style={{ marginTop: 6 }}
         />
       </ScrollView>
+
+      {/* One-shot confetti burst over the whole screen right after creation. */}
+      {celebrate === '1' && (
+        <LottieView
+          source={require('../../../assets/lottie/celebration.json')}
+          autoPlay
+          loop={false}
+          resizeMode="cover"
+          style={styles.celebrationOverlay}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -473,6 +485,15 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   congratsEmoji: { fontSize: 30, lineHeight: 36 },
+  celebrationOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    pointerEvents: 'none',
+  },
   checkinCard: {
     flexDirection: 'row',
     alignItems: 'center',

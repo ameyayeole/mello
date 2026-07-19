@@ -100,7 +100,7 @@ export async function getEventDetail(eventId: string): Promise<EventDetail> {
     .select(`
       *,
       host:profiles!host_id(*),
-      participants:event_participants(status, user:profiles(*))
+      participants:event_participants(status, user:profiles!event_participants_user_id_fkey(*))
     `)
     .eq('id', eventId)
     .single();
@@ -380,7 +380,7 @@ export async function getSavedEvents(
   const { data, error } = await supabase
     .from('saved_events')
     .select(
-      'created_at, event:events(*, host:profiles!host_id(id, name, photo_url), event_participants(status, user:profiles(id, name, photo_url)))'
+      'created_at, event:events(*, host:profiles!host_id(id, name, photo_url), event_participants(status, user:profiles!event_participants_user_id_fkey(id, name, photo_url)))'
     )
     .eq('user_id', userId)
     .order('created_at', { ascending: false });

@@ -35,10 +35,10 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId, Coords } from '@/types/models';
 import {
+  ActivityGlyph,
   Button,
   Icon,
   IconButton,
-  IconName,
   MelloPin,
   PressableScale,
 } from '@/components/ui';
@@ -240,8 +240,8 @@ export default function EditEventScreen() {
                     },
                   ]}
                 >
-                  <Icon
-                    name={a.id as IconName}
+                  <ActivityGlyph
+                    activity={a.id}
                     size={24}
                     color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
                   />

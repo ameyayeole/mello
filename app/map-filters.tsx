@@ -18,6 +18,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
 import {
+  ActivityGlyph,
   Button,
   Icon,
   IconName,
@@ -206,8 +207,8 @@ export default function MapFiltersScreen() {
                       },
                     ]}
                   >
-                    <Icon
-                      name={a.id as IconName}
+                    <ActivityGlyph
+                      activity={a.id}
                       size={14}
                       color={active ? cat.accent : COLORS.textSecondary}
                     />
