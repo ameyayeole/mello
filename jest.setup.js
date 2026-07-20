@@ -9,3 +9,9 @@ process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 // pulling it in globally would break every suite — including the pure ones that
 // never touch animation. Component tests will need a worklets mock of their
 // own; that is a separate problem from testing utils and services.
+
+// React 19 refuses to flush updates inside act() unless this is set, and
+// without a flush the hook under test never commits — which surfaces as every
+// test after the first one timing out, not as an obvious error.
+// @ts-ignore -- global test-only flag
+global.IS_REACT_ACT_ENVIRONMENT = true;

@@ -11,7 +11,6 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { queryKeys } from '@/constants/queryKeys';
@@ -26,10 +25,6 @@ import { useRouter } from 'expo-router';
 import {
   getEventDetail,
   getEventDistanceM,
-  joinEvent,
-  leaveEvent,
-  approveParticipant,
-  rejectParticipant,
   saveEvent,
   unsaveEvent,
 } from '@/services/events.service';
@@ -39,8 +34,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
 import { CONFIG } from '@/constants/config';
 import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
-import { EventDetail, ParticipantStatus } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
+import { useEventParticipation } from '@/hooks/useEventParticipation';
 import { splitEventTime } from '@/utils/time';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
@@ -52,10 +47,6 @@ import {
   isNewHost,
   isPartyActivity,
 } from '@/services/safety';
-import {
-  scheduleEventSafetyReminder,
-  cancelEventSafetyReminder,
-} from '@/services/reminders';
 import { SafetyPopup } from '@/components/safety';
 import {
   Avatar,
@@ -211,87 +202,11 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       event?.participants?.filter((p) => p.status === 'pending') ?? []
     ).sort((a, b) => Number(isPremium(b)) - Number(isPremium(a)));
 
-    const detailKey = queryKeys.eventDetail.of(eventId);
-    const invalidate = () => qc.invalidateQueries({ queryKey: detailKey });
-
-    // Optimistic cache helpers — patch the eventDetail so the UI (button label,
-    // participant list, count) updates the instant a button is tapped, before
-    // the Supabase round-trip. onError rolls the snapshot back if it fails.
-    const setMyParticipation = (status: ParticipantStatus | null) => {
-      qc.setQueryData<EventDetail>(detailKey, (prev) => {
-        if (!prev || !user) return prev;
-        const others = prev.participants.filter((p) => p.id !== user.id);
-        const participants = status
-          ? [...others, { ...user, status }]
-          : others;
-        return {
-          ...prev,
-          participants,
-          participant_count: participants.filter(
-            (p) => p.status === 'approved'
-          ).length,
-        };
-      });
-    };
-
-    const patchParticipant = (
-      uid: string,
-      status: ParticipantStatus | null
-    ) => {
-      qc.setQueryData<EventDetail>(detailKey, (prev) => {
-        if (!prev) return prev;
-        const participants =
-          status === null
-            ? prev.participants.filter((p) => p.id !== uid)
-            : prev.participants.map((p) =>
-                p.id === uid ? { ...p, status } : p
-              );
-        return {
-          ...prev,
-          participants,
-          participant_count: participants.filter(
-            (p) => p.status === 'approved'
-          ).length,
-        };
-      });
-    };
-
-    const joinMutation = useMutation({
-      mutationFn: () => joinEvent(event!.id, user!.id, event!.requires_approval),
-      onMutate: () => {
-        const prev = qc.getQueryData<EventDetail>(detailKey);
-        setMyParticipation(event!.requires_approval ? 'pending' : 'approved');
-        return { prev };
-      },
-      onError: (_e, _v, ctx) => {
-        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
-        Alert.alert("Couldn't join", 'Please check your connection and try again.');
-      },
-      onSuccess: () => {
-        // Pre-event safety reminder (#4). Pending requests get no reminder —
-        // the host may never approve them.
-        if (event && !event.requires_approval) {
-          scheduleEventSafetyReminder(event);
-        }
-      },
-      onSettled: invalidate,
-    });
-
-    const leaveMutation = useMutation({
-      mutationFn: () => leaveEvent(event!.id, user!.id),
-      onMutate: () => {
-        const prev = qc.getQueryData<EventDetail>(detailKey);
-        setMyParticipation(null);
-        return { prev };
-      },
-      onError: (_e, _v, ctx) => {
-        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
-      },
-      onSuccess: () => {
-        if (event) cancelEventSafetyReminder(event.id);
-      },
-      onSettled: invalidate,
-    });
+    const { join, leave, approve, reject } = useEventParticipation(
+      eventId,
+      user ?? null,
+      event
+    );
 
     // ─── Pre-join safety queue (#3 first join, #10 women-only, #5 new host,
     //     #8 party/alcohol) ────────────────────────────────────────────────────
@@ -386,7 +301,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       }
 
       if (queue.length > 0) setJoinQueue(queue);
-      else joinMutation.mutate();
+      else join.mutate();
     }
 
     // Confirming the current popup marks it seen; the join fires once the
@@ -396,34 +311,8 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       if (current && user) markSafetyFlagSeen(user.id, current.flag);
       const rest = joinQueue.slice(1);
       setJoinQueue(rest);
-      if (rest.length === 0) joinMutation.mutate();
+      if (rest.length === 0) join.mutate();
     }
-
-    const approveMutation = useMutation({
-      mutationFn: (uid: string) => approveParticipant(event!.id, uid),
-      onMutate: (uid: string) => {
-        const prev = qc.getQueryData<EventDetail>(detailKey);
-        patchParticipant(uid, 'approved');
-        return { prev };
-      },
-      onError: (_e, _v, ctx) => {
-        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
-      },
-      onSettled: invalidate,
-    });
-
-    const rejectMutation = useMutation({
-      mutationFn: (uid: string) => rejectParticipant(event!.id, uid),
-      onMutate: (uid: string) => {
-        const prev = qc.getQueryData<EventDetail>(detailKey);
-        patchParticipant(uid, null);
-        return { prev };
-      },
-      onError: (_e, _v, ctx) => {
-        if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
-      },
-      onSettled: invalidate,
-    });
 
     const activity = event ? ACTIVITY_MAP[event.activity] : null;
 
@@ -648,16 +537,16 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                       <PressableScale
                         scaleTo={0.92}
                         style={styles.approveBtn}
-                        onPress={() => approveMutation.mutate(p.id)}
-                        disabled={approveMutation.isPending}
+                        onPress={() => approve.mutate(p.id)}
+                        disabled={approve.isPending}
                       >
                         <Text style={styles.approveBtnText}>Approve</Text>
                       </PressableScale>
                       <PressableScale
                         scaleTo={0.92}
                         style={styles.rejectBtn}
-                        onPress={() => rejectMutation.mutate(p.id)}
-                        disabled={rejectMutation.isPending}
+                        onPress={() => reject.mutate(p.id)}
+                        disabled={reject.isPending}
                         accessibilityLabel="Decline request"
                       >
                         <Icon
@@ -725,15 +614,15 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                       }
                       onPress={() =>
                         isParticipant || isPending
-                          ? leaveMutation.mutate()
+                          ? leave.mutate()
                           : handleJoinPress()
                       }
                       disabled={
                         ((isFull || womenOnlyLocked) &&
                           !isParticipant &&
                           !isPending) ||
-                        joinMutation.isPending ||
-                        leaveMutation.isPending
+                        join.isPending ||
+                        leave.isPending
                       }
                     />
                   </View>

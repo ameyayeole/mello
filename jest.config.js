@@ -24,11 +24,10 @@ module.exports = {
 
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
 
-  // `@/…` in source has to resolve the same way it does in tsconfig and Babel,
-  // otherwise every import in a tested module fails.
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
-  },
+  // Deliberately no moduleNameMapper. jest-expo already derives the `@/` alias
+  // from tsconfig paths, and a top-level mapper *replaces* the preset's rather
+  // than merging with it — which silently drops the react-native mapping and
+  // breaks @testing-library/react-native's renderer resolution.
 
   // Scoped deliberately. The pure logic in utils/ and the mockable Supabase
   // calls in services/ are what make the two big components safe to refactor;
