@@ -1,17 +1,32 @@
 import { COLORS } from './colors';
 
-// Spacing scale. The app's padding/margin/gap numbers peak on these values,
-// with a long tail (10/13/15/22/30) that has never been normalised — see
-// CLEANUP.md. Use these in new code; do not mass-migrate existing screens
-// without a design pass.
+// Spacing scale, keyed in 4px units — SPACING[2] is 8px, SPACING[0.5] is 2px.
+//
+// The previous version was xs/sm/md/lg/xl on a strict 4px grid and could
+// express only 36% of the spacing values the app actually uses. It had no way
+// to say 10px (123 uses) or 14px (92), two of the four most common values in
+// the codebase, so anyone reaching for it had to bail out immediately — which
+// is why, like the type and radius scales, it had zero importers.
+//
+// Half-steps exist because this is a dense mobile UI: 6px and 10px gaps inside
+// chips and meta rows are real, not sloppiness. The scale describes the app.
+//
+// Use these in new code. Do NOT codemod existing screens onto them — 1139 call
+// sites is a design review, not a refactor. See CLEANUP.md.
 export const SPACING = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  '2xl': 32,
-  '3xl': 48,
+  0.5: 2,
+  1: 4,
+  1.5: 6,
+  2: 8,
+  2.5: 10,
+  3: 12,
+  3.5: 14,
+  4: 16,
+  5: 20,
+  6: 24,
+  7: 28,
+  8: 32,
+  12: 48,
 } as const;
 
 // Corner radii, derived from what the app actually renders rather than from a

@@ -9,7 +9,7 @@ import {
   type TextInputProps,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { RADIUS } from '@/constants/spacing';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 
 // Labelled text input with the app's focus ring, error state, optional trailing
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 7,
+    marginBottom: SPACING[2],
   },
   label: {
     fontFamily: FONTS.bold,
@@ -147,10 +147,10 @@ const styles = StyleSheet.create({
     height: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
-    paddingHorizontal: 16,
+    paddingHorizontal: SPACING[4],
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     height: 'auto',
     minHeight: 96,
     alignItems: 'stretch',
-    paddingVertical: 13,
+    paddingVertical: SPACING[3],
   },
   focused: { borderWidth: 1.5, borderColor: COLORS.primary },
   error: { borderWidth: 1.5, borderColor: COLORS.error },
@@ -176,8 +176,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 6,
-    gap: 8,
+    marginTop: SPACING[1.5],
+    gap: SPACING[2],
   },
   hint: {
     flex: 1,

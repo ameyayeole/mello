@@ -7,6 +7,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
+import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PressableScale } from './PressableScale';
 import { Icon, IconName } from './Icon';
@@ -32,7 +33,7 @@ const SIZES = {
     height: 34,
     radius: 10,
     font: TYPE_SIZE.caption,
-    padding: 14,
+    padding: SPACING[3.5],
     icon: 14,
     family: FONTS.bold,
   },
@@ -40,7 +41,7 @@ const SIZES = {
     height: 44,
     radius: 12,
     font: TYPE_SIZE.body,
-    padding: 18,
+    padding: SPACING[4],
     icon: 16,
     family: FONTS.heading,
   },
@@ -48,7 +49,7 @@ const SIZES = {
     height: 48,
     radius: 14,
     font: TYPE_SIZE.bodyLg,
-    padding: 24,
+    padding: SPACING[6],
     icon: 18,
     family: FONTS.heading,
   },
@@ -136,7 +137,7 @@ export function Button({
 const styles = StyleSheet.create({
   base: { alignItems: 'center', justifyContent: 'center' },
   fullWidth: { alignSelf: 'stretch' },
-  content: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  content: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
 
   primary: {
     backgroundColor: COLORS.primary,

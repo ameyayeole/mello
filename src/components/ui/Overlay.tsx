@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { RADIUS } from '@/constants/spacing';
+import { RADIUS, SPACING } from '@/constants/spacing';
 
 // The app's two overlay shapes, over one `Modal`:
 //
@@ -113,19 +113,19 @@ export function Dialog(props: BaseProps) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: COLORS.scrim },
   alignBottom: { justifyContent: 'flex-end' },
-  alignCenter: { justifyContent: 'center', paddingHorizontal: 32 },
+  alignCenter: { justifyContent: 'center', paddingHorizontal: SPACING[8] },
   kav: { justifyContent: 'flex-end' },
 
   sheetCard: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    paddingBottom: 34,
+    paddingBottom: SPACING[8],
   },
   dialogCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS['2xl'],
-    padding: 22,
+    padding: SPACING[6],
     alignItems: 'center',
   },
   grabber: {
@@ -134,6 +134,6 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: RADIUS.full,
     backgroundColor: 'rgba(15,24,44,0.15)',
-    marginTop: 8,
+    marginTop: SPACING[2],
   },
 });

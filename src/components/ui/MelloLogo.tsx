@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, RadialGradient, Rect } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
+import { SPACING } from '@/constants/spacing';
 import { FONTS } from '@/constants/typography';
 
 const PIN_PATH =
@@ -48,7 +49,7 @@ export function CoralGlow({ size = 300, style }: { size?: number; style?: object
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   word: {
     fontFamily: FONTS.heavy,
     color: COLORS.accent,

@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
-import { RADIUS } from '@/constants/spacing';
+import { RADIUS, SPACING } from '@/constants/spacing';
 
 // Reusable `.cat-pill` from the locked Mello design language:
 // a pill in the category's accent color with the emoji inside a white
@@ -46,8 +46,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderRadius: RADIUS.full,
   },
-  pillLabeled: { paddingVertical: 4, paddingRight: 13, paddingLeft: 4, gap: 7 },
-  pillEmojiOnly: { padding: 4 },
+  pillLabeled: { paddingVertical: SPACING[1], paddingRight: 13, paddingLeft: 4, gap: SPACING[2] },
+  pillEmojiOnly: { padding: SPACING[1] },
   emojiCircle: {
     width: 24,
     height: 24,
