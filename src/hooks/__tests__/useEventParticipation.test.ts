@@ -50,7 +50,13 @@ async function run<TVars>(
 
 function setup(event = makeEvent()) {
   const qc = new QueryClient({
-    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    defaultOptions: {
+      mutations: { retry: false },
+      // gcTime Infinity so the cache never schedules its garbage-collection
+      // timer. The default 5 minutes leaves a live handle per test and Jest
+      // then refuses to exit — harmless locally, hangs a CI job.
+      queries: { retry: false, gcTime: Infinity },
+    },
   });
   qc.setQueryData(queryKeys.eventDetail.of(EVENT_ID), event);
   const m = participationMutations(qc, EVENT_ID, me, event);
