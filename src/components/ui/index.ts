@@ -15,5 +15,6 @@ export { Screen } from './Screen';
 export { TextField } from './TextField';
 export type { TextFieldProps } from './TextField';
 export { EmptyState } from './EmptyState';
+export { Loader } from './Loader';
 export { Sheet, Dialog } from './Overlay';
 export { MelloPin, MelloWordmark, CoralGlow } from './MelloLogo';

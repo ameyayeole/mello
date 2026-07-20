@@ -21,7 +21,7 @@ import CreateEventFab from '@/components/CreateEventFab';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ExploreEvent, ExploreWrap } from '@/types/models';
-import { EmptyState, Screen } from '@/components/ui';
+import { EmptyState, Loader, Screen } from '@/components/ui';
 import { errorMessage } from '@/utils/errors';
 
 // One Instagram-style feed: upcoming events as post cards, with a wrapped
@@ -92,7 +92,7 @@ export default function ExploreScreen() {
         </View>
 
         {explore.isLoading ? (
-          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 48 }} />
+          <Loader />
         ) : (
           <FlatList
             data={feed}

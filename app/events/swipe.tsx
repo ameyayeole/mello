@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -34,6 +33,7 @@ import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import {
   Button,
   Icon,
+  Loader,
   PressableScale,
   ScreenHeader,
 } from '@/components/ui';
@@ -272,7 +272,7 @@ export default function SwipeDeckScreen() {
         {/* Deck */}
         <View style={styles.deckArea}>
           {isLoading ? (
-            <ActivityIndicator color={COLORS.primary} />
+            <Loader inline />
           ) : outOfSwipes ? (
             // Daily cap hit: the deck pauses until midnight — or Mello+.
             <View style={styles.cardWrap}>

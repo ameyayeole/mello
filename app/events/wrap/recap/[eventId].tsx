@@ -3,7 +3,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -18,7 +17,7 @@ import { getEventDetail } from '@/services/events.service';
 import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, NavButton, PressableScale } from '@/components/ui';
+import { Avatar, Loader, NavButton, PressableScale } from '@/components/ui';
 import { SuperlativeWinner } from '@/types/models';
 
 function StatCard({
@@ -100,7 +99,7 @@ export default function WrapRecapScreen() {
 
         {summaryQuery.isLoading || !summary ? (
           <View style={styles.center}>
-            <ActivityIndicator color={COLORS.primary} />
+            <Loader inline />
           </View>
         ) : (
           <ScrollView

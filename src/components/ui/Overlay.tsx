@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
+import { RADIUS } from '@/constants/spacing';
 
 // The app's two overlay shapes, over one `Modal`:
 //
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   },
   dialogCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
+    borderRadius: RADIUS['2xl'],
     padding: 22,
     alignItems: 'center',
   },
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 40,
     height: 5,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(15,24,44,0.15)',
     marginTop: 8,
   },

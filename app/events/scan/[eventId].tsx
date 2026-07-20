@@ -32,6 +32,7 @@ import {
   Button,
   CategoryTile,
   Icon,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -165,7 +166,7 @@ export default function AttendeeScanScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {isLoading || !event ? (
-          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+          <Loader />
         ) : !isParticipant ? (
           <Text style={styles.notice}>
             Check-in is for approved attendees. Join the event first.

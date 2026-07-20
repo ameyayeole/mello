@@ -58,6 +58,7 @@ const styles = StyleSheet.create({
   badge: {
     width: 84,
     height: 84,
+    // Half of the 84px tile — a circle, not a scale step.
     borderRadius: 42,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',

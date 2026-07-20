@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
@@ -26,6 +25,7 @@ import { FONTS } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
 import {
   ActivityGlyph,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -179,7 +179,7 @@ export default function EditProfileScreen() {
             hitSlop={8}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.primary} />
+              <Loader inline />
             ) : (
               <Text style={[styles.save, !name.trim() && styles.saveDisabled]}>
                 Save

@@ -1,4 +1,4 @@
-import { Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { Text, StyleSheet, FlatList } from 'react-native';
 import {
   DISCOVERY_FEED_KEYS,
   queryKeys,
@@ -14,6 +14,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  Loader,
   Screen,
   ScreenHeader,
 } from '@/components/ui';
@@ -67,7 +68,7 @@ export default function BlockedUsersScreen() {
       <ScreenHeader title="Blocked users" />
 
       {isLoading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
+        <Loader />
       ) : (
         <FlatList
           data={blocked ?? []}

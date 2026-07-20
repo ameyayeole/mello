@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +13,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import ParticipantRow from '@/components/events/ParticipantRow';
-import { PressableScale, Screen, ScreenHeader } from '@/components/ui';
+import { Loader, PressableScale, Screen, ScreenHeader } from '@/components/ui';
 
 type Tab = 'attendees' | 'requests';
 
@@ -75,7 +74,7 @@ export default function EventAttendeesScreen() {
       </View>
 
       {isLoading || !event ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
+        <Loader />
       ) : (
         <FlatList
           data={list}

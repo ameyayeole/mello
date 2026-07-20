@@ -9,6 +9,7 @@ import {
   type TextInputProps,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
+import { RADIUS } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 
 // Labelled text input with the app's focus ring, error state, optional trailing
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
