@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -9,7 +10,7 @@ import {
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Avatar,
   Button,
@@ -144,28 +145,28 @@ export function NoteComposer({
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 20, gap: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  card: { padding: SPACING[5], gap: SPACING[3.5] },
+  header: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.32,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   input: {
     minHeight: 90,
     maxHeight: 160,
     backgroundColor: COLORS.background,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: RADIUS.md,
+    padding: SPACING[3.5],
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
     textAlignVertical: 'top',
     borderWidth: 1,
@@ -175,27 +176,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: SPACING[1.5],
     height: 42,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     borderWidth: 1.5,
     borderColor: COLORS.primaryTint,
     backgroundColor: COLORS.primaryTint,
   },
   attachText: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
   },
   photoRow: { alignSelf: 'flex-start' },
-  photoThumb: { width: 88, height: 88, borderRadius: 14 },
+  photoThumb: { width: 88, height: 88, borderRadius: RADIUS.md },
   photoRemove: {
     position: 'absolute',
     top: -6,
     right: -6,
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',

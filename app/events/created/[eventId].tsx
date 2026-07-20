@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +11,7 @@ import { getEventDetail } from '@/services/events.service';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import { shareEvent } from '@/utils/shareEvent';
 import { Icon, PressableScale } from '@/components/ui';
@@ -64,7 +65,7 @@ export default function EventCreatedScreen() {
             style={styles.summary}
           >
             <View style={[styles.summaryBadge, { borderColor: accent }]}>
-              <Text style={{ fontSize: 18 }}>{emoji}</Text>
+              <Text style={{ fontSize: TYPE_SIZE.sectionLg }}>{emoji}</Text>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.summaryTitle} numberOfLines={1}>
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: SPACING[7],
   },
   checkGlow: {
     width: 96,
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 26,
+    marginBottom: SPACING[6],
     shadowColor: COLORS.primary,
     shadowOpacity: 0.6,
     shadowRadius: 30,
@@ -153,67 +154,67 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 32,
+    fontSize: TYPE_SIZE.display,
     letterSpacing: -0.8,
     color: '#fff',
     textAlign: 'center',
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: SPACING[3],
   },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     alignSelf: 'stretch',
-    marginTop: 30,
+    marginTop: SPACING[7],
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: RADIUS.lg,
+    padding: SPACING[3],
   },
   summaryBadge: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: RADIUS['2xl'],
     borderWidth: 2.5,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  summaryTitle: { fontFamily: FONTS.heading, fontSize: 15, color: '#fff' },
+  summaryTitle: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.body, color: '#fff' },
   summaryMeta: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(255,255,255,0.6)',
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
-  footer: { paddingHorizontal: 22, gap: 10 },
+  footer: { paddingHorizontal: SPACING[5], gap: SPACING[2.5] },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
+    gap: SPACING[2],
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: SPACING[4],
+    borderRadius: RADIUS.lg,
     shadowColor: COLORS.primary,
     shadowOpacity: 0.4,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
-  primaryBtnText: { fontFamily: FONTS.heading, fontSize: 16, color: '#fff' },
-  secondaryBtn: { alignItems: 'center', paddingVertical: 12 },
+  primaryBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodyLg, color: '#fff' },
+  secondaryBtn: { alignItems: 'center', paddingVertical: SPACING[3] },
   secondaryBtnText: {
     fontFamily: FONTS.heading,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: 'rgba(255,255,255,0.85)',
   },
 });

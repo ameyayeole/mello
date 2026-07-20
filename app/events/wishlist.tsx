@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -18,7 +19,7 @@ import EventBottomSheet, {
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import { shortLocation } from '@/utils/location';
 import { NearbyEvent, SavedEventItem } from '@/types/models';
@@ -230,7 +231,7 @@ export default function WishlistScreen() {
                 label="Swipe events"
                 height={44}
                 onPress={() => router.push('/events/swipe')}
-                style={{ marginTop: 6 }}
+                style={{ marginTop: SPACING[1.5] }}
               />
             </View>
           }
@@ -242,77 +243,77 @@ export default function WishlistScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 16, paddingTop: 8, gap: 14, flexGrow: 1 },
+  list: { padding: SPACING[4], paddingTop: SPACING[2], gap: SPACING[3.5], flexGrow: 1 },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
-    padding: 16,
-    gap: 11,
+    borderRadius: RADIUS['2xl'],
+    padding: SPACING[4],
+    gap: SPACING[2.5],
     shadowColor: '#0F182C',
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
-  cardTop: { flexDirection: 'row', gap: 13 },
+  cardTop: { flexDirection: 'row', gap: SPACING[3] },
   mediaTile: {
     width: 64,
     height: 64,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mediaEmoji: { fontSize: 30 },
-  cardHeading: { flex: 1, minWidth: 0, gap: 5, justifyContent: 'center' },
+  mediaEmoji: { fontSize: TYPE_SIZE.h1 },
+  cardHeading: { flex: 1, minWidth: 0, gap: SPACING[1], justifyContent: 'center' },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 18,
+    fontSize: TYPE_SIZE.sectionLg,
     lineHeight: 23,
     letterSpacing: -0.3,
     color: COLORS.textPrimary,
   },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
   timeText: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
   removeBtn: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-start',
   },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   locationText: {
     flexShrink: 1,
     fontFamily: FONTS.semibold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   description: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     marginTop: -4,
   },
-  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  hostRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   hostedBy: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textSecondary,
   },
   hostName: {
     fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     letterSpacing: -0.2,
     color: COLORS.textPrimary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   // Full-bleed rule, mockup-style.
   divider: {
@@ -320,32 +321,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,24,44,0.08)',
     marginHorizontal: -16,
   },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   attendeeStack: { flexDirection: 'row', alignItems: 'center' },
   attendeeRing: {
-    borderRadius: 19,
+    borderRadius: RADIUS.xl,
     borderWidth: 2,
     borderColor: COLORS.surface,
   },
   countText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.5)',
   },
   joinBtn: {
     height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingHorizontal: SPACING[4],
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  joinText: { fontFamily: FONTS.bold, fontSize: 13.5, color: '#fff' },
+  joinText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     paddingBottom: 60,
   },
   emptyIcon: {
@@ -355,16 +356,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: SPACING[1.5],
   },
   emptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',

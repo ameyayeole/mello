@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   TextInput,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
 import { errorProp } from '@/utils/errors';
 
@@ -224,10 +225,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: 100,
-    paddingHorizontal: 15,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING[3.5],
     height: 44,
-    gap: 10,
+    gap: SPACING[2.5],
     shadowColor: '#0F182C',
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -237,19 +238,19 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
     paddingVertical: 0,
   },
-  trailing: { paddingHorizontal: 4 },
-  clear: { color: COLORS.textMuted, fontWeight: '700', fontSize: 15 },
+  trailing: { paddingHorizontal: SPACING[1] },
+  clear: { color: COLORS.textMuted, fontWeight: '700', fontSize: TYPE_SIZE.body },
   dropdown: {
     position: 'absolute',
     top: 52,
     left: 0,
     right: 0,
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
@@ -263,12 +264,12 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[3],
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  itemIcon: { fontSize: 14 },
-  itemText: { flex: 1, fontSize: 14.5, color: COLORS.textPrimary },
+  itemIcon: { fontSize: TYPE_SIZE.bodyMd },
+  itemText: { flex: 1, fontSize: TYPE_SIZE.bodyMd, color: COLORS.textPrimary },
 });

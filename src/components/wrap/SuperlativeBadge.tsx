@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, PressableScale } from '@/components/ui';
 import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { SuperlativeWinner } from '@/types/models';
@@ -59,37 +60,37 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[3],
   },
   rowMuted: { opacity: 0.65 },
-  emoji: { fontSize: 26 },
+  emoji: { fontSize: TYPE_SIZE.titleLg },
   label: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
-  winner: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 130 },
+  winner: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2], maxWidth: 130 },
   winnerName: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
     flexShrink: 1,
   },
   tbd: {
     fontFamily: FONTS.heavy,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     letterSpacing: 1,
     color: COLORS.textMuted,
   },

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -11,7 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEventDetail } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import { Loader, PressableScale, Screen, ScreenHeader } from '@/components/ui';
 
@@ -103,14 +104,14 @@ export default function EventAttendeesScreen() {
 const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[5],
+    paddingVertical: SPACING[2.5],
   },
   tab: {
     flex: 1,
     height: 38,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.08)',
@@ -123,16 +124,16 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(15,24,44,0.55)',
   },
   tabTextActive: { color: COLORS.primary },
-  list: { padding: 20, paddingTop: 8, gap: 8, paddingBottom: 32 },
+  list: { padding: SPACING[5], paddingTop: SPACING[2], gap: SPACING[2], paddingBottom: SPACING[8] },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 30,
+    marginTop: SPACING[7],
   },
 });

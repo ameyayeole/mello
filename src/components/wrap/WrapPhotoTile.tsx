@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import { WrapPhoto } from '@/types/models';
 
@@ -42,7 +43,7 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     backgroundColor: COLORS.primaryTint,
   },
@@ -53,23 +54,23 @@ const styles = StyleSheet.create({
     right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2],
     height: 24,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(15,24,44,0.55)',
   },
-  likeText: { fontFamily: FONTS.bold, fontSize: 11, color: '#fff' },
+  likeText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.micro, color: '#fff' },
   mentionChip: {
     position: 'absolute',
     top: 8,
     left: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: SPACING[2],
     height: 22,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mentionText: { fontFamily: FONTS.bold, fontSize: 10.5, color: '#fff' },
+  mentionText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: '#fff' },
 });

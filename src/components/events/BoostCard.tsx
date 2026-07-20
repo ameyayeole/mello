@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EventDetail } from '@/types/models';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   BOOST_ACCENT,
   BOOST_EMOJI,
@@ -183,7 +184,7 @@ export default function BoostCard({
             </View>
 
             {creditsLoading ? (
-              <ActivityIndicator color={BOOST_ACCENT} style={{ marginVertical: 24 }} />
+              <ActivityIndicator color={BOOST_ACCENT} style={{ marginVertical: SPACING[6] }} />
             ) : view === 'use' ? (
               <>
                 <Text style={styles.sheetTitle}>
@@ -271,57 +272,57 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     borderWidth: 1.5,
     borderColor: BOOST_ACCENT,
-    padding: 14,
+    padding: SPACING[3.5],
   },
   iconWrap: {
     width: 42,
     height: 42,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     backgroundColor: BOOST_TINT,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  icon: { fontSize: 20 },
+  icon: { fontSize: TYPE_SIZE.title },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 16,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   creditsPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: SPACING[3],
     height: 30,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: BOOST_ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
   },
   creditsPillText: {
     fontFamily: FONTS.heavy,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: '#fff',
   },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15,24,44,0.45)',
     justifyContent: 'center',
-    padding: 28,
+    padding: SPACING[7],
   },
   sheet: {
     backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    padding: 22,
+    borderRadius: RADIUS['3xl'],
+    padding: SPACING[5],
     alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.2,
@@ -336,37 +337,37 @@ const styles = StyleSheet.create({
     backgroundColor: BOOST_TINT,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING[3],
   },
-  sheetIconEmoji: { fontSize: 26 },
+  sheetIconEmoji: { fontSize: TYPE_SIZE.titleLg },
   sheetTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 18,
+    fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   sheetSub: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
-  sheetBtn: { alignSelf: 'stretch', marginTop: 16 },
+  sheetBtn: { alignSelf: 'stretch', marginTop: SPACING[4] },
   link: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: BOOST_ACCENT,
-    marginTop: 14,
+    marginTop: SPACING[3.5],
   },
-  packs: { alignSelf: 'stretch', gap: 8, marginTop: 16 },
+  packs: { alignSelf: 'stretch', gap: SPACING[2], marginTop: SPACING[4] },
   pack: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 14,
-    borderRadius: 14,
+    gap: SPACING[2.5],
+    padding: SPACING[3.5],
+    borderRadius: RADIUS.md,
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
@@ -377,26 +378,26 @@ const styles = StyleSheet.create({
   },
   packLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   packLabelSel: { color: BOOST_ACCENT },
   packNote: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.success,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   packPrice: {
     fontFamily: FONTS.heavy,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
   activeCard: {
     backgroundColor: BOOST_TINT,
-    borderRadius: 18,
-    padding: 15,
-    gap: 10,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[3.5],
+    gap: SPACING[2.5],
   },
   activeHeader: {
     flexDirection: 'row',
@@ -405,23 +406,23 @@ const styles = StyleSheet.create({
   },
   activeTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     color: BOOST_ACCENT,
   },
   timePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1],
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(255,106,43,0.18)',
   },
   timePillText: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: BOOST_ACCENT,
   },
   activeSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: COLORS.textPrimary,
   },
@@ -429,18 +430,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING[3],
   },
-  stat: { flex: 1, alignItems: 'center', gap: 1 },
+  stat: { flex: 1, alignItems: 'center', gap: SPACING[0.5] },
   statNum: {
     fontFamily: FONTS.heavy,
-    fontSize: 20,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
   },
   statLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textSecondary,
   },
   statDivider: {

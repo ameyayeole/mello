@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -39,7 +40,7 @@ import CreateEventFlow, {
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { FALLBACK_MAP_CENTER } from '@/utils/eventDraft';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { NearbyEvent } from '@/types/models';
 import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
 import { Avatar, Icon, PressableScale } from '@/components/ui';
@@ -481,8 +482,8 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: SPACING[4],
+    paddingTop: SPACING[3],
     zIndex: 30,
   },
   searchInput: { flex: 1 },
@@ -497,7 +498,7 @@ const styles = StyleSheet.create({
   roundBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -513,8 +514,8 @@ const styles = StyleSheet.create({
     right: -3,
     minWidth: 18,
     height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
+    borderRadius: RADIUS.xs,
+    paddingHorizontal: SPACING[1],
     backgroundColor: COLORS.primary,
     borderWidth: 2,
     borderColor: COLORS.surface,
@@ -523,7 +524,7 @@ const styles = StyleSheet.create({
   },
   filterBadgeText: {
     fontFamily: FONTS.heavy,
-    fontSize: 10,
+    fontSize: TYPE_SIZE.nano,
     color: '#fff',
   },
   pinWrap: {
@@ -567,20 +568,20 @@ const styles = StyleSheet.create({
     right: 0,
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: '#fff',
     borderWidth: 2,
     borderColor: BOOST_ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pinFlameText: { fontSize: 12, lineHeight: 15 },
-  pinEmoji: { fontSize: 27, lineHeight: 34 },
+  pinFlameText: { fontSize: TYPE_SIZE.caption, lineHeight: 15 },
+  pinEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
   clusterBubble: {
     minWidth: 46,
     height: 46,
-    borderRadius: 23,
-    paddingHorizontal: 12,
+    borderRadius: RADIUS['3xl'],
+    paddingHorizontal: SPACING[3],
     backgroundColor: COLORS.primary,
     borderWidth: 3,
     borderColor: '#fff',
@@ -594,14 +595,14 @@ const styles = StyleSheet.create({
   },
   clusterCount: {
     fontFamily: FONTS.bold,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: '#fff',
   },
   pinAvatar: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     borderWidth: 2,
     borderColor: '#fff',
     backgroundColor: '#fff',
@@ -612,7 +613,7 @@ const styles = StyleSheet.create({
     bottom: 92,
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -623,14 +624,14 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   hotPillRow: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingHorizontal: SPACING[4],
+    paddingTop: SPACING[2.5],
     alignItems: 'flex-start',
   },
   hotPill: {
     height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     borderWidth: 1.5,
     borderColor: BOOST_ACCENT,
@@ -644,7 +645,7 @@ const styles = StyleSheet.create({
   },
   hotPillText: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: BOOST_ACCENT,
   },
 });

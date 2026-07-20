@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -15,7 +16,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { SUPERLATIVES } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CoAttendee, SuperlativeCategory } from '@/types/models';
 import {
   Avatar,
@@ -84,7 +85,7 @@ export default function SuperlativesScreen() {
                 label="Back to the wrap"
                 height={44}
                 onPress={() => router.back()}
-                style={{ marginTop: 12, alignSelf: 'stretch' }}
+                style={{ marginTop: SPACING[3], alignSelf: 'stretch' }}
               />
             </CompleteMoment>
           </View>
@@ -171,67 +172,67 @@ export default function SuperlativesScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 18, paddingTop: 10, gap: 12, paddingBottom: 30 },
+  scroll: { padding: SPACING[4], paddingTop: SPACING[2.5], gap: SPACING[3], paddingBottom: SPACING[7] },
   completeWrap: { paddingTop: 70, alignItems: 'center' },
   intro: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
-    marginBottom: 4,
+    marginBottom: SPACING[1],
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 16,
+    padding: SPACING[4],
   },
   cardVoted: {
     borderColor: 'rgba(31,164,99,0.35)',
     backgroundColor: 'rgba(31,164,99,0.05)',
   },
-  cardEmoji: { fontSize: 28 },
+  cardEmoji: { fontSize: TYPE_SIZE.h1 },
   cardTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
   cardSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   votedBadge: {
     width: 26,
     height: 26,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickerCard: { padding: 20 },
+  pickerCard: { padding: SPACING[5] },
   pickerTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     letterSpacing: -0.34,
     color: COLORS.textPrimary,
-    marginBottom: 12,
+    marginBottom: SPACING[3],
   },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 9,
+    gap: SPACING[3],
+    paddingVertical: SPACING[2],
   },
   pickerName: {
     flex: 1,
     fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
 });

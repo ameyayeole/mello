@@ -7,9 +7,10 @@ import {
   Pressable,
 } from 'react-native';
 import { NearbyEvent } from '@/types/models';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatDistance } from '@/utils/distance';
 import { BOOST_EMOJI, BOOST_TINT } from '@/utils/boost';
 import { Avatar, CategoryTile, Icon, PressableScale } from '@/components/ui';
@@ -116,74 +117,74 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 32,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[2.5],
+    paddingBottom: SPACING[8],
   },
   handle: {
     alignSelf: 'center',
     width: 40,
     height: 5,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(15,24,44,0.15)',
-    marginBottom: 12,
+    marginBottom: SPACING[3],
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: SPACING[3],
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 18,
+    fontSize: TYPE_SIZE.sectionLg,
     letterSpacing: -0.3,
     color: COLORS.textPrimary,
   },
   list: { flexGrow: 0 },
-  listContent: { gap: 10, paddingBottom: 6 },
+  listContent: { gap: SPACING[2.5], paddingBottom: SPACING[1.5] },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.background,
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: RADIUS.lg,
+    padding: SPACING[3],
     borderWidth: 1,
     borderColor: 'rgba(255,106,43,0.25)',
   },
-  rowText: { flex: 1, minWidth: 0, gap: 3 },
+  rowText: { flex: 1, minWidth: 0, gap: SPACING[0.5] },
   rowTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
-  rowMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowMetaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   rowMeta: {
     flexShrink: 1,
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
   flamePill: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: RADIUS.lg,
     backgroundColor: BOOST_TINT,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  flamePillText: { fontSize: 16 },
-  empty: { alignItems: 'center', gap: 6, paddingVertical: 28 },
-  emptyEmoji: { fontSize: 38, marginBottom: 2 },
+  flamePillText: { fontSize: TYPE_SIZE.bodyLg },
+  empty: { alignItems: 'center', gap: SPACING[1.5], paddingVertical: SPACING[7] },
+  emptyEmoji: { fontSize: TYPE_SIZE.display, marginBottom: SPACING[0.5] },
   emptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     color: COLORS.textPrimary,
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: COLORS.textSecondary,
     textAlign: 'center',

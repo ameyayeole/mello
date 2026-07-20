@@ -17,6 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   TITLE_MAX,
@@ -64,7 +65,7 @@ import {
 } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
 import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
@@ -890,7 +891,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         style={styles.step}
                       >
                         <View style={styles.safetyRow}>
-                          <View style={{ flex: 1, paddingRight: 12 }}>
+                          <View style={{ flex: 1, paddingRight: SPACING[3] }}>
                             <Text style={styles.safetyLabel}>Public event</Text>
                             <Text style={styles.safetySub}>
                               {isPublic
@@ -906,7 +907,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           />
                         </View>
                         <View style={styles.safetyRow}>
-                          <View style={{ flex: 1, paddingRight: 12 }}>
+                          <View style={{ flex: 1, paddingRight: SPACING[3] }}>
                             <Text style={styles.safetyLabel}>Approve who joins</Text>
                             <Text style={styles.safetySub}>
                               {requiresApproval
@@ -924,7 +925,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         {/* Female-only hosting is offered to female profiles only. */}
                         {user?.gender === 'female' && (
                           <View style={styles.safetyRow}>
-                            <View style={{ flex: 1, paddingRight: 12 }}>
+                            <View style={{ flex: 1, paddingRight: SPACING[3] }}>
                               <Text style={styles.safetyLabel}>Female-only event</Text>
                               <Text style={styles.safetySub}>
                                 {womenOnly
@@ -1003,10 +1004,10 @@ const styles = StyleSheet.create({
   promptPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING[2],
     backgroundColor: COLORS.surface,
-    borderRadius: 100,
-    paddingHorizontal: 16,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING[4],
     height: 40,
     shadowColor: '#0F182C',
     shadowOpacity: 0.16,
@@ -1016,7 +1017,7 @@ const styles = StyleSheet.create({
   },
   promptText: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   pinHolder: {
@@ -1041,7 +1042,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  pinEmoji: { fontSize: 27, lineHeight: 34 },
+  pinEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
   ring: {
     position: 'absolute',
     width: PIN_SIZE + 6,
@@ -1070,7 +1071,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.surface,
-    paddingBottom: 30,
+    paddingBottom: SPACING[7],
     shadowColor: '#0F182C',
     shadowOpacity: 0.16,
     shadowRadius: 24,
@@ -1082,22 +1083,22 @@ const styles = StyleSheet.create({
   // edge; the header, card and sheet all meet the screen edges flat.
   headerSheet: {
     backgroundColor: COLORS.accent,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3],
+    paddingBottom: SPACING[3],
   },
-  cardBody: { paddingHorizontal: 20, paddingTop: 8 },
+  cardBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2] },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: SPACING[2],
   },
   backSlot: { width: 34, height: 34, justifyContent: 'center' },
   backBtn: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: RADIUS.lg,
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1121,11 +1122,11 @@ const styles = StyleSheet.create({
   locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: SPACING[1.5],
     maxWidth: '86%',
     height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
     shadowColor: '#0F182C',
     shadowOpacity: 0.16,
@@ -1136,25 +1137,25 @@ const styles = StyleSheet.create({
   locationText: {
     flexShrink: 1,
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: '#fff',
   },
-  stepArea: { height: 268, marginBottom: 12 },
+  stepArea: { height: 268, marginBottom: SPACING[3] },
   step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   stepTitle: {
     flex: 1,
     fontFamily: FONTS.heavy,
-    fontSize: 19,
+    fontSize: TYPE_SIZE.sectionLg,
     color: '#fff',
     textAlign: 'center',
   },
-  sectionPillRow: { flexGrow: 0, marginTop: 12, marginHorizontal: -20 },
-  sectionPillContent: { paddingHorizontal: 20, gap: 8 },
+  sectionPillRow: { flexGrow: 0, marginTop: SPACING[3], marginHorizontal: -20 },
+  sectionPillContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
   sectionPill: {
     height: 32,
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.08)',
@@ -1165,74 +1166,74 @@ const styles = StyleSheet.create({
   },
   sectionPillText: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
   sectionPillTextActive: { fontFamily: FONTS.bold, color: '#fff' },
-  typeScroll: { flex: 1, marginTop: 12, marginHorizontal: -4 },
-  typeScrollContent: { paddingHorizontal: 4, paddingBottom: 8 },
+  typeScroll: { flex: 1, marginTop: SPACING[3], marginHorizontal: -4 },
+  typeScrollContent: { paddingHorizontal: SPACING[1], paddingBottom: SPACING[2] },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 14,
+    rowGap: SPACING[3.5],
   },
-  typeItem: { width: '23%', alignItems: 'center', gap: 6 },
+  typeItem: { width: '23%', alignItems: 'center', gap: SPACING[1.5] },
   // Bare emoji, no plate. Only the selected type gets a tinted container.
   typeTile: {
     width: 58,
     height: 58,
-    borderRadius: 17,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeEmoji: { fontSize: 28, lineHeight: 34 },
+  typeEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
   typeLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.55)',
   },
   input: {
     height: 50,
     backgroundColor: COLORS.background,
-    borderRadius: 14,
-    paddingHorizontal: 15,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING[3.5],
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
-    marginTop: 16,
+    marginTop: SPACING[4],
   },
   multiline: {
     height: undefined,
     minHeight: 88,
-    paddingVertical: 12,
+    paddingVertical: SPACING[3],
     textAlignVertical: 'top',
     fontFamily: FONTS.medium,
-    fontSize: 14,
-    marginTop: 12,
+    fontSize: TYPE_SIZE.bodyMd,
+    marginTop: SPACING[3],
   },
   charCount: {
     fontFamily: FONTS.medium,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.35)',
     textAlign: 'right',
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
   label: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
     color: 'rgba(15,24,44,0.5)',
-    marginTop: 14,
-    marginBottom: 6,
+    marginTop: SPACING[3.5],
+    marginBottom: SPACING[1.5],
   },
-  startRow: { flexDirection: 'row', gap: 10 },
+  startRow: { flexDirection: 'row', gap: SPACING[2.5] },
   durScroll: { flexGrow: 0, marginHorizontal: -20 },
-  durScrollContent: { paddingHorizontal: 20, gap: 8 },
+  durScrollContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
   durChip: {
     height: 36,
-    paddingHorizontal: 15,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.background,
     borderWidth: 1.5,
     borderColor: 'transparent',
@@ -1245,21 +1246,21 @@ const styles = StyleSheet.create({
   },
   durChipText: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
   durChipTextActive: { color: COLORS.primary },
   durSummary: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
-    marginTop: 8,
+    marginTop: SPACING[2],
   },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
   stepperBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1267,7 +1268,7 @@ const styles = StyleSheet.create({
   stepperBtnOff: { opacity: 0.4 },
   stepperGlyph: {
     fontFamily: FONTS.bold,
-    fontSize: 20,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
     lineHeight: 24,
   },
@@ -1275,17 +1276,17 @@ const styles = StyleSheet.create({
     minWidth: 46,
     textAlign: 'center',
     fontFamily: FONTS.heavy,
-    fontSize: 21,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingVertical: SPACING[1],
+    paddingHorizontal: SPACING[1],
   },
   stepperHint: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
   },
-  photoWrap: { marginTop: 16, borderRadius: 16, overflow: 'hidden' },
+  photoWrap: { marginTop: SPACING[4], borderRadius: RADIUS.lg, overflow: 'hidden' },
   photoPreview: { width: '100%', height: 180 },
   photoRemove: {
     position: 'absolute',
@@ -1293,18 +1294,18 @@ const styles = StyleSheet.create({
     right: 8,
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     backgroundColor: 'rgba(15,24,44,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   photoEmpty: {
     alignItems: 'center',
-    gap: 4,
-    marginTop: 16,
-    paddingVertical: 30,
-    paddingHorizontal: 28,
-    borderRadius: 18,
+    gap: SPACING[1],
+    marginTop: SPACING[4],
+    paddingVertical: SPACING[7],
+    paddingHorizontal: SPACING[7],
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.06)',
@@ -1316,16 +1317,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING[2],
   },
   photoEmptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   photoEmptySub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: COLORS.textSecondary,
     textAlign: 'center',
@@ -1340,10 +1341,10 @@ const styles = StyleSheet.create({
     bottom: -24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 36,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[3],
+    paddingTop: SPACING[3],
+    paddingBottom: SPACING[8],
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
     backgroundColor: COLORS.background,
@@ -1351,7 +1352,7 @@ const styles = StyleSheet.create({
   photoFallbackText: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: COLORS.textSecondary,
   },
@@ -1359,17 +1360,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: SPACING[3.5],
   },
   safetyLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   safetySub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
 });

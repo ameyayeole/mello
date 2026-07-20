@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -14,7 +15,7 @@ import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
 import {
   ActivityGlyph,
@@ -349,58 +350,58 @@ const plusStyles = StyleSheet.create({
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 100,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2],
+    paddingVertical: SPACING[0.5],
+    borderRadius: RADIUS.full,
     backgroundColor: PREMIUM_GOLD_TINT,
   },
   tagText: {
     fontFamily: FONTS.bold,
-    fontSize: 10.5,
+    fontSize: TYPE_SIZE.nano,
     color: PREMIUM_GOLD,
   },
 });
 
 const styles = StyleSheet.create({
-  scroll: { padding: 16, paddingBottom: 24, gap: 4 },
-  sectionLabel: { marginTop: 14, marginBottom: 8, marginLeft: 4 },
+  scroll: { padding: SPACING[4], paddingBottom: SPACING[6], gap: SPACING[1] },
+  sectionLabel: { marginTop: SPACING[3.5], marginBottom: SPACING[2], marginLeft: SPACING[1] },
   sectionLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING[2],
   },
   toggleTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: SPACING[1.5],
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 14,
+    borderRadius: RADIUS['2xl'],
+    padding: SPACING[3.5],
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   cardHint: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
-    marginTop: 10,
-    marginLeft: 2,
+    marginTop: SPACING[2.5],
+    marginLeft: SPACING[0.5],
   },
   chipWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: SPACING[2],
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: SPACING[1.5],
     height: 36,
-    paddingHorizontal: 14,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.background,
     borderWidth: 1.5,
     borderColor: 'transparent',
@@ -411,21 +412,21 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
   chipTextActive: { color: COLORS.primary },
   chipHint: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 2,
+    gap: SPACING[3],
+    paddingVertical: SPACING[3],
+    paddingHorizontal: SPACING[0.5],
   },
   toggleRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -434,30 +435,30 @@ const styles = StyleSheet.create({
   toggleText: { flex: 1 },
   toggleTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   toggleSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   resetBtn: {
     height: 40,
-    paddingHorizontal: 12,
+    paddingHorizontal: SPACING[3],
     alignItems: 'center',
     justifyContent: 'center',
   },
   resetText: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.primary,
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
+    paddingHorizontal: SPACING[4],
+    paddingTop: SPACING[2.5],
+    paddingBottom: SPACING[2],
     backgroundColor: COLORS.background,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,

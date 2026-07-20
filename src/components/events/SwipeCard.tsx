@@ -1,11 +1,12 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { ExploreEvent } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
@@ -130,32 +131,32 @@ const styles = StyleSheet.create({
     top: 16,
     right: 16,
     backgroundColor: 'rgba(23,21,26,0.7)',
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1],
+    borderRadius: RADIUS.full,
   },
-  dateText: { fontFamily: FONTS.bold, fontSize: 11, color: '#fff' },
+  dateText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.micro, color: '#fff' },
   boostPill: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     height: 26,
-    paddingHorizontal: 11,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2.5],
+    borderRadius: RADIUS.full,
     backgroundColor: BOOST_ACCENT,
-    marginBottom: 10,
+    marginBottom: SPACING[2.5],
   },
-  boostPillText: { fontFamily: FONTS.heavy, fontSize: 12, color: '#fff' },
+  boostPillText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.caption, color: '#fff' },
   overlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 18,
+    padding: SPACING[4],
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 24,
+    fontSize: TYPE_SIZE.titleLg,
     lineHeight: 26,
     letterSpacing: -0.5,
     color: '#fff',
@@ -163,18 +164,18 @@ const styles = StyleSheet.create({
   hostRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    marginTop: 9,
+    gap: SPACING[1.5],
+    marginTop: SPACING[2],
   },
   hostName: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: '#fff',
     flexShrink: 1,
   },
   tail: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(255,255,255,0.75)',
     flexShrink: 1,
   },

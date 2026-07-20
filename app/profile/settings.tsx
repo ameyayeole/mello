@@ -7,12 +7,13 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { signOut, deleteAccount, updateProfile } from '@/services/auth.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
   Icon,
@@ -211,7 +212,7 @@ export default function SettingsScreen() {
             variant="tertiary"
             height={46}
             onPress={handleSignOut}
-            style={{ marginTop: 10 }}
+            style={{ marginTop: SPACING[2.5] }}
           />
         </Animated.View>
       </ScrollView>
@@ -220,13 +221,13 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingTop: 14 },
-  sectionLabel: { marginBottom: 8 },
+  scroll: { padding: SPACING[5], paddingTop: SPACING[3.5] },
+  sectionLabel: { marginBottom: SPACING[2] },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
-    marginBottom: 18,
+    marginBottom: SPACING[4],
     shadowColor: '#0F182C',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -236,9 +237,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[3.5],
   },
   rowBorder: {
     borderBottomWidth: 1,
@@ -247,13 +248,13 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowTitle: {
     fontFamily: FONTS.semibold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   rowSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
 });

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
@@ -10,7 +11,7 @@ import {
 import { reportUser, ReportReason } from '@/services/moderation.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { EventParticipant } from '@/types/models';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
@@ -200,10 +201,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 10,
+    borderRadius: RADIUS.md,
+    padding: SPACING[2.5],
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.07)',
   },
@@ -211,28 +212,28 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     minWidth: 0,
   },
   name: {
     flexShrink: 1,
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   approveBtn: {
     height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.xs,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  approveBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 12.5 },
+  approveBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: TYPE_SIZE.caption },
   iconBtn: {
     width: 34,
     height: 34,
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: '#F0F1F3',
     alignItems: 'center',
     justifyContent: 'center',

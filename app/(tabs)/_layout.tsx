@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
 import { COLORS } from '@/constants/colors';
@@ -110,8 +111,8 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: 'rgba(0,0,0,0.06)',
           height: 64,
-          paddingBottom: 10,
-          paddingTop: 8,
+          paddingBottom: SPACING[2.5],
+          paddingTop: SPACING[2],
           shadowColor: '#000',
           shadowOpacity: 0.05,
           shadowRadius: 3,
@@ -168,8 +169,8 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   avatarWrap: {
-    borderRadius: 15,
-    padding: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING[0.5],
   },
   avatarWrapActive: {
     borderWidth: 2,

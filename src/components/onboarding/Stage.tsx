@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from 'react';
+import { RADIUS } from '@/constants/spacing';
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import Animated, {
   FadeInUp,
@@ -22,7 +23,7 @@ import Svg, {
   Path,
 } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 
 // Shared illustration stage for the intro tour: soft radial backdrop with
 // drifting glow blobs, faded into the content surface at the bottom.
@@ -387,7 +388,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderRadius: RADIUS['2xl'],
     shadowColor: '#0F182C',
     shadowOpacity: 0.1,
     shadowRadius: 18,
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
   },
   clusterCount: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     color: '#fff',
   },
   mapPanel: {

@@ -1,10 +1,11 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import { ExploreEvent } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { relativeTime, formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { shortLocation } from '@/utils/location';
@@ -126,7 +127,7 @@ export default function ExploreEventCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     overflow: 'hidden',
     shadowColor: '#0F182C',
     shadowOpacity: 0.05,
@@ -134,71 +135,71 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  body: { padding: 14, gap: 8 },
-  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  body: { padding: SPACING[3.5], gap: SPACING[2] },
+  hostRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   hostText: { flex: 1, minWidth: 0 },
-  hostNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  hostNameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
   hostName: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
     flexShrink: 1,
   },
   hostSub: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.45)',
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   categoryBadge: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryEmoji: { fontSize: 15 },
+  categoryEmoji: { fontSize: TYPE_SIZE.body },
   boostBadge: {
     backgroundColor: BOOST_TINT,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2],
+    paddingVertical: SPACING[1],
+    borderRadius: RADIUS.full,
   },
   boostBadgeText: {
     fontFamily: FONTS.heavy,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: BOOST_ACCENT,
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     lineHeight: 21,
     color: COLORS.textPrimary,
   },
   description: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: COLORS.textSecondary,
     marginTop: -3,
   },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
   metaText: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.55)',
   },
   metaDot: { color: 'rgba(15,24,44,0.35)' },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
   attendeeStack: { flexDirection: 'row', alignItems: 'center' },
   attendeeRing: {
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     borderWidth: 2,
     borderColor: COLORS.surface,
   },
   goingText: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.5)',
   },
   banner: {

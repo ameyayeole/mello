@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import Animated, { ZoomIn, Easing } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, VerifiedBadge } from '@/components/ui';
 import { Stage, FloatingCard, PulseRing } from '../Stage';
 
@@ -57,8 +58,8 @@ const styles = StyleSheet.create({
   profileCard: {
     width: 216,
     alignItems: 'center',
-    paddingVertical: 22,
-    paddingHorizontal: 18,
+    paddingVertical: SPACING[5],
+    paddingHorizontal: SPACING[4],
     borderRadius: 26,
   },
   avatarBig: {
@@ -71,38 +72,38 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     fontFamily: FONTS.heavy,
-    fontSize: 24,
+    fontSize: TYPE_SIZE.titleLg,
     color: '#D6478E',
     letterSpacing: 0.5,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
+    gap: SPACING[1.5],
+    marginTop: SPACING[3],
   },
   name: {
     fontFamily: FONTS.heavy,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     letterSpacing: -0.34,
     color: COLORS.textPrimary,
   },
   handle: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   divider: {
     alignSelf: 'stretch',
     height: 1,
     backgroundColor: COLORS.border,
-    marginVertical: 13,
+    marginVertical: SPACING[3],
   },
-  trustRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trustRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   trustText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
   shieldBadge: {
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
   shieldCircle: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -140,21 +141,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3],
     height: 36,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
   chipLeft: { left: '7%', bottom: '24%' },
   chipRight: { right: '8%', bottom: '15%' },
   chipGlyph: {
     fontFamily: FONTS.heavy,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: '#D6478E',
   },
   chipText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
 });

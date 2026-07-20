@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 
 // Safety popup #9 — full-screen confirm before creating a female-only event.
@@ -47,7 +48,7 @@ export default function FemaleOnlyConfirmModal({
             Only women will be able to see and join this event.
           </Text>
           <View style={styles.noteCard}>
-            <View style={{ marginTop: 1 }}>
+            <View style={{ marginTop: SPACING[0.5] }}>
               <Icon name="shield" size={19} color={PURPLE} />
             </View>
             <Text style={styles.noteText}>
@@ -78,51 +79,51 @@ export default function FemaleOnlyConfirmModal({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.surface },
   glow: { position: 'absolute', top: -70, alignSelf: 'center' },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 88 },
+  content: { flex: 1, paddingHorizontal: SPACING[6], paddingTop: 88 },
   iconTile: {
     width: 56,
     height: 56,
-    borderRadius: 17,
+    borderRadius: RADIUS.lg,
     backgroundColor: PURPLE_TINT,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 24,
+    fontSize: TYPE_SIZE.titleLg,
     lineHeight: 29,
     letterSpacing: -0.5,
     color: COLORS.textPrimary,
-    marginTop: 18,
+    marginTop: SPACING[4],
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: 'rgba(15,24,44,0.6)',
-    marginTop: 12,
+    marginTop: SPACING[3],
   },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: SPACING[2.5],
     backgroundColor: PURPLE_TINT,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 15,
-    marginTop: 18,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING[3.5],
+    paddingHorizontal: SPACING[3.5],
+    marginTop: SPACING[4],
   },
   noteText: {
     flex: 1,
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: '#4A3D80',
   },
-  actions: { paddingHorizontal: 24, paddingBottom: 34 },
+  actions: { paddingHorizontal: SPACING[6], paddingBottom: SPACING[8] },
   confirmBtn: {
     height: 48,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     backgroundColor: PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
@@ -132,16 +133,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  confirmLabel: { fontFamily: FONTS.bold, fontSize: 15, color: '#fff' },
+  confirmLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.body, color: '#fff' },
   backBtn: {
     height: 40,
-    marginTop: 5,
+    marginTop: SPACING[1],
     alignItems: 'center',
     justifyContent: 'center',
   },
   backLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(15,24,44,0.55)',
   },
 });

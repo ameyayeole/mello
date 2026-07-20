@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { RADIUS } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { useUIStore } from '@/stores/uiStore';
@@ -36,7 +37,7 @@ const styles = StyleSheet.create({
     bottom: 24,
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',

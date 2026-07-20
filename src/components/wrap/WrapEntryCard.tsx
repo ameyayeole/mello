@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import { useWrap, useWrapEntry, wrapStepsDone, wrapStepTotal } from '@/hooks/useWrap';
 
@@ -55,40 +56,40 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.primaryTint,
     borderWidth: 1,
     borderColor: 'rgba(255,94,91,0.25)',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[3.5],
   },
   iconTile: {
     width: 42,
     height: 42,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     letterSpacing: -0.29,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   progressPill: {
-    paddingHorizontal: 9,
+    paddingHorizontal: SPACING[2],
     height: 24,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressText: { fontFamily: FONTS.heavy, fontSize: 11.5, color: '#fff' },
+  progressText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.micro, color: '#fff' },
 });

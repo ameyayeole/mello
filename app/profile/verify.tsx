@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -10,7 +11,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { startKycVerification, pollKycStatus } from '@/services/kyc.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, Screen, ScreenHeader, VerifiedBadge } from '@/components/ui';
 
 const STATUS_COPY: Record<
@@ -116,7 +117,7 @@ export default function VerifyIdentityScreen() {
               label={waiting ? 'Checking result…' : copy.cta}
               onPress={handleVerify}
               loading={busy}
-              style={{ marginTop: 18 }}
+              style={{ marginTop: SPACING[4] }}
             />
             <Text style={styles.consent}>
               By continuing you agree to share your ID document and selfie with
@@ -130,8 +131,8 @@ export default function VerifyIdentityScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingTop: 26 },
-  hero: { alignItems: 'center', marginBottom: 24 },
+  scroll: { padding: SPACING[5], paddingTop: SPACING[6] },
+  hero: { alignItems: 'center', marginBottom: SPACING[6] },
   heroIcon: {
     width: 72,
     height: 72,
@@ -142,24 +143,24 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 20,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
-    marginTop: 14,
+    marginTop: SPACING[3.5],
     textAlign: 'center',
   },
   body: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 20,
     color: COLORS.textSecondary,
-    marginTop: 8,
+    marginTop: SPACING[2],
     textAlign: 'center',
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
+    borderRadius: RADIUS.lg,
+    padding: SPACING[4],
+    gap: SPACING[2.5],
     shadowColor: '#0F182C',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -168,22 +169,22 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontFamily: FONTS.semibold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   cardBody: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
   },
   consent: {
     fontFamily: FONTS.medium,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     lineHeight: 16,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 12,
-    paddingHorizontal: 10,
+    marginTop: SPACING[3],
+    paddingHorizontal: SPACING[2.5],
   },
 });

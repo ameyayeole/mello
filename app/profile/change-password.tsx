@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { SPACING } from '@/constants/spacing';
 import { Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { verifyCurrentPassword, updatePassword } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
   Icon,
@@ -102,7 +103,7 @@ export default function ChangePasswordScreen() {
           onPress={handleSave}
           loading={saving}
           disabled={!current || !next || !confirm}
-          style={{ marginTop: 4 }}
+          style={{ marginTop: SPACING[1] }}
         />
       </Animated.View>
     </Screen>
@@ -110,12 +111,12 @@ export default function ChangePasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  form: { gap: 13, padding: 20, paddingTop: 10 },
+  form: { gap: SPACING[3], padding: SPACING[5], paddingTop: SPACING[2.5] },
   hint: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
-    marginBottom: 4,
+    marginBottom: SPACING[1],
   },
 });

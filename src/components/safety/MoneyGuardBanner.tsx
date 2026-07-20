@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
 import {
   looksLikeMoneyRequest,
@@ -72,7 +73,7 @@ export default function MoneyGuardBanner({
   return (
     <View style={styles.wrapper}>
       <View style={styles.card}>
-        <View style={{ marginTop: 1 }}>
+        <View style={{ marginTop: SPACING[0.5] }}>
           <Icon name="warning" size={18} color={AMBER} />
         </View>
         <View style={{ flex: 1 }}>
@@ -99,34 +100,34 @@ export default function MoneyGuardBanner({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { paddingHorizontal: 12, paddingBottom: 10 },
+  wrapper: { paddingHorizontal: SPACING[3], paddingBottom: SPACING[2.5] },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 9,
+    gap: SPACING[2],
     backgroundColor: '#FBF0E2',
     borderWidth: 1,
     borderColor: 'rgba(200,121,30,0.3)',
-    borderRadius: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 13,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING[2.5],
+    paddingHorizontal: SPACING[3],
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: AMBER_DARK,
   },
   body: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     lineHeight: 15,
     color: 'rgba(138,83,19,0.85)',
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   reportLink: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
-    marginTop: 7,
+    marginTop: SPACING[1.5],
   },
 });

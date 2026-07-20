@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import {
@@ -18,7 +19,7 @@ import { useUIStore, InAppBanner } from '@/stores/uiStore';
 import { openNotificationTarget } from '@/hooks/useNotifications';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName } from '@/components/ui';
 
 const HIDDEN_Y = -180;
@@ -148,14 +149,14 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     alignSelf: 'stretch',
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderRadius: RADIUS['2xl'],
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[3],
     shadowColor: '#0F182C',
     shadowOpacity: 0.14,
     shadowRadius: 18,
@@ -165,22 +166,22 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: RADIUS['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   textWrap: { flex: 1 },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   body: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: 'rgba(15,24,44,0.65)',
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   dot: {
     width: 8,
@@ -193,6 +194,6 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: 'rgba(15,24,44,0.12)',
-    marginTop: 5,
+    marginTop: SPACING[1],
   },
 });

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -17,7 +18,7 @@ import {
   markRead,
 } from '@/services/notifications.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Notification } from '@/types/models';
 import { relativeTime } from '@/utils/time';
 import {
@@ -330,45 +331,45 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   markAll: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
-  sectionLabel: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-  list: { paddingBottom: 24 },
+  sectionLabel: { paddingHorizontal: SPACING[5], paddingTop: SPACING[3], paddingBottom: SPACING[2] },
+  list: { paddingBottom: SPACING[6] },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[5],
+    paddingVertical: SPACING[2.5],
   },
   rowUnread: { backgroundColor: '#FFF6F5' },
   iconCircle: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: RADIUS['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowText: { flex: 1 },
   rowTitle: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: 'rgba(15,24,44,0.85)',
   },
   bold: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
   rowTime: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.4)',
-    marginTop: 4,
+    marginTop: SPACING[1],
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.primary,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
 });

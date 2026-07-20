@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -26,7 +27,7 @@ import { CheckinResult } from '@/types/models';
 import { hasWrapped } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import {
   Button,
@@ -183,7 +184,7 @@ export default function AttendeeScanScreen() {
               Checked in at {formatEventTime(checkedIn)}
             </Text>
             <Button
-  variant="tertiary" label="Done" onPress={() => router.back()} style={{ marginTop: 22, alignSelf: 'stretch' }} />
+  variant="tertiary" label="Done" onPress={() => router.back()} style={{ marginTop: SPACING[5], alignSelf: 'stretch' }} />
           </Animated.View>
         ) : (
           <>
@@ -262,7 +263,7 @@ export default function AttendeeScanScreen() {
                   height={46}
                   onPress={submitCode}
                   disabled={code.trim().length < 6 || busy}
-                  style={{ paddingHorizontal: 18 }}
+                  style={{ paddingHorizontal: SPACING[4] }}
                 />
               </View>
             </Animated.View>
@@ -278,85 +279,85 @@ export default function AttendeeScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingTop: 10, gap: 16, paddingBottom: 32 },
+  scroll: { padding: SPACING[5], paddingTop: SPACING[2.5], gap: SPACING[4], paddingBottom: SPACING[8] },
   notice: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 20,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 48,
-    paddingHorizontal: 24,
+    marginTop: SPACING[12],
+    paddingHorizontal: SPACING[6],
   },
-  eventRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  eventTitle: { fontFamily: FONTS.bold, fontSize: 17, color: COLORS.textPrimary },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-  metaText: { fontFamily: FONTS.semibold, fontSize: 13, color: 'rgba(15,24,44,0.6)' },
-  feedback: { borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14 },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3] },
+  eventTitle: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.section, color: COLORS.textPrimary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1], marginTop: SPACING[0.5] },
+  metaText: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.bodySm, color: 'rgba(15,24,44,0.6)' },
+  feedback: { borderRadius: RADIUS.sm, paddingVertical: SPACING[2.5], paddingHorizontal: SPACING[3.5] },
   feedbackError: { backgroundColor: COLORS.error },
   feedbackWarn: { backgroundColor: COLORS.warning },
-  feedbackText: { fontFamily: FONTS.semibold, fontSize: 13, color: '#fff' },
+  feedbackText: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
   scanCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
+    borderRadius: RADIUS['2xl'],
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.07)',
-    padding: 22,
+    padding: SPACING[5],
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
   },
   scanIcon: {
     width: 68,
     height: 68,
-    borderRadius: 20,
+    borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: SPACING[1],
   },
-  scanTitle: { fontFamily: FONTS.heavy, fontSize: 18, color: COLORS.textPrimary },
+  scanTitle: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.sectionLg, color: COLORS.textPrimary },
   scanBody: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: SPACING[2],
   },
   scanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
+    gap: SPACING[2],
     alignSelf: 'stretch',
     height: 52,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     backgroundColor: COLORS.primary,
-    marginTop: 8,
+    marginTop: SPACING[2],
   },
-  scanBtnText: { fontFamily: FONTS.bold, fontSize: 15.5, color: '#fff' },
+  scanBtnText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.body, color: '#fff' },
   codeCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 14,
-    gap: 10,
+    padding: SPACING[3.5],
+    gap: SPACING[2.5],
   },
-  codeLabel: { fontFamily: FONTS.semibold, fontSize: 13, color: COLORS.textSecondary },
-  codeInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  codeLabel: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.bodySm, color: COLORS.textSecondary },
+  codeInputRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   codeInput: {
     flex: 1,
     height: 46,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.background,
-    paddingHorizontal: 14,
+    paddingHorizontal: SPACING[3.5],
     fontFamily: FONTS.heavy,
-    fontSize: 18,
+    fontSize: TYPE_SIZE.sectionLg,
     letterSpacing: 3,
     color: COLORS.textPrimary,
   },
-  doneWrap: { alignItems: 'center', marginTop: 40, paddingHorizontal: 8 },
+  doneWrap: { alignItems: 'center', marginTop: SPACING[10], paddingHorizontal: SPACING[2] },
   doneBadge: {
     width: 96,
     height: 96,
@@ -364,15 +365,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: SPACING[5],
   },
-  doneTitle: { fontFamily: FONTS.heavy, fontSize: 22, color: COLORS.textPrimary },
+  doneTitle: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.title, color: COLORS.textPrimary },
   doneSub: {
     fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
-  doneTime: { fontFamily: FONTS.medium, fontSize: 13, color: COLORS.textMuted, marginTop: 8 },
+  doneTime: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.bodySm, color: COLORS.textMuted, marginTop: SPACING[2] },
 });

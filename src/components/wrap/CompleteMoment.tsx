@@ -1,7 +1,8 @@
 import { View, StyleSheet } from 'react-native';
+import { SPACING } from '@/constants/spacing';
 import Animated, { FadeIn, Easing } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
 
 // The calm "task complete" moment used across the wrap: a circle fills green,
@@ -46,7 +47,7 @@ export function CompleteMoment({
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: 8, paddingHorizontal: 28 },
+  wrap: { alignItems: 'center', gap: SPACING[2], paddingHorizontal: SPACING[7] },
   circle: {
     width: 96,
     height: 96,
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING[2],
     shadowColor: COLORS.success,
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -63,14 +64,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 20,
+    fontSize: TYPE_SIZE.title,
     letterSpacing: -0.4,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   DISCOVERY_FEED_KEYS,
   queryKeys,
@@ -30,7 +31,7 @@ import {
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Profile } from '@/types/models';
 import {
   Avatar,
@@ -494,10 +495,10 @@ export default function UserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 16, gap: 12, paddingBottom: 24 },
+  scroll: { padding: SPACING[4], gap: SPACING[3], paddingBottom: SPACING[6] },
   hero: {
     height: 300,
-    borderRadius: 20,
+    borderRadius: RADIUS['2xl'],
     overflow: 'hidden',
     backgroundColor: COLORS.surface,
     shadowColor: '#0F182C',
@@ -528,27 +529,27 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 16,
-    paddingBottom: 14,
+    padding: SPACING[4],
+    paddingBottom: SPACING[3.5],
   },
-  heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  heroName: { fontFamily: FONTS.heavy, fontSize: 23, color: '#fff' },
+  heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
+  heroName: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.titleLg, color: '#fff' },
   heroUsername: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(255,255,255,0.85)',
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 5,
+    gap: SPACING[1],
+    marginTop: SPACING[1],
   },
-  heroThumbs: { fontFamily: FONTS.bold, fontSize: 12, color: '#fff' },
+  heroThumbs: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#fff' },
   heroMeta: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(255,255,255,0.85)',
   },
   thumbsPill: {
@@ -556,10 +557,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
-    gap: 6,
+    gap: SPACING[1.5],
     height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[4],
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(31,164,99,0.10)',
   },
   thumbsPillActive: {
@@ -568,12 +569,12 @@ const styles = StyleSheet.create({
   },
   thumbsCount: {
     fontFamily: FONTS.heavy,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.success,
   },
   thumbsLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.success,
   },
   stats: {
@@ -581,8 +582,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING[3.5],
     shadowColor: '#0F182C',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -592,14 +593,14 @@ const styles = StyleSheet.create({
   stat: { alignItems: 'center', flex: 1 },
   statValue: {
     fontFamily: FONTS.heavy,
-    fontSize: 19,
+    fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
   },
   statLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.5)',
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   statDivider: {
     width: 1,
@@ -608,8 +609,8 @@ const styles = StyleSheet.create({
   },
   promptCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: RADIUS.lg,
+    padding: SPACING[4],
     shadowColor: '#0F182C',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -618,50 +619,50 @@ const styles = StyleSheet.create({
   },
   promptLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.5)',
   },
   promptText: {
     fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     lineHeight: 20,
     color: COLORS.textPrimary,
-    marginTop: 5,
+    marginTop: SPACING[1],
   },
-  sectionLabel: { marginTop: 6, marginBottom: 10, marginLeft: 4 },
+  sectionLabel: { marginTop: SPACING[1.5], marginBottom: SPACING[2.5], marginLeft: SPACING[1] },
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: SPACING[2.5],
   },
   photo: {
     width: '48%',
     aspectRatio: 1,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.surface,
   },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2] },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3],
     height: 34,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
-  pillLabel: { fontFamily: FONTS.bold, fontSize: 12.5 },
-  blockedBanner: { alignItems: 'center', gap: 10, marginTop: 8 },
+  pillLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption },
+  blockedBanner: { alignItems: 'center', gap: SPACING[2.5], marginTop: SPACING[2] },
   blockedText: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textSecondary,
   },
   actionBar: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3],
+    paddingBottom: SPACING[2],
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
     borderTopColor: 'rgba(15,24,44,0.08)',
@@ -669,7 +670,7 @@ const styles = StyleSheet.create({
   squareBtn: {
     width: 46,
     height: 46,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',

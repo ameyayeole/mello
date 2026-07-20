@@ -26,6 +26,7 @@ export const SPACING = {
   6: 24,
   7: 28,
   8: 32,
+  10: 40,
   12: 48,
 } as const;
 
@@ -34,8 +35,10 @@ export const SPACING = {
 // express 14 or 18 — respectively the second and fourth most common radii in
 // the codebase — which is a large part of why it had zero importers.
 //
-// `full` is for circles and the few genuinely round elements. It is not for
-// buttons: the app has no pill buttons, deliberately.
+// `full` is for pills. Circles are NOT on this scale: a circle's radius is
+// half its own width (borderRadius 48 on a 96px tile), which is geometry, not a
+// corner style — snapping those to a step turns circles into rounded squares.
+// Any radius above '3xl' in the codebase is deliberately left as a raw number.
 export const RADIUS = {
   xs: 10,
   sm: 12,

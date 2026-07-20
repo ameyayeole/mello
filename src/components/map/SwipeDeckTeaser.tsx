@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -17,7 +18,7 @@ import { ExploreEvent } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PressableScale } from '@/components/ui';
 
 // Front card sits upright-ish; the two behind fan away to the left, like a
@@ -164,14 +165,14 @@ const styles = StyleSheet.create({
     height: 138,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingBottom: 4,
+    paddingBottom: SPACING[1],
   },
   mini: {
     position: 'absolute',
     bottom: 0,
     width: 82,
     height: 110,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     borderWidth: 2.5,
     borderColor: '#fff',
     overflow: 'hidden',
@@ -183,19 +184,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  miniEmoji: { fontSize: 36 },
+  miniEmoji: { fontSize: TYPE_SIZE.display },
   miniEmojiBadge: {
     position: 'absolute',
     bottom: 5,
     left: 5,
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  miniBadgeEmoji: { fontSize: 12 },
+  miniBadgeEmoji: { fontSize: TYPE_SIZE.caption },
   countBadge: {
     position: 'absolute',
     top: 12,
@@ -203,23 +204,23 @@ const styles = StyleSheet.create({
     zIndex: 4,
     minWidth: 24,
     height: 24,
-    borderRadius: 12,
-    paddingHorizontal: 6,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING[1.5],
     backgroundColor: COLORS.primary,
     borderWidth: 2,
     borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countText: { fontFamily: FONTS.heavy, fontSize: 11.5, color: '#fff' },
+  countText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.micro, color: '#fff' },
   labelPill: {
     position: 'absolute',
     top: 4,
     left: 0,
     zIndex: 4,
     height: 26,
-    paddingHorizontal: 11,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
   },
   labelText: {
     fontFamily: FONTS.heavy,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
 });

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { exchangeAuthCode } from '@/services/auth.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, CoralGlow, Icon, Loader, Screen } from '@/components/ui';
 
 type Phase = 'verifying' | 'done' | 'invalid';
@@ -55,7 +56,7 @@ export default function ConfirmScreen() {
               variant="tertiary"
               label="Back to sign in"
               onPress={() => router.replace('/auth/login')}
-              style={{ alignSelf: 'stretch', marginTop: 12 }}
+              style={{ alignSelf: 'stretch', marginTop: SPACING[3] }}
             />
           </>
         )}
@@ -74,18 +75,18 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
-    padding: 24,
+    gap: SPACING[3.5],
+    padding: SPACING[6],
     paddingBottom: 80,
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: TYPE_SIZE.titleLg,
     color: COLORS.textPrimary,
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: COLORS.textSecondary,
   },

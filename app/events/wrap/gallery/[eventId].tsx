@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -25,7 +26,7 @@ import {
 import { deleteWrapPhoto } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PhotoReportReason, WrapPhoto } from '@/types/models';
 import {
   Avatar,
@@ -343,48 +344,48 @@ export default function WrapGalleryScreen() {
 }
 
 const styles = StyleSheet.create({
-  grid: { padding: 14, gap: 8, paddingBottom: 30 },
-  column: { gap: 8 },
-  empty: { alignItems: 'center', gap: 8, paddingTop: 90, paddingHorizontal: 40 },
+  grid: { padding: SPACING[3.5], gap: SPACING[2], paddingBottom: SPACING[7] },
+  column: { gap: SPACING[2] },
+  empty: { alignItems: 'center', gap: SPACING[2], paddingTop: 90, paddingHorizontal: SPACING[10] },
   emptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     color: COLORS.textPrimary,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
   emptyBtn: {
-    marginTop: 8,
-    paddingHorizontal: 20,
+    marginTop: SPACING[2],
+    paddingHorizontal: SPACING[5],
     height: 40,
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyBtnText: { fontFamily: FONTS.bold, fontSize: 13.5, color: '#fff' },
+  emptyBtnText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
   viewerRoot: { flex: 1, backgroundColor: 'rgba(8,12,22,0.98)' },
   viewerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[2],
   },
-  viewerUploader: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  viewerName: { fontFamily: FONTS.bold, fontSize: 14.5, color: '#fff' },
-  viewerHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  viewerUploader: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
+  viewerName: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
+  viewerHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING[0.5] },
   viewerImageWrap: { flex: 1, justifyContent: 'center' },
   viewerImage: { width: '100%', height: '100%' },
-  viewerPanel: { padding: 16, paddingTop: 10, gap: 10 },
+  viewerPanel: { padding: SPACING[4], paddingTop: SPACING[2.5], gap: SPACING[2.5] },
   viewerCaption: {
     fontFamily: FONTS.semibold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 20,
     color: '#fff',
   },
@@ -392,48 +393,48 @@ const styles = StyleSheet.create({
   likeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 15,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3.5],
     height: 38,
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
   likeBtnOn: { backgroundColor: COLORS.primary },
-  likeText: { fontFamily: FONTS.bold, fontSize: 14, color: '#fff' },
+  likeText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
   likeTextOn: { color: '#fff' },
   commentList: { maxHeight: 120 },
   commentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    paddingVertical: 5,
+    gap: SPACING[2],
+    paddingVertical: SPACING[1],
   },
   commentAuthor: { fontFamily: FONTS.bold, color: '#fff' },
   commentText: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: 'rgba(255,255,255,0.85)',
   },
   commentComposer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING[2],
   },
   commentInput: {
     flex: 1,
     height: 42,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 16,
+    paddingHorizontal: SPACING[4],
     fontFamily: FONTS.semibold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: '#fff',
   },
   commentedNote: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(255,255,255,0.55)',
   },
 });

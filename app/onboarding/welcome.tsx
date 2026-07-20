@@ -1,4 +1,5 @@
 import { useRef, useState, ComponentType } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -20,7 +21,7 @@ import Animated, {
   SharedValue,
 } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Screen } from '@/components/ui';
 import { DiscoverScene } from '@/components/onboarding/scenes/DiscoverScene';
 import { CreateScene } from '@/components/onboarding/scenes/CreateScene';
@@ -159,25 +160,25 @@ const styles = StyleSheet.create({
     top: 62,
     right: 22,
     zIndex: 10,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingVertical: SPACING[1],
+    paddingHorizontal: SPACING[1],
   },
   skipText: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textMuted,
   },
   scroller: { flex: 1 },
   sceneWrap: { flex: 1 },
   textBlock: {
-    paddingHorizontal: 30,
-    paddingTop: 4,
-    paddingBottom: 10,
+    paddingHorizontal: SPACING[7],
+    paddingTop: SPACING[1],
+    paddingBottom: SPACING[2.5],
     minHeight: 118,
   },
   headline: {
     fontFamily: FONTS.heading,
-    fontSize: 28,
+    fontSize: TYPE_SIZE.h1,
     lineHeight: 32,
     letterSpacing: -0.7,
     color: COLORS.textPrimary,
@@ -185,27 +186,27 @@ const styles = StyleSheet.create({
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 20,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: SPACING[2.5],
   },
   actions: {
-    paddingHorizontal: 26,
-    paddingBottom: 18,
-    gap: 14,
+    paddingHorizontal: SPACING[6],
+    paddingBottom: SPACING[4],
+    gap: SPACING[3.5],
   },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
+    gap: SPACING[1.5],
   },
-  dot: { height: 6, borderRadius: 10 },
+  dot: { height: 6, borderRadius: RADIUS.xs },
   loginLink: {
     textAlign: 'center',
     fontFamily: FONTS.semibold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textSecondary,
   },
   loginLinkBold: { color: COLORS.primary, fontFamily: FONTS.bold },

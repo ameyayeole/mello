@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -24,7 +25,7 @@ import RateCard from '@/components/wrap/RateCard';
 import { NoteComposer } from '@/components/wrap/NoteComposer';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CoAttendee } from '@/types/models';
 import {
   Button,
@@ -177,7 +178,7 @@ export default function RatePeopleScreen() {
                 label="Back to the wrap"
                 height={44}
                 onPress={() => router.back()}
-                style={{ marginTop: 12, alignSelf: 'stretch' }}
+                style={{ marginTop: SPACING[3], alignSelf: 'stretch' }}
               />
             </CompleteMoment>
           </View>
@@ -292,8 +293,8 @@ variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
 const styles = StyleSheet.create({
   deckArea: {
     flex: 1,
-    margin: 16,
-    marginTop: 10,
+    margin: SPACING[4],
+    marginTop: SPACING[2.5],
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -308,42 +309,42 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 24,
     borderWidth: 4,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[1.5],
     backgroundColor: 'rgba(255,255,255,0.9)',
   },
   upStamp: { left: 20, borderColor: COLORS.success },
   downStamp: { right: 20, borderColor: COLORS.error },
-  stampEmoji: { fontSize: 34 },
+  stampEmoji: { fontSize: TYPE_SIZE.display },
   doneWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     alignSelf: 'stretch',
   },
   emptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',
     maxWidth: 250,
-    marginBottom: 6,
+    marginBottom: SPACING[1.5],
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
-    paddingTop: 6,
-    paddingBottom: 18,
+    gap: SPACING[4],
+    paddingTop: SPACING[1.5],
+    paddingBottom: SPACING[4],
   },
   actionBtn: {
     width: 62,
@@ -360,5 +361,5 @@ const styles = StyleSheet.create({
   },
   smallActionBtn: { width: 50, height: 50, borderRadius: 25 },
   actionDisabled: { opacity: 0.4 },
-  actionEmoji: { fontSize: 27 },
+  actionEmoji: { fontSize: TYPE_SIZE.h1 },
 });

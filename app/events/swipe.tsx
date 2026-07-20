@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -28,7 +29,7 @@ import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import {
   Button,
@@ -295,7 +296,7 @@ export default function SwipeDeckScreen() {
                   label="Get Mello+ · unlimited swipes"
                   height={44}
                   onPress={() => router.push('/premium?reason=swipes')}
-                  style={{ marginTop: 8 }}
+                  style={{ marginTop: SPACING[2] }}
                 />
               </View>
             </View>
@@ -324,7 +325,7 @@ export default function SwipeDeckScreen() {
                   label={isError ? 'Retry' : 'Check again'}
                   height={44}
                   onPress={() => refetch()}
-                  style={{ marginTop: 8 }}
+                  style={{ marginTop: SPACING[2] }}
                 />
               </View>
             </View>
@@ -454,16 +455,16 @@ const styles = StyleSheet.create({
     // No safe-area inset here: this screen is presented as a modal, so the card
     // already clears the notch. Adding insets.top on top of that double-padded
     // the header by the full status-bar height.
-    paddingTop: 14,
-    paddingBottom: 16,
+    paddingTop: SPACING[3.5],
+    paddingBottom: SPACING[4],
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
   headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   deckArea: {
     flex: 1,
-    margin: 16,
-    marginTop: 10,
+    margin: SPACING[4],
+    marginTop: SPACING[2.5],
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -478,16 +479,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 24,
     borderWidth: 4,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[1],
     backgroundColor: 'rgba(255,255,255,0.88)',
   },
   likeStamp: { left: 20, borderColor: COLORS.success },
   nopeStamp: { right: 20, borderColor: COLORS.error },
   stampText: {
     fontFamily: FONTS.heavy,
-    fontSize: 30,
+    fontSize: TYPE_SIZE.h1,
     letterSpacing: 2,
   },
   feedbackPill: {
@@ -495,24 +496,24 @@ const styles = StyleSheet.create({
     bottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: SPACING[1.5],
     height: 38,
-    paddingHorizontal: 16,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[4],
+    borderRadius: RADIUS.full,
     shadowColor: '#000',
     shadowOpacity: 0.22,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  feedbackText: { fontFamily: FONTS.bold, fontSize: 13.5, color: '#fff' },
+  feedbackText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 22,
-    paddingTop: 6,
-    paddingBottom: 26,
+    gap: SPACING[5],
+    paddingTop: SPACING[1.5],
+    paddingBottom: SPACING[6],
   },
   actionBtn: {
     width: 56,
@@ -553,7 +554,7 @@ const styles = StyleSheet.create({
     right: -2,
     width: 18,
     height: 18,
-    borderRadius: 9,
+    borderRadius: RADIUS.xs,
     backgroundColor: PREMIUM_GOLD_TINT,
     alignItems: 'center',
     justifyContent: 'center',
@@ -562,12 +563,12 @@ const styles = StyleSheet.create({
   },
   placeholderCard: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 28,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[7],
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 14,
@@ -581,16 +582,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: SPACING[1.5],
   },
   emptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',

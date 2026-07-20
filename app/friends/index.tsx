@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ import { usePresence } from '@/hooks/usePresence';
 import { useAuthStore } from '@/stores/authStore';
 import { searchUsers } from '@/services/friends.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Friendship } from '@/types/models';
 import {
   Avatar,
@@ -252,83 +253,83 @@ const styles = StyleSheet.create({
   headerIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchWrap: { paddingHorizontal: 20, paddingBottom: 12 },
+  searchWrap: { paddingHorizontal: SPACING[5], paddingBottom: SPACING[3] },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     height: 42,
-    paddingHorizontal: 15,
+    paddingHorizontal: SPACING[3.5],
     backgroundColor: COLORS.background,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
   searchInput: {
     flex: 1,
     height: '100%',
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
-  list: { paddingHorizontal: 20, paddingBottom: 24 },
-  sectionLabel: { marginTop: 8, marginBottom: 8, fontSize: 12 },
+  list: { paddingHorizontal: SPACING[5], paddingBottom: SPACING[6] },
+  sectionLabel: { marginTop: SPACING[2], marginBottom: SPACING[2], fontSize: TYPE_SIZE.caption },
   friendRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 9,
+    gap: SPACING[3],
+    paddingVertical: SPACING[2],
   },
   pendingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
+    gap: SPACING[3],
+    paddingVertical: SPACING[2],
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 9,
+    gap: SPACING[3],
+    paddingVertical: SPACING[2],
   },
   searchRowMain: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
   },
   friendInfo: { flex: 1, minWidth: 0 },
   searchRowInfo: { flex: 1, minWidth: 0 },
   searchUsername: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   friendName: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   friendStatus: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.5)',
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   statusLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    paddingHorizontal: 10,
+    paddingHorizontal: SPACING[2.5],
   },
   declineBtn: {
     width: 34,
     height: 34,
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.12)',

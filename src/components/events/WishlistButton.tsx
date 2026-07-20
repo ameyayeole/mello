@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { useSavedEventIds } from '@/hooks/useSwipeDeck';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 
 // Circular "open the wishlist" button. The bookmark fills in and a count badge
@@ -73,13 +74,13 @@ const styles = StyleSheet.create({
     right: -3,
     minWidth: 19,
     height: 19,
-    borderRadius: 10,
-    paddingHorizontal: 5,
+    borderRadius: RADIUS.xs,
+    paddingHorizontal: SPACING[1],
     backgroundColor: COLORS.primary,
     borderWidth: 2,
     borderColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { fontFamily: FONTS.heavy, fontSize: 10, color: '#fff' },
+  badgeText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.nano, color: '#fff' },
 });
