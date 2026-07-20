@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
-  SafeAreaView,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import * as ImagePicker from 'expo-image-picker';
 import { useEventChat } from '@/hooks/useEventChat';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useAuthStore } from '@/stores/authStore';
@@ -31,7 +30,6 @@ import {
 } from '@/services/chat.service';
 import { getChatPrefs, setChatMuted, chatKey } from '@/services/chatPrefs.service';
 import { hasWrapped } from '@/services/wrap.service';
-import { reportUser, ReportReason } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { Message } from '@/types/models';
@@ -41,6 +39,7 @@ import {
   CategoryTile,
   Icon,
   IconButton,
+  NavButton,
   PressableScale,
 } from '@/components/ui';
 import {
@@ -61,6 +60,12 @@ import {
   activeMentionQuery,
   insertMention,
 } from '@/components/chat';
+import {
+  messageExcerpt,
+  pickChatImage,
+  promptReportMessage,
+} from '@/utils/chatActions';
+import { showError } from '@/utils/errors';
 
 function tickStatus(message: Message, read: boolean): TickStatus {
   if (message._status === 'sending') return 'sending';
@@ -221,7 +226,7 @@ export default function GroupChatScreen() {
   });
 
   const prefsQuery = useQuery({
-    queryKey: ['chatPrefs', user?.id],
+    queryKey: queryKeys.chatPrefs.of(user?.id),
     queryFn: () => getChatPrefs(user!.id),
     enabled: !!user,
   });
@@ -307,37 +312,17 @@ export default function GroupChatScreen() {
 
   async function handleAttach() {
     if (!user) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.5,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    sendImage(user.id, result.assets[0].uri);
+    const uri = await pickChatImage();
+    if (uri) sendImage(user.id, uri);
   }
 
   function reportMessage(message: Message) {
     if (!user) return;
-    const excerpt =
-      message.type === 'image' ? '[photo]' : message.content.slice(0, 140);
-    const doReport = (reason: ReportReason) =>
-      reportUser(
-        user.id,
-        message.sender_id,
-        reason,
-        `Chat message ${message.id} in event ${eventId}: "${excerpt}"`
-      )
-        .then(() =>
-          Alert.alert('Report sent', 'Thanks — our team will review this.')
-        )
-        .catch((e: any) => Alert.alert('Error', e.message));
-
-    Alert.alert('Report message', 'Why are you reporting this?', [
-      { text: 'Spam', onPress: () => doReport('spam') },
-      { text: 'Harassment', onPress: () => doReport('harassment') },
-      { text: 'Inappropriate content', onPress: () => doReport('inappropriate') },
-      { text: 'Other', onPress: () => doReport('other') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    promptReportMessage({
+      reporterId: user.id,
+      offenderId: message.sender_id,
+      context: `Chat message ${message.id} in event ${eventId}: "${messageExcerpt(message)}"`,
+    });
   }
 
   function kickParticipant(message: Message) {
@@ -354,8 +339,8 @@ export default function GroupChatScreen() {
             try {
               await removeParticipant(eventId, message.sender_id);
               refreshDetail();
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
+            } catch (e) {
+              showError(e);
             }
           },
         },
@@ -384,8 +369,8 @@ export default function GroupChatScreen() {
           try {
             await pinEventMessage(eventId, message.id);
             refreshDetail();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+          } catch (e) {
+            showError(e);
           }
         },
       });
@@ -429,9 +414,9 @@ export default function GroupChatScreen() {
         onPress: async () => {
           try {
             await setChatMuted(user.id, 'event', eventId, !muted);
-            qc.invalidateQueries({ queryKey: ['chatPrefs', user.id] });
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+            qc.invalidateQueries({ queryKey: queryKeys.chatPrefs.of(user.id) });
+          } catch (e) {
+            showError(e);
           }
         },
       },
@@ -454,8 +439,8 @@ export default function GroupChatScreen() {
             try {
               await setChatLocked(eventId, !locked);
               refreshDetail();
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
+            } catch (e) {
+              showError(e);
             }
           },
         }
@@ -470,11 +455,8 @@ export default function GroupChatScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          color="#fff"
-          style={styles.headerBtn}
+        <NavButton
+          color={COLORS.white}
           onPress={() => router.navigate('/(tabs)/chats')}
           accessibilityLabel="Go back"
         />
@@ -534,8 +516,8 @@ export default function GroupChatScreen() {
                   try {
                     await pinEventMessage(eventId, null);
                     refreshDetail();
-                  } catch (e: any) {
-                    Alert.alert('Error', e.message);
+                  } catch (e) {
+                    showError(e);
                   }
                 }
               : undefined
@@ -627,8 +609,7 @@ export default function GroupChatScreen() {
               placeholderTextColor="rgba(15,24,44,0.40)"
               value={input}
               onChangeText={setInput}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
+              multiline
               autoCapitalize="none"
             />
             <PressableScale
@@ -695,12 +676,12 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   headerSub: {
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.medium,
     fontSize: 11.5,
     color: 'rgba(255,255,255,0.6)',
     marginTop: 1,
   },
-  messageList: { padding: 16, gap: 10 },
+  messageList: { padding: 16, gap: 10, flexGrow: 1 },
   systemRow: { alignItems: 'center', marginVertical: 4 },
   systemText: {
     fontFamily: FONTS.semibold,
@@ -864,7 +845,8 @@ const styles = StyleSheet.create({
   },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    // flex-end so the send button stays pinned to the bottom of a grown input.
+    alignItems: 'flex-end',
     gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -875,17 +857,21 @@ const styles = StyleSheet.create({
   inputBarAnnounce: { backgroundColor: '#FFF6E9' },
   attachBtn: {
     width: 38,
-    height: 38,
-    borderRadius: 19,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    height: 42,
+    // Grows with the message instead of scrolling a single line sideways,
+    // matching the DM screen. The radius is half the collapsed height so it
+    // still reads as a pill when empty.
+    minHeight: 42,
+    maxHeight: 120,
     backgroundColor: '#F0F1F3',
-    borderRadius: 100,
+    borderRadius: 21,
     paddingHorizontal: 16,
+    paddingVertical: 11,
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: COLORS.textPrimary,

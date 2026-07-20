@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocation } from '@/hooks/useLocation';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, IconName } from '@/components/ui';
+import { Button, Icon, IconName, Screen } from '@/components/ui';
 
 type PermKey = 'location' | 'notifications' | 'camera';
 
@@ -75,7 +75,7 @@ export default function PermissionsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen>
       <View style={styles.content}>
         <Animated.View entering={FadeInDown.duration(400)}>
           <Text style={styles.title}>A couple of{'\n'}quick things</Text>
@@ -112,12 +112,11 @@ export default function PermissionsScreen() {
       <View style={styles.actions}>
         <Button label="Continue" onPress={handleContinue} />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   content: {
     flex: 1,
     paddingHorizontal: 24,

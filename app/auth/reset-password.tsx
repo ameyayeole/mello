@@ -3,11 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
-  SafeAreaView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
@@ -18,7 +14,7 @@ import { friendlyAuthError } from '@/utils/authErrors';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, CoralGlow } from '@/components/ui';
+import { Button, CoralGlow, Icon, Screen, TextField } from '@/components/ui';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -40,7 +36,6 @@ export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [focused, setFocused] = useState<'password' | 'confirm' | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -72,7 +67,7 @@ export default function ResetPasswordScreen() {
       await updatePassword(password);
       Alert.alert('Password updated', 'You’re signed in with your new password.');
       router.replace('/(tabs)/map');
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', friendlyAuthError(e));
     } finally {
       setSaving(false);
@@ -80,12 +75,9 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen background={COLORS.surface} keyboardAvoiding>
       <CoralGlow size={320} style={styles.glow} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.inner}
-      >
+      <View style={styles.inner}>
         {phase === 'verifying' && (
           <View style={styles.center}>
             <ActivityIndicator color={COLORS.primary} />
@@ -101,6 +93,7 @@ export default function ResetPasswordScreen() {
                 'This reset link is invalid or has expired. Request a new one — and make sure you open it on this phone.'}
             </Text>
             <Button
+              variant="tertiary"
               label="Request a new link"
               onPress={() => router.replace('/auth/forgot-password')}
               style={{ alignSelf: 'stretch', marginTop: 12 }}
@@ -125,55 +118,40 @@ export default function ResetPasswordScreen() {
               entering={FadeInUp.delay(150).duration(500)}
               style={styles.form}
             >
-              <View
-                style={[
-                  styles.passwordRow,
-                  focused === 'password' && styles.inputFocused,
-                ]}
-              >
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="New password"
-                  placeholderTextColor="rgba(15,24,44,0.40)"
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocused('password')}
-                  onBlur={() => setFocused(null)}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoFocus
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  hitSlop={10}
-                  accessibilityLabel={
-                    showPassword ? 'Hide password' : 'Show password'
-                  }
-                >
-                  <Icon
-                    name={showPassword ? 'eyeOff' : 'eye'}
-                    size={20}
-                    color={COLORS.textMuted}
-                  />
-                </TouchableOpacity>
-              </View>
+              <TextField
+                placeholder="New password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoFocus
+                trailing={
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    hitSlop={10}
+                    accessibilityLabel={
+                      showPassword ? 'Hide password' : 'Show password'
+                    }
+                  >
+                    <Icon
+                      name={showPassword ? 'eyeOff' : 'eye'}
+                      size={20}
+                      color={COLORS.textMuted}
+                    />
+                  </TouchableOpacity>
+                }
+              />
 
-              <TextInput
-                style={[
-                  styles.input,
-                  focused === 'confirm' && styles.inputFocused,
-                ]}
+              <TextField
                 placeholder="Confirm new password"
-                placeholderTextColor="rgba(15,24,44,0.40)"
                 value={confirm}
                 onChangeText={setConfirm}
-                onFocus={() => setFocused('confirm')}
-                onBlur={() => setFocused(null)}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
 
               <Button
+                variant="primary"
                 label="Update password"
                 onPress={handleSave}
                 loading={saving}
@@ -183,13 +161,12 @@ export default function ResetPasswordScreen() {
             </Animated.View>
           </>
         )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
   glow: {
     position: 'absolute',
     top: -80,

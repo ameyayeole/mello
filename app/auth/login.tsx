@@ -3,11 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
-  SafeAreaView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -24,7 +20,8 @@ import {
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, MelloWordmark, CoralGlow } from '@/components/ui';
+import { Button, CoralGlow, Icon, MelloWordmark, Screen, TextField } from '@/components/ui';
+import { errorMessage } from '@/utils/errors';
 
 type Mode = 'signin' | 'signup';
 
@@ -37,7 +34,6 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [focused, setFocused] = useState<'email' | 'password' | null>(null);
   const [loading, setLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
   // Set when signup (or an unverified sign-in) is waiting on the email
@@ -54,7 +50,7 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signInWithGoogle();
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', friendlyAuthError(e));
     } finally {
       setLoading(false);
@@ -65,7 +61,7 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signInWithApple();
-    } catch (e: any) {
+    } catch (e) {
       if (!(e instanceof AppleSignInCancelled)) {
         Alert.alert('Error', friendlyAuthError(e));
       }
@@ -78,7 +74,7 @@ export default function LoginScreen() {
     try {
       await resendSignupEmail(to);
       Alert.alert('Sent', `We sent a new confirmation link to ${to}.`);
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', friendlyAuthError(e));
     }
   }
@@ -105,8 +101,8 @@ export default function LoginScreen() {
         const { needsConfirmation } = await signUpWithEmail(trimmed, password);
         if (needsConfirmation) setConfirmEmailSentTo(trimmed);
       }
-    } catch (e: any) {
-      const msg = String(e?.message ?? '').toLowerCase();
+    } catch (e) {
+      const msg = errorMessage(e, '').toLowerCase();
       if (msg.includes('email not confirmed')) {
         Alert.alert(
           'Email not verified',
@@ -125,12 +121,9 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen background={COLORS.surface} keyboardAvoiding>
       <CoralGlow size={320} style={styles.glow} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.inner}
-      >
+      <View style={styles.inner}>
         <Animated.View entering={FadeInDown.duration(500)} style={styles.header}>
           <MelloWordmark size={46} />
           <Text style={styles.tagline}>Drop a pin.{'\n'}Find your people.</Text>
@@ -150,6 +143,7 @@ export default function LoginScreen() {
               .{'\n'}Open it on this phone to activate your account.
             </Text>
             <Button
+              variant="tertiary"
               label="Resend link"
               onPress={() => handleResendConfirmation(confirmEmailSentTo)}
             />
@@ -190,48 +184,35 @@ export default function LoginScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TextInput
-            style={[styles.input, focused === 'email' && styles.inputFocused]}
+          <TextField
             placeholder="Email address"
-            placeholderTextColor="rgba(15,24,44,0.40)"
             value={email}
             onChangeText={setEmail}
-            onFocus={() => setFocused('email')}
-            onBlur={() => setFocused(null)}
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          <View
-            style={[
-              styles.passwordRow,
-              focused === 'password' && styles.inputFocused,
-            ]}
-          >
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Password"
-              placeholderTextColor="rgba(15,24,44,0.40)"
-              value={password}
-              onChangeText={setPassword}
-              onFocus={() => setFocused('password')}
-              onBlur={() => setFocused(null)}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              hitSlop={10}
-              accessibilityLabel={
-                showPassword ? 'Hide password' : 'Show password'
-              }
-            >
-              <Icon
-                name={showPassword ? 'eyeOff' : 'eye'}
-                size={20}
-                color={COLORS.textMuted}
-              />
-            </TouchableOpacity>
-          </View>
+          <TextField
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            trailing={
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={10}
+                accessibilityLabel={
+                  showPassword ? 'Hide password' : 'Show password'
+                }
+              >
+                <Icon
+                  name={showPassword ? 'eyeOff' : 'eye'}
+                  size={20}
+                  color={COLORS.textMuted}
+                />
+              </TouchableOpacity>
+            }
+          />
 
           {mode === 'signin' && (
             <TouchableOpacity
@@ -244,6 +225,7 @@ export default function LoginScreen() {
           )}
 
           <Button
+            variant="primary"
             label={mode === 'signin' ? 'Sign in' : 'Create account'}
             onPress={handleEmail}
             loading={loading}
@@ -275,13 +257,12 @@ export default function LoginScreen() {
           </Text>
         </Animated.View>
         )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
   glow: {
     position: 'absolute',
     top: -80,
@@ -314,36 +295,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: 12.5,
     color: COLORS.textMuted,
-  },
-  input: {
-    height: 48,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    fontFamily: FONTS.medium,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
-  passwordRow: {
-    height: 48,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  passwordInput: {
-    flex: 1,
-    height: '100%',
-    fontFamily: FONTS.medium,
-    fontSize: 15,
-    color: COLORS.textPrimary,
   },
   forgotWrap: { alignSelf: 'flex-end', marginTop: -4 },
   // Apple's HIG wants their button visually distinct — solid black.

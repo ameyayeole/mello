@@ -3,9 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Animated, {
   Easing,
@@ -91,8 +91,7 @@ function regionRadiusM(region: Region): number {
 export default function MapScreen() {
   const router = useRouter();
   const coords = useLocationStore((s) => s.coords);
-  const { mapFilters, setMapFilters, creatingEvent, setCreatingEvent } =
-    useUIStore();
+  const { mapFilters, creatingEvent, setCreatingEvent } = useUIStore();
   const { requestAndStart } = useLocation();
   const { friends } = useFriends();
   const sheetRef = useRef<EventBottomSheetRef>(null);

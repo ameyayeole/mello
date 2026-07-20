@@ -4,11 +4,8 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  SafeAreaView,
   ScrollView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -32,7 +29,8 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
-import { ActivityGlyph, Button, Icon, PressableScale } from '@/components/ui';
+import { ActivityGlyph, Button, Icon, PressableScale, Screen, TextField } from '@/components/ui';
+import { errorMessage, showError } from '@/utils/errors';
 
 const STEPS = [
   'name',
@@ -258,10 +256,10 @@ export default function ProfileSetupScreen() {
       let profile;
       try {
         profile = await createProfile(session.user.id, { ...base, username });
-      } catch (e: any) {
+      } catch (e) {
         // Before migration 029 the username column doesn't exist. Create the
         // profile without it rather than dead-ending signup.
-        if (/username/i.test(e?.message ?? '')) {
+        if (/username/i.test(errorMessage(e, ''))) {
           profile = await createProfile(session.user.id, base);
         } else {
           throw e;
@@ -269,17 +267,12 @@ export default function ProfileSetupScreen() {
       }
 
       setUser(profile);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      showError(e);
     } finally {
       setLoading(false);
     }
   }
-
-  const inputStyle = (key: string) => [
-    styles.input,
-    focused === key && styles.inputFocused,
-  ];
 
   const dobFieldStyle = (key: string) => [
     styles.input,
@@ -325,7 +318,7 @@ export default function ProfileSetupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen keyboardAvoiding>
       <View style={styles.header}>
         <PressableScale style={styles.backBtn} scaleTo={0.88} onPress={goBack}>
           <Icon name="back" size={22} color={COLORS.textPrimary} />
@@ -333,10 +326,7 @@ export default function ProfileSetupScreen() {
         <WizardProgressBar index={stepIndex} />
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
+      <View style={styles.flex}>
         <Animated.View
           key={step}
           entering={FadeInDown.duration(260).easing(Easing.out(Easing.cubic))}
@@ -352,14 +342,10 @@ export default function ProfileSetupScreen() {
 
             <View style={styles.stepBody}>
               {step === 'name' && (
-                <TextInput
-                  style={inputStyle('name')}
+                <TextField
                   placeholder="Your name"
-                  placeholderTextColor="rgba(15,24,44,0.40)"
                   value={name}
                   onChangeText={setName}
-                  onFocus={() => setFocused('name')}
-                  onBlur={() => setFocused(null)}
                   autoFocus
                   returnKeyType="next"
                   onSubmitEditing={() => canContinue() && goNext()}
@@ -368,44 +354,28 @@ export default function ProfileSetupScreen() {
 
               {step === 'username' && (
                 <View>
-                  <View
-                    style={[
-                      styles.usernameWrap,
-                      focused === 'username' && styles.inputFocused,
-                      usernameStatus === 'taken' || usernameStatus === 'invalid'
-                        ? styles.inputError
-                        : usernameStatus === 'available'
-                          ? styles.inputOk
-                          : null,
-                    ]}
-                  >
-                    <Text style={styles.atPrefix}>@</Text>
-                    <TextInput
-                      style={styles.usernameInput}
-                      placeholder="username"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
-                      value={username}
-                      onChangeText={(t) => {
-                        usernameTouched.current = true;
-                        setUsername(normalizeUsername(t));
-                      }}
-                      onFocus={() => setFocused('username')}
-                      onBlur={() => setFocused(null)}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      autoFocus
-                      returnKeyType="next"
-                      onSubmitEditing={() => canContinue() && goNext()}
-                    />
-                    {usernameStatus === 'available' && (
-                      <Icon name="check" size={16} color={COLORS.success} />
-                    )}
-                  </View>
-                  {usernameError ? (
-                    <Text style={styles.fieldError}>{usernameError}</Text>
-                  ) : usernameStatus === 'checking' ? (
-                    <Text style={styles.fieldHint}>Checking…</Text>
-                  ) : null}
+                  <TextField
+                    leading={<Text style={styles.atPrefix}>@</Text>}
+                    trailing={
+                      usernameStatus === 'available' ? (
+                        <Icon name="check" size={16} color={COLORS.success} />
+                      ) : null
+                    }
+                    placeholder="username"
+                    value={username}
+                    onChangeText={(t) => {
+                      usernameTouched.current = true;
+                      setUsername(normalizeUsername(t));
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                    returnKeyType="next"
+                    onSubmitEditing={() => canContinue() && goNext()}
+                    error={usernameError}
+                    success={usernameStatus === 'available'}
+                    hint={usernameStatus === 'checking' ? 'Checking…' : undefined}
+                  />
                   {suggestions.length > 0 && (
                     <View style={styles.suggestionRow}>
                       {suggestions.map((s) => (
@@ -562,14 +532,10 @@ export default function ProfileSetupScreen() {
               )}
 
               {step === 'bio' && (
-                <TextInput
-                  style={[...inputStyle('bio'), styles.bioInput]}
+                <TextField
                   placeholder="Coffee, climbing, live music…"
-                  placeholderTextColor="rgba(15,24,44,0.40)"
                   value={bio}
                   onChangeText={setBio}
-                  onFocus={() => setFocused('bio')}
-                  onBlur={() => setFocused(null)}
                   multiline
                   autoFocus
                 />
@@ -580,6 +546,7 @@ export default function ProfileSetupScreen() {
 
         <View style={styles.footer}>
           <Button
+            variant="primary"
             label={
               isLast
                 ? 'Create profile'
@@ -592,13 +559,12 @@ export default function ProfileSetupScreen() {
             disabled={!canContinue()}
           />
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -658,39 +624,16 @@ const styles = StyleSheet.create({
   inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
   inputError: { borderWidth: 1.5, borderColor: '#E5484D' },
   inputOk: { borderWidth: 1.5, borderColor: COLORS.success },
-  usernameWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 52,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
   atPrefix: {
     fontFamily: FONTS.semibold,
     fontSize: 16,
     color: COLORS.textSecondary,
     marginRight: 1,
   },
-  usernameInput: {
-    flex: 1,
-    height: '100%',
-    fontFamily: FONTS.semibold,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-  },
   fieldError: {
     fontFamily: FONTS.medium,
     fontSize: 12.5,
     color: '#E5484D',
-    marginTop: 8,
-  },
-  fieldHint: {
-    fontFamily: FONTS.medium,
-    fontSize: 12.5,
-    color: COLORS.textMuted,
     marginTop: 8,
   },
   fieldOk: {
@@ -723,12 +666,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   dobYear: { flex: 1.6 },
-  bioInput: {
-    height: undefined,
-    minHeight: 96,
-    paddingVertical: 13,
-    textAlignVertical: 'top',
-  },
   genderList: { gap: 10 },
   genderRow: {
     flexDirection: 'row',

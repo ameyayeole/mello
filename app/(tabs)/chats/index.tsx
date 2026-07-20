@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
@@ -38,8 +39,8 @@ import { NearbyEvent, FriendConversation, ChatPref } from '@/types/models';
 import { formatEventTime, formatChatTime } from '@/utils/time';
 import {
   Avatar,
-  Button,
   CategoryTile,
+  EmptyState,
   Icon,
   PressableScale,
 } from '@/components/ui';
@@ -47,6 +48,7 @@ import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
 import { SealedNoteRow, NoteRevealModal } from '@/components/wrap/SealedNoteRow';
 import { WrapNote } from '@/types/models';
+import { showError } from '@/utils/errors';
 
 type Tab = 'events' | 'friends';
 
@@ -163,31 +165,6 @@ function FriendChatRow({
   );
 }
 
-function EmptyState({
-  icon,
-  title,
-  text,
-  ctaLabel,
-  onCta,
-}: {
-  icon: 'chat' | 'userPlus';
-  title: string;
-  text: string;
-  ctaLabel: string;
-  onCta: () => void;
-}) {
-  return (
-    <View style={styles.empty}>
-      <View style={styles.emptyIcon}>
-        <Icon name={icon} size={38} color={COLORS.primary} />
-      </View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyText}>{text}</Text>
-      <Button label={ctaLabel} height={44} onPress={onCta} style={{ marginTop: 8 }} />
-    </View>
-  );
-}
-
 export default function ChatsListScreen() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
@@ -233,13 +210,13 @@ export default function ChatsListScreen() {
   }
 
   const joinedQuery = useQuery({
-    queryKey: ['joinedEvents', user?.id],
+    queryKey: queryKeys.joinedEvents.of(user?.id),
     queryFn: () => getJoinedEvents(user!.id),
     enabled: !!user,
   });
 
   const myEventsQuery = useQuery({
-    queryKey: ['myEvents', user?.id],
+    queryKey: queryKeys.myEvents.of(user?.id),
     queryFn: () => getMyEvents(user!.id),
     enabled: !!user,
   });
@@ -251,7 +228,7 @@ export default function ChatsListScreen() {
   });
 
   const prefsQuery = useQuery({
-    queryKey: ['chatPrefs', user?.id],
+    queryKey: queryKeys.chatPrefs.of(user?.id),
     queryFn: () => getChatPrefs(user!.id),
     enabled: !!user,
   });
@@ -319,7 +296,7 @@ export default function ChatsListScreen() {
   }, [conversationsQuery.data, prefs]);
 
   function refreshPrefs() {
-    qc.invalidateQueries({ queryKey: ['chatPrefs', user?.id] });
+    qc.invalidateQueries({ queryKey: queryKeys.chatPrefs.of(user?.id) });
   }
 
   function sheetOptions(target: SheetTarget): SheetOption[] {
@@ -335,8 +312,8 @@ export default function ChatsListScreen() {
           try {
             await setChatPinned(user.id, target.chatType, target.chatId, !pinned);
             refreshPrefs();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+          } catch (e) {
+            showError(e);
           }
         },
       },
@@ -350,8 +327,8 @@ export default function ChatsListScreen() {
           try {
             await setChatMuted(user.id, target.chatType, target.chatId, !muted);
             refreshPrefs();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+          } catch (e) {
+            showError(e);
           }
         },
       },
@@ -373,8 +350,8 @@ export default function ChatsListScreen() {
                   try {
                     await clearChat(user.id, target.chatType, target.chatId);
                     refreshPrefs();
-                  } catch (e: any) {
-                    Alert.alert('Error', e.message);
+                  } catch (e) {
+                    showError(e);
                   }
                 },
               },
@@ -427,9 +404,9 @@ export default function ChatsListScreen() {
           <EmptyState
             icon="chat"
             title="No event chats yet"
-            text="Join or create an event to start chatting with people going."
-            ctaLabel="Explore map"
-            onCta={() => router.push('/(tabs)/map')}
+            body="Join or create an event to start chatting with people going."
+            actionLabel="Explore map"
+            onAction={() => router.push('/(tabs)/map')}
           />
         ) : (
           <FlatList
@@ -460,9 +437,9 @@ export default function ChatsListScreen() {
         <EmptyState
           icon="userPlus"
           title="No friends yet"
-          text="Add friends to start direct conversations."
-          ctaLabel="Find friends"
-          onCta={() => router.push('/friends')}
+          body="Add friends to start direct conversations."
+          actionLabel="Find friends"
+          onAction={() => router.push('/friends')}
         />
       ) : (
         <FlatList
@@ -610,34 +587,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 11,
     color: 'rgba(15,24,44,0.55)',
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 8,
-  },
-  emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13.5,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 19,
-    maxWidth: 240,
   },
 });

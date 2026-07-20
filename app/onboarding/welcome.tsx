@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   useWindowDimensions,
   NativeSyntheticEvent,
@@ -22,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button } from '@/components/ui';
+import { Button, Screen } from '@/components/ui';
 import { DiscoverScene } from '@/components/onboarding/scenes/DiscoverScene';
 import { CreateScene } from '@/components/onboarding/scenes/CreateScene';
 import { SwipeScene } from '@/components/onboarding/scenes/SwipeScene';
@@ -101,7 +100,7 @@ export default function WelcomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen background={COLORS.surface}>
       {!isLast && (
         <TouchableOpacity
           style={styles.skip}
@@ -141,7 +140,8 @@ export default function WelcomeScreen() {
             <Dot key={s.key} index={i} scrollX={scrollX} width={width} />
           ))}
         </View>
-        <Button label={isLast ? 'Get started' : 'Next'} onPress={handleNext} />
+        <Button
+  variant="primary" label={isLast ? 'Get started' : 'Next'} onPress={handleNext} />
         <TouchableOpacity onPress={() => router.push('/auth/login')} hitSlop={10}>
           <Text style={styles.loginLink}>
             Already have an account?{' '}
@@ -149,12 +149,11 @@ export default function WelcomeScreen() {
           </Text>
         </TouchableOpacity>
       </Animated.View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
   skip: {
     position: 'absolute',
     top: 62,
