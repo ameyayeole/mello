@@ -28,6 +28,8 @@ interface UIState {
   // Map-tab filters (activity chips + the filter sheet). Separate from
   // activeFilter, which belongs to the Explore feed's chips.
   mapFilters: MapFilters;
+  // Radius for the nearby-events query. Currently fixed at the config default —
+  // the map's own distance filter lives in mapFilters.maxDistanceM instead.
   searchRadius: number;
   ghostMode: boolean;
   // True while the in-map event creation flow is open; the tab bar hides so
@@ -44,7 +46,6 @@ interface UIState {
   setFilter: (activity: ActivityId | null) => void;
   setMapFilters: (filters: MapFilters) => void;
   resetMapFilters: () => void;
-  setRadius: (meters: number) => void;
   setGhostMode: (enabled: boolean) => void;
   setCreatingEvent: (creating: boolean) => void;
   setSafetyReminderEvent: (event: SafetyReminderEvent | null) => void;
@@ -66,7 +67,6 @@ export const useUIStore = create<UIState>((set) => ({
   setFilter: (activeFilter) => set({ activeFilter }),
   setMapFilters: (mapFilters) => set({ mapFilters }),
   resetMapFilters: () => set({ mapFilters: DEFAULT_MAP_FILTERS }),
-  setRadius: (searchRadius) => set({ searchRadius }),
   setGhostMode: (ghostMode) => set({ ghostMode }),
   setCreatingEvent: (creatingEvent) => set({ creatingEvent }),
   setSafetyReminderEvent: (safetyReminderEvent) => set({ safetyReminderEvent }),
