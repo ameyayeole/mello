@@ -4,6 +4,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as Linking from 'expo-linking';
 import { supabase } from './supabase';
 import { Profile } from '@/types/models';
+import { errorProp } from '@/utils/errors';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -107,8 +108,9 @@ export async function signInWithApple(): Promise<void> {
         apple.AppleAuthenticationScope.EMAIL,
       ],
     });
-  } catch (e: any) {
-    if (e?.code === 'ERR_REQUEST_CANCELED') throw new AppleSignInCancelled();
+  } catch (e) {
+    if (errorProp(e, 'code') === 'ERR_REQUEST_CANCELED')
+      throw new AppleSignInCancelled();
     throw e;
   }
 

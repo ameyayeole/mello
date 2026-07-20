@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ilikePattern } from '@/utils/postgrest';
 import { Friendship, Profile } from '@/types/models';
 
 /**
@@ -103,13 +104,18 @@ export async function searchUsers(
   // Match display names and @usernames. Falls back to name-only if the
   // username column doesn't exist yet (migration 029 not applied).
   const q = query.replace(/^@/, '');
+  const pattern = ilikePattern(q);
   let { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .or(`name.ilike.%${q}%,username.ilike.%${q}%`)
+    .or(`name.ilike.${pattern},username.ilike.${pattern}`)
     .limit(20);
 
-  if (error) {
+  // Only retry for the missing-column case this fallback exists for (42703).
+  // Retrying on *any* error previously turned real failures into silent
+  // name-only results, which hid the malformed-filter bug this call used to
+  // produce whenever someone typed a comma.
+  if (error?.code === '42703') {
     ({ data, error } = await supabase
       .from('profiles')
       .select('*')

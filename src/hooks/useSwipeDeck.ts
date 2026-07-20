@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   useInfiniteQuery,
   useMutation,
@@ -34,7 +35,7 @@ export const CITY_LIMIT_M = 40_000;
 export function useSavedEventIds() {
   const user = useAuthStore((s) => s.user);
   return useQuery({
-    queryKey: ['savedEventIds', user?.id],
+    queryKey: queryKeys.savedEventIds.of(user?.id),
     queryFn: () => getSavedEventIds(user!.id),
     enabled: !!user,
     staleTime: 60_000,
@@ -165,7 +166,7 @@ export function useSwipeDeck() {
       save ? saveEvent(user!.id, eventId) : unsaveEvent(user!.id, eventId),
     onMutate: ({ eventId, save }) => {
       queryClient.setQueryData<string[]>(
-        ['savedEventIds', user?.id],
+        queryKeys.savedEventIds.of(user?.id),
         (ids = []) =>
           save
             ? ids.includes(eventId)
@@ -176,7 +177,7 @@ export function useSwipeDeck() {
     },
     onSettled: () => {
       // The wishlist page/profile show full rows; refresh after any toggle.
-      queryClient.invalidateQueries({ queryKey: ['savedEvents', user?.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedEvents.of(user?.id) });
     },
   });
 

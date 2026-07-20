@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getCoAttendees,
@@ -22,7 +23,7 @@ export function useWrapDeck(eventId: string | undefined) {
   >([]);
 
   const attendeesQuery = useQuery({
-    queryKey: ['wrapAttendees', eventId, user?.id],
+    queryKey: queryKeys.wrapAttendees.of(eventId, user?.id),
     queryFn: () => getCoAttendees(eventId!, user!.id),
     enabled: !!eventId && !!user,
     staleTime: 60_000,
@@ -42,7 +43,7 @@ export function useWrapDeck(eventId: string | undefined) {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['wrapRatings', eventId, user?.id] });
-    qc.invalidateQueries({ queryKey: ['wrap', eventId, user?.id] });
+    qc.invalidateQueries({ queryKey: queryKeys.wrap.of(eventId, user?.id) });
   };
 
   const rate = useMutation({
