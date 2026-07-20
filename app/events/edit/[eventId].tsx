@@ -15,7 +15,12 @@ import {
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  type MapViewProps,
+} from 'react-native-maps';
+
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/stores/authStore';
@@ -31,6 +36,12 @@ import DateTimeField, {
 } from '@/components/DateTimeField';
 import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
+import {
+  TITLE_MAX,
+  DESCRIPTION_MAX,
+  clampMaxPeople,
+  FALLBACK_MAP_CENTER,
+} from '@/utils/eventDraft';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId, Coords } from '@/types/models';
@@ -45,11 +56,14 @@ import {
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
 
+// react-native-maps declares MapPressEvent but does not export it from the
+// package root, so it is derived from the prop rather than reached for down an
+// internal path that a minor release could move.
+type MapPressEvent = Parameters<NonNullable<MapViewProps['onPress']>>[0];
+
 // Google Maps on Android, Apple Maps on iOS.
 const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 
-const TITLE_MAX = 60;
-const DESCRIPTION_MAX = 500;
 
 // Host edits an existing event. Mirrors the create screen, prefilled from the
 // event. The events table only stores a PostGIS point (no lat/lng columns are
@@ -89,7 +103,7 @@ export default function EditEventScreen() {
   const [seeded, setSeeded] = useState(false);
   const miniMapRef = useRef<MapView>(null);
 
-  const mapCenter = newCoords ?? userCoords ?? { lat: 19.076, lng: 72.8777 };
+  const mapCenter = newCoords ?? userCoords ?? FALLBACK_MAP_CENTER;
 
   // Seed the form once from the fetched event.
   useEffect(() => {
@@ -131,7 +145,7 @@ export default function EditEventScreen() {
     }
   }
 
-  async function onMapPress(e: any) {
+  async function onMapPress(e: MapPressEvent) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
     setNewCoords({ lat: latitude, lng: longitude });
 
@@ -168,7 +182,7 @@ export default function EditEventScreen() {
         locationName: locationName || null,
         startsAt: startDate,
         endsAt: endDate,
-        maxPeople: maxPeople ? parseInt(maxPeople) : null,
+        maxPeople: maxPeople ? clampMaxPeople(maxPeople) : null,
         isPublic,
         requiresApproval,
         womenOnly,

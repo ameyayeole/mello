@@ -35,7 +35,12 @@ import {
 } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { NearbyEvent, FriendConversation, ChatPref } from '@/types/models';
+import {
+  NearbyEvent,
+  FriendConversation,
+  ChatPref,
+  WrapNote,
+} from '@/types/models';
 import { formatEventTime, formatChatTime } from '@/utils/time';
 import {
   Avatar,
@@ -47,7 +52,6 @@ import {
 import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
 import { SealedNoteRow, NoteRevealModal } from '@/components/wrap/SealedNoteRow';
-import { WrapNote } from '@/types/models';
 import { showError } from '@/utils/errors';
 
 type Tab = 'events' | 'friends';

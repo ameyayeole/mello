@@ -38,3 +38,9 @@ export function canAdvanceFrom(
 export function eventEndTime(start: Date, durationHours: number): Date {
   return new Date(start.getTime() + durationHours * 60 * 60 * 1000);
 }
+
+// Where the map opens when the user's location is unavailable — permission
+// denied, or the fix hasn't arrived yet. Mumbai, the launch city. Previously
+// hardcoded in both the map tab and the edit screen, so moving the launch city
+// meant remembering to change two unrelated files.
+export const FALLBACK_MAP_CENTER = { lat: 19.076, lng: 72.8777 };
