@@ -4,10 +4,10 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
@@ -21,7 +21,14 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { Notification } from '@/types/models';
 import { relativeTime } from '@/utils/time';
-import { Icon, IconButton, IconName, SectionLabel } from '@/components/ui';
+import {
+  EmptyState,
+  Icon,
+  IconName,
+  Screen,
+  ScreenHeader,
+  SectionLabel,
+} from '@/components/ui';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
 
 function notifText(notif: Notification): React.ReactNode {
@@ -182,14 +189,14 @@ export default function NotificationsScreen() {
   const qc = useQueryClient();
 
   const { data: notifications, isLoading } = useQuery({
-    queryKey: ['notifications', user?.id],
+    queryKey: queryKeys.notifications.of(user?.id),
     queryFn: () => getNotifications(user!.id),
     enabled: !!user,
   });
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['notifications', user?.id] });
-    qc.invalidateQueries({ queryKey: ['notificationsUnread', user?.id] });
+    qc.invalidateQueries({ queryKey: queryKeys.notifications.of(user?.id) });
+    qc.invalidateQueries({ queryKey: queryKeys.notificationsUnread.of(user?.id) });
   };
 
   const markAll = useMutation({
@@ -275,19 +282,16 @@ export default function NotificationsScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton
-          icon="close"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Close"
-        />
-        <Text style={styles.title}>Notifications</Text>
-        <TouchableOpacity onPress={() => markAll.mutate()} hitSlop={8}>
-          <Text style={styles.markAll}>Mark all</Text>
-        </TouchableOpacity>
-      </View>
+    <Screen modal background={COLORS.surface}>
+      <ScreenHeader
+        title="Notifications"
+        backIcon="close"
+        right={
+          <TouchableOpacity onPress={() => markAll.mutate()} hitSlop={8}>
+            <Text style={styles.markAll}>Mark all</Text>
+          </TouchableOpacity>
+        }
+      />
 
       {isLoading ? (
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
@@ -311,38 +315,19 @@ export default function NotificationsScreen() {
           }
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Icon name="bell" size={38} color={COLORS.primary} />
-              </View>
-              <Text style={styles.emptyTitle}>You're all caught up</Text>
-              <Text style={styles.emptyText}>
-                RSVP updates, messages and reminders land here.
-              </Text>
-            </View>
+            <EmptyState
+              icon="bell"
+              title="You're all caught up"
+              body="RSVP updates, messages and reminders land here."
+            />
           }
         />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  title: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 22,
-    letterSpacing: -0.44,
-    color: COLORS.textPrimary,
-  },
   markAll: {
     fontFamily: FONTS.bold,
     fontSize: 12.5,
@@ -385,27 +370,5 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: COLORS.primary,
     marginTop: 6,
-  },
-  empty: { alignItems: 'center', paddingTop: 80, gap: 8 },
-  emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13.5,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    maxWidth: 240,
   },
 });

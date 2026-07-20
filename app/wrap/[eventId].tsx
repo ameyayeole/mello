@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   ActivityIndicator,
   useWindowDimensions,
@@ -16,7 +15,13 @@ import { getPublicWrap } from '@/services/wrap.service';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Icon,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 // Public, read-only wrap gallery: the event's 6 most-liked photos, reachable
 // from the Explore feed by anyone (data via SECURITY DEFINER RPC).
@@ -49,12 +54,8 @@ export default function PublicWrapScreen() {
   }, [eventMeta]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.headerTitle}>Event wrap</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Event wrap" tone="transparent" />
 
       {wrapQuery.isLoading ? (
         <View style={styles.center}>
@@ -142,31 +143,17 @@ export default function PublicWrapScreen() {
           />
         </>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     padding: 30,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    letterSpacing: -0.34,
-    color: COLORS.textPrimary,
   },
   emptyTitle: {
     fontFamily: FONTS.bold,

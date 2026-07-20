@@ -1,11 +1,5 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  FlatList,
-  ActivityIndicator,
-} from 'react-native';
+import { Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
@@ -13,7 +7,13 @@ import { getBlockedUsers, unblockUser } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { Profile } from '@/types/models';
-import { Avatar, Icon, PressableScale, ScreenHeader } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  EmptyState,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 export default function BlockedUsersScreen() {
   const me = useAuthStore((s) => s.user);
@@ -29,10 +29,10 @@ export default function BlockedUsersScreen() {
     mutationFn: (blockedId: string) => unblockUser(me!.id, blockedId),
     onSuccess: (_d, blockedId) => {
       qc.invalidateQueries({ queryKey: ['blockedUsers', me?.id] });
-      qc.invalidateQueries({ queryKey: ['blocked', me?.id, blockedId] });
+      qc.invalidateQueries({ queryKey: queryKeys.blocked.of(me?.id, blockedId) });
       // The unblocked host's events can show in the map + Explore feed again.
-      qc.invalidateQueries({ queryKey: ['events', 'nearby'] });
-      qc.invalidateQueries({ queryKey: ['exploreFeed'] });
+      qc.invalidateQueries({ queryKey: queryKeys.events.nearby });
+      qc.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
     },
   });
 
@@ -47,20 +47,19 @@ export default function BlockedUsersScreen() {
         <Text style={styles.name} numberOfLines={1}>
           {item.name}
         </Text>
-        <PressableScale
-          scaleTo={0.92}
-          style={styles.unblockBtn}
+        <Button
+          label="Unblock"
+          size="sm"
+          variant="tertiary"
           onPress={() => unblock.mutate(item.id)}
           disabled={unblock.isPending}
-        >
-          <Text style={styles.unblockText}>Unblock</Text>
-        </PressableScale>
+        />
       </Animated.View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen>
       <ScreenHeader title="Blocked users" />
 
       {isLoading ? (
@@ -72,24 +71,19 @@ export default function BlockedUsersScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Icon name="shield" size={36} color={COLORS.primary} />
-              </View>
-              <Text style={styles.emptyTitle}>No blocked users</Text>
-              <Text style={styles.emptyText}>
-                People you block will show up here.
-              </Text>
-            </View>
+            <EmptyState
+              icon="shield"
+              title="No blocked users"
+              body="People you block will show up here."
+            />
           }
         />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   list: { padding: 16, gap: 10 },
   row: {
     flexDirection: 'row',
@@ -100,7 +94,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.07)',
-    shadowColor: '#0F182C',
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -111,38 +105,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 14.5,
     color: COLORS.textPrimary,
-  },
-  unblockBtn: {
-    height: 34,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unblockText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.textPrimary,
-  },
-  empty: { alignItems: 'center', paddingTop: 70, gap: 8 },
-  emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13.5,
-    color: COLORS.textSecondary,
   },
 });

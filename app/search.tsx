@@ -5,7 +5,6 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +25,7 @@ import {
   Icon,
   IconButton,
   PressableScale,
+  Screen,
   SectionLabel,
 } from '@/components/ui';
 
@@ -122,7 +122,7 @@ export default function SearchScreen() {
     enabled && !isLoading && events.length === 0 && people.length === 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen modal>
       {/* Search bar */}
       <View style={styles.header}>
         <View style={styles.searchBar}>
@@ -203,12 +203,11 @@ export default function SearchScreen() {
       </ScrollView>
 
       <EventBottomSheet ref={sheetRef} />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

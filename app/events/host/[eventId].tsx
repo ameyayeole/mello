@@ -2,11 +2,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { queryKeys } from '@/constants/queryKeys';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -30,8 +30,9 @@ import {
   Button,
   CategoryTile,
   Icon,
-  IconButton,
   PressableScale,
+  Screen,
+  ScreenHeader,
 } from '@/components/ui';
 
 // How many attendees / requests show inline before "See all" takes over.
@@ -49,7 +50,7 @@ export default function HostPanelScreen() {
   const qc = useQueryClient();
 
   const { data: event, isLoading } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
   });
@@ -89,59 +90,45 @@ export default function HostPanelScreen() {
   });
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['eventDetail', eventId] });
-    qc.invalidateQueries({ queryKey: ['myEvents'] });
+    qc.invalidateQueries({ queryKey: queryKeys.eventDetail.of(eventId) });
+    qc.invalidateQueries({ queryKey: queryKeys.myEvents.all });
   };
 
   if (isLoading || !event) {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen>
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (!isHost) {
     // Not this user's event — nothing to manage here.
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <IconButton
-            icon="back"
-            variant="ghost"
-            onPress={() => router.back()}
-            accessibilityLabel="Go back"
-          />
-        </View>
+      <Screen>
+        <ScreenHeader tone="transparent" />
         <Text style={styles.notHostText}>
           Only the host can manage this event.
         </Text>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header with the Edit action up top */}
-      <View style={styles.header}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
-        />
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {celebrate === '1' ? 'Your new event' : 'Manage event'}
-        </Text>
-        <PressableScale
-          scaleTo={0.93}
-          style={styles.editBtn}
-          onPress={() => router.push(`/events/edit/${event.id}`)}
-        >
-          <Icon name="edit" size={14} color={COLORS.primary} strokeWidth={2} />
-          <Text style={styles.editBtnText}>Edit</Text>
-        </PressableScale>
-      </View>
+    <Screen>
+      <ScreenHeader
+        title={celebrate === '1' ? 'Your new event' : 'Manage event'}
+        tone="transparent"
+        right={
+          <Button
+            label="Edit"
+            icon="edit"
+            size="sm"
+            variant="tertiary"
+            onPress={() => router.push(`/events/edit/${event.id}`)}
+          />
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -282,7 +269,7 @@ export default function HostPanelScreen() {
               )}
               <Button
                 label="Open the event wrap"
-                variant="secondary"
+                variant="tertiary"
                 height={44}
                 onPress={() => router.push(`/events/wrap/${event.id}`)}
               />
@@ -432,39 +419,11 @@ export default function HostPanelScreen() {
           style={styles.celebrationOverlay}
         />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
-  editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 34,
-    paddingHorizontal: 13,
-    borderRadius: 100,
-    backgroundColor: COLORS.primaryTint,
-  },
-  editBtnText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.primary,
-  },
   notHostText: {
     fontFamily: FONTS.medium,
     fontSize: 14,

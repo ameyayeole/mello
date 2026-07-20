@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Switch,
 } from 'react-native';
@@ -23,6 +22,7 @@ import {
   Icon,
   IconName,
   PressableScale,
+  Screen,
   ScreenHeader,
   SectionLabel,
 } from '@/components/ui';
@@ -166,7 +166,7 @@ export default function MapFiltersScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen modal>
       <ScreenHeader
         title="Filters"
         backIcon="close"
@@ -338,9 +338,10 @@ export default function MapFiltersScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button label="Show events" onPress={apply} />
+        <Button
+  variant="primary" label="Show events" onPress={apply} />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -362,7 +363,6 @@ const plusStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 16, paddingBottom: 24, gap: 4 },
   sectionLabel: { marginTop: 14, marginBottom: 8, marginLeft: 4 },
   sectionLabelRow: {

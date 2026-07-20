@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -23,7 +22,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, Button, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  Icon,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 const MAX_PHOTOS = 4;
 
@@ -43,7 +50,7 @@ export default function WrapPhotosScreen() {
   const [justUploaded, setJustUploaded] = useState(0);
 
   const attendeesQuery = useQuery({
-    queryKey: ['wrapAttendees', eventId, user?.id],
+    queryKey: queryKeys.wrapAttendees.of(eventId, user?.id),
     queryFn: () => getCoAttendees(eventId!, user!.id),
     enabled: !!eventId && !!user,
   });
@@ -84,20 +91,16 @@ export default function WrapPhotosScreen() {
       setTagged(new Set());
       photosQuery.refetch();
       invalidate();
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
+    } catch (e) {
+      showError(e, 'Upload failed');
     } finally {
       setUploading(false);
     }
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.headerTitle}>Add your photos</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Add your photos" tone="transparent" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -116,6 +119,7 @@ export default function WrapPhotosScreen() {
               >
                 <View style={styles.completeActions}>
                   <Button
+                    variant="tertiary"
                     label="See the gallery"
                     height={44}
                     onPress={() => router.replace(`/events/wrap/gallery/${eventId}`)}
@@ -237,25 +241,11 @@ export default function WrapPhotosScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    letterSpacing: -0.34,
-    color: COLORS.textPrimary,
-  },
   scroll: { padding: 18, paddingTop: 8, gap: 18, paddingBottom: 24 },
   completeWrap: { paddingTop: 60, alignItems: 'center' },
   completeActions: { marginTop: 14, gap: 12, alignSelf: 'stretch' },

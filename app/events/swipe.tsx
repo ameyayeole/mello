@@ -7,7 +7,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -32,7 +31,12 @@ import EventBottomSheet, {
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
-import { Button, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Button,
+  Icon,
+  PressableScale,
+  ScreenHeader,
+} from '@/components/ui';
 
 type FeedbackKind = 'like' | 'pass' | 'undo';
 
@@ -52,7 +56,6 @@ const FEEDBACK_META: Record<
 // one leaves, and undo brings the last swiped card back.
 export default function SwipeDeckScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const sheetRef = useRef<EventBottomSheetRef>(null);
   const {
@@ -242,31 +245,29 @@ export default function SwipeDeckScreen() {
       <StatusBar style="light" />
       <View style={styles.container}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <IconButton
-            icon="chevronDown"
-            color="#fff"
-            style={styles.headerBtn}
-            onPress={() => router.back()}
-            accessibilityLabel="Close"
-          />
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Tonight's picks</Text>
-            <Text style={styles.headerSub}>
-              {premium || outOfSwipes
-                ? 'Swipe to save the vibe'
-                : `${swipesLeft} free ${
-                    swipesLeft === 1 ? 'swipe' : 'swipes'
-                  } left today`}
-            </Text>
-          </View>
-          <WishlistButton
-            size={40}
-            iconSize={20}
-            color="#fff"
-            style={styles.headerBtn}
-          />
-        </View>
+        <ScreenHeader
+          title="Tonight's picks"
+          subtitle={
+            premium || outOfSwipes
+              ? 'Swipe to save the vibe'
+              : `${swipesLeft} free ${
+                  swipesLeft === 1 ? 'swipe' : 'swipes'
+                } left today`
+          }
+          backIcon="chevronDown"
+          tone="dark"
+          // The rounded bottom is this screen's own shape, not a header
+          // variant — the deck sits directly beneath it.
+          style={styles.headerShape}
+          right={
+            <WishlistButton
+              size={40}
+              iconSize={20}
+              color={COLORS.white}
+              style={styles.headerBtn}
+            />
+          }
+        />
 
         {/* Deck */}
         <View style={styles.deckArea}>
@@ -290,6 +291,7 @@ export default function SwipeDeckScreen() {
                   Mello+ members swipe without limits.
                 </Text>
                 <Button
+                  variant="primary"
                   label="Get Mello+ · unlimited swipes"
                   height={44}
                   onPress={() => router.push('/premium?reason=swipes')}
@@ -448,31 +450,16 @@ export default function SwipeDeckScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingTop: 8,
+  headerShape: {
+    // No safe-area inset here: this screen is presented as a modal, so the card
+    // already clears the notch. Adding insets.top on top of that double-padded
+    // the header by the full status-bar height.
+    paddingTop: 14,
     paddingBottom: 16,
-    backgroundColor: COLORS.accent,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
   headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  headerCenter: { alignItems: 'center' },
-  headerTitle: {
-    fontFamily: FONTS.heading,
-    fontSize: 17,
-    letterSpacing: -0.3,
-    color: '#fff',
-  },
-  headerSub: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 1,
-  },
   deckArea: {
     flex: 1,
     margin: 16,

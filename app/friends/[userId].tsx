@@ -1,9 +1,9 @@
 import { useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Alert,
@@ -38,11 +38,14 @@ import {
   IconName,
   PremiumBadge,
   PressableScale,
+  Screen,
+  ScreenHeader,
   SectionLabel,
   VerifiedBadge,
 } from '@/components/ui';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
+import { showError } from '@/utils/errors';
 
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
@@ -55,7 +58,7 @@ export default function UserProfileScreen() {
   const isSelf = me?.id === userId;
 
   const { data: profile, isLoading } = useQuery({
-    queryKey: ['profile', userId],
+    queryKey: queryKeys.profile.of(userId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
@@ -79,15 +82,15 @@ export default function UserProfileScreen() {
       thumbed ? removeThumb(me!.id, userId) : giveThumb(me!.id, userId),
     // Refresh the viewed profile (its thumbs_count changed) and the thumbed flag.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['profile', userId] });
+      qc.invalidateQueries({ queryKey: queryKeys.profile.of(userId) });
       qc.invalidateQueries({ queryKey: ['thumbed', me?.id, userId] });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   // Whether the current user has blocked this profile.
   const { data: blocked } = useQuery({
-    queryKey: ['blocked', me?.id, userId],
+    queryKey: queryKeys.blocked.of(me?.id, userId),
     queryFn: () => isBlocked(me!.id, userId),
     enabled: !!me && !isSelf,
   });
@@ -95,38 +98,38 @@ export default function UserProfileScreen() {
   const block = useMutation({
     mutationFn: () => blockUser(me!.id, userId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['blocked', me?.id, userId] });
+      qc.invalidateQueries({ queryKey: queryKeys.blocked.of(me?.id, userId) });
       // Blocking severs the friendship; refresh the friends list + counts.
-      qc.invalidateQueries({ queryKey: ['friendships', me?.id] });
-      qc.invalidateQueries({ queryKey: ['profile', userId] });
+      qc.invalidateQueries({ queryKey: queryKeys.friendships.of(me?.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.profile.of(userId) });
       // Drop the blocked host's events from the map + Explore feed.
-      qc.invalidateQueries({ queryKey: ['events', 'nearby'] });
-      qc.invalidateQueries({ queryKey: ['exploreFeed'] });
+      qc.invalidateQueries({ queryKey: queryKeys.events.nearby });
+      qc.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   const unblock = useMutation({
     mutationFn: () => unblockUser(me!.id, userId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['blocked', me?.id, userId] });
-      qc.invalidateQueries({ queryKey: ['events', 'nearby'] });
-      qc.invalidateQueries({ queryKey: ['exploreFeed'] });
+      qc.invalidateQueries({ queryKey: queryKeys.blocked.of(me?.id, userId) });
+      qc.invalidateQueries({ queryKey: queryKeys.events.nearby });
+      qc.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   const report = useMutation({
     mutationFn: (reason: ReportReason) => reportUser(me!.id, userId, reason),
     onSuccess: () =>
       Alert.alert('Report sent', 'Thanks — our team will review this.'),
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   function handleAddFriend() {
     sendRequest.mutate(userId, {
       onSuccess: () => Alert.alert('Sent!', 'Friend request sent.'),
-      onError: (e: any) => Alert.alert('Error', e.message),
+      onError: (e) => showError(e),
     });
   }
 
@@ -182,7 +185,7 @@ export default function UserProfileScreen() {
           style: 'destructive',
           onPress: () =>
             remove.mutate(rel.friendshipId!, {
-              onError: (e: any) => Alert.alert('Error', e.message),
+              onError: (e) => showError(e),
             }),
         },
       ]
@@ -191,9 +194,9 @@ export default function UserProfileScreen() {
 
   if (isLoading || !profile) {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen background={COLORS.surface}>
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -206,23 +209,19 @@ export default function UserProfileScreen() {
   const firstName = profile.name?.split(' ')[0] ?? 'Profile';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
-        />
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {firstName}
-        </Text>
-        {!isSelf ? (
-          <IconButton icon="dots" onPress={openMenu} accessibilityLabel="More options" />
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
-      </View>
+    <Screen background={COLORS.surface}>
+      <ScreenHeader
+        title={firstName}
+        right={
+          !isSelf ? (
+            <IconButton
+              icon="dots"
+              onPress={openMenu}
+              accessibilityLabel="More options"
+            />
+          ) : undefined
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -376,7 +375,7 @@ export default function UserProfileScreen() {
             <Text style={styles.blockedText}>You blocked this user.</Text>
             <Button
               label={unblock.isPending ? 'Unblocking…' : 'Unblock'}
-              variant="secondary"
+              variant="tertiary"
               height={44}
               onPress={() => unblock.mutate()}
               disabled={unblock.isPending}
@@ -409,13 +408,13 @@ export default function UserProfileScreen() {
           ) : rel.status === 'request_sent' ? (
             <Button
               label="Requested · tap to withdraw"
-              variant="secondary"
+              variant="tertiary"
               height={46}
               style={{ flex: 1 }}
               disabled={remove.isPending}
               onPress={() =>
                 remove.mutate(rel.friendshipId!, {
-                  onError: (e: any) => Alert.alert('Error', e.message),
+                  onError: (e) => showError(e),
                 })
               }
             />
@@ -434,7 +433,7 @@ export default function UserProfileScreen() {
                 disabled={remove.isPending}
                 onPress={() =>
                   remove.mutate(rel.friendshipId!, {
-                    onError: (e: any) => Alert.alert('Error', e.message),
+                    onError: (e) => showError(e),
                   })
                 }
                 accessibilityLabel="Decline request"
@@ -485,27 +484,11 @@ export default function UserProfileScreen() {
         }}
         onCancel={() => setBlockConfirmVisible(false)}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surface,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 22,
-    letterSpacing: -0.44,
-    color: COLORS.textPrimary,
-  },
   scroll: { padding: 16, gap: 12, paddingBottom: 24 },
   hero: {
     height: 300,

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
 } from 'react-native';
@@ -29,9 +28,10 @@ import {
 import {
   Button,
   Icon,
-  IconButton,
   IconName,
+  NavButton,
   PressableScale,
+  Screen,
 } from '@/components/ui';
 
 // Why the paywall opened — puts the blocked feature first in the list.
@@ -163,14 +163,14 @@ export default function PremiumScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen modal>
       <View style={styles.header}>
         <View style={{ width: 40 }} />
         <View style={styles.headerBrand}>
           <Icon name="crown" size={18} color={PREMIUM_GOLD} strokeWidth={2} />
           <Text style={styles.headerTitle}>Mello+</Text>
         </View>
-        <IconButton
+        <NavButton
           icon="close"
           onPress={() => router.back()}
           accessibilityLabel="Close"
@@ -258,6 +258,7 @@ export default function PremiumScreen() {
       {!alreadyPremium && (
         <View style={styles.footer}>
           <Button
+            variant="primary"
             label={
               busy
                 ? 'Just a moment…'
@@ -275,12 +276,11 @@ export default function PremiumScreen() {
           </Text>
         </View>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

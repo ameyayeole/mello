@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { queryKeys } from '@/constants/queryKeys';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,7 +23,7 @@ export default function EventCreatedScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
 
   const { data: event } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId!),
     enabled: !!eventId,
   });
