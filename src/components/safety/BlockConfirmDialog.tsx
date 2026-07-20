@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Icon, PressableScale } from '@/components/ui';
+import { Dialog, Icon, PressableScale } from '@/components/ui';
 
 // Safety popup #13: block confirmation, per the design gallery — a centered
 // alert card with a red block glyph and Cancel / Block buttons. Every time.
@@ -18,66 +18,46 @@ export default function BlockConfirmDialog({
   onCancel: () => void;
 }) {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-      statusBarTranslucent
-    >
-      <Pressable style={styles.overlay} onPress={onCancel}>
-        <Pressable style={styles.dialog} onPress={() => {}}>
-          <View style={styles.iconBubble}>
-            <Icon name="block" size={22} color={COLORS.error} />
-          </View>
-          <Text style={styles.title}>Block {name ?? 'this user'}?</Text>
-          <Text style={styles.body}>
-            You'll both disappear from each other across Mello — profiles,
-            events, chats and messages. They won't be told. You can unblock
-            later in Settings.
-          </Text>
-          <View style={styles.buttonRow}>
-            <PressableScale
-              scaleTo={0.96}
-              style={[styles.btn, styles.cancelBtn]}
-              onPress={onCancel}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={styles.cancelLabel}>Cancel</Text>
-            </PressableScale>
-            <PressableScale
-              scaleTo={0.96}
-              style={[styles.btn, styles.blockBtn]}
-              onPress={onConfirm}
-              accessibilityRole="button"
-              accessibilityLabel="Block"
-            >
-              <Text style={styles.blockLabel}>Block</Text>
-            </PressableScale>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <Dialog visible={visible} onClose={onCancel} style={styles.dialog}>
+      <View style={styles.iconBubble}>
+        <Icon name="block" size={22} color={COLORS.error} />
+      </View>
+      <Text style={styles.title}>Block {name ?? 'this user'}?</Text>
+      <Text style={styles.body}>
+        You'll both disappear from each other across Mello — profiles,
+        events, chats and messages. They won't be told. You can unblock
+        later in Settings.
+      </Text>
+      <View style={styles.buttonRow}>
+        <PressableScale
+          scaleTo={0.96}
+          style={[styles.btn, styles.cancelBtn]}
+          onPress={onCancel}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+        >
+          <Text style={styles.cancelLabel}>Cancel</Text>
+        </PressableScale>
+        <PressableScale
+          scaleTo={0.96}
+          style={[styles.btn, styles.blockBtn]}
+          onPress={onConfirm}
+          accessibilityRole="button"
+          accessibilityLabel="Block"
+        >
+          <Text style={styles.blockLabel}>Block</Text>
+        </PressableScale>
+      </View>
+    </Dialog>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 26,
-  },
   dialog: {
     alignSelf: 'stretch',
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
     paddingTop: 22,
     paddingHorizontal: 20,
     paddingBottom: 18,
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 48,

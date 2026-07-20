@@ -5,8 +5,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Modal,
-  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +24,7 @@ import {
   PressableScale,
   Screen,
   ScreenHeader,
+  Sheet,
 } from '@/components/ui';
 
 // Vote the four superlatives. Anonymous; winners appear once a category
@@ -134,45 +133,39 @@ export default function SuperlativesScreen() {
       </ScrollView>
 
       {/* Attendee picker */}
-      <Modal
+      <Sheet
         visible={!!picking}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPicking(null)}
-        statusBarTranslucent
+        onClose={() => setPicking(null)}
+        style={styles.pickerCard}
       >
-        <Pressable style={styles.backdrop} onPress={() => setPicking(null)}>
-          <Pressable style={styles.pickerCard} onPress={() => {}}>
-            <Text style={styles.pickerTitle}>
-              {picking
-                ? `${SUPERLATIVES.find((s) => s.id === picking)?.emoji} ${SUPERLATIVES.find((s) => s.id === picking)?.label}`
-                : ''}
-            </Text>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {(attendeesQuery.data ?? []).map((a) => {
-                const isPick = picking ? myVotes.get(picking) === a.id : false;
-                return (
-                  <PressableScale
-                    key={a.id}
-                    scaleTo={0.98}
-                    style={styles.pickerRow}
-                    onPress={() => picking && castVote(picking, a.id)}
-                  >
-                    <Avatar name={a.name} photoUrl={a.photo_url} size={40} />
-                    <Text style={styles.pickerName}>
-                      {a.name}
-                      {a.isHost ? '  ·  Host' : ''}
-                    </Text>
-                    {isPick && (
-                      <Icon name="check" size={17} color={COLORS.success} strokeWidth={2.6} />
-                    )}
-                  </PressableScale>
-                );
-              })}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <Text style={styles.pickerTitle}>
+          {picking
+            ? `${SUPERLATIVES.find((s) => s.id === picking)?.emoji} ${SUPERLATIVES.find((s) => s.id === picking)?.label}`
+            : ''}
+        </Text>
+        <ScrollView style={{ maxHeight: 360 }}>
+          {(attendeesQuery.data ?? []).map((a) => {
+            const isPick = picking ? myVotes.get(picking) === a.id : false;
+            return (
+              <PressableScale
+                key={a.id}
+                scaleTo={0.98}
+                style={styles.pickerRow}
+                onPress={() => picking && castVote(picking, a.id)}
+              >
+                <Avatar name={a.name} photoUrl={a.photo_url} size={40} />
+                <Text style={styles.pickerName}>
+                  {a.name}
+                  {a.isHost ? '  ·  Host' : ''}
+                </Text>
+                {isPick && (
+                  <Icon name="check" size={17} color={COLORS.success} strokeWidth={2.6} />
+                )}
+              </PressableScale>
+            );
+          })}
+        </ScrollView>
+      </Sheet>
     </Screen>
   );
 }
@@ -221,18 +214,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.45)',
-    justifyContent: 'flex-end',
-  },
-  pickerCard: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    padding: 20,
-    paddingBottom: 30,
-  },
+  pickerCard: { padding: 20 },
   pickerTitle: {
     fontFamily: FONTS.heavy,
     fontSize: 17,

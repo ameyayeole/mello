@@ -3,18 +3,21 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
-  Pressable,
   TextInput,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, Button, Icon, NavButton, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  Icon,
+  NavButton,
+  PressableScale,
+  Sheet,
+} from '@/components/ui';
 import { sendWrapNote } from '@/services/wrap.service';
 import { uploadChatPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
@@ -84,88 +87,64 @@ export function NoteComposer({
   }
 
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
+      onClose={onClose}
+      keyboardAvoiding
+      style={styles.card}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.kav}
-          pointerEvents="box-none"
+    <View style={styles.header}>
+      <Avatar name={recipient?.name} photoUrl={recipient?.photo_url} size={36} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.title}>Note for {recipient?.name}</Text>
+        <Text style={styles.sub}>
+          Delivered privately. They can't reply unless you're friends.
+        </Text>
+      </View>
+      <NavButton icon="close" onPress={onClose} accessibilityLabel="Close" />
+    </View>
+
+    <TextInput
+      style={styles.input}
+      placeholder="Great meeting you! That story about…"
+      placeholderTextColor="rgba(15,24,44,0.40)"
+      value={content}
+      onChangeText={(t) => setContent(t.slice(0, 500))}
+      multiline
+      autoFocus
+    />
+
+    {photoUri ? (
+      <View style={styles.photoRow}>
+        <Image source={{ uri: photoUri }} style={styles.photoThumb} contentFit="cover" />
+        <PressableScale
+          scaleTo={0.9}
+          style={styles.photoRemove}
+          onPress={() => setPhotoUri(null)}
+          accessibilityLabel="Remove photo"
         >
-          <Pressable style={styles.card} onPress={() => {}}>
-            <View style={styles.header}>
-              <Avatar name={recipient?.name} photoUrl={recipient?.photo_url} size={36} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>Note for {recipient?.name}</Text>
-                <Text style={styles.sub}>
-                  Delivered privately. They can't reply unless you're friends.
-                </Text>
-              </View>
-              <NavButton icon="close" onPress={onClose} accessibilityLabel="Close" />
-            </View>
+          <Icon name="close" size={13} color="#fff" strokeWidth={2.6} />
+        </PressableScale>
+      </View>
+    ) : (
+      <PressableScale scaleTo={0.97} style={styles.attachBtn} onPress={pickPhoto}>
+        <Icon name="image" size={17} color={COLORS.primary} strokeWidth={2} />
+        <Text style={styles.attachText}>Attach a photo</Text>
+      </PressableScale>
+    )}
 
-            <TextInput
-              style={styles.input}
-              placeholder="Great meeting you! That story about…"
-              placeholderTextColor="rgba(15,24,44,0.40)"
-              value={content}
-              onChangeText={(t) => setContent(t.slice(0, 500))}
-              multiline
-              autoFocus
-            />
-
-            {photoUri ? (
-              <View style={styles.photoRow}>
-                <Image source={{ uri: photoUri }} style={styles.photoThumb} contentFit="cover" />
-                <PressableScale
-                  scaleTo={0.9}
-                  style={styles.photoRemove}
-                  onPress={() => setPhotoUri(null)}
-                  accessibilityLabel="Remove photo"
-                >
-                  <Icon name="close" size={13} color="#fff" strokeWidth={2.6} />
-                </PressableScale>
-              </View>
-            ) : (
-              <PressableScale scaleTo={0.97} style={styles.attachBtn} onPress={pickPhoto}>
-                <Icon name="image" size={17} color={COLORS.primary} strokeWidth={2} />
-                <Text style={styles.attachText}>Attach a photo</Text>
-              </PressableScale>
-            )}
-
-            <Button
-              label="Send note"
-              onPress={handleSend}
-              loading={sending}
-              disabled={!content.trim()}
-            />
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
-    </Modal>
+    <Button
+      label="Send note"
+      onPress={handleSend}
+      loading={sending}
+      disabled={!content.trim()}
+    />
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.45)',
-    justifyContent: 'flex-end',
-  },
-  kav: { justifyContent: 'flex-end' },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    padding: 20,
-    paddingBottom: 30,
-    gap: 14,
-  },
+  card: { padding: 20, gap: 14 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   title: {
     fontFamily: FONTS.heavy,
