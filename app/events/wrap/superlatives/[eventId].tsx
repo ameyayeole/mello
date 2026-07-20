@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Modal,
   Pressable,
@@ -19,7 +19,14 @@ import { SUPERLATIVES } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { CoAttendee, SuperlativeCategory } from '@/types/models';
-import { Avatar, Button, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  Icon,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 // Vote the four superlatives. Anonymous; winners appear once a category
 // has 3+ votes (shown in the recap).
@@ -32,7 +39,7 @@ export default function SuperlativesScreen() {
   const [picking, setPicking] = useState<SuperlativeCategory | null>(null);
 
   const attendeesQuery = useQuery({
-    queryKey: ['wrapAttendees', eventId, user?.id],
+    queryKey: queryKeys.wrapAttendees.of(eventId, user?.id),
     queryFn: () => getCoAttendees(eventId!, user!.id),
     enabled: !!eventId && !!user,
   });
@@ -63,12 +70,8 @@ export default function SuperlativesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.headerTitle}>Superlatives</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Superlatives" tone="transparent" />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {allVoted ? (
@@ -78,6 +81,7 @@ export default function SuperlativesScreen() {
               sub="Winners are revealed once each award has 3 votes. Check the recap."
             >
               <Button
+                variant="tertiary"
                 label="Back to the wrap"
                 height={44}
                 onPress={() => router.back()}
@@ -169,25 +173,11 @@ export default function SuperlativesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    letterSpacing: -0.34,
-    color: COLORS.textPrimary,
-  },
   scroll: { padding: 18, paddingTop: 10, gap: 12, paddingBottom: 30 },
   completeWrap: { paddingTop: 70, alignItems: 'center' },
   intro: {

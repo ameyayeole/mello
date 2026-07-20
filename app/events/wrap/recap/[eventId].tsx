@@ -2,11 +2,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { queryKeys } from '@/constants/queryKeys';
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +18,7 @@ import { getEventDetail } from '@/services/events.service';
 import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, IconButton, PressableScale } from '@/components/ui';
+import { Avatar, NavButton, PressableScale } from '@/components/ui';
 import { SuperlativeWinner } from '@/types/models';
 
 function StatCard({
@@ -66,7 +67,7 @@ export default function WrapRecapScreen() {
   const { sortedPhotos } = useWrapGallery(eventId);
 
   const { data: event } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId!),
     enabled: !!eventId,
   });
@@ -90,10 +91,8 @@ export default function WrapRecapScreen() {
 
       <SafeAreaView style={{ flex: 1 }}>
         <View style={styles.header}>
-          <IconButton
-            icon="back"
-            variant="ghost"
-            color="#fff"
+          <NavButton
+            color={COLORS.white}
             onPress={() => router.back()}
             accessibilityLabel="Back"
           />

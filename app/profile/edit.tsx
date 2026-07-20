@@ -4,8 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
-  SafeAreaView,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -26,7 +24,14 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
-import { ActivityGlyph, IconButton, PressableScale } from '@/components/ui';
+import {
+  ActivityGlyph,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+  TextField,
+} from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 const GENDERS: { id: Gender; label: string }[] = [
   { id: 'male', label: 'Male' },
@@ -56,7 +61,6 @@ export default function EditProfileScreen() {
   const [interests, setInterests] = useState<Set<ActivityId>>(
     new Set(user?.interests ?? [])
   );
-  const [focused, setFocused] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Debounced availability check; the user's current handle is always "free".
@@ -148,49 +152,42 @@ export default function EditProfileScreen() {
       });
       setUser(updated);
       router.back();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      showError(e);
     } finally {
       setLoading(false);
     }
   }
 
-  const inputStyle = (key: string) => [
-    styles.input,
-    focused === key && styles.inputFocused,
-  ];
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton
-          icon="close"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Cancel"
-        />
-        <Text style={styles.headerTitle}>Edit profile</Text>
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={
-            loading ||
-            !name.trim() ||
-            photos.length === 0 ||
-            usernameStatus === 'taken' ||
-            usernameStatus === 'invalid' ||
-            usernameStatus === 'checking'
-          }
-          hitSlop={8}
-        >
-          {loading ? (
-            <ActivityIndicator color={COLORS.primary} />
-          ) : (
-            <Text style={[styles.save, !name.trim() && styles.saveDisabled]}>
-              Save
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+    <Screen modal>
+      <ScreenHeader
+        title="Edit profile"
+        backIcon="close"
+        onBack={() => router.back()}
+        right={
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={
+              loading ||
+              !name.trim() ||
+              photos.length === 0 ||
+              usernameStatus === 'taken' ||
+              usernameStatus === 'invalid' ||
+              usernameStatus === 'checking'
+            }
+            hitSlop={8}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <Text style={[styles.save, !name.trim() && styles.saveDisabled]}>
+                Save
+              </Text>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -205,49 +202,26 @@ export default function EditProfileScreen() {
         </View>
 
         <View style={styles.form}>
-          <View>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>DISPLAY NAME</Text>
-              {identityLocked && <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>}
-            </View>
-            <TextInput
-              style={[...inputStyle('name'), identityLocked && styles.inputLocked]}
-              placeholder="Your name"
-              placeholderTextColor="rgba(15,24,44,0.40)"
-              value={name}
-              onChangeText={setName}
-              onFocus={() => setFocused('name')}
-              onBlur={() => setFocused(null)}
-              editable={!identityLocked}
-            />
-          </View>
+          <TextField
+            label="DISPLAY NAME"
+            trailingLabel={identityLocked ? 'VERIFIED · LOCKED' : undefined}
+            placeholder="Your name"
+            value={name}
+            onChangeText={setName}
+            locked={identityLocked}
+          />
 
           <View>
-            <Text style={styles.label}>USERNAME</Text>
-            <View
-              style={[
-                styles.usernameWrap,
-                focused === 'username' && styles.inputFocused,
-                (usernameStatus === 'taken' || usernameStatus === 'invalid') &&
-                  styles.inputError,
-              ]}
-            >
-              <Text style={styles.atPrefix}>@</Text>
-              <TextInput
-                style={styles.usernameInput}
-                placeholder="username"
-                placeholderTextColor="rgba(15,24,44,0.40)"
-                value={username}
-                onChangeText={(t) => setUsername(normalizeUsername(t))}
-                onFocus={() => setFocused('username')}
-                onBlur={() => setFocused(null)}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            {usernameError ? (
-              <Text style={styles.usernameError}>{usernameError}</Text>
-            ) : null}
+            <TextField
+              label="USERNAME"
+              leading={<Text style={styles.atPrefix}>@</Text>}
+              placeholder="username"
+              value={username}
+              onChangeText={(t) => setUsername(normalizeUsername(t))}
+              autoCapitalize="none"
+              autoCorrect={false}
+              error={usernameError}
+            />
             {suggestions.length > 0 && (
               <View style={styles.suggestionRow}>
                 {suggestions.map((s) => (
@@ -264,23 +238,15 @@ export default function EditProfileScreen() {
             )}
           </View>
 
-          <View>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>AGE</Text>
-              {identityLocked && <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>}
-            </View>
-            <TextInput
-              style={[...inputStyle('age'), identityLocked && styles.inputLocked]}
-              placeholder="18+"
-              placeholderTextColor="rgba(15,24,44,0.40)"
-              value={age}
-              onChangeText={setAge}
-              onFocus={() => setFocused('age')}
-              onBlur={() => setFocused(null)}
-              keyboardType="numeric"
-              editable={!identityLocked}
-            />
-          </View>
+          <TextField
+            label="AGE"
+            trailingLabel={identityLocked ? 'VERIFIED · LOCKED' : undefined}
+            placeholder="18+"
+            value={age}
+            onChangeText={setAge}
+            keyboardType="numeric"
+            locked={identityLocked}
+          />
 
           <View>
             <View style={styles.labelRow}>
@@ -321,19 +287,13 @@ export default function EditProfileScreen() {
             </Text>
           )}
 
-          <View>
-            <Text style={styles.label}>BIO</Text>
-            <TextInput
-              style={[...inputStyle('bio'), styles.bioInput]}
-              placeholder="Coffee, climbing, live music…"
-              placeholderTextColor="rgba(15,24,44,0.40)"
-              value={bio}
-              onChangeText={setBio}
-              onFocus={() => setFocused('bio')}
-              onBlur={() => setFocused(null)}
-              multiline
-            />
-          </View>
+          <TextField
+            label="BIO"
+            placeholder="Coffee, climbing, live music…"
+            value={bio}
+            onChangeText={setBio}
+            multiline
+          />
         </View>
 
         <View>
@@ -372,26 +332,11 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surface,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
   save: { fontFamily: FONTS.bold, fontSize: 15, color: COLORS.primary },
   saveDisabled: { color: COLORS.textMuted },
   scroll: { padding: 22, gap: 20, paddingBottom: 32 },
@@ -410,20 +355,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   form: { gap: 14 },
-  input: {
-    height: 48,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    fontFamily: FONTS.semibold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
-  inputError: { borderWidth: 1.5, borderColor: '#E5484D' },
-  inputLocked: { backgroundColor: 'rgba(15,24,44,0.04)', color: COLORS.textSecondary },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -443,34 +374,11 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: -4,
   },
-  usernameWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 48,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
   atPrefix: {
     fontFamily: FONTS.semibold,
     fontSize: 15,
     color: COLORS.textSecondary,
     marginRight: 1,
-  },
-  usernameInput: {
-    flex: 1,
-    height: '100%',
-    fontFamily: FONTS.semibold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-  },
-  usernameError: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: '#E5484D',
-    marginTop: 6,
   },
   suggestionRow: {
     flexDirection: 'row',
@@ -488,13 +396,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 12.5,
     color: COLORS.primary,
-  },
-  bioInput: {
-    height: undefined,
-    minHeight: 80,
-    paddingVertical: 12,
-    textAlignVertical: 'top',
-    fontFamily: FONTS.medium,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   pill: {

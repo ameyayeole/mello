@@ -1,20 +1,20 @@
 import { useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEventDetail } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import ParticipantRow from '@/components/events/ParticipantRow';
-import { IconButton, PressableScale } from '@/components/ui';
+import { PressableScale, Screen, ScreenHeader } from '@/components/ui';
 
 type Tab = 'attendees' | 'requests';
 
@@ -25,7 +25,6 @@ export default function EventAttendeesScreen() {
     eventId: string;
     tab?: Tab;
   }>();
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>(
@@ -33,7 +32,7 @@ export default function EventAttendeesScreen() {
   );
 
   const { data: event, isLoading } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
   });
@@ -47,24 +46,13 @@ export default function EventAttendeesScreen() {
   const list = tab === 'attendees' ? attendees : requests;
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['eventDetail', eventId] });
-    qc.invalidateQueries({ queryKey: ['myEvents'] });
+    qc.invalidateQueries({ queryKey: queryKeys.eventDetail.of(eventId) });
+    qc.invalidateQueries({ queryKey: queryKeys.myEvents.all });
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
-        />
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {event?.title ?? 'Attendees'}
-        </Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title={event?.title ?? 'Attendees'} tone="transparent" />
 
       {/* Tab switch */}
       <View style={styles.tabs}>
@@ -109,26 +97,11 @@ export default function EventAttendeesScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
   tabs: {
     flexDirection: 'row',
     gap: 8,

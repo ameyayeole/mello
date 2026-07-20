@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   TextInput,
@@ -28,7 +28,14 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
-import { Button, CategoryTile, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Button,
+  CategoryTile,
+  Icon,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 import type LiveScannerType from '@/components/events/LiveScanner';
 
 type Feedback = { tone: 'error' | 'warn'; text: string };
@@ -47,7 +54,7 @@ export default function AttendeeScanScreen() {
   const [liveAvailable, setLiveAvailable] = useState(false);
 
   const { data: event, isLoading } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
   });
@@ -80,7 +87,7 @@ export default function AttendeeScanScreen() {
     if (r.status === 'ok' || r.status === 'already') {
       setDoneAt(r.checked_in_at ?? new Date().toISOString());
       qc.invalidateQueries({ queryKey: ['myCheckin', eventId] });
-      qc.invalidateQueries({ queryKey: ['eventDetail', eventId] });
+      qc.invalidateQueries({ queryKey: queryKeys.eventDetail.of(eventId) });
     } else if (r.status === 'bad_secret') {
       flash({ tone: 'error', text: "That code isn't for this event's check-in." });
     } else {
@@ -153,12 +160,8 @@ export default function AttendeeScanScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Go back" />
-        <Text style={styles.headerTitle}>Check in</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Check in" tone="transparent" />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {isLoading || !event ? (
@@ -178,7 +181,8 @@ export default function AttendeeScanScreen() {
             <Text style={styles.doneTime}>
               Checked in at {formatEventTime(checkedIn)}
             </Text>
-            <Button label="Done" onPress={() => router.back()} style={{ marginTop: 22, alignSelf: 'stretch' }} />
+            <Button
+  variant="tertiary" label="Done" onPress={() => router.back()} style={{ marginTop: 22, alignSelf: 'stretch' }} />
           </Animated.View>
         ) : (
           <>
@@ -252,6 +256,7 @@ export default function AttendeeScanScreen() {
                   onSubmitEditing={submitCode}
                 />
                 <Button
+                  variant="primary"
                   label="Check in"
                   height={46}
                   onPress={submitCode}
@@ -267,26 +272,11 @@ export default function AttendeeScanScreen() {
       {scannerOpen && Scanner && (
         <Scanner paused={busy} onScan={handleRaw} onClose={() => setScannerOpen(false)} />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
   scroll: { padding: 20, paddingTop: 10, gap: 16, paddingBottom: 32 },
   notice: {
     fontFamily: FONTS.medium,

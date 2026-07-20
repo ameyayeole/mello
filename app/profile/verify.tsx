@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
 } from 'react-native';
@@ -12,7 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { startKycVerification, pollKycStatus } from '@/services/kyc.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, ScreenHeader, VerifiedBadge } from '@/components/ui';
+import { Button, Icon, Screen, ScreenHeader, VerifiedBadge } from '@/components/ui';
 
 const STATUS_COPY: Record<
   string,
@@ -80,7 +79,7 @@ export default function VerifyIdentityScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen modal>
       <ScreenHeader title="Identity verification" />
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -113,6 +112,7 @@ export default function VerifyIdentityScreen() {
             </View>
 
             <Button
+              variant="primary"
               label={waiting ? 'Checking result…' : copy.cta}
               onPress={handleVerify}
               loading={busy}
@@ -125,12 +125,11 @@ export default function VerifyIdentityScreen() {
           </Animated.View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 20, paddingTop: 26 },
   hero: { alignItems: 'center', marginBottom: 24 },
   heroIcon: {

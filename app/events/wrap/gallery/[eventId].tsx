@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   Modal,
   Alert,
@@ -12,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -27,7 +27,16 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { PhotoReportReason, WrapPhoto } from '@/types/models';
-import { Avatar, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Icon,
+  IconButton,
+  NavButton,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 const REPORT_REASONS: { reason: PhotoReportReason; label: string; icon: any }[] = [
   { reason: 'remove_me', label: "I don't want my photo included", icon: 'user' },
@@ -67,8 +76,8 @@ export default function WrapGalleryScreen() {
       setDownloading(true);
       const saved = await saveImagesToLibrary(sortedPhotos.map((p) => p.url));
       Alert.alert('Saved', `${saved} photos saved to your library.`);
-    } catch (e: any) {
-      Alert.alert('Could not save', e.message);
+    } catch (e) {
+      showError(e, 'Could not save');
     } finally {
       setDownloading(false);
     }
@@ -105,25 +114,21 @@ export default function WrapGalleryScreen() {
   }));
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Back" />
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Photo pool</Text>
-          <Text style={styles.headerSub}>
-            {sortedPhotos.length} {sortedPhotos.length === 1 ? 'photo' : 'photos'} · top 6 go to Explore
-          </Text>
-        </View>
-        {canDownload && sortedPhotos.length > 0 ? (
-          <IconButton
-            icon="bookmark"
-            onPress={downloading ? undefined : handleDownloadAll}
-            accessibilityLabel="Save all photos to your library"
-          />
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="Photo pool"
+        subtitle={`${sortedPhotos.length} ${sortedPhotos.length === 1 ? 'photo' : 'photos'} · top 6 go to Explore`}
+        tone="transparent"
+        right={
+          canDownload && sortedPhotos.length > 0 ? (
+            <IconButton
+              icon="bookmark"
+              onPress={downloading ? undefined : handleDownloadAll}
+              accessibilityLabel="Save all photos to your library"
+            />
+          ) : undefined
+        }
+      />
 
       <FlatList
         data={sortedPhotos}
@@ -204,8 +209,8 @@ export default function WrapGalleryScreen() {
                                 await deleteWrapPhoto(viewer.id);
                                 setViewerId(null);
                                 photosQuery.refetch();
-                              } catch (e: any) {
-                                Alert.alert('Error', e.message);
+                              } catch (e) {
+                                showError(e);
                               }
                             },
                           },
@@ -220,10 +225,9 @@ export default function WrapGalleryScreen() {
                     onPress={() => setReportTarget(viewer)}
                     accessibilityLabel="Report this photo"
                   />
-                  <IconButton
+                  <NavButton
                     icon="close"
-                    variant="ghost"
-                    color="#fff"
+                    color={COLORS.white}
                     onPress={() => setViewerId(null)}
                     accessibilityLabel="Close"
                   />
@@ -334,32 +338,11 @@ export default function WrapGalleryScreen() {
         options={reportOptions}
         onClose={() => setReportTarget(null)}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerCenter: { alignItems: 'center' },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    letterSpacing: -0.34,
-    color: COLORS.textPrimary,
-  },
-  headerSub: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11.5,
-    color: COLORS.textMuted,
-    marginTop: 1,
-  },
   grid: { padding: 14, gap: 8, paddingBottom: 30 },
   column: { gap: 8 },
   empty: { alignItems: 'center', gap: 8, paddingTop: 90, paddingHorizontal: 40 },
@@ -379,7 +362,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 20,
     height: 40,
-    borderRadius: 100,
+    borderRadius: 10,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -412,7 +395,7 @@ const styles = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 15,
     height: 38,
-    borderRadius: 100,
+    borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
   likeBtnOn: { backgroundColor: COLORS.primary },

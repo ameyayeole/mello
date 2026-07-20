@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
@@ -20,7 +20,13 @@ import WrapPhotoTile from '@/components/wrap/WrapPhotoTile';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Button,
+  Icon,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 // The post-event hub: checklist, gallery preview, run-it-back, and the
 // locked/unlocked "night in numbers" recap.
@@ -30,7 +36,7 @@ export default function WrapHubScreen() {
   const user = useAuthStore((s) => s.user);
 
   const eventQuery = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId!),
     enabled: !!eventId,
   });
@@ -64,30 +70,27 @@ export default function WrapHubScreen() {
 
   if (eventQuery.isLoading || !event) {
     return (
-      <SafeAreaView style={[styles.container, styles.center]}>
+      <Screen style={styles.center}>
         <ActivityIndicator color={COLORS.primary} />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (!ended || !isAttendee) {
     return (
-      <SafeAreaView style={[styles.container, styles.center]}>
+      <Screen style={styles.center}>
         <Text style={styles.guardTitle}>
           {!ended ? 'This event hasn’t wrapped yet' : 'This wrap is for attendees'}
         </Text>
-        <Button label="Go back" onPress={() => router.back()} style={{ marginTop: 14 }} />
-      </SafeAreaView>
+        <Button
+  variant="tertiary" label="Go back" onPress={() => router.back()} style={{ marginTop: 14 }} />
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.headerTitle}>Event wrap</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Event wrap" tone="transparent" />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -224,31 +227,17 @@ export default function WrapHubScreen() {
           </PressableScale>
         </Animated.View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   center: { alignItems: 'center', justifyContent: 'center', padding: 30 },
   guardTitle: {
     fontFamily: FONTS.bold,
     fontSize: 16,
     color: COLORS.textPrimary,
     textAlign: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    letterSpacing: -0.34,
-    color: COLORS.textPrimary,
   },
   scroll: { padding: 18, paddingTop: 8, gap: 18, paddingBottom: 30 },
   hero: { alignItems: 'center', gap: 6, paddingVertical: 6 },

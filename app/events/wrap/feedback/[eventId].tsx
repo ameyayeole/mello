@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +14,12 @@ import { useWrap } from '@/hooks/useWrap';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, IconButton, PressableScale } from '@/components/ui';
+import {
+  Button,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 // Private event feedback for the host: thumbs + optional note, anonymous.
 export default function EventFeedbackScreen() {
@@ -38,12 +42,8 @@ export default function EventFeedbackScreen() {
   const done = sent || status?.feedbackDone;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton icon="back" variant="ghost" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.headerTitle}>Rate the event</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <ScreenHeader title="Rate the event" tone="transparent" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -60,6 +60,7 @@ export default function EventFeedbackScreen() {
                 sub="The host only ever sees anonymous totals and notes."
               >
                 <Button
+                  variant="tertiary"
                   label="Back to the wrap"
                   height={44}
                   onPress={() => router.back()}
@@ -131,25 +132,11 @@ export default function EventFeedbackScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    letterSpacing: -0.34,
-    color: COLORS.textPrimary,
-  },
   scroll: { padding: 20, gap: 18 },
   completeWrap: { paddingTop: 70, alignItems: 'center' },
   title: {

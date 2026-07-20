@@ -1,9 +1,9 @@
 import { useRef } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   ActivityIndicator,
 } from 'react-native';
@@ -27,8 +27,9 @@ import {
   Avatar,
   Button,
   Icon,
-  IconButton,
   PressableScale,
+  Screen,
+  ScreenHeader,
 } from '@/components/ui';
 
 function WishlistCard({
@@ -162,7 +163,7 @@ export default function WishlistScreen() {
   const sheetRef = useRef<EventBottomSheetRef>(null);
 
   const { data: wishlist = [], isLoading } = useQuery({
-    queryKey: ['savedEvents', user?.id],
+    queryKey: queryKeys.savedEvents.of(user?.id),
     queryFn: () => getSavedEvents(user!.id),
     enabled: !!user,
     staleTime: 60_000,
@@ -173,106 +174,74 @@ export default function WishlistScreen() {
     mutationFn: (eventId: string) => unsaveEvent(user!.id, eventId),
     onMutate: (eventId) => {
       queryClient.setQueryData<NearbyEvent[]>(
-        ['savedEvents', user?.id],
+        queryKeys.savedEvents.of(user?.id),
         (events = []) => events.filter((e) => e.id !== eventId)
       );
       queryClient.setQueryData<string[]>(
-        ['savedEventIds', user?.id],
+        queryKeys.savedEventIds.of(user?.id),
         (ids = []) => ids.filter((i) => i !== eventId)
       );
     },
   });
 
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <IconButton
-            icon="chevronDown"
-            onPress={() => router.back()}
-            accessibilityLabel="Close"
-          />
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Wishlist</Text>
-            <Text style={styles.headerSub}>
-              {wishlist.length === 0
-                ? 'Events you save land here'
-                : `${wishlist.length} ${wishlist.length === 1 ? 'event' : 'events'} saved`}
-            </Text>
-          </View>
-          {/* Balances the close button so the title stays centred. */}
-          <View style={{ width: 40 }} />
-        </View>
+    <Screen modal>
+      <ScreenHeader
+        title="Wishlist"
+        subtitle={
+          wishlist.length === 0
+            ? 'Events you save land here'
+            : `${wishlist.length} ${wishlist.length === 1 ? 'event' : 'events'} saved`
+        }
+        backIcon="chevronDown"
+        tone="transparent"
+      />
 
-        {isLoading ? (
-          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 48 }} />
-        ) : (
-          <FlatList
-            data={wishlist}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item, index }) => (
-              <Animated.View
-                entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(320)}
-              >
-                <WishlistCard
-                  event={item}
-                  onPress={() => sheetRef.current?.open(item.id)}
-                  onRemove={() => remove.mutate(item.id)}
-                />
-              </Animated.View>
-            )}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <View style={styles.emptyIcon}>
-                  <Icon name="bookmark" size={34} color={COLORS.primary} />
-                </View>
-                <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
-                <Text style={styles.emptyText}>
-                  Swipe right on events you like — or tap ♥ — and they'll be
-                  waiting for you here.
-                </Text>
-                <Button
-                  label="Swipe events"
-                  height={44}
-                  onPress={() => router.push('/events/swipe')}
-                  style={{ marginTop: 6 }}
-                />
+      {isLoading ? (
+        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 48 }} />
+      ) : (
+        <FlatList
+          data={wishlist}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item, index }) => (
+            <Animated.View
+              entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(320)}
+            >
+              <WishlistCard
+                event={item}
+                onPress={() => sheetRef.current?.open(item.id)}
+                onRemove={() => remove.mutate(item.id)}
+              />
+            </Animated.View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Icon name="bookmark" size={34} color={COLORS.primary} />
               </View>
-            }
-          />
-        )}
-      </SafeAreaView>
-
+              <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
+              <Text style={styles.emptyText}>
+                Swipe right on events you like — or tap ♥ — and they'll be
+                waiting for you here.
+              </Text>
+              <Button
+                label="Swipe events"
+                height={44}
+                onPress={() => router.push('/events/swipe')}
+                style={{ marginTop: 6 }}
+              />
+            </View>
+          }
+        />
+      )}
       <EventBottomSheet ref={sheetRef} />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  headerCenter: { alignItems: 'center' },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 19,
-    letterSpacing: -0.38,
-    color: COLORS.textPrimary,
-  },
-  headerSub: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11.5,
-    color: COLORS.textMuted,
-    marginTop: 1,
-  },
   list: { padding: 16, paddingTop: 8, gap: 14, flexGrow: 1 },
   card: {
     backgroundColor: COLORS.surface,

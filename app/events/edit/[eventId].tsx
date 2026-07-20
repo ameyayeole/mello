@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  SafeAreaView,
   Switch,
   Alert,
   Platform,
@@ -38,10 +38,12 @@ import {
   ActivityGlyph,
   Button,
   Icon,
-  IconButton,
   MelloPin,
   PressableScale,
+  Screen,
+  ScreenHeader,
 } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 // Google Maps on Android, Apple Maps on iOS.
 const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
@@ -61,7 +63,7 @@ export default function EditEventScreen() {
   const userCoords = useLocationStore((s) => s.coords);
 
   const { data: event, isLoading } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
   });
@@ -172,14 +174,14 @@ export default function EditEventScreen() {
         womenOnly,
       });
       // Refresh everywhere this event appears.
-      queryClient.invalidateQueries({ queryKey: ['eventDetail', event.id] });
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      queryClient.invalidateQueries({ queryKey: ['exploreFeed'] });
-      queryClient.invalidateQueries({ queryKey: ['myEvents'] });
-      queryClient.invalidateQueries({ queryKey: ['joinedEvents'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.eventDetail.of(event.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myEvents.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.joinedEvents.all });
       router.back();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      showError(e);
     } finally {
       setLoading(false);
     }
@@ -187,26 +189,17 @@ export default function EditEventScreen() {
 
   if (isLoading || !event || !seeded) {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen modal>
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   const currentPhoto = photoUri ?? existingImageUrl;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton
-          icon="close"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Cancel"
-        />
-        <Text style={styles.headerTitle}>Edit event</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen modal>
+      <ScreenHeader title="Edit event" backIcon="close" tone="transparent" />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -486,6 +479,7 @@ export default function EditEventScreen() {
 
       <View style={styles.footer}>
         <Button
+          variant="primary"
           label="Save changes"
           onPress={handleSave}
           loading={loading}
@@ -505,25 +499,11 @@ export default function EditEventScreen() {
           setWomenOnlyConfirmVisible(false);
         }}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
   scroll: { padding: 20, paddingTop: 8, gap: 7, paddingBottom: 24 },
   label: {
     fontFamily: FONTS.bold,

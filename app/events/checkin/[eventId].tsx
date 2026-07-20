@@ -1,15 +1,14 @@
 import { useMemo } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { getEventDetail } from '@/services/events.service';
@@ -22,18 +21,24 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import TicketQR from '@/components/events/TicketQR';
-import { Avatar, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Icon,
+  IconButton,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 // Host's door screen: displays the event's single check-in QR + read-aloud code,
 // and a live roster of who has scanned in.
 export default function HostCheckinScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
 
   const { data: event, isLoading } = useQuery({
-    queryKey: ['eventDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
   });
@@ -42,7 +47,6 @@ export default function HostCheckinScreen() {
 
   const {
     data: qr,
-    isLoading: qrLoading,
     isError: qrError,
     refetch: refetchQr,
   } = useQuery({
@@ -94,58 +98,38 @@ export default function HostCheckinScreen() {
 
   if (isLoading || !event) {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen background={COLORS.accent} statusBar="light">
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (!isHost) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
-        <View style={styles.header}>
-          <IconButton
-            icon="back"
-            variant="ghost"
-            color="#fff"
-            style={styles.headerBtn}
-            onPress={() => router.back()}
-            accessibilityLabel="Go back"
-          />
-        </View>
+      <Screen background={COLORS.accent} statusBar="light">
+        <ScreenHeader tone="onDark" />
         <Text style={styles.notHost}>Only the host can run check-in.</Text>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      <View style={styles.header}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          color="#fff"
-          style={styles.headerBtn}
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>Check in guests</Text>
-          <Text style={styles.headerSub}>
-            {inCount} of {attendees.length} checked in
-          </Text>
-        </View>
-        <IconButton
-          icon="refresh"
-          variant="ghost"
-          color="#fff"
-          style={styles.headerBtn}
-          onPress={rotate}
-          accessibilityLabel="Rotate code"
-        />
-      </View>
+    <Screen background={COLORS.accent} statusBar="light">
+      <ScreenHeader
+        title="Check in guests"
+        subtitle={`${inCount} of ${attendees.length} checked in`}
+        tone="onDark"
+        right={
+          <IconButton
+            icon="refresh"
+            variant="ghost"
+            color={COLORS.white}
+            style={styles.headerBtn}
+            onPress={rotate}
+            accessibilityLabel="Rotate code"
+          />
+        }
+      />
 
       <FlatList
         data={attendees}
@@ -229,32 +213,12 @@ export default function HostCheckinScreen() {
         }}
         ListEmptyComponent={<Text style={styles.empty}>No approved attendees yet.</Text>}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.accent },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
   headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  headerTitle: {
-    fontFamily: FONTS.heading,
-    fontSize: 18,
-    letterSpacing: -0.3,
-    color: '#fff',
-  },
-  headerSub: {
-    fontFamily: FONTS.semibold,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 1,
-  },
   notHost: {
     fontFamily: FONTS.medium,
     fontSize: 14,

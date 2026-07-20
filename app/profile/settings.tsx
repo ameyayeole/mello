@@ -2,7 +2,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Switch,
   Alert,
@@ -19,9 +18,11 @@ import {
   Icon,
   IconName,
   PressableScale,
+  Screen,
   ScreenHeader,
   SectionLabel,
 } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 function SettingsRow({
   icon,
@@ -96,8 +97,8 @@ export default function SettingsScreen() {
                     await deleteAccount();
                     clear();
                     router.replace('/onboarding/welcome');
-                  } catch (e: any) {
-                    Alert.alert('Error', e.message);
+                  } catch (e) {
+                    showError(e);
                   }
                 },
               },
@@ -123,7 +124,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen modal>
       <ScreenHeader title="Settings" />
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -207,19 +208,18 @@ export default function SettingsScreen() {
           </View>
           <Button
             label="Log out"
-            variant="danger"
+            variant="tertiary"
             height={46}
             onPress={handleSignOut}
             style={{ marginTop: 10 }}
           />
         </Animated.View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 20, paddingTop: 14 },
   sectionLabel: { marginBottom: 8 },
   card: {

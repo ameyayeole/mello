@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  SafeAreaView,
   TextInput,
   Alert,
 } from 'react-native';
@@ -21,11 +20,15 @@ import { FONTS } from '@/constants/typography';
 import { Friendship } from '@/types/models';
 import {
   Avatar,
+  Button,
+  EmptyState,
   Icon,
-  IconButton,
   PressableScale,
+  Screen,
+  ScreenHeader,
   SectionLabel,
 } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 function FriendRow({
   friendship,
@@ -80,24 +83,21 @@ export default function FriendsScreen() {
   function handleAddFriend(targetId: string) {
     sendRequest.mutate(targetId, {
       onSuccess: () => Alert.alert('Sent!', 'Friend request sent.'),
-      onError: (e: any) => Alert.alert('Error', e.message),
+      onError: (e) => showError(e),
     });
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
-        />
-        <Text style={styles.title}>Friends</Text>
-        <View style={styles.headerIcon}>
-          <Icon name="userPlus" size={21} />
-        </View>
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="Friends"
+        tone="transparent"
+        right={
+          <View style={styles.headerIcon}>
+            <Icon name="userPlus" size={21} />
+          </View>
+        }
+      />
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
@@ -139,36 +139,31 @@ export default function FriendsScreen() {
                 {rel.status === 'friends' ? (
                   <Text style={styles.statusLabel}>Friends</Text>
                 ) : rel.status === 'request_sent' ? (
-                  <PressableScale
-                    scaleTo={0.92}
-                    style={styles.requestedBtn}
+                  <Button
+                    label="Requested"
+                    size="sm"
+                    variant="tertiary"
                     onPress={() => remove.mutate(rel.friendshipId!)}
-                  >
-                    <Text style={styles.requestedBtnText}>Requested</Text>
-                  </PressableScale>
+                  />
                 ) : rel.status === 'request_received' ? (
-                  <PressableScale
-                    scaleTo={0.92}
-                    style={styles.acceptBtn}
+                  <Button
+                    label="Accept"
+                    size="sm"
                     onPress={() => accept.mutate(rel.friendshipId!)}
-                  >
-                    <Text style={styles.acceptBtnText}>Accept</Text>
-                  </PressableScale>
+                  />
                 ) : (
-                  <PressableScale
-                    scaleTo={0.92}
-                    style={styles.addBtn}
+                  <Button
+                    label="Add"
+                    size="sm"
                     onPress={() => handleAddFriend(item.id)}
-                  >
-                    <Text style={styles.addBtnText}>Add</Text>
-                  </PressableScale>
+                  />
                 )}
               </Animated.View>
             );
           }}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No users found.</Text>
+            <EmptyState icon="search" title="No users found" compact />
           }
         />
       ) : (
@@ -203,13 +198,11 @@ export default function FriendsScreen() {
                         wants to be friends
                       </Text>
                     </View>
-                    <PressableScale
-                      scaleTo={0.92}
-                      style={styles.acceptBtn}
+                    <Button
+                      label="Accept"
+                      size="sm"
                       onPress={() => accept.mutate(req.id)}
-                    >
-                      <Text style={styles.acceptBtnText}>Accept</Text>
-                    </PressableScale>
+                    />
                     <PressableScale
                       scaleTo={0.92}
                       style={styles.declineBtn}
@@ -243,39 +236,19 @@ export default function FriendsScreen() {
           }}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Icon name="userPlus" size={38} color={COLORS.primary} />
-              </View>
-              <Text style={styles.emptyTitle}>No friends yet</Text>
-              <Text style={styles.emptyText}>
-                Search for people to add as friends.
-              </Text>
-            </View>
+            <EmptyState
+              icon="userPlus"
+              title="No friends yet"
+              body="Search for people to add as friends."
+            />
           }
         />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
-  title: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 24,
-    letterSpacing: -0.48,
-    color: COLORS.textPrimary,
-  },
   headerIcon: {
     width: 40,
     height: 40,
@@ -346,35 +319,11 @@ const styles = StyleSheet.create({
     color: 'rgba(15,24,44,0.5)',
     marginTop: 1,
   },
-  addBtn: {
-    height: 34,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 12.5 },
   statusLabel: {
     fontFamily: FONTS.bold,
     fontSize: 12.5,
     color: COLORS.textSecondary,
     paddingHorizontal: 10,
-  },
-  requestedBtn: {
-    height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  requestedBtnText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12.5,
-    color: COLORS.textSecondary,
   },
   declineBtn: {
     width: 34,
@@ -385,37 +334,5 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(15,24,44,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  acceptBtn: {
-    height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  acceptBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 12.5 },
-  emptyState: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-  },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13.5,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 19,
-    paddingTop: 20,
   },
 });

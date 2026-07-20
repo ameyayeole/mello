@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
@@ -28,7 +27,13 @@ import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { CoAttendee } from '@/types/models';
-import { Button, Icon, IconButton, PressableScale } from '@/components/ui';
+import {
+  Button,
+  Icon,
+  PressableScale,
+  Screen,
+  ScreenHeader,
+} from '@/components/ui';
 
 // Rate the people you met: swipe right = thumbs up, left = thumbs down
 // (private). Same deck engine as the events swipe screen.
@@ -150,172 +155,141 @@ export default function RatePeopleScreen() {
   const allDone = !isLoading && total > 0 && deck.length === 0;
 
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <IconButton
-            icon="chevronDown"
-            onPress={() => router.back()}
-            accessibilityLabel="Close"
-          />
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Who did you meet?</Text>
-            <Text style={styles.headerSub}>
-              Right 👍 · left 👎 (always private) · {ratedCount}/{total} rated
+    <Screen>
+      <ScreenHeader
+        title="Who did you meet?"
+        subtitle={`Right 👍 · left 👎 (always private) · ${ratedCount}/${total} rated`}
+        backIcon="chevronDown"
+        tone="transparent"
+      />
+
+      <View style={styles.deckArea}>
+        {isLoading ? (
+          <ActivityIndicator color={COLORS.primary} />
+        ) : allDone ? (
+          <View style={styles.doneWrap}>
+            <CompleteMoment
+              title="Everyone rated!"
+              sub="Thumbs up land on their profile. Thumbs down stay between you and no one."
+            >
+              <Button
+                variant="tertiary"
+                label="Back to the wrap"
+                height={44}
+                onPress={() => router.back()}
+                style={{ marginTop: 12, alignSelf: 'stretch' }}
+              />
+            </CompleteMoment>
+          </View>
+        ) : total === 0 ? (
+          <View style={styles.doneWrap}>
+            <Text style={styles.emptyTitle}>No one else was there</Text>
+            <Text style={styles.emptyText}>
+              Ratings unlock when an event has other attendees.
             </Text>
+            <Button
+variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
           </View>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <View style={styles.deckArea}>
-          {isLoading ? (
-            <ActivityIndicator color={COLORS.primary} />
-          ) : allDone ? (
-            <View style={styles.doneWrap}>
-              <CompleteMoment
-                title="Everyone rated!"
-                sub="Thumbs up land on their profile. Thumbs down stay between you and no one."
-              >
-                <Button
-                  label="Back to the wrap"
-                  height={44}
-                  onPress={() => router.back()}
-                  style={{ marginTop: 12, alignSelf: 'stretch' }}
-                />
-              </CompleteMoment>
-            </View>
-          ) : total === 0 ? (
-            <View style={styles.doneWrap}>
-              <Text style={styles.emptyTitle}>No one else was there</Text>
-              <Text style={styles.emptyText}>
-                Ratings unlock when an event has other attendees.
-              </Text>
-              <Button label="Go back" height={44} onPress={() => router.back()} />
-            </View>
-          ) : (
-            visible
-              .map((attendee, i) => {
-                const rel = relationshipWith(attendee.id);
-                const friendState = requestedIds.has(attendee.id)
-                  ? 'request_sent'
-                  : rel.status;
-                if (i === 0) {
-                  return (
-                    <GestureDetector key={attendee.id} gesture={pan}>
-                      <Animated.View style={[styles.cardWrap, topStyle]}>
-                        <RateCard
-                          attendee={attendee}
-                          friendState={friendState as any}
-                          onAddFriend={() => {
-                            setRequestedIds((s) => new Set(s).add(attendee.id));
-                            sendRequest.mutate(attendee.id);
-                          }}
-                        />
-                        <Animated.View
-                          pointerEvents="none"
-                          style={[styles.stamp, styles.upStamp, upStampStyle]}
-                        >
-                          <Text style={styles.stampEmoji}>👍</Text>
-                        </Animated.View>
-                        <Animated.View
-                          pointerEvents="none"
-                          style={[styles.stamp, styles.downStamp, downStampStyle]}
-                        >
-                          <Text style={styles.stampEmoji}>👎</Text>
-                        </Animated.View>
-                      </Animated.View>
-                    </GestureDetector>
-                  );
-                }
+        ) : (
+          visible
+            .map((attendee, i) => {
+              const rel = relationshipWith(attendee.id);
+              const friendState = requestedIds.has(attendee.id)
+                ? 'request_sent'
+                : rel.status;
+              if (i === 0) {
                 return (
-                  <Animated.View
-                    key={attendee.id}
-                    style={[styles.cardWrap, secondStyle]}
-                  >
-                    <RateCard attendee={attendee} />
-                  </Animated.View>
+                  <GestureDetector key={attendee.id} gesture={pan}>
+                    <Animated.View style={[styles.cardWrap, topStyle]}>
+                      <RateCard
+                        attendee={attendee}
+                        friendState={friendState as any}
+                        onAddFriend={() => {
+                          setRequestedIds((s) => new Set(s).add(attendee.id));
+                          sendRequest.mutate(attendee.id);
+                        }}
+                      />
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[styles.stamp, styles.upStamp, upStampStyle]}
+                      >
+                        <Text style={styles.stampEmoji}>👍</Text>
+                      </Animated.View>
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[styles.stamp, styles.downStamp, downStampStyle]}
+                      >
+                        <Text style={styles.stampEmoji}>👎</Text>
+                      </Animated.View>
+                    </Animated.View>
+                  </GestureDetector>
                 );
-              })
-              .reverse()
-          )}
-        </View>
-
-        {/* Actions */}
-        {!allDone && total > 0 && (
-          <View style={styles.actions}>
-            <PressableScale
-              scaleTo={0.85}
-              style={[styles.actionBtn, styles.smallActionBtn, !lastRated && styles.actionDisabled]}
-              onPress={onUndo}
-              accessibilityRole="button"
-              accessibilityLabel="Undo last rating"
-            >
-              <Icon name="undo" size={20} color={COLORS.warning} strokeWidth={2.2} />
-            </PressableScale>
-            <PressableScale
-              scaleTo={0.85}
-              style={[styles.actionBtn, !top && styles.actionDisabled]}
-              onPress={() => flingOut('down')}
-              accessibilityRole="button"
-              accessibilityLabel="Thumbs down, stays private"
-            >
-              <Text style={styles.actionEmoji}>👎</Text>
-            </PressableScale>
-            <PressableScale
-              scaleTo={0.85}
-              style={[styles.actionBtn, styles.smallActionBtn, !top && styles.actionDisabled]}
-              onPress={() => top && setNoteFor(top)}
-              accessibilityRole="button"
-              accessibilityLabel="Leave them a private note"
-            >
-              <Icon name="edit" size={19} color={COLORS.accent} strokeWidth={2} />
-            </PressableScale>
-            <PressableScale
-              scaleTo={0.85}
-              style={[styles.actionBtn, !top && styles.actionDisabled]}
-              onPress={() => flingOut('up')}
-              accessibilityRole="button"
-              accessibilityLabel="Thumbs up"
-            >
-              <Text style={styles.actionEmoji}>👍</Text>
-            </PressableScale>
-          </View>
+              }
+              return (
+                <Animated.View
+                  key={attendee.id}
+                  style={[styles.cardWrap, secondStyle]}
+                >
+                  <RateCard attendee={attendee} />
+                </Animated.View>
+              );
+            })
+            .reverse()
         )}
-      </SafeAreaView>
+      </View>
 
+      {/* Actions */}
+      {!allDone && total > 0 && (
+        <View style={styles.actions}>
+          <PressableScale
+            scaleTo={0.85}
+            style={[styles.actionBtn, styles.smallActionBtn, !lastRated && styles.actionDisabled]}
+            onPress={onUndo}
+            accessibilityRole="button"
+            accessibilityLabel="Undo last rating"
+          >
+            <Icon name="undo" size={20} color={COLORS.warning} strokeWidth={2.2} />
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.85}
+            style={[styles.actionBtn, !top && styles.actionDisabled]}
+            onPress={() => flingOut('down')}
+            accessibilityRole="button"
+            accessibilityLabel="Thumbs down, stays private"
+          >
+            <Text style={styles.actionEmoji}>👎</Text>
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.85}
+            style={[styles.actionBtn, styles.smallActionBtn, !top && styles.actionDisabled]}
+            onPress={() => top && setNoteFor(top)}
+            accessibilityRole="button"
+            accessibilityLabel="Leave them a private note"
+          >
+            <Icon name="edit" size={19} color={COLORS.accent} strokeWidth={2} />
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.85}
+            style={[styles.actionBtn, !top && styles.actionDisabled]}
+            onPress={() => flingOut('up')}
+            accessibilityRole="button"
+            accessibilityLabel="Thumbs up"
+          >
+            <Text style={styles.actionEmoji}>👍</Text>
+          </PressableScale>
+        </View>
+      )}
       <NoteComposer
         eventId={eventId!}
         recipient={noteFor}
         visible={!!noteFor}
         onClose={() => setNoteFor(null)}
       />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  headerCenter: { alignItems: 'center' },
-  headerTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: 19,
-    letterSpacing: -0.38,
-    color: COLORS.textPrimary,
-  },
-  headerSub: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11.5,
-    color: COLORS.textMuted,
-    marginTop: 1,
-  },
   deckArea: {
     flex: 1,
     margin: 16,
