@@ -31,15 +31,6 @@ export function hasWrapped(event: {
   return wrapEndAt(event).getTime() <= Date.now();
 }
 
-// Contribution window: 7 days after the end (matches wrap_window_open()).
-export function wrapWindowOpen(event: {
-  starts_at: string;
-  ends_at: string | null;
-}): boolean {
-  const end = wrapEndAt(event).getTime();
-  return end <= Date.now() && Date.now() < end + 7 * 24 * 60 * 60 * 1000;
-}
-
 // ── Attendees & ratings ──────────────────────────────────────────────────────
 
 // Everyone who was at the event (approved participants + host), minus me.

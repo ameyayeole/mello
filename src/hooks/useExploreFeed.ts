@@ -1,4 +1,5 @@
 import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
+import { queryKeys } from '@/constants/queryKeys';
 import { getExploreFeed } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
@@ -27,7 +28,7 @@ export function useExploreFeed(boostedOnly = false, enabled = true) {
   const lng = coords ? Math.round(coords.lng * 100) / 100 : null;
 
   return useInfiniteQuery({
-    queryKey: ['exploreFeed', user?.id, lat, lng, activeFilter, boostedOnly],
+    queryKey: queryKeys.exploreFeed.of(user?.id, lat, lng, activeFilter, boostedOnly),
     queryFn: ({ pageParam }) =>
       getExploreFeed({
         userId: user!.id,

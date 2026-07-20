@@ -45,7 +45,7 @@ export function useLocation() {
       );
 
       return true;
-    } catch (e) {
+    } catch {
       // Never let a location failure crash the onboarding flow.
       return false;
     }

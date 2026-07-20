@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
+import { ilikePattern } from '@/utils/postgrest';
 import {
   Coords,
   NearbyEvent,
   EventDetail,
   ExploreEvent,
-  ActivityMoment,
   SavedEventItem,
   ActivityId,
   Profile,
@@ -39,27 +39,6 @@ export async function getExploreFeed(params: {
   );
 }
 
-// One page of the Live activity feed — the Explore "Live" tab. Returns a stream
-// of heterogeneous "moment" rows (live_now / event_boosted / event_joined),
-// newest first. Pass coords when known so each moment carries its distance.
-export async function getActivityFeed(params: {
-  userId: string;
-  coords?: Coords | null;
-  limit?: number;
-  offset?: number;
-}): Promise<ActivityMoment[]> {
-  const { data, error } = await supabase.rpc('activity_feed', {
-    p_user_id: params.userId,
-    user_lat: params.coords?.lat ?? null,
-    user_lng: params.coords?.lng ?? null,
-    p_limit: params.limit ?? 20,
-    p_offset: params.offset ?? 0,
-  });
-
-  if (error) throw error;
-  return (data ?? []) as ActivityMoment[];
-}
-
 export async function getNearbyEvents(
   coords: Coords,
   radiusMeters: number,
@@ -87,7 +66,9 @@ export async function searchEvents(query: string): Promise<NearbyEvent[]> {
     )
     .eq('is_active', true)
     .eq('is_public', true)
-    .or(`title.ilike.%${query}%,location_name.ilike.%${query}%`)
+    .or(
+      `title.ilike.${ilikePattern(query)},location_name.ilike.${ilikePattern(query)}`
+    )
     .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
     // Boosted events surface first, then soonest.
     .order('boosted_until', { ascending: false, nullsFirst: false })
@@ -397,7 +378,7 @@ export async function getSavedEvents(
       const attendees = ((e.event_participants ?? []) as any[])
         .filter((p) => p.status === 'approved' && p.user)
         .map((p) => p.user);
-      const { event_participants, host, ...rest } = e;
+      const { event_participants: _ep, host, ...rest } = e;
       return {
         ...rest,
         host_name: host?.name,
@@ -444,7 +425,7 @@ export async function getSavedEventIds(userId: string): Promise<string[]> {
 // Supabase returns aggregated counts as `event_participants: [{ count: N }]`.
 function withParticipantCount(row: any): NearbyEvent {
   const count = row?.event_participants?.[0]?.count ?? 0;
-  const { event_participants, ...rest } = row ?? {};
+  const { event_participants: _ep, ...rest } = row ?? {};
   return { ...rest, participant_count: count } as NearbyEvent;
 }
 

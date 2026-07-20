@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -124,8 +125,8 @@ export function useNotifications() {
         },
         async (payload) => {
           const notif = payload.new as Notification;
-          qc.invalidateQueries({ queryKey: ['notifications', userId] });
-          qc.invalidateQueries({ queryKey: ['notificationsUnread', userId] });
+          qc.invalidateQueries({ queryKey: queryKeys.notifications.of(userId) });
+          qc.invalidateQueries({ queryKey: queryKeys.notificationsUnread.of(userId) });
 
           let senderName: string | undefined;
           if (notif.sender_id) {

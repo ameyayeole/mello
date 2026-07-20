@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getAllFriendships,
@@ -19,7 +20,7 @@ export function useFriends() {
   // status). Friends, pending requests and per-user relationship state are all
   // derived from this so they can never disagree.
   const friendshipsQuery = useQuery({
-    queryKey: ['friendships', userId],
+    queryKey: queryKeys.friendships.of(userId),
     queryFn: () => getAllFriendships(userId!),
     enabled: !!userId,
   });
@@ -38,14 +39,14 @@ export function useFriends() {
   );
 
   const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ['friendships', userId] });
+    qc.invalidateQueries({ queryKey: queryKeys.friendships.of(userId) });
 
   // Accepting and unfriending change friends_count for both users (via DB
   // triggers). Refresh the friendship list, any open profile screens, and the
   // current user's cached profile in the auth store so the count updates live.
   const refreshCounts = async () => {
     invalidate();
-    qc.invalidateQueries({ queryKey: ['profile'] });
+    qc.invalidateQueries({ queryKey: queryKeys.profile.all });
     if (userId) {
       try {
         const profile = await getProfile(userId);

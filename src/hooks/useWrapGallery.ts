@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   commentPhoto,
@@ -80,7 +81,7 @@ export function useWrapGallery(eventId: string | undefined) {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: photosKey });
-    qc.invalidateQueries({ queryKey: ['wrap', eventId, user?.id] });
+    qc.invalidateQueries({ queryKey: queryKeys.wrap.of(eventId, user?.id) });
   };
 
   const like = useMutation({

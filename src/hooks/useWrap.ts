@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   bumpWrapView,
@@ -36,14 +37,14 @@ export function useWrap(eventId: string | undefined) {
   const qc = useQueryClient();
 
   const statusQuery = useQuery({
-    queryKey: ['wrap', eventId, user?.id],
+    queryKey: queryKeys.wrap.of(eventId, user?.id),
     queryFn: () => getWrapStatus(eventId!, user!.id),
     enabled: !!eventId && !!user,
     staleTime: 30_000,
   });
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['wrap', eventId, user?.id] });
+    qc.invalidateQueries({ queryKey: queryKeys.wrap.of(eventId, user?.id) });
     qc.invalidateQueries({ queryKey: ['wrapEntry', user?.id] });
   };
 
@@ -76,10 +77,10 @@ export function useWrap(eventId: string | undefined) {
         : withdrawEncore(eventId!, user!.id),
     // Optimistic toggle: the button flips immediately.
     onMutate: async (want) => {
-      await qc.cancelQueries({ queryKey: ['wrap', eventId, user?.id] });
-      const prev = qc.getQueryData<WrapStatus>(['wrap', eventId, user?.id]);
+      await qc.cancelQueries({ queryKey: queryKeys.wrap.of(eventId, user?.id) });
+      const prev = qc.getQueryData<WrapStatus>(queryKeys.wrap.of(eventId, user?.id));
       if (prev) {
-        qc.setQueryData<WrapStatus>(['wrap', eventId, user?.id], {
+        qc.setQueryData<WrapStatus>(queryKeys.wrap.of(eventId, user?.id), {
           ...prev,
           encoreRequested: want,
           encoreCount: Math.max(0, prev.encoreCount + (want ? 1 : -1)),
@@ -88,7 +89,7 @@ export function useWrap(eventId: string | undefined) {
       return { prev };
     },
     onError: (_e, _want, ctx) => {
-      if (ctx?.prev) qc.setQueryData(['wrap', eventId, user?.id], ctx.prev);
+      if (ctx?.prev) qc.setQueryData(queryKeys.wrap.of(eventId, user?.id), ctx.prev);
     },
     onSettled: invalidate,
   });
