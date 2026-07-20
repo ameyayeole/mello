@@ -10,7 +10,6 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  Alert,
   ScrollView,
   Switch,
   Keyboard,
@@ -18,6 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { queryKeys } from '@/constants/queryKeys';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import MapView, { Region } from 'react-native-maps';
@@ -59,6 +59,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
 import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 // ─── In-map event creation ───────────────────────────────────────────────────
 // Replaces the old full-screen create form. The map itself is the canvas:
@@ -423,17 +424,17 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           });
         })();
         const [eventId] = await Promise.all([create, minWait]);
-        queryClient.invalidateQueries({ queryKey: ['events'] });
-        queryClient.invalidateQueries({ queryKey: ['exploreFeed'] });
-        queryClient.invalidateQueries({ queryKey: ['myEvents'] });
-        queryClient.invalidateQueries({ queryKey: ['joinedEvents'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.myEvents.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.joinedEvents.all });
         setSubmitState('success');
         setTimeout(() => {
           router.push(`/events/created/${eventId}`);
           onExit();
         }, 1300);
-      } catch (e: any) {
-        Alert.alert('Could not host event', e.message);
+      } catch (e) {
+        showError(e, 'Could not host event');
         // Fall back into the form with the pin back at its editing anchor.
         pinY.value = withTiming(anchorY, { duration: 400 });
         setPhase('form');
@@ -942,6 +943,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                   </View>
 
                   <Button
+                    variant="primary"
                     label={step === STEP_COUNT - 1 ? 'Host event' : 'Next'}
                     onPress={step === STEP_COUNT - 1 ? handleHost : next}
                     disabled={nextDisabled}

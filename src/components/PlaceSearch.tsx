@@ -14,6 +14,7 @@ import * as Location from 'expo-location';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { Icon } from '@/components/ui';
+import { errorProp } from '@/utils/errors';
 
 export interface PlaceResult {
   lat: number;
@@ -134,8 +135,8 @@ export default function PlaceSearch({
         .filter((s: Suggestion) => s.name);
       setSuggestions(items);
       setOpen(items.length > 0);
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') {
+    } catch (e) {
+      if (errorProp(e, 'name') !== 'AbortError') {
         setSuggestions([]);
         setOpen(false);
       }

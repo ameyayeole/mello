@@ -15,6 +15,7 @@ import { EventParticipant } from '@/types/models';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
 import { Avatar, Icon, PremiumBadge, PressableScale } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 // One attendee / join-request row in the host panel. Tapping the avatar or
 // name opens the person's profile. Approved attendees get message + overflow
@@ -36,26 +37,26 @@ export default function ParticipantRow({
   const approve = useMutation({
     mutationFn: () => approveParticipant(eventId, person.id),
     onSuccess: onChanged,
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   const decline = useMutation({
     mutationFn: () => rejectParticipant(eventId, person.id),
     onSuccess: onChanged,
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   const remove = useMutation({
     mutationFn: () => removeParticipant(eventId, person.id),
     onSuccess: onChanged,
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   const report = useMutation({
     mutationFn: (reason: ReportReason) => reportUser(me!.id, person.id, reason),
     onSuccess: () =>
       Alert.alert('Report sent', 'Thanks — our team will review this.'),
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e) => showError(e),
   });
 
   function openProfile() {

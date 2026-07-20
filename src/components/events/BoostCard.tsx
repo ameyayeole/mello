@@ -25,6 +25,7 @@ import {
 import { PurchaseCancelled, purchaseBoostPack, BoostPack } from '@/services/iap';
 import { getBoostCredits, spendBoost } from '@/services/boost.service';
 import { Button, Icon, PressableScale } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 // Host-only card on the manage-event panel. Boosts are credits now (028):
 // "Boost event" opens a sheet showing the host's balance — spend one from
@@ -75,8 +76,8 @@ export default function BoostCard({
       queryClient.invalidateQueries({ queryKey: ['boostCredits'] });
       setOpen(false);
       onBoosted();
-    } catch (e: any) {
-      Alert.alert('Could not boost', e.message ?? 'Please try again.');
+    } catch (e) {
+      showError(e, 'Could not boost');
     } finally {
       setPending(false);
     }
@@ -193,6 +194,7 @@ export default function BoostCard({
                   the swipe deck for {BOOST_HOURS} hours.
                 </Text>
                 <Button
+                  variant="primary"
                   label="Use 1 boost"
                   onPress={handleUse}
                   loading={pending}
@@ -239,6 +241,7 @@ export default function BoostCard({
                   })}
                 </View>
                 <Button
+                  variant="primary"
                   label={`Buy for ₹${BOOST_PACKS.find((p) => p.id === pack)!.price}`}
                   onPress={handleBuy}
                   loading={pending}
