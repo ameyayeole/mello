@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Icon, IconName, PressableScale } from '@/components/ui';
+import { Icon, IconName, PressableScale, Sheet } from '@/components/ui';
 
 // A bottom action sheet in the Mello style: dim backdrop, rounded card,
 // icon + label rows. Used for chat-row and message long-press menus.
@@ -28,72 +28,49 @@ export default function OptionSheet({
   onClose,
 }: OptionSheetProps) {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
-          {title ? (
-            <Text style={styles.title} numberOfLines={1}>
-              {title}
-            </Text>
-          ) : null}
-          {options.map((opt) => (
-            <PressableScale
-              key={opt.label}
-              scaleTo={0.98}
-              style={styles.row}
-              onPress={() => {
-                onClose();
-                // Let the sheet dismiss before the action (some actions open
-                // Alerts, which fight with a closing Modal on iOS).
-                setTimeout(opt.onPress, 120);
-              }}
+    <Sheet visible={visible} onClose={onClose} style={styles.card}>
+      {title ? (
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+      ) : null}
+      {options.map((opt) => (
+        <PressableScale
+          key={opt.label}
+          scaleTo={0.98}
+          style={styles.row}
+          onPress={() => {
+            onClose();
+            // Let the sheet dismiss before the action (some actions open
+            // Alerts, which fight with a closing Modal on iOS).
+            setTimeout(opt.onPress, 120);
+          }}
+        >
+          <View
+            style={[styles.rowIcon, opt.danger && styles.rowIconDanger]}
+          >
+            <Icon
+              name={opt.icon}
+              size={18}
+              color={opt.danger ? '#E5484D' : COLORS.textPrimary}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[styles.rowLabel, opt.danger && styles.rowLabelDanger]}
             >
-              <View
-                style={[styles.rowIcon, opt.danger && styles.rowIconDanger]}
-              >
-                <Icon
-                  name={opt.icon}
-                  size={18}
-                  color={opt.danger ? '#E5484D' : COLORS.textPrimary}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.rowLabel, opt.danger && styles.rowLabelDanger]}
-                >
-                  {opt.label}
-                </Text>
-                {opt.sub ? <Text style={styles.rowSub}>{opt.sub}</Text> : null}
-              </View>
-            </PressableScale>
-          ))}
-        </Pressable>
-      </Pressable>
-    </Modal>
+              {opt.label}
+            </Text>
+            {opt.sub ? <Text style={styles.rowSub}>{opt.sub}</Text> : null}
+          </View>
+        </PressableScale>
+      ))}
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.45)',
-    justifyContent: 'flex-end',
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 34,
-    gap: 2,
-  },
+  card: { paddingHorizontal: 16, paddingTop: 14, gap: 2 },
   title: {
     fontFamily: FONTS.bold,
     fontSize: 13,
