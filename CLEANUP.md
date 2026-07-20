@@ -120,6 +120,8 @@ warns against forking one.
 The real problem the audit was pointing at was **radius drift**, and the fix for
 that is a token, not a component. Done above.
 
+- [x] **Every screen tokenized** — 1,926 call sites across 85 files now use
+      `TYPE_SIZE`, `SPACING` and `RADIUS`. Screens no longer invent values.
 - [x] **`SPACING`** fixed and adopted in primitives. It could express only 36% of
       the spacing values the app uses — no 10px (123 uses), no 14px (92) — so it
       was unusable on contact. Rekeyed in 4px units with half-steps; coverage now
@@ -160,7 +162,22 @@ If any of these fail the branch is broken and the rest of the list is noise.
 - [x] Dashboard, Explore, Chats, Profile tabs all render
 - [x] Create an event end to end
 
-### 4.1 Type scale & primitives — NEW, touches every screen
+### 4.1 Type scale, spacing and radii — EVERY SCREEN CHANGED
+
+> The whole app was tokenized after your test pass. 582 values moved, nearly
+> all by 2px or less, but it touches **85 files**. Treat this as a fresh visual
+> pass over the app, not a spot check.
+
+- [ ] Walk every screen. Look for **truncation, wrapping and overlap** — a label
+      that fitted at 12.5px may wrap at 12px. That is the failure mode, not size.
+- [ ] **Circles must still be circles** — avatars, the check badge on the
+      event-created screen, attendee stacks, the swipe deck's action buttons.
+      Radii above the largest step were left raw precisely to protect these; if
+      any render as rounded squares, that rule missed one.
+- [ ] Dense rows — chat bubbles, meta rows, chips — where a 1px shift compounds
+- [ ] Anything with a fixed height and centred text
+
+### 4.1b Primitives
 
 The scale changed sizes by up to 0.5px inside `Button`, `TextField`,
 `ScreenHeader`, `EmptyState`, `SectionLabel`, `AttendeeStack` and
