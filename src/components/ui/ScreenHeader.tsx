@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
+import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { NavButton } from './NavButton';
 import { IconName } from './Icon';
@@ -83,9 +84,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[4],
+    paddingVertical: SPACING[2.5],
   },
   surface: { backgroundColor: COLORS.surface },
   dark: { backgroundColor: COLORS.accent },
@@ -95,6 +96,8 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
+    // Optical nudge to sit the subtitle on the title's baseline. Sub-grid on
+    // purpose — a scale step here is visibly too much.
     marginTop: 1,
   },
   subtitleDark: { color: 'rgba(255,255,255,0.6)' },

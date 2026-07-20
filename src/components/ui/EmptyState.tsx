@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
+import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName } from './Icon';
 import { Button } from './Button';
@@ -53,8 +54,8 @@ export function EmptyState({
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 8 },
-  compact: { paddingTop: 28 },
+  wrap: { alignItems: 'center', paddingTop: 80, paddingHorizontal: SPACING[8], gap: SPACING[2] },
+  compact: { paddingTop: SPACING[7] },
   badge: {
     width: 84,
     height: 84,
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING[2],
   },
   // Glyph metric, not typography — deliberately not a type step.
   emoji: { fontSize: 34 },
@@ -80,5 +81,5 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  action: { marginTop: 8 },
+  action: { marginTop: SPACING[2] },
 });
