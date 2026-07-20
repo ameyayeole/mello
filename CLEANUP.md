@@ -120,8 +120,17 @@ warns against forking one.
 The real problem the audit was pointing at was **radius drift**, and the fix for
 that is a token, not a component. Done above.
 
-- [ ] **`SPACING` adoption** — still 0 importers, 1278 raw numbers. Same rule as
-      the type scale: use it in new code, migrate screens as a design review.
+- [x] **`SPACING`** fixed and adopted in primitives. It could express only 36% of
+      the spacing values the app uses — no 10px (123 uses), no 14px (92) — so it
+      was unusable on contact. Rekeyed in 4px units with half-steps; coverage now
+      70%. The 1139 values in screens are untouched by design.
+
+**All three token sets had the same defect** and it is worth naming, because it
+is the reason a design system can exist in a repo and be used by nobody:
+`TYPE`, `RADIUS` and `SPACING` were each written as an idealised scale and never
+reconciled with the app. Each one could not express the values the code actually
+used, so the first person to reach for it bounced off and hardcoded instead.
+A scale that does not describe the app is not a scale, it is a wish.
 
 ### 3e. Large files 📄
 
