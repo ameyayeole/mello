@@ -3,7 +3,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { queryKeys } from '@/constants/queryKeys';
@@ -30,6 +29,7 @@ import {
   Button,
   CategoryTile,
   Icon,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -97,7 +97,7 @@ export default function HostPanelScreen() {
   if (isLoading || !event) {
     return (
       <Screen>
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+        <Loader />
       </Screen>
     );
   }

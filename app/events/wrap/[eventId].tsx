@@ -23,6 +23,7 @@ import { FONTS } from '@/constants/typography';
 import {
   Button,
   Icon,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -71,7 +72,7 @@ export default function WrapHubScreen() {
   if (eventQuery.isLoading || !event) {
     return (
       <Screen style={styles.center}>
-        <ActivityIndicator color={COLORS.primary} />
+        <Loader inline />
       </Screen>
     );
   }

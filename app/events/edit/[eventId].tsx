@@ -10,7 +10,6 @@ import {
   Switch,
   Alert,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -49,6 +48,7 @@ import {
   ActivityGlyph,
   Button,
   Icon,
+  Loader,
   MelloPin,
   PressableScale,
   Screen,
@@ -204,7 +204,7 @@ export default function EditEventScreen() {
   if (isLoading || !event || !seeded) {
     return (
       <Screen modal>
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+        <Loader />
       </Screen>
     );
   }

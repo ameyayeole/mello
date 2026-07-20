@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
     right: 10,
     width: 8,
     height: 8,
+    // Notification dot; geometry, not a corner radius.
     borderRadius: 4,
     backgroundColor: COLORS.primary,
     borderWidth: 1.5,

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -18,6 +17,7 @@ import { FONTS } from '@/constants/typography';
 import {
   Avatar,
   Icon,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -59,7 +59,7 @@ export default function PublicWrapScreen() {
 
       {wrapQuery.isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={COLORS.primary} />
+          <Loader inline />
         </View>
       ) : photos.length === 0 ? (
         <View style={styles.center}>

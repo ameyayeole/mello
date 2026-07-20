@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -30,6 +29,7 @@ import { CoAttendee } from '@/types/models';
 import {
   Button,
   Icon,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -165,7 +165,7 @@ export default function RatePeopleScreen() {
 
       <View style={styles.deckArea}>
         {isLoading ? (
-          <ActivityIndicator color={COLORS.primary} />
+          <Loader inline />
         ) : allDone ? (
           <View style={styles.doneWrap}>
             <CompleteMoment

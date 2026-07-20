@@ -8,7 +8,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Alert,
   Linking,
 } from 'react-native';
@@ -39,6 +38,7 @@ import {
   Icon,
   IconButton,
   IconName,
+  Loader,
   PremiumBadge,
   PressableScale,
   Screen,
@@ -200,7 +200,7 @@ export default function UserProfileScreen() {
   if (isLoading || !profile) {
     return (
       <Screen background={COLORS.surface}>
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+        <Loader />
       </Screen>
     );
   }

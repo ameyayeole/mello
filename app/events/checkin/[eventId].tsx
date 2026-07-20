@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -25,6 +24,7 @@ import {
   Avatar,
   Icon,
   IconButton,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -99,7 +99,7 @@ export default function HostCheckinScreen() {
   if (isLoading || !event) {
     return (
       <Screen background={COLORS.accent} statusBar="light">
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+        <Loader />
       </Screen>
     );
   }
@@ -153,7 +153,7 @@ export default function HostCheckinScreen() {
                   </PressableScale>
                 ) : (
                   <View style={styles.qrPlaceholder}>
-                    <ActivityIndicator color={COLORS.primary} />
+                    <Loader inline />
                   </View>
                 )}
               </View>

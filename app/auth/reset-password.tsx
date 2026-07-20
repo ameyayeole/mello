@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -14,7 +13,14 @@ import { friendlyAuthError } from '@/utils/authErrors';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, CoralGlow, Icon, Screen, TextField } from '@/components/ui';
+import {
+  Button,
+  CoralGlow,
+  Icon,
+  Loader,
+  Screen,
+  TextField,
+} from '@/components/ui';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -80,7 +86,7 @@ export default function ResetPasswordScreen() {
       <View style={styles.inner}>
         {phase === 'verifying' && (
           <View style={styles.center}>
-            <ActivityIndicator color={COLORS.primary} />
+            <Loader inline />
             <Text style={styles.subtitle}>Verifying your reset link…</Text>
           </View>
         )}

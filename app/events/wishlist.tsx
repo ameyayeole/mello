@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -27,6 +26,7 @@ import {
   Avatar,
   Button,
   Icon,
+  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -198,7 +198,7 @@ export default function WishlistScreen() {
       />
 
       {isLoading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 48 }} />
+        <Loader />
       ) : (
         <FlatList
           data={wishlist}

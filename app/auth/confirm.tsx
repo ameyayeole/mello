@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { exchangeAuthCode } from '@/services/auth.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, CoralGlow, Screen } from '@/components/ui';
+import { Button, CoralGlow, Icon, Loader, Screen } from '@/components/ui';
 
 type Phase = 'verifying' | 'done' | 'invalid';
 
@@ -33,7 +33,7 @@ export default function ConfirmScreen() {
       <View style={styles.center}>
         {phase === 'verifying' && (
           <>
-            <ActivityIndicator color={COLORS.primary} />
+            <Loader inline />
             <Text style={styles.subtitle}>Confirming your email…</Text>
           </>
         )}

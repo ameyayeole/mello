@@ -4,7 +4,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { queryKeys } from '@/constants/queryKeys';
@@ -25,6 +24,7 @@ import {
   EmptyState,
   Icon,
   IconName,
+  Loader,
   Screen,
   ScreenHeader,
   SectionLabel,
@@ -294,7 +294,7 @@ export default function NotificationsScreen() {
       />
 
       {isLoading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 60 }} />
+        <Loader />
       ) : (
         <FlatList
           data={items}
