@@ -79,11 +79,15 @@ export default function DateTimeField({
   onChange,
   minDate,
   compact,
+  mode = 'datetime',
 }: {
   value: Date;
   onChange: (d: Date) => void;
   minDate?: Date;
   compact?: boolean;
+  // 'date' / 'time' show only that half (field label and modal both), so the
+  // same component can be used as a split date + time pair over one Date.
+  mode?: 'date' | 'time' | 'datetime';
 }) {
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(value.getFullYear());
@@ -130,11 +134,21 @@ export default function DateTimeField({
         onPress={openPicker}
         activeOpacity={0.7}
       >
-        <Icon name="calendar" size={16} color={COLORS.primary} />
+        <Icon
+          name={mode === 'time' ? 'clock' : 'calendar'}
+          size={16}
+          color={COLORS.primary}
+        />
         <Text style={styles.dateFieldText} numberOfLines={1}>
-          {compact
-            ? `${fmtDayShort(value)} · ${fmtTime(value)}`
-            : `${fmtDayLong(value)} · ${fmtTime(value)}`}
+          {mode === 'time'
+            ? fmtTime(value)
+            : mode === 'date'
+              ? compact
+                ? fmtDayShort(value)
+                : fmtDayLong(value)
+              : compact
+                ? `${fmtDayShort(value)} · ${fmtTime(value)}`
+                : `${fmtDayLong(value)} · ${fmtTime(value)}`}
         </Text>
       </TouchableOpacity>
 
@@ -150,6 +164,8 @@ export default function DateTimeField({
           onPress={() => setOpen(false)}
         >
           <TouchableOpacity activeOpacity={1} style={styles.calCard}>
+            {mode !== 'time' && (
+            <>
             {/* Month navigation */}
             <View style={styles.calHeader}>
               <TouchableOpacity
@@ -215,40 +231,80 @@ export default function DateTimeField({
                 </View>
               ))}
             </View>
+            </>
+            )}
 
-            {/* Time */}
-            <Text style={styles.calTimeLabel}>Time</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipScroll}
-              contentOffset={{
-                x: Math.max(0, curMin / 30 - 1) * TIME_CHIP_W,
-                y: 0,
-              }}
-            >
-              {TIME_SLOTS.map((m) => {
-                const sel = m === curMin;
-                const t = new Date();
-                t.setHours(Math.floor(m / 60), m % 60, 0, 0);
-                return (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.timeChip, sel && styles.chipActive]}
-                    onPress={() => pickTime(m)}
+            {/* Time. Date-only mode skips it; time-only mode swaps the
+                one-line scroller for a wrapped grid it can breathe in. */}
+            {mode !== 'date' &&
+              (mode === 'time' ? (
+                <ScrollView
+                  style={styles.timeGridScroll}
+                  contentOffset={{
+                    x: 0,
+                    y: Math.max(0, (Math.floor(curMin / 90) - 2) * 48),
+                  }}
+                >
+                  <View style={styles.timeGrid}>
+                    {TIME_SLOTS.map((m) => {
+                      const sel = m === curMin;
+                      const t = new Date();
+                      t.setHours(Math.floor(m / 60), m % 60, 0, 0);
+                      return (
+                        <TouchableOpacity
+                          key={m}
+                          style={[styles.timeChip, sel && styles.chipActive]}
+                          onPress={() => pickTime(m)}
+                        >
+                          <Text
+                            style={[
+                              styles.timeChipText,
+                              sel && styles.chipTextActive,
+                            ]}
+                          >
+                            {fmtTime(t)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              ) : (
+                <>
+                  <Text style={styles.calTimeLabel}>Time</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipScroll}
+                    contentOffset={{
+                      x: Math.max(0, curMin / 30 - 1) * TIME_CHIP_W,
+                      y: 0,
+                    }}
                   >
-                    <Text
-                      style={[
-                        styles.timeChipText,
-                        sel && styles.chipTextActive,
-                      ]}
-                    >
-                      {fmtTime(t)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                    {TIME_SLOTS.map((m) => {
+                      const sel = m === curMin;
+                      const t = new Date();
+                      t.setHours(Math.floor(m / 60), m % 60, 0, 0);
+                      return (
+                        <TouchableOpacity
+                          key={m}
+                          style={[styles.timeChip, sel && styles.chipActive]}
+                          onPress={() => pickTime(m)}
+                        >
+                          <Text
+                            style={[
+                              styles.timeChipText,
+                              sel && styles.chipTextActive,
+                            ]}
+                          >
+                            {fmtTime(t)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              ))}
 
             <Button
               label="Done"
@@ -265,6 +321,14 @@ export default function DateTimeField({
 
 const styles = StyleSheet.create({
   chipScroll: { gap: 8, paddingVertical: 2 },
+  timeGridScroll: { maxHeight: 320 },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 2,
+  },
   dateField: {
     flexDirection: 'row',
     alignItems: 'center',

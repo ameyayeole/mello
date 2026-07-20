@@ -32,7 +32,11 @@ export async function getExploreFeed(params: {
   });
 
   if (error) throw error;
-  return (data ?? []) as ExploreEvent[];
+  // Never surface your own events in a discovery feed — you can't "join" a
+  // plan you're hosting. Hosted events live in the "You're hosting" section.
+  return ((data ?? []) as ExploreEvent[]).filter(
+    (e) => e.host_id !== params.userId
+  );
 }
 
 // One page of the Live activity feed — the Explore "Live" tab. Returns a stream

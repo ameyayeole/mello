@@ -69,6 +69,9 @@ const SOLAR: Record<string, string> = {
 const BOLD_DEFAULTS = new Set([
   'location', 'pin', 'bell', 'camera', 'calendar', 'flag', 'shield',
   'crown', 'thumbsUp', 'gps', 'crosshair',
+  // "Filled" names exist precisely to render solid — without this they map to
+  // the same Solar glyph as their outline twin and look identical.
+  'bookmarkFilled',
 ]);
 
 type Glyph = React.ReactNode;

@@ -127,8 +127,8 @@ export default function MapScreen() {
 
   // ── In-map event creation ──────────────────────────────────────────────────
   // While creatingEvent is on, the rest of the map UI steps aside: the filter
-  // button morphs into an X on the other side of the search bar, chips/FABs/
-  // pins fade out, and CreateEventFlow owns the interaction.
+  // button collapses away, chips/FABs/pins fade out, and CreateEventFlow owns
+  // the interaction (including cancelling, from its own card header).
   const flowRef = useRef<CreateEventFlowRef>(null);
   const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
   // 0 = browse chrome, 1 = create chrome (X in, filter out).
@@ -139,12 +139,6 @@ export default function MapScreen() {
       easing: Easing.inOut(Easing.cubic),
     });
   }, [creatingEvent]);
-  const xBtnStyle = useAnimatedStyle(() => ({
-    width: interpolate(createProg.value, [0, 1], [0, 44]),
-    marginRight: interpolate(createProg.value, [0, 1], [0, 10]),
-    opacity: createProg.value,
-    transform: [{ scale: interpolate(createProg.value, [0, 1], [0.6, 1]) }],
-  }));
   const filterBtnStyle = useAnimatedStyle(() => ({
     width: interpolate(createProg.value, [0, 1], [44, 0]),
     marginLeft: interpolate(createProg.value, [0, 1], [10, 0]),
@@ -360,19 +354,8 @@ export default function MapScreen() {
           entering={FadeInDown.duration(400)}
           style={styles.searchRow}
         >
-          {/* X slides in on the left while the filter collapses on the right,
-              nudging the (same-width) search bar over — create-mode chrome. */}
-          <Animated.View style={[styles.morphSlot, xBtnStyle]}>
-            <PressableScale
-              scaleTo={0.9}
-              style={styles.roundBtn}
-              onPress={() => setCreatingEvent(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel event creation"
-            >
-              <Icon name="close" size={18} color={COLORS.textPrimary} />
-            </PressableScale>
-          </Animated.View>
+          {/* Cancelling create mode lives on the wizard card's own header now,
+              so the search bar keeps only the filter button on its right. */}
           <PlaceSearch
             onResult={(r) => {
               if (creatingEvent) flowRef.current?.handlePlace(r);

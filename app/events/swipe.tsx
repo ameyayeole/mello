@@ -38,9 +38,9 @@ type FeedbackKind = 'like' | 'pass' | 'undo';
 
 const FEEDBACK_META: Record<
   FeedbackKind,
-  { label: string; icon: 'heart' | 'close' | 'undo'; bg: string }
+  { label: string; icon: 'bookmarkFilled' | 'close' | 'undo'; bg: string }
 > = {
-  like: { label: 'Added to wishlist', icon: 'heart', bg: COLORS.success },
+  like: { label: 'Added to wishlist', icon: 'bookmarkFilled', bg: COLORS.success },
   pass: { label: 'Passed', icon: 'close', bg: COLORS.accent },
   undo: { label: 'Brought back', icon: 'undo', bg: COLORS.accent },
 };
@@ -414,9 +414,9 @@ export default function SwipeDeckScreen() {
             style={[styles.actionBtn, styles.likeBtn, !top && styles.actionDisabled]}
             onPress={() => flingOut('like')}
             accessibilityRole="button"
-            accessibilityLabel="Like this event and add it to your wishlist"
+            accessibilityLabel="Add this event to your wishlist"
           >
-            <Icon name="heart" size={30} color="#fff" strokeWidth={2.4} />
+            <Icon name="bookmarkFilled" size={28} color="#fff" strokeWidth={2.4} />
           </PressableScale>
           <PressableScale
             scaleTo={0.85}

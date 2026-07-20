@@ -31,11 +31,28 @@ import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { ActivityId } from '@/types/models';
+import { ActivityId, Gender } from '@/types/models';
 import { ActivityGlyph, Button, Icon, PressableScale } from '@/components/ui';
 
-const STEPS = ['name', 'username', 'dob', 'photos', 'interests', 'bio'] as const;
+const STEPS = [
+  'name',
+  'username',
+  'dob',
+  'gender',
+  'photos',
+  'interests',
+  'bio',
+] as const;
 type Step = (typeof STEPS)[number];
+
+// Gender drives women-only events, so it's collected at signup rather than
+// left null (a null gender can never pass the female-only check).
+const GENDER_OPTIONS: { id: Gender; label: string }[] = [
+  { id: 'male', label: 'Male' },
+  { id: 'female', label: 'Female' },
+  { id: 'non-binary', label: 'Non-binary' },
+  { id: 'other', label: 'Other' },
+];
 
 // Duolingo-style bar. Starts pre-filled (never 0): step 1 already shows
 // 2/7 of the track, the last step lands just short of full. Glides between
@@ -95,6 +112,7 @@ export default function ProfileSetupScreen() {
   const [dobDay, setDobDay] = useState('');
   const [dobMonth, setDobMonth] = useState('');
   const [dobYear, setDobYear] = useState('');
+  const [gender, setGender] = useState<Gender | null>(null);
   const [bio, setBio] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [interests, setInterests] = useState<Set<ActivityId>>(new Set());
@@ -170,6 +188,8 @@ export default function ProfileSetupScreen() {
         return usernameStatus === 'available';
       case 'dob':
         return age !== null && age >= 18;
+      case 'gender':
+        return gender !== null;
       case 'photos':
         return photos.length > 0;
       case 'interests':
@@ -228,6 +248,7 @@ export default function ProfileSetupScreen() {
       const base = {
         name: name.trim(),
         age,
+        gender,
         bio: bio.trim() || undefined,
         photo_url: photoUrls[0],
         photos: photoUrls,
@@ -282,6 +303,11 @@ export default function ProfileSetupScreen() {
     dob: {
       title: 'When were you born?',
       subtitle: 'Mello is 18+. Only your age shows on your profile, never your birthday.',
+    },
+    gender: {
+      title: 'How do you identify?',
+      subtitle:
+        'This unlocks women-only events and helps keep Mello safe. Shown on your profile.',
     },
     photos: {
       title: 'Add your photos',
@@ -461,6 +487,38 @@ export default function ProfileSetupScreen() {
                       That date doesn't look right. Check it and try again.
                     </Text>
                   )}
+                </View>
+              )}
+
+              {step === 'gender' && (
+                <View style={styles.genderList}>
+                  {GENDER_OPTIONS.map((g) => {
+                    const sel = gender === g.id;
+                    return (
+                      <PressableScale
+                        key={g.id}
+                        scaleTo={0.98}
+                        style={[styles.genderRow, sel && styles.genderRowOn]}
+                        onPress={() => setGender(g.id)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: sel }}
+                      >
+                        <Text
+                          style={[
+                            styles.genderLabel,
+                            sel && styles.genderLabelOn,
+                          ]}
+                        >
+                          {g.label}
+                        </Text>
+                        <View style={[styles.radio, sel && styles.radioOn]}>
+                          {sel && (
+                            <Icon name="check" size={13} color="#fff" strokeWidth={3} />
+                          )}
+                        </View>
+                      </PressableScale>
+                    );
+                  })}
                 </View>
               )}
 
@@ -671,6 +729,38 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     textAlignVertical: 'top',
   },
+  genderList: { gap: 10 },
+  genderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  genderRowOn: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryTint,
+  },
+  genderLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  genderLabelOn: { color: COLORS.primary },
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   pill: {
     flexDirection: 'row',

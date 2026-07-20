@@ -1,16 +1,26 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   Pressable,
   Alert,
+  LayoutChangeEvent,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  SlideInLeft,
+  SlideInRight,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { getJoinedEvents, getMyEvents } from '@/services/events.service';
 import { getFriendConversations } from '@/services/dm.service';
@@ -182,7 +192,34 @@ export default function ChatsListScreen() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('events');
+
+  // Sliding pill behind the active segment. Width comes from the measured
+  // track (half of it, minus the 4pt inset on each side).
+  const tabIndex = tab === 'events' ? 0 : 1;
+  const [pillW, setPillW] = useState(0);
+  const slide = useSharedValue(0);
+
+  function onSegmentLayout(e: LayoutChangeEvent) {
+    setPillW((e.nativeEvent.layout.width - 8) / 2);
+  }
+
+  useEffect(() => {
+    slide.value = withTiming(tabIndex, {
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [tabIndex, slide]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slide.value * pillW }],
+  }));
+
+  // The list slides in from whichever side the new tab sits on.
+  const contentEnter = (tabIndex === 1 ? SlideInRight : SlideInLeft)
+    .duration(260)
+    .easing(Easing.out(Easing.cubic));
   const [sheetTarget, setSheetTarget] = useState<SheetTarget | null>(null);
   const [revealedNote, setRevealedNote] = useState<WrapNote | null>(null);
 
@@ -349,19 +386,27 @@ export default function ChatsListScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Inbox</Text>
-      </View>
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-      {/* Segmented tab switcher */}
-      <View style={styles.segmentWrap}>
-        <View style={styles.segment}>
+      {/* Dark header — wraps the title and the Events/Direct switcher */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <Text style={styles.title}>Inbox</Text>
+
+        {/* Segmented tab switcher with a pill that slides between tabs */}
+        <View style={styles.segment} onLayout={onSegmentLayout}>
+          {pillW > 0 && (
+            <Animated.View
+              style={[styles.segmentPill, { width: pillW }, pillStyle]}
+            />
+          )}
           {(['events', 'friends'] as Tab[]).map((t) => (
             <Pressable
               key={t}
-              style={[styles.segmentTab, tab === t && styles.segmentTabActive]}
+              style={styles.segmentTab}
               onPress={() => setTab(t)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: tab === t }}
             >
               <Text
                 style={[
@@ -376,6 +421,7 @@ export default function ChatsListScreen() {
         </View>
       </View>
 
+      <Animated.View key={tab} entering={contentEnter} style={styles.flex}>
       {tab === 'events' ? (
         eventChats.length === 0 ? (
           <EmptyState
@@ -455,6 +501,7 @@ export default function ChatsListScreen() {
           contentContainerStyle={styles.list}
         />
       )}
+      </Animated.View>
 
       <OptionSheet
         visible={!!sheetTarget}
@@ -464,26 +511,40 @@ export default function ChatsListScreen() {
       />
 
       <NoteRevealModal note={revealedNote} onClose={() => setRevealedNote(null)} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.surface },
-  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
-  title: {
-    fontFamily: FONTS.heavy,
-    fontSize: 24,
-    letterSpacing: -0.48,
-    color: COLORS.textPrimary,
+  flex: { flex: 1 },
+  header: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
   },
-  segmentWrap: { paddingHorizontal: 20, paddingBottom: 14 },
+  title: {
+    fontFamily: FONTS.heading,
+    fontSize: 24,
+    letterSpacing: -0.5,
+    color: '#fff',
+  },
   segment: {
     flexDirection: 'row',
-    gap: 4,
-    backgroundColor: '#F0F1F3',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 100,
     padding: 4,
+    marginTop: 14,
+  },
+  segmentPill: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    bottom: 4,
+    backgroundColor: '#fff',
+    borderRadius: 100,
   },
   segmentTab: {
     flex: 1,
@@ -492,18 +553,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 100,
   },
-  segmentTabActive: {
-    backgroundColor: COLORS.surface,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
   segmentText: {
     fontFamily: FONTS.bold,
     fontSize: 13,
-    color: 'rgba(15,24,44,0.5)',
+    color: 'rgba(255,255,255,0.6)',
   },
   segmentTextActive: { color: COLORS.textPrimary },
   list: { paddingBottom: 20 },
