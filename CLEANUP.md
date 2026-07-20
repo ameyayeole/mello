@@ -8,14 +8,19 @@ Branch: `cleanup/design-system-and-tests` (18 commits, **not pushed**, `main` un
 | --- | --- | --- |
 | `npm run typecheck` | 0 errors | **0 errors** |
 | `npm run lint` | 99 errors / 43 warnings | **95 errors / 16 warnings** |
+| Device tested | — | **✅ passed** (§4) |
 | `npm test` | *(no test runner)* | **64 passing, 6 suites** |
 
 Every number below was measured, not estimated.
 
-> ⚠️ **Nothing on this branch has run on a device.** That is now ~40 screens of
-> changes plus a type scale that touches every screen using a shared primitive.
-> **Do the device pass in §4 before writing any more code.** Stacking more
-> changes on an unverified pile is how a regression becomes unfindable.
+> ✅ **Device pass done** — §4 was run and passed. It found two real bugs, both
+> pre-existing on `main`: blocking someone left their events on the home screen
+> and in the swipe deck (stale caches the block path never invalidated), and the
+> home screen had no pull-to-refresh. Both fixed.
+>
+> Changes made *after* that pass — `Loader`, the radius/shadow tokens, and two
+> more overlays — are unverified. They are small and confined to `ui/`, but
+> re-check §4.1 and §4.2.
 
 ---
 
@@ -87,25 +92,36 @@ Real defects, not tidying. Each one is verified.
   - `react-hooks/purity` × 2 — impure call during render
 - [ ] 39 × `react/no-unescaped-entities` — cosmetic, `--fix`-able.
 
-### 3d. Design system, partly adopted 🎨
+### 3d. Design system — closed 🎨
 
-- [x] ~~Type scale~~ — replaced and adopted in primitives. **The 500-odd screen-level sizes are deliberately NOT migrated** — see the note below.
-- [ ] **Finish `Sheet` / `Dialog`** — 12 hand-rolled `<Modal>`s remain. 8 are real overlays following the same pattern as the 4 already converted; **4 are full-screen viewers** (photo viewers, scanner, image bubble) and are a different shape that probably should not use this primitive.
-- [ ] **`<Card>`** — ~25 copies, radius drifting 16/18/20/22/24.
-- [ ] **`<Chip>` / `<Badge>`** — ~145 instances. *Biggest remaining, do it last.*
-- [ ] **`<Loader>` / skeletons** — 22 files use a bare `ActivityIndicator`.
-- [ ] **`<ListRow>`** (14 copies), **`<Divider>`** (5).
-- [ ] **`SPACING` / `RADIUS` / `SHADOWS`** — still **0 importers**, 1278 raw spacing numbers. Same argument as the type scale: adopt in primitives first, migrate screens as a review.
+- [x] **Type scale** replaced and adopted in primitives.
+- [x] **`RADIUS` / `SHADOWS`** fixed and adopted in primitives. `RADIUS` could not
+      express 14 or 18 — the 2nd and 4th most common radii — which is why it had
+      zero importers. `SHADOWS.primary` used a third rival coral (`#FF5E5B`).
+- [x] **`Sheet` / `Dialog`** — 6 overlays converted, 16 → 10 `<Modal>` uses.
+- [x] **`Loader`** — 18 files now share one spinner.
 
-> **Why the 555 screen font sizes were left alone.** Measured: 34 distinct
-> sizes, **35% half-points**, and `12.5` is the single most-used size in the
-> codebase. Snapping them onto any scale changes 9–56% of the app's text
-> depending on the scale chosen. Critically, there is **no latent role
-> structure to recover** — `bold` spans 11.5–15px and `medium` spans 10.5–14
-> with no dominant size in either, so sizes were picked per screen, not per
-> role. Deciding that a given 12.5px meta row becomes `caption` is ~500
-> individual *design* judgements, not a refactor. Migrate a screen at a time,
-> as you touch it, with the result on screen in front of you.
+**`<Card>`, `<Chip>`/`<Badge>`, `<ListRow>` and `<Divider>` were measured and
+deliberately NOT built.** The original audit counted *instances*, not
+*duplicates*:
+
+| Proposed | Instances | Distinct | Actually duplicated |
+| --- | --- | --- | --- |
+| `<Card>` | 51 | **51** | **0** |
+| `<Chip>` / `<Badge>` | 144 | 129 | 26, mostly trivial (`color: COLORS.primary`) |
+| `<ListRow>` | 27 | 24 | 3 |
+| `<Divider>` | 5 | 5 | 0 — and 2 of the 5 are not dividers |
+
+Every "card" in the app differs in padding, border, width or layout. A `<Card>`
+covering them needs ~8 props, at which point it is a `View` with extra steps —
+a premature primitive, which `AGENTS.md` now warns against as explicitly as it
+warns against forking one.
+
+The real problem the audit was pointing at was **radius drift**, and the fix for
+that is a token, not a component. Done above.
+
+- [ ] **`SPACING` adoption** — still 0 importers, 1278 raw numbers. Same rule as
+      the type scale: use it in new code, migrate screens as a design review.
 
 ### 3e. Large files 📄
 
@@ -275,10 +291,10 @@ Recorded so nobody "fixes" them later.
    render error in production is a white screen with zero telemetry)*
 7. Supabase generated types — kills a class of runtime bug
 8. The four known bugs in §3b
-9. Finish `Sheet`/`Dialog` (8 overlays), then `<Card>` / `<ListRow>` / `<Divider>`
+9. ~~Design system~~ — closed, see §3d
 10. The `edit/[eventId].tsx` form extraction, as its own batch
 11. Triage the 52 React Compiler errors
-12. `<Chip>` and spacing tokens — last, they are the widest
+12. `SPACING` adoption in new code only — do not codemod screens
 
 **Do not** mass-migrate font sizes or spacing across screens without a design
 review. See the note in §3d.
