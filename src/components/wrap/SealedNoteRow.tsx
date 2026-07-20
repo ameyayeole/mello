@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, Easing } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
+import { Avatar, Button, Dialog, Icon, PressableScale } from '@/components/ui';
 import { useFriends } from '@/hooks/useFriends';
 import { WrapNote } from '@/types/models';
 
@@ -86,73 +86,63 @@ export function NoteRevealModal({
   }
 
   return (
-    <Modal
-      visible={!!note}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Animated.View
-          entering={FadeInDown.duration(320).easing(Easing.out(Easing.cubic))}
-        >
-          <Pressable style={styles.card} onPress={() => {}}>
-            <Animated.View entering={FadeIn.delay(120).duration(300)} style={styles.cardInner}>
-              <PressableScale scaleTo={0.97} style={styles.senderRow} onPress={openProfile}>
-                <Avatar
-                  name={note.sender?.name}
-                  photoUrl={note.sender?.photo_url}
-                  size={44}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.senderName}>{note.sender?.name ?? 'Someone'}</Text>
-                  <Text style={styles.senderMeta} numberOfLines={1}>
-                    from {note.eventTitle ?? 'your event'}
-                  </Text>
-                </View>
-                <Icon name="chevronRight" size={18} color="rgba(15,24,44,0.35)" />
-              </PressableScale>
+    <Dialog visible={!!note} onClose={onClose} style={styles.card}>
+      <Animated.View
+        entering={FadeInDown.duration(320).easing(Easing.out(Easing.cubic))}
+      >
+        <Animated.View entering={FadeIn.delay(120).duration(300)} style={styles.cardInner}>
+          <PressableScale scaleTo={0.97} style={styles.senderRow} onPress={openProfile}>
+            <Avatar
+              name={note.sender?.name}
+              photoUrl={note.sender?.photo_url}
+              size={44}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.senderName}>{note.sender?.name ?? 'Someone'}</Text>
+              <Text style={styles.senderMeta} numberOfLines={1}>
+                from {note.eventTitle ?? 'your event'}
+              </Text>
+            </View>
+            <Icon name="chevronRight" size={18} color="rgba(15,24,44,0.35)" />
+          </PressableScale>
 
-              <Text style={styles.noteText}>{note.content}</Text>
+          <Text style={styles.noteText}>{note.content}</Text>
 
-              {note.photo_url ? (
-                <Image
-                  source={{ uri: note.photo_url }}
-                  style={styles.notePhoto}
-                  contentFit="cover"
-                  transition={200}
-                />
-              ) : null}
+          {note.photo_url ? (
+            <Image
+              source={{ uri: note.photo_url }}
+              style={styles.notePhoto}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : null}
 
-              <View style={styles.actions}>
-                {isFriend ? (
-                  <Button
-                    label="Message"
-                    onPress={() => {
-                      onClose();
-                      router.push(`/(tabs)/chats/dm/${note.sender_id}`);
-                    }}
-                  />
-                ) : (
-                  <Button
-                    label={sent ? 'Friend request sent' : 'Add friend to reply'}
-                    disabled={sent}
-                    onPress={() => {
-                      setRequested(true);
-                      sendRequest.mutate(note.sender_id);
-                    }}
-                  />
-                )}
-                <Text style={styles.hint}>
-                  Notes are one-way. Once you're friends you can chat.
-                </Text>
-              </View>
-            </Animated.View>
-          </Pressable>
+          <View style={styles.actions}>
+            {isFriend ? (
+              <Button
+                label="Message"
+                onPress={() => {
+                  onClose();
+                  router.push(`/(tabs)/chats/dm/${note.sender_id}`);
+                }}
+              />
+            ) : (
+              <Button
+                label={sent ? 'Friend request sent' : 'Add friend to reply'}
+                disabled={sent}
+                onPress={() => {
+                  setRequested(true);
+                  sendRequest.mutate(note.sender_id);
+                }}
+              />
+            )}
+            <Text style={styles.hint}>
+              Notes are one-way. Once you're friends you can chat.
+            </Text>
+          </View>
         </Animated.View>
-      </Pressable>
-    </Modal>
+      </Animated.View>
+    </Dialog>
   );
 }
 
@@ -194,17 +184,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: COLORS.primary,
   },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.5)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 26,
-    overflow: 'hidden',
-  },
+  card: { overflow: 'hidden', padding: 0 },
   cardInner: { padding: 20, gap: 14 },
   senderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   senderName: {

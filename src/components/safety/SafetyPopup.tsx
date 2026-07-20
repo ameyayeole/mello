@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, Modal, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, IconName } from '@/components/ui';
+import { Button, Icon, IconName, Sheet } from '@/components/ui';
 
 // Safety bottom sheet, matching the "Mello Screens" design gallery: left-aligned,
 // 46px tinted icon tile, 19px title, bullet tips with an accent dot, coral
@@ -41,73 +41,45 @@ export default function SafetyPopup({
   const bullets = Array.isArray(body) ? body : null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={close}
-      statusBarTranslucent
-    >
-      <Pressable style={styles.overlay} onPress={close}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.handle} />
-          <View style={[styles.iconTile, { backgroundColor: tint }]}>
-            <Icon name={icon} size={23} color={accent} strokeWidth={1.8} />
-          </View>
-          <Text style={styles.title}>{title}</Text>
-          {bullets ? (
-            <View style={styles.bullets}>
-              {bullets.map((line, i) => (
-                <View key={i} style={styles.bulletRow}>
-                  <View style={[styles.bulletDot, { backgroundColor: accent }]} />
-                  <Text style={styles.bulletText}>{line}</Text>
-                </View>
-              ))}
+    <Sheet visible={visible} onClose={close} grabber style={styles.sheet}>
+      <View style={[styles.iconTile, { backgroundColor: tint }]}>
+        <Icon name={icon} size={23} color={accent} strokeWidth={1.8} />
+      </View>
+      <Text style={styles.title}>{title}</Text>
+      {bullets ? (
+        <View style={styles.bullets}>
+          {bullets.map((line, i) => (
+            <View key={i} style={styles.bulletRow}>
+              <View style={[styles.bulletDot, { backgroundColor: accent }]} />
+              <Text style={styles.bulletText}>{line}</Text>
             </View>
-          ) : (
-            <Text style={styles.body}>{body}</Text>
-          )}
-          <Button label={primaryLabel} onPress={onPrimary} style={styles.primary} />
-          {secondaryLabel && (
-            <TouchableOpacity
-              onPress={onSecondary ?? close}
-              hitSlop={8}
-              style={styles.secondaryBtn}
-            >
-              <Text style={styles.secondaryLabel}>{secondaryLabel}</Text>
-            </TouchableOpacity>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.body}>{body}</Text>
+      )}
+      <Button label={primaryLabel} onPress={onPrimary} style={styles.primary} />
+      {secondaryLabel && (
+        <TouchableOpacity
+          onPress={onSecondary ?? close}
+          hitSlop={8}
+          style={styles.secondaryBtn}
+        >
+          <Text style={styles.secondaryLabel}>{secondaryLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.5)',
-    justifyContent: 'flex-end',
-  },
   sheet: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
     paddingHorizontal: 22,
     paddingTop: 12,
-    paddingBottom: 30,
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: -8 },
-  },
-  handle: {
-    width: 40,
-    height: 5,
-    borderRadius: 100,
-    backgroundColor: 'rgba(15,24,44,0.15)',
-    alignSelf: 'center',
-    marginBottom: 16,
   },
   iconTile: {
     width: 46,
