@@ -1,35 +1,80 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { IconButton } from './IconButton';
+import { NavButton } from './NavButton';
+import { IconName } from './Icon';
 
-// App header: 40px back circle + bold title, white bar.
+// App header: back button + title, optional subtitle and right slot.
+//
+// `subtitle`, `tone` and the wider `backIcon` set exist because their absence
+// is why ~31 screens hand-rolled their own header row — and drifted into five
+// different title treatments in the process.
+//
+// `tone` sets the fill and the foreground together, because those two always
+// move together in practice:
+//
+//   surface     white bar, dark text — the default
+//   transparent no fill, dark text — over a light screen background
+//   dark        black bar, light text
+//   onDark      no fill, light text — over a screen that is already dark
+//
+// A titleless header (back button alone, floating over a hero) is valid: pass
+// no `title` and the text block collapses.
 export function ScreenHeader({
   title,
+  subtitle,
   onBack,
   backIcon = 'back',
   right,
-  transparent = false,
+  tone = 'surface',
+  style,
 }: {
-  title: string;
+  title?: string;
+  subtitle?: string;
   onBack?: () => void;
-  backIcon?: 'back' | 'close';
+  backIcon?: IconName;
   right?: React.ReactNode;
-  transparent?: boolean;
+  tone?: 'surface' | 'transparent' | 'dark' | 'onDark';
+  style?: StyleProp<ViewStyle>;
 }) {
   const router = useRouter();
+  const onDark = tone === 'dark' || tone === 'onDark';
+  const fg = onDark ? COLORS.white : COLORS.textPrimary;
+
   return (
-    <View style={[styles.header, transparent && styles.transparent]}>
-      <IconButton
+    <View
+      style={[
+        styles.header,
+        tone === 'surface' && styles.surface,
+        tone === 'dark' && styles.dark,
+        style,
+      ]}
+    >
+      <NavButton
         icon={backIcon}
+        color={fg}
         onPress={onBack ?? (() => router.back())}
         accessibilityLabel="Go back"
       />
-      <Text style={styles.title} numberOfLines={1}>
-        {title}
-      </Text>
-      {right ?? <View style={{ width: 40 }} />}
+
+      <View style={styles.titleWrap}>
+        {title ? (
+          <Text style={[styles.title, { color: fg }]} numberOfLines={1}>
+            {title}
+          </Text>
+        ) : null}
+        {subtitle ? (
+          <Text
+            style={[styles.subtitle, onDark && styles.subtitleDark]}
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+
+      {right ?? <View style={styles.spacer} />}
     </View>
   );
 }
@@ -41,14 +86,17 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: COLORS.surface,
   },
-  transparent: { backgroundColor: 'transparent' },
-  title: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: 20,
-    letterSpacing: -0.4,
-    color: COLORS.textPrimary,
+  surface: { backgroundColor: COLORS.surface },
+  dark: { backgroundColor: COLORS.accent },
+  titleWrap: { flex: 1 },
+  title: { fontFamily: FONTS.heavy, fontSize: 20, letterSpacing: -0.4 },
+  subtitle: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11.5,
+    color: COLORS.textMuted,
+    marginTop: 1,
   },
+  subtitleDark: { color: 'rgba(255,255,255,0.6)' },
+  spacer: { width: 40 },
 });
