@@ -1,16 +1,21 @@
 # Mello — Cleanup Status & TODO
 
-Branch: `cleanup/design-system-and-tests` (14 commits, not pushed, `main` untouched)
+Branch: `cleanup/design-system-and-tests` (18 commits, **not pushed**, `main` untouched)
 
 **Verified at the tip of the branch:**
 
 | Check | `main` | Now |
 | --- | --- | --- |
 | `npm run typecheck` | 0 errors | **0 errors** |
-| `npm run lint` | 99 errors / 43 warnings | **95 / 43** |
+| `npm run lint` | 99 errors / 43 warnings | **95 errors / 16 warnings** |
 | `npm test` | *(no test runner)* | **64 passing, 6 suites** |
 
 Every number below was measured, not estimated.
+
+> ⚠️ **Nothing on this branch has run on a device.** That is now ~40 screens of
+> changes plus a type scale that touches every screen using a shared primitive.
+> **Do the device pass in §4 before writing any more code.** Stacking more
+> changes on an unverified pile is how a regression becomes unfindable.
 
 ---
 
@@ -27,7 +32,8 @@ Real defects, not tidying. Each one is verified.
 - [x] **Event chat input couldn't grow** — fixed 42px single line while DMs grew to 120px. Both now grow; Return inserts a newline, only the send button sends.
 - [x] **Attachment failures swallowed** in event chat but handled in DMs — the two screens held verbatim copies that had drifted.
 - [x] **Optimistic-update race** — join/leave/approve/reject snapshotted for rollback *without* cancelling in-flight queries. A refetch already on the wire could land after the optimistic write and overwrite it: Join flipped to "Going", then snapped back on a slow connection.
-- [x] **IAP receipt check defaulted to a placeholder bundle ID** — *rolled back at your request, still open. See §4.*
+- [x] **Edit screen could save an invalid party size** — it had its own `parseInt` with **no clamp**, so an edit could set a size the create flow rejects. Both now share `utils/eventDraft`.
+- [x] **IAP receipt check defaulted to a placeholder bundle ID** — *rolled back at your request, still open. See §3a.*
 
 ## 2. Structural cleanup ✅
 
@@ -40,6 +46,9 @@ Real defects, not tidying. Each one is verified.
 | Raw hex literals | 289 | ~105 |
 | Multi-file query keys typed by hand | 81 | **0** |
 | `catch (e: any)` | 46 | **8** |
+| Hand-rolled `<Modal>` overlays | 16 | **12** |
+| Raw font sizes in `ui/` primitives | 13 | **2** *(emoji glyphs)* |
+| Lint **warnings** | 43 | **16** |
 | Dead files / unused deps | — | 5 deleted / 4 removed |
 
 - [x] **Button system** — exactly three variants: coral (major CTAs only), black (workhorse default), white (low-stakes). No pills. `secondary` is the default so coral stays rare.
@@ -47,6 +56,9 @@ Real defects, not tidying. Each one is verified.
 - [x] **`Screen`, `ScreenHeader`, `TextField`, `EmptyState`, `EventRow`** — the primitives whose absence made forking easier than reusing.
 - [x] **`queryKeys` registry** — 15 multi-file families, each exposing `all` (invalidate) and `of()` (read). Verified byte-identical to the 26 literals it replaced.
 - [x] **Test infrastructure** — Jest + jest-expo per the Expo 56 docs, scoped to `src/utils` and `src/services`.
+- [x] **`Sheet` / `Dialog`** — one overlay primitive; the nested-`Pressable` dismiss trick is written once instead of sixteen times. Adopted in 4 of 16.
+- [x] **Type scale replaced** — the old `TYPE` had 11 steps, **zero importers**, and values matching nothing the app rendered. New scale is 9 steps, whole pixels, named by role. Adopted in the `ui/` primitives only; **no text moved more than 0.5px**.
+- [x] **`import/first` warnings** — a stray `const` between the imports in `map.tsx` was generating 21 warnings on its own.
 
 ---
 
@@ -75,27 +87,88 @@ Real defects, not tidying. Each one is verified.
   - `react-hooks/purity` × 2 — impure call during render
 - [ ] 39 × `react/no-unescaped-entities` — cosmetic, `--fix`-able.
 
-### 3d. Design system, still unadopted 🎨
+### 3d. Design system, partly adopted 🎨
 
-- [ ] **`SPACING` / `RADIUS` / `SHADOWS`** — still **0 importers**. 1278 raw spacing numbers.
-- [ ] **`TYPE` scale** — still **0 importers**. ~25 distinct font sizes vs 11 defined steps. *Normalising these is a design decision, not a refactor — needs your call before anyone codemods it.*
-- [ ] **`<Sheet>` / `<Dialog>`** — **16 hand-rolled `<Modal>`s**, 3 backdrops byte-identical, 5 separate grab-handle implementations. `@gorhom/bottom-sheet` is already a dependency with the provider mounted. *Biggest remaining primitive win.*
+- [x] ~~Type scale~~ — replaced and adopted in primitives. **The 500-odd screen-level sizes are deliberately NOT migrated** — see the note below.
+- [ ] **Finish `Sheet` / `Dialog`** — 12 hand-rolled `<Modal>`s remain. 8 are real overlays following the same pattern as the 4 already converted; **4 are full-screen viewers** (photo viewers, scanner, image bubble) and are a different shape that probably should not use this primitive.
 - [ ] **`<Card>`** — ~25 copies, radius drifting 16/18/20/22/24.
-- [ ] **`<Chip>` / `<Badge>`** — ~145 instances, worst offender `CreateEventFlow` (13).
-- [ ] **`<Loader>` / skeletons** — 22 files use a bare `ActivityIndicator`; no skeleton component exists.
+- [ ] **`<Chip>` / `<Badge>`** — ~145 instances. *Biggest remaining, do it last.*
+- [ ] **`<Loader>` / skeletons** — 22 files use a bare `ActivityIndicator`.
 - [ ] **`<ListRow>`** (14 copies), **`<Divider>`** (5).
+- [ ] **`SPACING` / `RADIUS` / `SHADOWS`** — still **0 importers**, 1278 raw spacing numbers. Same argument as the type scale: adopt in primitives first, migrate screens as a review.
+
+> **Why the 555 screen font sizes were left alone.** Measured: 34 distinct
+> sizes, **35% half-points**, and `12.5` is the single most-used size in the
+> codebase. Snapping them onto any scale changes 9–56% of the app's text
+> depending on the scale chosen. Critically, there is **no latent role
+> structure to recover** — `bold` spans 11.5–15px and `medium` spans 10.5–14
+> with no dominant size in either, so sizes were picked per screen, not per
+> role. Deciding that a given 12.5px meta row becomes `caption` is ~500
+> individual *design* judgements, not a refactor. Migrate a screen at a time,
+> as you touch it, with the result on screen in front of you.
 
 ### 3e. Large files 📄
 
 - [ ] **`CreateEventFlow.tsx` — 1375 lines.** Rules extracted and tested; the rest is **deliberately left alone**. `phase`/`step`/`coord`/`locationName` are entangled with the pin animation and the `useImperativeHandle` contract `map.tsx` calls into, and `handleHost` interleaves its network call with a two-beat camera choreography. Needs a device to verify, not a refactor.
 - [ ] **`EventBottomSheet.tsx` — 934 lines** (was 1045). Mutations extracted, deduplicated, bug-fixed, covered. Remainder is JSX volume.
-- [ ] **`app/events/edit/[eventId].tsx`** — 18 `useState` mirroring one object, seeded by a `useEffect` with a `seeded` guard. Also hardcoded Mumbai coords (`:92`, also `map.tsx:237`) and `onMapPress(e: any)`. *Best size-to-effort of the untouched screens.*
+- [x] ~~`edit/[eventId].tsx` — duplicated limits, unclamped party size, `onMapPress(e: any)`, hardcoded Mumbai coords~~ — all fixed.
+- [ ] **`edit/[eventId].tsx` — the 12-setState `useEffect` with the `seeded` guard** (`:109`). The fix is not to tidy the effect but to delete it: split the form into a child component keyed by `event.id`, so its `useState` initialisers run once with the event already loaded. No effect, no `seeded` flag, no cascading render. **Deferred on purpose** — it means moving ~450 lines of JSX on a screen with no test coverage and no device verification. Do it as its own isolated batch.
 
 ---
 
 ## 4. What to test 🧪
 
-Nothing on this branch has been run on a device. Ordered by risk.
+Nothing on this branch has run on a device. Ordered by risk — **do §4.0 first**;
+if it fails, stop and report rather than working through the rest.
+
+Run on both platforms. `npx expo start -c` (the `-c` clears the bundler cache —
+the token and primitive changes will otherwise serve stale modules).
+
+### 4.0 Smoke test — 5 minutes, do this first
+
+If any of these fail the branch is broken and the rest of the list is noise.
+
+- [ ] App launches past the splash screen without a red box
+- [ ] Sign in works
+- [ ] Map tab renders with pins
+- [ ] Tap a pin → event sheet opens → Join works
+- [ ] Dashboard, Explore, Chats, Profile tabs all render
+- [ ] Create an event end to end
+
+### 4.1 Type scale & primitives — NEW, touches every screen
+
+The scale changed sizes by up to 0.5px inside `Button`, `TextField`,
+`ScreenHeader`, `EmptyState`, `SectionLabel`, `AttendeeStack` and
+`CategoryPill` — which is nearly every screen. Look for **truncation and
+wrapping**, not for size: a label that fitted at 11.5px and now wraps at 11px
+is the failure mode.
+
+- [ ] Button labels on all three sizes — nothing clipped or wrapped
+- [ ] `TextField` labels, error text, hint text, character counters
+- [ ] Screen header titles and subtitles — long event titles still truncate with `…` on one line
+- [ ] Section labels (the small uppercase headers)
+- [ ] Attendee stack overflow count (`+3`) still fits inside its circle
+- [ ] Category pills — label and emoji still aligned
+- [ ] Empty states — icon, title and body
+
+### 4.2 Overlays — NEW
+
+Four moved to the shared `Sheet`/`Dialog`. Card corner radius changed slightly
+(20/24/26 → 22) and the scrim is now one value.
+
+- [ ] **Chat message long-press menu** (`OptionSheet`) — opens, actions fire, **tapping the card itself does NOT dismiss it**, tapping the backdrop does
+- [ ] **Note composer** (Rate flow → pencil) — keyboard pushes the sheet up, does not cover the input
+- [ ] **Block confirm dialog** — centred, Cancel and Block both work
+- [ ] **Superlatives picker** — opens, selecting a person closes it
+- [ ] On all four: backdrop dim looks consistent, and the sheet clears the home indicator at the bottom
+
+### 4.3 Edit event — NEW
+
+- [ ] Open an event you host → Edit. Every field prefilled correctly
+- [ ] Change the party size to `999` → saves as **50**, not 999
+- [ ] Change it to `abc` or empty → falls back sensibly, does not crash
+- [ ] Tap the map to move the location → pin moves, address updates
+- [ ] Save → changes appear on the event sheet and the dashboard
 
 ### Android — highest priority
 The `SafeAreaView` → `Screen` swap touched ~40 screens and Android is the half that was broken before. One regression already shipped here.
@@ -182,13 +255,50 @@ Recorded so nobody "fixes" them later.
 
 ---
 
-## 6. Suggested order
+## 6. When you come back
 
-1. Device QA (§4) — nothing else matters if the branch is broken
-2. Bundle ID + IAP fallback 🚨
-3. CI
-4. Sentry + error boundary 🚨
-5. Supabase generated types
-6. The three known bugs (§3b)
-7. `<Sheet>` primitive — biggest remaining design-system win
-8. Triage the React Compiler errors
+**Before writing any more code:**
+
+1. **Run §4.0** (5 min smoke test). If it fails, stop — report what broke and
+   which screen.
+2. **Run §4.1 and §4.2** — the newest and least verified work.
+3. **Run the Android pass (§4.3 onward)** — the half that was broken before this
+   branch, and where one regression already shipped and had to be caught by eye.
+
+**Then, in this order:**
+
+4. Bundle ID + make the IAP fallback throw 🚨 *(needs the real identifier from
+   App Store Connect / Play Console — this is the only blocker that can take a
+   customer's money and give them nothing)*
+5. CI — `typecheck` + `test` gating, `lint` non-gating for now
+6. Sentry + an error boundary 🚨 *(highest-value item on this page: today a
+   render error in production is a white screen with zero telemetry)*
+7. Supabase generated types — kills a class of runtime bug
+8. The four known bugs in §3b
+9. Finish `Sheet`/`Dialog` (8 overlays), then `<Card>` / `<ListRow>` / `<Divider>`
+10. The `edit/[eventId].tsx` form extraction, as its own batch
+11. Triage the 52 React Compiler errors
+12. `<Chip>` and spacing tokens — last, they are the widest
+
+**Do not** mass-migrate font sizes or spacing across screens without a design
+review. See the note in §3d.
+
+---
+
+## 7. How to pick this back up
+
+```sh
+git checkout cleanup/design-system-and-tests
+npm ci                 # lockfile is clean; verifies nothing drifted
+npm run typecheck      # must be 0
+npm test               # must be 64/64
+npm run lint           # 95 errors / 16 warnings, all pre-existing
+npx expo start -c
+```
+
+Nothing is pushed. `main` is untouched, so `git checkout main` abandons all of
+it cleanly if you want to start over.
+
+The commit history is deliberately readable — 18 commits split by concern, each
+message explaining *why* rather than restating the diff. `git log --oneline
+main..HEAD` is the fastest way back into context.
