@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { queryKeys } from '@/constants/queryKeys';
 import { useQuery } from '@tanstack/react-query';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -247,6 +253,21 @@ export default function DashboardScreen() {
     staleTime: 60 * 60 * 1000,
   });
 
+  // Pull to refresh. The dashboard's own feeds are separate cache entries from
+  // the map's, so a change made elsewhere in the app (blocking someone, say)
+  // can land here later than it lands there — this is the manual escape hatch.
+  const refreshing =
+    nearbyQuery.isRefetching ||
+    joinedQuery.isRefetching ||
+    myEventsQuery.isRefetching;
+
+  function handleRefresh() {
+    nearbyQuery.refetch();
+    joinedQuery.refetch();
+    myEventsQuery.refetch();
+    unreadQuery.refetch();
+  }
+
   const headerLines = useMemo(
     () => [greeting(), ...(linesQuery.data ?? [])],
     [linesQuery.data]
@@ -327,6 +348,13 @@ export default function DashboardScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.primary}
+            />
+          }
         >
           {cityName ? (
             <Animated.View
