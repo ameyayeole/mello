@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import { useQuery } from '@tanstack/react-query';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
@@ -29,7 +30,6 @@ import { getGreetingLines } from '@/services/greetings.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
-import { categoryStyle } from '@/constants/categoryStyle';
 import { ExploreEvent, NearbyEvent } from '@/types/models';
 import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
@@ -41,12 +41,12 @@ import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import {
   Avatar,
   AttendeeStack,
-  CategoryTile,
   Icon,
   IconButton,
   PressableScale,
   VerifiedBadge,
 } from '@/components/ui';
+import EventRow from '@/components/events/EventRow';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -156,47 +156,6 @@ function NearbyCard({
 }
 
 // Full-width row: category tile + title + meta + Manage/View pill.
-function EventRow({
-  event,
-  badge,
-  onPress,
-}: {
-  event: NearbyEvent;
-  badge: 'hosting' | 'going';
-  onPress: () => void;
-}) {
-  const emoji = ACTIVITY_MAP[event.activity]?.emoji ?? '📍';
-  const cat = categoryStyle(event.activity);
-  return (
-    <PressableScale style={styles.eventRow} onPress={onPress} scaleTo={0.98}>
-      <View style={styles.eventThumb}>
-        <CategoryTile activity={event.activity} size={50} radius={14} />
-        <View style={[styles.eventEmoji, { backgroundColor: cat.accent }]}>
-          <Text style={{ fontSize: 11 }}>{emoji}</Text>
-        </View>
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.eventTitle} numberOfLines={1}>
-          {event.title}
-        </Text>
-        <Text style={styles.eventMeta} numberOfLines={1}>
-          {formatEventTime(event.starts_at)}
-          {event.participant_count ? ` · ${event.participant_count} going` : ''}
-        </Text>
-      </View>
-      {badge === 'hosting' ? (
-        <View style={styles.managePill}>
-          <Text style={styles.managePillText}>Manage</Text>
-        </View>
-      ) : (
-        <View style={styles.viewPill}>
-          <Text style={styles.viewPillText}>View</Text>
-        </View>
-      )}
-    </PressableScale>
-  );
-}
-
 // A single hosting event as a rich, full-width card (photo banner + Manage).
 function HostingCard({
   event,
@@ -261,13 +220,13 @@ export default function DashboardScreen() {
   });
 
   const joinedQuery = useQuery({
-    queryKey: ['joinedEvents', user?.id],
+    queryKey: queryKeys.joinedEvents.of(user?.id),
     queryFn: () => getJoinedEvents(user!.id),
     enabled: !!user,
   });
 
   const myEventsQuery = useQuery({
-    queryKey: ['myEvents', user?.id],
+    queryKey: queryKeys.myEvents.of(user?.id),
     queryFn: () => getMyEvents(user!.id),
     enabled: !!user,
   });
@@ -275,7 +234,7 @@ export default function DashboardScreen() {
   // Kept live by useNotifications, which invalidates this key whenever a
   // notification row arrives over realtime.
   const unreadQuery = useQuery({
-    queryKey: ['notificationsUnread', user?.id],
+    queryKey: queryKeys.notificationsUnread.of(user?.id),
     queryFn: () => getUnreadCount(user!.id),
     enabled: !!user,
   });
@@ -434,7 +393,8 @@ export default function DashboardScreen() {
                     <EventRow
                       key={event.id}
                       event={event}
-                      badge="hosting"
+                      cta="manage"
+                      elevated
                       onPress={() => router.push(`/events/host/${event.id}`)}
                     />
                   ))}
@@ -487,7 +447,8 @@ export default function DashboardScreen() {
                   <EventRow
                     key={event.id}
                     event={event}
-                    badge="going"
+                    cta="view"
+                    elevated
                     onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
                   />
                 ))}
@@ -684,7 +645,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     paddingHorizontal: 22,
     paddingVertical: 9,
-    borderRadius: 100,
+    borderRadius: 10,
     shadowColor: COLORS.primary,
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -735,70 +696,15 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   manageBtn: {
-    backgroundColor: COLORS.primaryTint,
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 100,
+    borderRadius: 10,
   },
-  manageBtnText: { fontFamily: FONTS.heavy, fontSize: 11.5, color: COLORS.primary },
+  manageBtnText: { fontFamily: FONTS.heavy, fontSize: 11.5, color: COLORS.white },
 
   // Full-width event row
   rowList: { gap: 10 },
-  eventRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-    borderRadius: 18,
-    padding: 11,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  eventThumb: { width: 50, height: 50 },
-  eventEmoji: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eventTitle: {
-    fontFamily: FONTS.heading,
-    fontSize: 15,
-    letterSpacing: -0.2,
-    color: COLORS.textPrimary,
-  },
-  eventMeta: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  managePill: {
-    backgroundColor: COLORS.primaryTint,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 100,
-  },
-  managePillText: { fontFamily: FONTS.heavy, fontSize: 10, color: COLORS.primary },
-  viewPill: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 100,
-  },
-  viewPillText: { fontFamily: FONTS.heavy, fontSize: 10, color: COLORS.textPrimary },
 
   // Empty state
   emptyCard: {
@@ -829,15 +735,10 @@ const styles = StyleSheet.create({
   },
   exploreBtn: {
     marginTop: 14,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 14,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
   },
   exploreBtnText: { fontFamily: FONTS.heading, fontSize: 14, color: '#fff' },
 });

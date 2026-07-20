@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  SafeAreaView,
   RefreshControl,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -22,7 +21,8 @@ import CreateEventFab from '@/components/CreateEventFab';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ExploreEvent, ExploreWrap } from '@/types/models';
-import { Icon, Button } from '@/components/ui';
+import { EmptyState, Screen } from '@/components/ui';
+import { errorMessage } from '@/utils/errors';
 
 // One Instagram-style feed: upcoming events as post cards, with a wrapped
 // event's top-6 gallery woven in after every few events.
@@ -86,7 +86,7 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.root}>
-      <SafeAreaView style={styles.container}>
+      <Screen background="transparent">
         <View style={styles.header}>
           <Text style={styles.title}>Explore</Text>
         </View>
@@ -136,36 +136,24 @@ export default function ExploreScreen() {
             }
             ListEmptyComponent={
               explore.isError ? (
-                <View style={styles.empty}>
-                  <View style={styles.emptyIcon}>
-                    <Icon name="close" size={36} color={COLORS.primary} />
-                  </View>
-                  <Text style={styles.emptyTitle}>Couldn't load the feed</Text>
-                  <Text style={styles.emptyText}>
-                    {(explore.error as any)?.message ?? String(explore.error)}
-                  </Text>
-                  <Button
-                    label="Retry"
-                    height={44}
-                    onPress={() => explore.refetch()}
-                    style={{ marginTop: 6 }}
-                  />
-                </View>
+                <EmptyState
+                  icon="close"
+                  title="Couldn't load the feed"
+                  body={errorMessage(explore.error)}
+                  actionLabel="Retry"
+                  onAction={() => explore.refetch()}
+                />
               ) : (
-                <View style={styles.empty}>
-                  <View style={styles.emptyIcon}>
-                    <Icon name="pin" size={38} color={COLORS.primary} />
-                  </View>
-                  <Text style={styles.emptyTitle}>Nothing nearby yet</Text>
-                  <Text style={styles.emptyText}>
-                    Be the first, drop a pin and get something going.
-                  </Text>
-                </View>
+                <EmptyState
+                  icon="pin"
+                  title="Nothing nearby yet"
+                  body="Be the first, drop a pin and get something going."
+                />
               )
             }
           />
         )}
-      </SafeAreaView>
+      </Screen>
 
       <CreateEventFab />
 
@@ -176,7 +164,6 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -192,23 +179,4 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   list: { padding: 16, paddingTop: 4, gap: 12 },
-  empty: { alignItems: 'center', paddingTop: 70, gap: 10 },
-  emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  emptyTitle: { fontFamily: FONTS.bold, fontSize: 17, color: COLORS.textPrimary },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
-    fontSize: 13.5,
-    lineHeight: 19,
-    textAlign: 'center',
-    maxWidth: 240,
-  },
 });

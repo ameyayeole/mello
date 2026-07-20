@@ -1,29 +1,18 @@
 import { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  SafeAreaView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { sendPasswordReset } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, CoralGlow } from '@/components/ui';
+import { Button, Icon, CoralGlow, Screen, TextField } from '@/components/ui';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -37,7 +26,7 @@ export default function ForgotPasswordScreen() {
       setLoading(true);
       await sendPasswordReset(trimmed);
       setSent(true);
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Error', friendlyAuthError(e));
     } finally {
       setLoading(false);
@@ -45,12 +34,9 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen background={COLORS.surface} keyboardAvoiding>
       <CoralGlow size={320} style={styles.glow} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.inner}
-      >
+      <View style={styles.inner}>
         <Animated.View entering={FadeInDown.duration(500)} style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -77,6 +63,7 @@ export default function ForgotPasswordScreen() {
           {sent ? (
             <>
               <Button
+                variant="tertiary"
                 label="Back to sign in"
                 onPress={() => router.back()}
               />
@@ -88,19 +75,16 @@ export default function ForgotPasswordScreen() {
             </>
           ) : (
             <>
-              <TextInput
-                style={[styles.input, focused && styles.inputFocused]}
+              <TextField
                 placeholder="Email address"
-                placeholderTextColor="rgba(15,24,44,0.40)"
                 value={email}
                 onChangeText={setEmail}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoFocus
               />
               <Button
+                variant="primary"
                 label="Send reset link"
                 onPress={handleSend}
                 loading={loading}
@@ -110,13 +94,12 @@ export default function ForgotPasswordScreen() {
             </>
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
   glow: {
     position: 'absolute',
     top: -80,
@@ -142,18 +125,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   form: { gap: 13 },
-  input: {
-    height: 48,
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    fontFamily: FONTS.medium,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputFocused: { borderWidth: 1.5, borderColor: COLORS.primary },
   resendText: {
     textAlign: 'center',
     fontFamily: FONTS.semibold,

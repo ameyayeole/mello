@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Modal,
   FlatList,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
@@ -31,60 +31,19 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
-import { Gender, NearbyEvent } from '@/types/models';
+import { NearbyEvent } from '@/types/models';
 import {
   Avatar,
   CategoryPill,
-  CategoryTile,
   Icon,
   IconButton,
+  NavButton,
   PremiumBadge,
   PressableScale,
   SectionLabel,
   VerifiedBadge,
 } from '@/components/ui';
-
-const GENDER_LABELS: Record<Gender, string> = {
-  male: 'Male',
-  female: 'Female',
-  'non-binary': 'Non-binary',
-  other: 'Other',
-};
-
-function EventRow({
-  event,
-  onPress,
-}: {
-  event: NearbyEvent;
-  onPress: () => void;
-}) {
-  const emoji = ACTIVITY_MAP[event.activity]?.emoji ?? '📍';
-  const cat = categoryStyle(event.activity);
-  return (
-    <PressableScale scaleTo={0.98} style={styles.eventRow} onPress={onPress}>
-      <View style={styles.eventThumb}>
-        <CategoryTile activity={event.activity} size={52} radius={14} />
-        <View style={[styles.eventEmoji, { backgroundColor: cat.accent }]}>
-          <Text style={{ fontSize: 11 }}>{emoji}</Text>
-        </View>
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.eventTitle} numberOfLines={1}>
-          {event.title}
-        </Text>
-        <Text style={styles.eventMeta} numberOfLines={1}>
-          {formatEventTime(event.starts_at)}
-          {event.participant_count
-            ? ` · ${event.participant_count} going`
-            : ''}
-        </Text>
-      </View>
-      <View style={styles.eventCta}>
-        <Text style={styles.eventCtaText}>View details</Text>
-      </View>
-    </PressableScale>
-  );
-}
+import EventRow from '@/components/events/EventRow';
 
 export default function ProfileTabScreen() {
   const router = useRouter();
@@ -99,7 +58,7 @@ export default function ProfileTabScreen() {
 
   // Wishlist: events saved from the swipe deck's bookmark button.
   const { data: wishlist = [] } = useQuery({
-    queryKey: ['savedEvents', user?.id],
+    queryKey: queryKeys.savedEvents.of(user?.id),
     queryFn: () => getSavedEvents(user!.id),
     enabled: !!user,
     staleTime: 60_000,
@@ -107,7 +66,7 @@ export default function ProfileTabScreen() {
   });
 
   const { data: joined = [] } = useQuery({
-    queryKey: ['joinedEvents', user?.id],
+    queryKey: queryKeys.joinedEvents.of(user?.id),
     queryFn: () => getJoinedEvents(user!.id),
     enabled: !!user,
   });
@@ -116,11 +75,11 @@ export default function ProfileTabScreen() {
     mutationFn: (eventId: string) => unsaveEvent(user!.id, eventId),
     onMutate: (eventId) => {
       queryClient.setQueryData<NearbyEvent[]>(
-        ['savedEvents', user?.id],
+        queryKeys.savedEvents.of(user?.id),
         (events = []) => events.filter((e) => e.id !== eventId)
       );
       queryClient.setQueryData<string[]>(
-        ['savedEventIds', user?.id],
+        queryKeys.savedEventIds.of(user?.id),
         (ids = []) => ids.filter((i) => i !== eventId)
       );
     },
@@ -204,8 +163,8 @@ export default function ProfileTabScreen() {
               <Svg style={styles.heroGradient} pointerEvents="none">
                 <Defs>
                   <LinearGradient id="meFade" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor="#17151A" stopOpacity={0} />
-                    <Stop offset="1" stopColor="#17151A" stopOpacity={0.8} />
+                    <Stop offset="0" stopColor={COLORS.accent} stopOpacity={0} />
+                    <Stop offset="1" stopColor={COLORS.accent} stopOpacity={0.8} />
                   </LinearGradient>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#meFade)" />
@@ -473,10 +432,9 @@ export default function ProfileTabScreen() {
             <Text style={styles.viewerCounter}>
               {viewerIndex + 1} / {gallery.length}
             </Text>
-            <IconButton
+            <NavButton
               icon="close"
-              size={38}
-              iconSize={18}
+              color={COLORS.white}
               onPress={() => setViewerOpen(false)}
               accessibilityLabel="Close photos"
             />
@@ -704,50 +662,8 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     paddingVertical: 10,
   },
-  eventRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-    borderRadius: 18,
-    padding: 11,
-  },
-  eventThumb: { width: 52, height: 52 },
-  eventEmoji: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eventTitle: {
-    fontFamily: FONTS.heading,
-    fontSize: 15,
-    letterSpacing: -0.2,
-    color: COLORS.textPrimary,
-  },
-  eventMeta: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  eventCta: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 100,
-  },
-  eventCtaText: { fontFamily: FONTS.heavy, fontSize: 10, color: '#fff' },
   sectionLabel: { marginTop: 6, marginBottom: 10, marginLeft: 4 },
-  viewer: { flex: 1, backgroundColor: '#17151A' },
+  viewer: { flex: 1, backgroundColor: COLORS.accent },
   viewerPage: { flex: 1, justifyContent: 'center' },
   viewerImage: { width: '100%', height: '100%' },
   viewerTop: {

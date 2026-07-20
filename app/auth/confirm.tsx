@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { exchangeAuthCode } from '@/services/auth.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, CoralGlow } from '@/components/ui';
+import { Button, Icon, CoralGlow, Screen } from '@/components/ui';
 
 type Phase = 'verifying' | 'done' | 'invalid';
 
@@ -34,7 +28,7 @@ export default function ConfirmScreen() {
   }, [code]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen background={COLORS.surface}>
       <CoralGlow size={320} style={styles.glow} />
       <View style={styles.center}>
         {phase === 'verifying' && (
@@ -58,6 +52,7 @@ export default function ConfirmScreen() {
                 'This confirmation link is invalid or has expired. Sign in to request a new one — and open it on this phone.'}
             </Text>
             <Button
+              variant="tertiary"
               label="Back to sign in"
               onPress={() => router.replace('/auth/login')}
               style={{ alignSelf: 'stretch', marginTop: 12 }}
@@ -65,12 +60,11 @@ export default function ConfirmScreen() {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
   glow: {
     position: 'absolute',
     top: -80,

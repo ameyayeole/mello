@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
-  SafeAreaView,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -16,14 +16,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import * as ImagePicker from 'expo-image-picker';
 import { useDirectChat } from '@/hooks/useDirectChat';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { getDmPin, setDmPin } from '@/services/dm.service';
 import { getChatPrefs, chatKey } from '@/services/chatPrefs.service';
-import { reportUser, ReportReason } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { DirectMessage } from '@/types/models';
@@ -32,7 +30,7 @@ import { isPremium } from '@/utils/premium';
 import {
   Avatar,
   Icon,
-  IconButton,
+  NavButton,
   PremiumBadge,
   PressableScale,
 } from '@/components/ui';
@@ -50,6 +48,12 @@ import {
   activeMentionQuery,
   insertMention,
 } from '@/components/chat';
+import {
+  messageExcerpt,
+  pickChatImage,
+  promptReportMessage,
+} from '@/utils/chatActions';
+import { showError } from '@/utils/errors';
 
 function tickStatus(message: DirectMessage): TickStatus {
   if (message._status === 'sending') return 'sending';
@@ -134,7 +138,7 @@ export default function DirectChatScreen() {
   const listRef = useRef<FlatList>(null);
 
   const prefsQuery = useQuery({
-    queryKey: ['chatPrefs', user?.id],
+    queryKey: queryKeys.chatPrefs.of(user?.id),
     queryFn: () => getChatPrefs(user!.id),
     enabled: !!user,
   });
@@ -212,7 +216,7 @@ export default function DirectChatScreen() {
     send.mutate(
       { content: text },
       {
-        onError: (e: any) => {
+        onError: (e) => {
           // Restore the text so it isn't lost, and surface the real reason
           // (e.g. direct_messages table/RLS not set up yet).
           setInput(text);
@@ -227,43 +231,21 @@ export default function DirectChatScreen() {
 
   async function handleAttach() {
     if (!user) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.5,
-    });
-    if (result.canceled || !result.assets[0]) return;
+    const uri = await pickChatImage();
+    if (!uri) return;
     sendImage.mutate(
-      { localUri: result.assets[0].uri },
-      {
-        onError: (e: any) =>
-          Alert.alert('Photo not sent', e?.message ?? 'Something went wrong.'),
-      }
+      { localUri: uri },
+      { onError: (e) => showError(e, 'Photo not sent') }
     );
   }
 
   function reportMessage(message: DirectMessage) {
     if (!user) return;
-    const excerpt =
-      message.type === 'image' ? '[photo]' : message.content.slice(0, 140);
-    const doReport = (reason: ReportReason) =>
-      reportUser(
-        user.id,
-        message.sender_id,
-        reason,
-        `DM ${message.id}: "${excerpt}"`
-      )
-        .then(() =>
-          Alert.alert('Report sent', 'Thanks — our team will review this.')
-        )
-        .catch((e: any) => Alert.alert('Error', e.message));
-
-    Alert.alert('Report message', 'Why are you reporting this?', [
-      { text: 'Spam', onPress: () => doReport('spam') },
-      { text: 'Harassment', onPress: () => doReport('harassment') },
-      { text: 'Inappropriate content', onPress: () => doReport('inappropriate') },
-      { text: 'Other', onPress: () => doReport('other') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    promptReportMessage({
+      reporterId: user.id,
+      offenderId: message.sender_id,
+      context: `DM ${message.id}: "${messageExcerpt(message)}"`,
+    });
   }
 
   function refreshPin() {
@@ -290,8 +272,8 @@ export default function DirectChatScreen() {
         try {
           await setDmPin(user.id, friendId, message.id);
           refreshPin();
-        } catch (e: any) {
-          Alert.alert('Error', e.message);
+        } catch (e) {
+          showError(e);
         }
       },
     });
@@ -321,11 +303,8 @@ export default function DirectChatScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <IconButton
-          icon="back"
-          variant="ghost"
-          color="#fff"
-          style={styles.headerBtn}
+        <NavButton
+          color={COLORS.white}
           onPress={() => router.back()}
           accessibilityLabel="Go back"
         />
@@ -352,8 +331,8 @@ export default function DirectChatScreen() {
             try {
               await setDmPin(user!.id, friendId, null);
               refreshPin();
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
+            } catch (e) {
+              showError(e);
             }
           }}
         />
@@ -464,7 +443,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
-  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   headerText: { flex: 1, minWidth: 0 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   headerTitle: {

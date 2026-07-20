@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Button, Icon, IconName } from '@/components/ui';
+import { Button, Icon, IconName, Screen } from '@/components/ui';
 
 const RULES: {
   icon: IconName;
@@ -48,7 +48,7 @@ export default function GuidelinesScreen() {
   const [agreed, setAgreed] = useState(false);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen>
       <View style={styles.content}>
         <Animated.View entering={FadeInDown.duration(400)}>
           <View style={styles.badge}>
@@ -94,17 +94,17 @@ export default function GuidelinesScreen() {
           </Text>
         </TouchableOpacity>
         <Button
+          variant="primary"
           label="Agree & continue"
           disabled={!agreed}
           onPress={() => router.push('/auth/login')}
         />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, paddingHorizontal: 24, paddingTop: 26 },
   badge: {
     width: 56,
