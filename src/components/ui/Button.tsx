@@ -1,27 +1,104 @@
-import { Text, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+  StyleProp,
+  ViewStyle,
+} from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { PressableScale } from './PressableScale';
+import { Icon, IconName } from './Icon';
 
-// Design-system button: 48px tall, radius 16, bold 15px label.
+// The app has exactly three buttons. Pick by how much weight the action
+// deserves, not by colour:
+//
+//   primary   — coral on white text. The standout. Major CTAs ONLY: sign in,
+//               host an event, pay, check in, save. Aim for one per screen.
+//   secondary — black on white text. The workhorse; use this by default.
+//   tertiary  — white on black text. Low-stakes actions: back, dismiss, done.
+//
+// `secondary` is the default precisely so coral stays rare. Reaching for
+// `variant="primary"` should feel like a decision.
+//
+// All three are rounded rectangles. There are deliberately no pill buttons.
+type Variant = 'primary' | 'secondary' | 'tertiary';
+
+// Small buttons use the body font (Plus Jakarta) and larger ones the display
+// font (Bricolage) — matching the distinction the screens already drew by hand.
+const SIZES = {
+  sm: {
+    height: 34,
+    radius: 10,
+    font: 12.5,
+    padding: 14,
+    icon: 14,
+    family: FONTS.bold,
+  },
+  md: {
+    height: 44,
+    radius: 12,
+    font: 15,
+    padding: 18,
+    icon: 16,
+    family: FONTS.heading,
+  },
+  lg: {
+    height: 48,
+    radius: 14,
+    font: 16,
+    padding: 24,
+    icon: 18,
+    family: FONTS.heading,
+  },
+} as const;
+
+const LABEL_COLOR: Record<Variant, string> = {
+  primary: COLORS.white,
+  secondary: COLORS.white,
+  tertiary: COLORS.textPrimary,
+};
+
 export function Button({
   label,
   onPress,
-  variant = 'primary',
+  variant = 'secondary',
+  size = 'lg',
+  icon,
+  iconPosition = 'leading',
   disabled = false,
   loading = false,
-  height = 48,
+  fullWidth = false,
+  height,
   style,
 }: {
   label: string;
   onPress?: () => void;
-  variant?: 'primary' | 'secondary' | 'text' | 'danger';
+  variant?: Variant;
+  size?: 'sm' | 'md' | 'lg';
+  icon?: IconName;
+  iconPosition?: 'leading' | 'trailing';
   disabled?: boolean;
   loading?: boolean;
+  fullWidth?: boolean;
+  // Explicit height override. Prefer `size`.
   height?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const isPrimary = variant === 'primary';
+  const spec = SIZES[size];
+  const resolvedHeight = height ?? spec.height;
+  // Raw-height callers keep the large treatment they were written against.
+  const radius = height != null ? 14 : spec.radius;
+  const padding = height != null ? 24 : spec.padding;
+  const fontSize = height != null ? 16 : spec.font;
+  const fontFamily = height != null ? FONTS.heading : spec.family;
+  const labelColor = disabled ? COLORS.textMuted : LABEL_COLOR[variant];
+
+  const glyph = icon ? (
+    <Icon name={icon} size={spec.icon} color={labelColor} />
+  ) : null;
+
   return (
     <PressableScale
       onPress={onPress}
@@ -30,42 +107,37 @@ export function Button({
       accessibilityLabel={label}
       style={[
         styles.base,
-        { height, borderRadius: height >= 46 ? 16 : 12 },
-        isPrimary && styles.primary,
-        variant === 'secondary' && styles.secondary,
-        variant === 'danger' && styles.danger,
-        disabled && isPrimary && styles.disabled,
+        {
+          height: resolvedHeight,
+          borderRadius: radius,
+          paddingHorizontal: padding,
+        },
+        fullWidth && styles.fullWidth,
+        styles[variant],
+        disabled && styles.disabled,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          color={isPrimary ? '#fff' : COLORS.primary}
-          size="small"
-        />
+        <ActivityIndicator color={labelColor} size="small" />
       ) : (
-        <Text
-          style={[
-            styles.label,
-            isPrimary && styles.labelPrimary,
-            variant === 'secondary' && styles.labelSecondary,
-            variant === 'text' && styles.labelText,
-            variant === 'danger' && styles.labelDanger,
-          ]}
-        >
-          {label}
-        </Text>
+        <View style={styles.content}>
+          {iconPosition === 'leading' && glyph}
+          <Text style={[{ fontFamily, fontSize, color: labelColor }]}>
+            {label}
+          </Text>
+          {iconPosition === 'trailing' && glyph}
+        </View>
       )}
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
+  base: { alignItems: 'center', justifyContent: 'center' },
+  fullWidth: { alignSelf: 'stretch' },
+  content: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+
   primary: {
     backgroundColor: COLORS.primary,
     shadowColor: COLORS.primary,
@@ -74,24 +146,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  secondary: {
+  secondary: { backgroundColor: COLORS.accent },
+  tertiary: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  danger: {
-    backgroundColor: 'rgba(239,68,68,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.22)',
-  },
+
   disabled: {
     backgroundColor: COLORS.disabled,
+    borderColor: COLORS.disabled,
     shadowOpacity: 0,
     elevation: 0,
   },
-  label: { fontFamily: FONTS.heading, fontSize: 16 },
-  labelPrimary: { color: '#fff' },
-  labelSecondary: { color: COLORS.textPrimary },
-  labelText: { color: COLORS.primary },
-  labelDanger: { color: '#E0383C' },
 });

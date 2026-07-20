@@ -3,9 +3,12 @@ import { COLORS } from '@/constants/colors';
 import { Icon, IconName } from './Icon';
 import { PressableScale } from './PressableScale';
 
-// 40×40 circular icon button. 'plain' = grey fill, 'surface' = white + border,
-// 'tint' = coral tint fill with coral icon, 'ghost' = no fill (bare icon, used
-// for header back/close buttons).
+// 40×40 circular icon button for actions that live *on* a screen — share,
+// filter, rotate, overflow menus. 'plain' = grey fill, 'surface' = white +
+// border, 'tint' = coral tint fill with coral icon, 'ghost' = no fill.
+//
+// Not for navigation: back / close / dismiss all use `NavButton`, which is a
+// bare glyph with no chip behind it.
 export function IconButton({
   icon,
   onPress,
