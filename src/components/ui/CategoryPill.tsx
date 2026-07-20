@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
 
 // Reusable `.cat-pill` from the locked Mello design language:
@@ -55,6 +55,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Glyph metric, not typography — deliberately not a type step.
   emoji: { fontSize: 13, lineHeight: 17 },
-  label: { fontFamily: FONTS.bold, fontSize: 12 },
+  label: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption },
 });

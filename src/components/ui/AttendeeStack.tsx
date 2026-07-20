@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
 
 const PASTELS = ['#FFCAB8', '#C9B6FF', '#A8D0FF', '#FFD0A8'];
@@ -75,10 +75,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  overflowText: { fontFamily: FONTS.heavy, fontSize: 9.5, color: '#fff' },
+  overflowText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.nano, color: '#fff' },
   empty: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
 });
