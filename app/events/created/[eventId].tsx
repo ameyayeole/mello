@@ -3,7 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { Easing, FadeInDown, ZoomIn } from 'react-native-reanimated';
+import LottieView from 'lottie-react-native';
 import { getEventDetail } from '@/services/events.service';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
@@ -39,7 +40,11 @@ export default function EventCreatedScreen() {
       <View style={[styles.confetti, styles.square, { top: 190, right: 130, backgroundColor: COLORS.catCoffee }]} />
 
       <View style={styles.center}>
-        <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.checkGlow}>
+        {/* Eases open once and settles — no spring overshoot. */}
+        <Animated.View
+          entering={ZoomIn.duration(420).easing(Easing.out(Easing.cubic))}
+          style={styles.checkGlow}
+        >
           <View style={styles.checkCircle}>
             <Icon name="check" size={40} color="#fff" strokeWidth={3} />
           </View>
@@ -89,12 +94,33 @@ export default function EventCreatedScreen() {
           <Text style={styles.secondaryBtnText}>View event</Text>
         </PressableScale>
       </View>
+
+      {/* One-shot confetti burst over the whole screen. Non-interactive so it
+          never swallows taps on the buttons underneath. */}
+      <View style={styles.celebration} pointerEvents="none">
+        <LottieView
+          source={require('../../../assets/lottie/celebration.json')}
+          autoPlay
+          loop={false}
+          resizeMode="cover"
+          style={styles.celebrationFill}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.accent },
+  celebration: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 5,
+  },
+  celebrationFill: { flex: 1 },
   confetti: { position: 'absolute', width: 14, height: 14, borderRadius: 7 },
   square: { width: 10, height: 10, borderRadius: 2, transform: [{ rotate: '20deg' }] },
   center: {

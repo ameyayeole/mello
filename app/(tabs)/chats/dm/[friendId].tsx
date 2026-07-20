@@ -11,6 +11,8 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -123,6 +125,7 @@ function MessageBubble({
 export default function DirectChatScreen() {
   const { friendId } = useLocalSearchParams<{ friendId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   useActiveChat(friendId ? `dm:${friendId}` : null);
@@ -315,11 +318,14 @@ export default function DirectChatScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <IconButton
           icon="back"
           variant="ghost"
+          color="#fff"
+          style={styles.headerBtn}
           onPress={() => router.back()}
           accessibilityLabel="Go back"
         />
@@ -441,7 +447,7 @@ export default function DirectChatScreen() {
         options={messageSheet ? messageOptions(messageSheet) : []}
         onClose={() => setMessageSheet(null)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -453,23 +459,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(15,24,44,0.08)',
+    paddingBottom: 14,
+    backgroundColor: COLORS.accent,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
   },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   headerText: { flex: 1, minWidth: 0 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   headerTitle: {
     flexShrink: 1,
-    fontFamily: FONTS.bold,
-    fontSize: 14.5,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    color: '#fff',
   },
   headerSub: {
     fontFamily: FONTS.medium,
     fontSize: 11.5,
-    color: COLORS.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     marginTop: 1,
   },
   messageList: { padding: 16, gap: 10, flexGrow: 1 },

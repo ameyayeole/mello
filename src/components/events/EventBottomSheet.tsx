@@ -1,4 +1,11 @@
-import { useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import {
   View,
   Text,
@@ -7,7 +14,12 @@ import {
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
+import BottomSheet, {
+  BottomSheetScrollView,
+  BottomSheetFooter,
+  type BottomSheetFooterProps,
+} from '@gorhom/bottom-sheet';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
@@ -17,7 +29,10 @@ import {
   leaveEvent,
   approveParticipant,
   rejectParticipant,
+  saveEvent,
+  unsaveEvent,
 } from '@/services/events.service';
+import { useSavedEventIds } from '@/hooks/useSwipeDeck';
 import { hasWrapped } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
@@ -40,7 +55,7 @@ import {
   scheduleEventSafetyReminder,
   cancelEventSafetyReminder,
 } from '@/services/reminders';
-import { SafetyPopup, SosButton } from '@/components/safety';
+import { SafetyPopup } from '@/components/safety';
 import {
   Avatar,
   AttendeeStack,
@@ -118,6 +133,48 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       queryKey: ['eventDetail', eventId],
       queryFn: () => getEventDetail(eventId!),
       enabled: !!eventId,
+    });
+
+    // Wishlist toggle for this event — the same save a right-swipe performs, so
+    // both paths share the ['savedEventIds'] cache every badge reads.
+    const [toast, setToast] = useState<string | null>(null);
+    useEffect(() => {
+      if (!toast) return;
+      const t = setTimeout(() => setToast(null), 1900);
+      return () => clearTimeout(t);
+    }, [toast]);
+
+    const { data: savedIds } = useSavedEventIds();
+    const isSaved = !!eventId && !!savedIds?.includes(eventId);
+    const saveMutation = useMutation({
+      mutationFn: async (next: boolean) => {
+        if (!user || !eventId) return;
+        if (next) await saveEvent(user.id, eventId);
+        else await unsaveEvent(user.id, eventId);
+      },
+      // Optimistic: the bookmark fills the instant it's tapped, then reconciles.
+      onMutate: async (next: boolean) => {
+        const key = ['savedEventIds', user?.id];
+        await qc.cancelQueries({ queryKey: key });
+        const prev = qc.getQueryData<string[]>(key);
+        qc.setQueryData<string[]>(key, (ids = []) =>
+          next ? [...ids, eventId!] : ids.filter((id) => id !== eventId)
+        );
+        return { prev, key };
+      },
+      onSuccess: (_d, next) => {
+        setToast(next ? 'Added to wishlist' : 'Removed from wishlist');
+      },
+      // Previously this rolled back silently, which read as "the button does
+      // nothing" — a failed save now says so instead of just snapping back.
+      onError: (_e, _next, ctx) => {
+        if (ctx) qc.setQueryData(ctx.key, ctx.prev);
+        setToast("Couldn't update wishlist");
+      },
+      onSettled: () => {
+        qc.invalidateQueries({ queryKey: ['savedEventIds', user?.id] });
+        qc.invalidateQueries({ queryKey: ['savedEvents', user?.id] });
+      },
     });
 
     // Distance user↔event for the Mello+ >10 km join gate. The detail query
@@ -393,6 +450,35 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
 
     const activity = event ? ACTIVITY_MAP[event.activity] : null;
 
+    // Wishlist toast, pinned to the bottom of the VISIBLE sheet via the
+    // library's footer (a hand-positioned absolute child sits in the sheet's
+    // full-height inner container, which extends off-screen at partial snaps).
+    // Must be identity-stable across unrelated re-renders: a fresh function
+    // makes the footer remount, and reanimated then overlaps the exiting
+    // snapshot with the entering one — a doubled toast.
+    const renderToast = useCallback(
+      (props: BottomSheetFooterProps) =>
+        toast ? (
+          <BottomSheetFooter {...props} bottomInset={24}>
+            <Animated.View
+              entering={FadeInUp.duration(200)}
+              exiting={FadeOut.duration(160)}
+              style={styles.toast}
+              pointerEvents="none"
+            >
+              <Icon
+                name="bookmarkFilled"
+                size={15}
+                color="#fff"
+                strokeWidth={2}
+              />
+              <Text style={styles.toastText}>{toast}</Text>
+            </Animated.View>
+          </BottomSheetFooter>
+        ) : null,
+      [toast]
+    );
+
     return (
       <BottomSheet
         ref={sheetRef}
@@ -402,6 +488,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
         onClose={onDismiss}
         backgroundStyle={styles.sheetBg}
         handleComponent={null}
+        footerComponent={renderToast}
       >
         <BottomSheetScrollView contentContainerStyle={styles.content}>
           {isLoading || !event ? (
@@ -432,14 +519,23 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   />
                 </View>
                 <View style={styles.bannerActions}>
-                  <SosButton
-                    variant="icon"
-                    event={event}
-                    onReport={() => {
-                      sheetRef.current?.close();
-                      router.push(`/friends/${event.host_id}`);
-                    }}
-                  />
+                  <PressableScale
+                    scaleTo={0.9}
+                    style={styles.shareBtn}
+                    onPress={() => saveMutation.mutate(!isSaved)}
+                    accessibilityLabel={
+                      isSaved ? 'Remove from wishlist' : 'Add to wishlist'
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSaved }}
+                  >
+                    <Icon
+                      name={isSaved ? 'bookmarkFilled' : 'bookmark'}
+                      size={18}
+                      color={COLORS.primary}
+                      strokeWidth={2}
+                    />
+                  </PressableScale>
                   <PressableScale
                     scaleTo={0.9}
                     style={styles.shareBtn}
@@ -487,7 +583,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
               <View style={styles.infoRow}>
                 <View style={styles.infoCard}>
                   <Icon name="calendar" size={20} color={COLORS.primary} strokeWidth={2} />
-                  <View style={{ minWidth: 0 }}>
+                  <View style={styles.infoText}>
                     <Text style={styles.infoTitle} numberOfLines={1}>
                       {splitEventTime(event.starts_at).dateShort}
                     </Text>
@@ -498,7 +594,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 </View>
                 <View style={styles.infoCard}>
                   <Icon name="location" size={20} color={COLORS.primary} strokeWidth={2} />
-                  <View style={{ minWidth: 0 }}>
+                  <View style={styles.infoText}>
                     <Text style={styles.infoTitle} numberOfLines={1}>
                       {event.location_name ?? 'Location'}
                     </Text>
@@ -810,6 +906,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 11,
   },
+  // Row children don't shrink by default, so without flex the text column
+  // measures at full content width and spills past the card — long addresses
+  // need this to ellipsize inside the tile instead of overflowing it.
+  infoText: { flex: 1, minWidth: 0 },
   infoTitle: {
     fontFamily: FONTS.heavy,
     fontSize: 12,
@@ -945,4 +1045,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Rendered inside BottomSheetFooter, which handles positioning — the style
+  // only shapes the pill itself.
+  toast: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    height: 42,
+    borderRadius: 100,
+    backgroundColor: COLORS.accent,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  toastText: { fontFamily: FONTS.bold, fontSize: 13, color: '#fff' },
 });

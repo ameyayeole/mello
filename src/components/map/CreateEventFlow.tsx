@@ -21,6 +21,7 @@ import { Image } from 'expo-image';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import MapView, { Region } from 'react-native-maps';
+import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Animated, {
@@ -32,11 +33,14 @@ import Animated, {
   SlideOutDown,
   ZoomIn,
   cancelAnimation,
+  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { createEvent } from '@/services/events.service';
 import { uploadEventPhoto } from '@/services/storage.service';
@@ -44,7 +48,12 @@ import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
 import DateTimeField, { roundUpTo30, fmtDayShort, fmtTime } from '@/components/DateTimeField';
 import { PlaceResult } from '@/components/PlaceSearch';
-import { ACTIVITIES_BY_SECTION, ACTIVITY_MAP } from '@/constants/activities';
+import {
+  ACTIVITIES,
+  ACTIVITY_MAP,
+  SECTIONS,
+  SectionId,
+} from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
@@ -82,15 +91,85 @@ const DESCRIPTION_MAX = 500;
 const STEP_COUNT = 5;
 const PIN_SIZE = 60;
 const CIRCLE = 52;
-// Rough card height, used to centre the pin in the map strip left above it.
-const CARD_EST = 470;
+// Rough card height (dark heading sheet + body + button) plus the location
+// pill riding above it, used to centre the pin in the map strip left over.
+const CARD_EST = 495;
+// The search bar floats over the top of the map (safe area + 12pt pad + a 44pt
+// row), so that strip isn't really free space. Centring the pin has to discount
+// it or the pin rides visibly high.
+const TOP_CHROME = 56;
 // Map spans while placing / while zooming into the freshly hosted pin.
 const PLACE_LNG_DELTA = 0.005;
 const ZOOM_LNG_DELTA = 0.0022;
+// Submit is a two-beat sequence: the camera closes in, and only once it has
+// settled does the pin travel to centre. Running them together read as drift.
+const ZOOM_MS = 950;
+const PIN_DROP_MS = 420;
 const DURATIONS = Array.from({ length: 24 }, (_, i) => i + 1);
+
+// Step headings live in the dark sheet at the top of the card rather than
+// inside each step, so the heading block stays put while the content swaps.
+const STEP_HEADS = [
+  "What's the plan?",
+  'Name your event',
+  'When, and how many?',
+  'Add a cover photo',
+  'Keep it safe',
+];
 
 function defaultStart() {
   return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
+}
+
+// Progress ring in the heading row: an arc that fills a fifth per step.
+const RING_SIZE = 24;
+const RING_STROKE = 3;
+const RING_R = (RING_SIZE - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// The arc sweeps to its new length whenever a step is completed, rather than
+// snapping — the fill is the main "you just finished that" feedback.
+function StepRing({ step }: { step: number }) {
+  const progress = useSharedValue((step + 1) / STEP_COUNT);
+  const half = RING_SIZE / 2;
+
+  useEffect(() => {
+    progress.value = withTiming((step + 1) / STEP_COUNT, {
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [step]);
+
+  const arcProps = useAnimatedProps(() => ({
+    strokeDashoffset: RING_C * (1 - progress.value),
+  }));
+
+  return (
+    <Svg width={RING_SIZE} height={RING_SIZE}>
+      <Circle
+        cx={half}
+        cy={half}
+        r={RING_R}
+        stroke="rgba(255,255,255,0.18)"
+        strokeWidth={RING_STROKE}
+        fill="none"
+      />
+      <AnimatedCircle
+        cx={half}
+        cy={half}
+        r={RING_R}
+        stroke={COLORS.primary}
+        strokeWidth={RING_STROKE}
+        fill="none"
+        strokeDasharray={`${RING_C}`}
+        animatedProps={arcProps}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${half} ${half})`}
+      />
+    </Svg>
+  );
 }
 
 const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
@@ -98,6 +177,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const router = useRouter();
     const queryClient = useQueryClient();
     const user = useAuthStore((s) => s.user);
+    const insets = useSafeAreaInsets();
 
     const [phase, setPhase] = useState<'drop' | 'form' | 'submit'>('drop');
     const [step, setStep] = useState(0);
@@ -105,6 +185,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const [locationName, setLocationName] = useState('');
 
     const [activity, setActivity] = useState<ActivityId | null>(null);
+    const [sectionFilter, setSectionFilter] = useState<SectionId | 'all'>('all');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -126,7 +207,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     // Screen point the pin overlay hangs at while editing: horizontally centred,
     // vertically in the middle of the map strip that stays visible above the card.
     const anchorX = mapW / 2;
-    const anchorY = Math.max((mapH - CARD_EST) / 2, 100);
+    const topChrome = insets.top + TOP_CHROME;
+    const anchorY = Math.max(
+      topChrome + (mapH - topChrome - CARD_EST) / 2,
+      topChrome + PIN_SIZE / 2
+    );
 
     const pinY = useSharedValue(anchorY);
     const pinScale = useSharedValue(0);
@@ -147,6 +232,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       setCoord(null);
       setLocationName('');
       setActivity(null);
+      setSectionFilter('all');
       setTitle('');
       setDescription('');
       setPhotoUri(null);
@@ -276,27 +362,42 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       setPhase('submit');
       setSubmitState('loading');
 
-      // Slow cinematic zoom: camera closes in on the pin while the fixed
-      // overlay glides from its anchor to the true screen centre.
+      // Beat one: the camera closes in on the pin, which holds still at its
+      // anchor. The zoom keeps the pin's coordinate under that anchor so
+      // nothing slides while the map scales.
       mapRef.current?.animateToRegion(
-        {
-          latitude: coord.lat,
-          longitude: coord.lng,
-          latitudeDelta:
-            ZOOM_LNG_DELTA *
-            (mapH / Math.max(mapW, 1)) *
-            Math.cos((coord.lat * Math.PI) / 180),
-          longitudeDelta: ZOOM_LNG_DELTA,
-        },
-        1400
+        regionForAnchor(coord.lat, coord.lng, ZOOM_LNG_DELTA),
+        ZOOM_MS
       );
-      pinY.value = withTiming(mapH / 2, {
-        duration: 1400,
-        easing: Easing.inOut(Easing.cubic),
-      });
+      // Beat two: once the camera has settled, the pin drops to true centre.
+      pinY.value = withDelay(
+        ZOOM_MS,
+        withTiming(mapH / 2, {
+          duration: PIN_DROP_MS,
+          easing: Easing.inOut(Easing.cubic),
+        })
+      );
+      // Recentre the camera under the pin's new resting place as it travels,
+      // so the coordinate stays put beneath it.
+      setTimeout(() => {
+        mapRef.current?.animateToRegion(
+          {
+            latitude: coord.lat,
+            longitude: coord.lng,
+            latitudeDelta:
+              ZOOM_LNG_DELTA *
+              (mapH / Math.max(mapW, 1)) *
+              Math.cos((coord.lat * Math.PI) / 180),
+            longitudeDelta: ZOOM_LNG_DELTA,
+          },
+          PIN_DROP_MS
+        );
+      }, ZOOM_MS);
 
-      // Let the zoom breathe even when the network is instant.
-      const minWait = new Promise((r) => setTimeout(r, 1700));
+      // Let both beats land even when the network is instant.
+      const minWait = new Promise((r) =>
+        setTimeout(r, ZOOM_MS + PIN_DROP_MS + 250)
+      );
       try {
         const create = (async () => {
           // No cover photo? Fall back to the host's profile picture so the
@@ -342,10 +443,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     if (!active || mapW === 0 || mapH === 0) return null;
 
     const emoji = activity ? ACTIVITY_MAP[activity].emoji : null;
+    const visibleActivities =
+      sectionFilter === 'all'
+        ? ACTIVITIES
+        : ACTIVITIES.filter((a) => a.section === sectionFilter);
     const nextDisabled =
       (step === 0 && !activity) || (step === 1 && !title.trim());
     const endDate = new Date(startDate.getTime() + durationH * 60 * 60 * 1000);
-    const stepEntering = FadeIn.duration(240).easing(Easing.out(Easing.cubic));
+    const stepEntering = FadeIn.duration(150).easing(Easing.out(Easing.quad));
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -360,6 +465,28 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             <View style={styles.promptPill}>
               <Icon name="pin" size={15} color={COLORS.primary} />
               <Text style={styles.promptText}>Tap anywhere to drop a pin</Text>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Live location under the pin. Sits directly beneath the map's search
+            bar (TOP_CHROME spans that strip) rather than riding above the card,
+            so the address reads next to the field you'd retype it in. */}
+        {phase === 'form' && (
+          <Animated.View
+            entering={FadeIn.duration(220)}
+            exiting={FadeOut.duration(160)}
+            style={[
+              styles.locationPillWrap,
+              { top: insets.top + TOP_CHROME + 10 },
+            ]}
+            pointerEvents="none"
+          >
+            <View style={styles.locationPill}>
+              <Icon name="location" size={13} color="#fff" />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {locationName || 'Locating…'}
+              </Text>
             </View>
           </Animated.View>
         )}
@@ -402,7 +529,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
               ) : emoji ? (
                 <Animated.Text
                   key={emoji}
-                  entering={ZoomIn.duration(220).easing(Easing.out(Easing.cubic))}
+                  entering={ZoomIn.duration(130).easing(Easing.out(Easing.quad))}
                   style={styles.pinEmoji}
                 >
                   {emoji}
@@ -422,65 +549,95 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             <Animated.View
               entering={SlideInDown.duration(380).easing(Easing.out(Easing.cubic))}
               exiting={SlideOutDown.duration(280).easing(Easing.in(Easing.cubic))}
-              style={styles.card}
             >
-              {/* Header: back, progress dots, live location under the pin */}
-              <View style={styles.cardHeader}>
-                <View style={styles.backSlot}>
-                  {step > 0 && (
-                    <PressableScale
-                      scaleTo={0.88}
-                      style={styles.backBtn}
-                      onPress={back}
-                      accessibilityRole="button"
-                      accessibilityLabel="Previous step"
-                    >
-                      <Icon name="back" size={17} color={COLORS.textPrimary} />
-                    </PressableScale>
-                  )}
-                </View>
-                <View style={styles.dots}>
-                  {Array.from({ length: STEP_COUNT }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[styles.dot, i === step && styles.dotActive]}
-                    />
-                  ))}
-                </View>
-                <View style={styles.backSlot} />
-              </View>
-              <View style={styles.locationRow}>
-                <Icon name="location" size={13} color={COLORS.primary} />
-                <Text style={styles.locationText} numberOfLines={1}>
-                  {locationName || 'Locating…'}
-                </Text>
-              </View>
-
-              {/* Steps (absolute-fill so enter/exit slides overlap cleanly) */}
-              <View style={styles.stepArea}>
-                {step === 0 && (
-                  <Animated.View
-                    key="s0"
-                    entering={stepEntering}
-                    exiting={FadeOut.duration(120)}
-                    style={styles.step}
-                  >
-                    <Text style={styles.stepTitle}>What's the plan?</Text>
-                    <Text style={styles.stepSub}>
-                      Pick a type — your pin updates live.
+              <View style={styles.card}>
+                {/* Dark heading sheet, one row: back on the left, the step
+                    title centred, a ring that fills step-by-step on the right.
+                    Set off from the content the way the home header is. */}
+                <View style={styles.headerSheet}>
+                  <View style={styles.cardHeader}>
+                    {/* First step has nothing to go back to, so the slot holds
+                        the close affordance instead — the search bar no longer
+                        carries one. Later steps swap it for Back. */}
+                    <View style={styles.backSlot}>
+                      <PressableScale
+                        scaleTo={0.88}
+                        style={styles.backBtn}
+                        onPress={step > 0 ? back : onExit}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          step > 0 ? 'Previous step' : 'Cancel event creation'
+                        }
+                      >
+                        <Icon
+                          name={step > 0 ? 'back' : 'close'}
+                          size={17}
+                          color="#fff"
+                        />
+                      </PressableScale>
+                    </View>
+                    <Text style={styles.stepTitle} numberOfLines={1}>
+                      {STEP_HEADS[step]}
                     </Text>
-                    <ScrollView
-                      style={styles.typeScroll}
-                      contentContainerStyle={styles.typeScrollContent}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {ACTIVITIES_BY_SECTION.map(({ section, activities }) => (
-                        <View key={section.id} style={styles.typeSection}>
-                          <Text style={styles.typeSectionLabel}>
-                            {section.label}
-                          </Text>
+                    <View style={styles.ringSlot}>
+                      <StepRing step={step} />
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.cardBody}>
+                  {/* Steps (absolute-fill so enter/exit slides overlap cleanly) */}
+                  <View style={styles.stepArea}>
+                    {step === 0 && (
+                      <Animated.View
+                        key="s0"
+                        entering={stepEntering}
+                        exiting={FadeOut.duration(80)}
+                        style={styles.step}
+                      >
+                        {/* Category pills narrow the grid down; "All" is the
+                            default so nothing is hidden until you choose. */}
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.sectionPillRow}
+                          contentContainerStyle={styles.sectionPillContent}
+                        >
+                          {[{ id: 'all' as const, label: 'All' }, ...SECTIONS].map(
+                            (s) => {
+                              const sel = sectionFilter === s.id;
+                              return (
+                                <PressableScale
+                                  key={s.id}
+                                  scaleTo={0.94}
+                                  style={[
+                                    styles.sectionPill,
+                                    sel && styles.sectionPillActive,
+                                  ]}
+                                  onPress={() => setSectionFilter(s.id)}
+                                  accessibilityRole="button"
+                                  accessibilityState={{ selected: sel }}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.sectionPillText,
+                                      sel && styles.sectionPillTextActive,
+                                    ]}
+                                  >
+                                    {s.label}
+                                  </Text>
+                                </PressableScale>
+                              );
+                            }
+                          )}
+                        </ScrollView>
+                        <ScrollView
+                          style={styles.typeScroll}
+                          contentContainerStyle={styles.typeScrollContent}
+                          showsVerticalScrollIndicator={false}
+                        >
                           <View style={styles.typeGrid}>
-                            {activities.map((a) => {
+                            {visibleActivities.map((a) => {
                               const sel = activity === a.id;
                               const cat = categoryStyle(a.id);
                               return (
@@ -517,275 +674,280 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                                 </PressableScale>
                               );
                             })}
+                            {/* Keeps a short last row left-aligned under
+                                space-between instead of spreading it out. */}
                             {Array.from({
-                              length: (4 - (activities.length % 4)) % 4,
+                              length: (4 - (visibleActivities.length % 4)) % 4,
                             }).map((_, i) => (
-                              <View
-                                key={`spacer-${i}`}
-                                style={styles.typeItem}
-                              />
+                              <View key={`spacer-${i}`} style={styles.typeItem} />
                             ))}
                           </View>
+                        </ScrollView>
+                      </Animated.View>
+                    )}
+
+                    {step === 1 && (
+                      <Animated.View
+                        key="s1"
+                        entering={stepEntering}
+                        exiting={FadeOut.duration(80)}
+                        style={styles.step}
+                      >
+                        <TextInput
+                          style={styles.input}
+                          placeholder="e.g. Sunset rooftop drinks"
+                          placeholderTextColor="rgba(15,24,44,0.40)"
+                          value={title}
+                          onChangeText={setTitle}
+                          maxLength={TITLE_MAX}
+                          autoFocus
+                          returnKeyType="done"
+                        />
+                        <Text style={styles.charCount}>
+                          {title.length}/{TITLE_MAX}
+                        </Text>
+                        <TextInput
+                          style={[styles.input, styles.multiline]}
+                          placeholder="Short and inviting works best."
+                          placeholderTextColor="rgba(15,24,44,0.40)"
+                          value={description}
+                          onChangeText={setDescription}
+                          multiline
+                          maxLength={DESCRIPTION_MAX}
+                        />
+                      </Animated.View>
+                    )}
+
+                    {step === 2 && (
+                      <Animated.View
+                        key="s2"
+                        entering={stepEntering}
+                        exiting={FadeOut.duration(80)}
+                        style={styles.step}
+                      >
+                        <Text style={styles.label}>STARTS</Text>
+                        {/* One Date, two windows onto it: date and time each
+                            open their own slimmed-down picker. */}
+                        <View style={styles.startRow}>
+                          <View style={{ flex: 1.4 }}>
+                            <DateTimeField
+                              mode="date"
+                              compact
+                              value={startDate}
+                              onChange={setStartDate}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <DateTimeField
+                              mode="time"
+                              compact
+                              value={startDate}
+                              onChange={setStartDate}
+                            />
+                          </View>
                         </View>
-                      ))}
-                    </ScrollView>
-                  </Animated.View>
-                )}
-
-                {step === 1 && (
-                  <Animated.View
-                    key="s1"
-                    entering={stepEntering}
-                    exiting={FadeOut.duration(120)}
-                    style={styles.step}
-                  >
-                    <Text style={styles.stepTitle}>Name your event</Text>
-                    <Text style={styles.stepSub}>
-                      Short and inviting works best.
-                    </Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. Sunset rooftop drinks"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
-                      value={title}
-                      onChangeText={setTitle}
-                      maxLength={TITLE_MAX}
-                      autoFocus
-                      returnKeyType="done"
-                    />
-                    <Text style={styles.charCount}>
-                      {title.length}/{TITLE_MAX}
-                    </Text>
-                    <TextInput
-                      style={[styles.input, styles.multiline]}
-                      placeholder="What's the vibe? (optional)"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
-                      value={description}
-                      onChangeText={setDescription}
-                      multiline
-                      maxLength={DESCRIPTION_MAX}
-                    />
-                  </Animated.View>
-                )}
-
-                {step === 2 && (
-                  <Animated.View
-                    key="s2"
-                    entering={stepEntering}
-                    exiting={FadeOut.duration(120)}
-                    style={styles.step}
-                  >
-                    <Text style={styles.stepTitle}>When, and how many?</Text>
-                    <Text style={styles.label}>STARTS</Text>
-                    <DateTimeField value={startDate} onChange={setStartDate} />
-                    <Text style={styles.label}>LASTS FOR</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.durScroll}
-                      contentContainerStyle={styles.durScrollContent}
-                    >
-                      {DURATIONS.map((h) => (
-                        <PressableScale
-                          key={h}
-                          scaleTo={0.92}
-                          style={[
-                            styles.durChip,
-                            durationH === h && styles.durChipActive,
-                          ]}
-                          onPress={() => setDurationH(h)}
+                        <Text style={styles.label}>LASTS FOR</Text>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.durScroll}
+                          contentContainerStyle={styles.durScrollContent}
                         >
-                          <Text
+                          {DURATIONS.map((h) => (
+                            <PressableScale
+                              key={h}
+                              scaleTo={0.92}
+                              style={[
+                                styles.durChip,
+                                durationH === h && styles.durChipActive,
+                              ]}
+                              onPress={() => setDurationH(h)}
+                            >
+                              <Text
+                                style={[
+                                  styles.durChipText,
+                                  durationH === h && styles.durChipTextActive,
+                                ]}
+                              >
+                                {h}h
+                              </Text>
+                            </PressableScale>
+                          ))}
+                        </ScrollView>
+                        <Text style={styles.durSummary}>
+                          {fmtDayShort(startDate)} · {fmtTime(startDate)} →{' '}
+                          {fmtTime(endDate)}
+                        </Text>
+                        <Text style={styles.label}>MAX PEOPLE</Text>
+                        <View style={styles.stepperRow}>
+                          <PressableScale
+                            scaleTo={0.88}
                             style={[
-                              styles.durChipText,
-                              durationH === h && styles.durChipTextActive,
+                              styles.stepperBtn,
+                              maxPeopleNum <= 2 && styles.stepperBtnOff,
                             ]}
+                            onPress={() =>
+                              setMaxPeople(String(Math.max(2, maxPeopleNum - 1)))
+                            }
                           >
-                            {h}h
-                          </Text>
-                        </PressableScale>
-                      ))}
-                    </ScrollView>
-                    <Text style={styles.durSummary}>
-                      {fmtDayShort(startDate)} · {fmtTime(startDate)} →{' '}
-                      {fmtTime(endDate)}
-                    </Text>
-                    <Text style={styles.label}>MAX PEOPLE</Text>
-                    <View style={styles.stepperRow}>
-                      <PressableScale
-                        scaleTo={0.88}
-                        style={[
-                          styles.stepperBtn,
-                          maxPeopleNum <= 2 && styles.stepperBtnOff,
-                        ]}
-                        onPress={() =>
-                          setMaxPeople(String(Math.max(2, maxPeopleNum - 1)))
-                        }
-                      >
-                        <Text style={styles.stepperGlyph}>−</Text>
-                      </PressableScale>
-                      <TextInput
-                        style={styles.stepperValue}
-                        value={maxPeople}
-                        onChangeText={(t) =>
-                          setMaxPeople(t.replace(/[^0-9]/g, '').slice(0, 2))
-                        }
-                        onBlur={() => setMaxPeople(String(maxPeopleNum))}
-                        keyboardType="number-pad"
-                        returnKeyType="done"
-                        selectTextOnFocus
-                      />
-                      <PressableScale
-                        scaleTo={0.88}
-                        style={[
-                          styles.stepperBtn,
-                          maxPeopleNum >= 50 && styles.stepperBtnOff,
-                        ]}
-                        onPress={() =>
-                          setMaxPeople(String(Math.min(50, maxPeopleNum + 1)))
-                        }
-                      >
-                        <Text style={styles.stepperGlyph}>+</Text>
-                      </PressableScale>
-                      <Text style={styles.stepperHint}>people incl. you</Text>
-                    </View>
-                  </Animated.View>
-                )}
-
-                {step === 3 && (
-                  <Animated.View
-                    key="s3"
-                    entering={stepEntering}
-                    exiting={FadeOut.duration(120)}
-                    style={styles.step}
-                  >
-                    <Text style={styles.stepTitle}>Add a cover photo</Text>
-                    <Text style={styles.stepSub}>
-                      Optional, but it makes your event stand out.
-                    </Text>
-                    {photoUri ? (
-                      <View style={styles.photoWrap}>
-                        <Image
-                          source={{ uri: photoUri }}
-                          style={styles.photoPreview}
-                          contentFit="cover"
-                        />
-                        <PressableScale
-                          scaleTo={0.88}
-                          style={styles.photoRemove}
-                          onPress={() => setPhotoUri(null)}
-                          accessibilityLabel="Remove photo"
-                        >
-                          <Icon name="close" size={14} color="#fff" strokeWidth={2.5} />
-                        </PressableScale>
-                      </View>
-                    ) : (
-                      <PressableScale
-                        scaleTo={0.97}
-                        style={styles.photoEmpty}
-                        onPress={pickPhoto}
-                        accessibilityRole="button"
-                        accessibilityLabel="Add a cover photo"
-                      >
-                        <View style={styles.photoEmptyIcon}>
-                          <Icon name="camera" size={22} color={COLORS.primary} />
+                            <Text style={styles.stepperGlyph}>−</Text>
+                          </PressableScale>
+                          <TextInput
+                            style={styles.stepperValue}
+                            value={maxPeople}
+                            onChangeText={(t) =>
+                              setMaxPeople(t.replace(/[^0-9]/g, '').slice(0, 2))
+                            }
+                            onBlur={() => setMaxPeople(String(maxPeopleNum))}
+                            keyboardType="number-pad"
+                            returnKeyType="done"
+                            selectTextOnFocus
+                          />
+                          <PressableScale
+                            scaleTo={0.88}
+                            style={[
+                              styles.stepperBtn,
+                              maxPeopleNum >= 50 && styles.stepperBtnOff,
+                            ]}
+                            onPress={() =>
+                              setMaxPeople(String(Math.min(50, maxPeopleNum + 1)))
+                            }
+                          >
+                            <Text style={styles.stepperGlyph}>+</Text>
+                          </PressableScale>
+                          <Text style={styles.stepperHint}>people incl. you</Text>
                         </View>
-                        <Text style={styles.photoEmptyTitle}>Choose a photo</Text>
-                        <Text style={styles.photoEmptySub}>
-                          Adding a photo increases the chances of people
-                          joining your event.
-                        </Text>
-                      </PressableScale>
+                      </Animated.View>
                     )}
-                    {!photoUri && (
-                      <View style={styles.photoFallback}>
-                        <Avatar
-                          name={user?.name}
-                          photoUrl={user?.photo_url}
-                          size={34}
-                        />
-                        <Text style={styles.photoFallbackText}>
-                          If you skip this, we&apos;ll use your profile picture
-                          as the event photo.
-                        </Text>
-                      </View>
-                    )}
-                  </Animated.View>
-                )}
 
-                {step === 4 && (
-                  <Animated.View
-                    key="s4"
-                    entering={stepEntering}
-                    exiting={FadeOut.duration(120)}
-                    style={styles.step}
-                  >
-                    <View style={styles.safetyHeader}>
-                      <Icon name="shield" size={16} color={COLORS.success} />
-                      <Text style={styles.stepTitle}>Keep it safe</Text>
-                    </View>
-                    <View style={styles.safetyRow}>
-                      <View style={{ flex: 1, paddingRight: 12 }}>
-                        <Text style={styles.safetyLabel}>Public event</Text>
-                        <Text style={styles.safetySub}>
-                          {isPublic
-                            ? 'Visible to everyone on the map'
-                            : 'Only friends can see'}
-                        </Text>
-                      </View>
-                      <Switch
-                        value={isPublic}
-                        onValueChange={setIsPublic}
-                        trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                        thumbColor={COLORS.surface}
-                      />
-                    </View>
-                    <View style={styles.safetyRow}>
-                      <View style={{ flex: 1, paddingRight: 12 }}>
-                        <Text style={styles.safetyLabel}>Approve who joins</Text>
-                        <Text style={styles.safetySub}>
-                          {requiresApproval
-                            ? 'You approve each person'
-                            : 'Anyone can join instantly'}
-                        </Text>
-                      </View>
-                      <Switch
-                        value={requiresApproval}
-                        onValueChange={setRequiresApproval}
-                        trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                        thumbColor={COLORS.surface}
-                      />
-                    </View>
-                    {/* Female-only hosting is offered to female profiles only. */}
-                    {user?.gender === 'female' && (
-                      <View style={styles.safetyRow}>
-                        <View style={{ flex: 1, paddingRight: 12 }}>
-                          <Text style={styles.safetyLabel}>Female-only event</Text>
-                          <Text style={styles.safetySub}>
-                            {womenOnly
-                              ? 'Only women can see and join'
-                              : 'Anyone can see and join'}
-                          </Text>
-                        </View>
-                        <Switch
-                          value={womenOnly}
-                          onValueChange={(on) =>
-                            on ? setWomenOnlyConfirmVisible(true) : setWomenOnly(false)
-                          }
-                          trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                          thumbColor={COLORS.surface}
-                        />
-                      </View>
+                    {step === 3 && (
+                      <Animated.View
+                        key="s3"
+                        entering={stepEntering}
+                        exiting={FadeOut.duration(80)}
+                        style={styles.step}
+                      >
+                        {photoUri ? (
+                          <View style={styles.photoWrap}>
+                            <Image
+                              source={{ uri: photoUri }}
+                              style={styles.photoPreview}
+                              contentFit="cover"
+                            />
+                            <PressableScale
+                              scaleTo={0.88}
+                              style={styles.photoRemove}
+                              onPress={() => setPhotoUri(null)}
+                              accessibilityLabel="Remove photo"
+                            >
+                              <Icon name="close" size={14} color="#fff" strokeWidth={2.5} />
+                            </PressableScale>
+                          </View>
+                        ) : (
+                          <PressableScale
+                            scaleTo={0.97}
+                            style={styles.photoEmpty}
+                            onPress={pickPhoto}
+                            accessibilityRole="button"
+                            accessibilityLabel="Add a cover photo"
+                          >
+                            <View style={styles.photoEmptyIcon}>
+                              <Icon name="camera" size={22} color={COLORS.primary} />
+                            </View>
+                            <Text style={styles.photoEmptyTitle}>Choose a photo</Text>
+                            <Text style={styles.photoEmptySub}>
+                              Adding a photo increases the chances of people
+                              joining your event.
+                            </Text>
+                          </PressableScale>
+                        )}
+                        {!photoUri && (
+                          <View style={styles.photoFallback}>
+                            <Avatar
+                              name={user?.name}
+                              photoUrl={user?.photo_url}
+                              size={34}
+                            />
+                            <Text style={styles.photoFallbackText}>
+                              If you skip this, we&apos;ll use your profile picture
+                              as the event photo.
+                            </Text>
+                          </View>
+                        )}
+                      </Animated.View>
                     )}
-                  </Animated.View>
-                )}
+
+                    {step === 4 && (
+                      <Animated.View
+                        key="s4"
+                        entering={stepEntering}
+                        exiting={FadeOut.duration(80)}
+                        style={styles.step}
+                      >
+                        <View style={styles.safetyRow}>
+                          <View style={{ flex: 1, paddingRight: 12 }}>
+                            <Text style={styles.safetyLabel}>Public event</Text>
+                            <Text style={styles.safetySub}>
+                              {isPublic
+                                ? 'Visible to everyone on the map'
+                                : 'Only friends can see'}
+                            </Text>
+                          </View>
+                          <Switch
+                            value={isPublic}
+                            onValueChange={setIsPublic}
+                            trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
+                            thumbColor={COLORS.surface}
+                          />
+                        </View>
+                        <View style={styles.safetyRow}>
+                          <View style={{ flex: 1, paddingRight: 12 }}>
+                            <Text style={styles.safetyLabel}>Approve who joins</Text>
+                            <Text style={styles.safetySub}>
+                              {requiresApproval
+                                ? 'You approve each person'
+                                : 'Anyone can join instantly'}
+                            </Text>
+                          </View>
+                          <Switch
+                            value={requiresApproval}
+                            onValueChange={setRequiresApproval}
+                            trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
+                            thumbColor={COLORS.surface}
+                          />
+                        </View>
+                        {/* Female-only hosting is offered to female profiles only. */}
+                        {user?.gender === 'female' && (
+                          <View style={styles.safetyRow}>
+                            <View style={{ flex: 1, paddingRight: 12 }}>
+                              <Text style={styles.safetyLabel}>Female-only event</Text>
+                              <Text style={styles.safetySub}>
+                                {womenOnly
+                                  ? 'Only women can see and join'
+                                  : 'Anyone can see and join'}
+                              </Text>
+                            </View>
+                            <Switch
+                              value={womenOnly}
+                              onValueChange={(on) =>
+                                on ? setWomenOnlyConfirmVisible(true) : setWomenOnly(false)
+                              }
+                              trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
+                              thumbColor={COLORS.surface}
+                            />
+                          </View>
+                        )}
+                      </Animated.View>
+                    )}
+                  </View>
+
+                  <Button
+                    label={step === STEP_COUNT - 1 ? 'Host event' : 'Next'}
+                    onPress={step === STEP_COUNT - 1 ? handleHost : next}
+                    disabled={nextDisabled}
+                  />
+                </View>
               </View>
-
-              <Button
-                label={step === STEP_COUNT - 1 ? 'Host event' : 'Next'}
-                onPress={step === STEP_COUNT - 1 ? handleHost : next}
-                disabled={nextDisabled}
-              />
             </Animated.View>
           )}
         </KeyboardAvoidingView>
@@ -902,10 +1064,6 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
     paddingBottom: 30,
     shadowColor: '#0F182C',
     shadowOpacity: 0.16,
@@ -913,66 +1071,100 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     elevation: 12,
   },
+  // Matches the home screen's greeting header: dark block with the white
+  // content sitting underneath it. Fully square — no corner rounding on any
+  // edge; the header, card and sheet all meet the screen edges flat.
+  headerSheet: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  cardBody: { paddingHorizontal: 20, paddingTop: 8 },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    gap: 8,
   },
   backSlot: { width: 34, height: 34, justifyContent: 'center' },
   backBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: COLORS.background,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dots: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(15,24,44,0.15)',
+  // Same width as backSlot so the title stays optically centred between them.
+  ringSlot: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dotActive: { width: 18, borderRadius: 3, backgroundColor: COLORS.primary },
-  locationRow: {
+  // Floats free under the search bar; `top` is supplied at render from the
+  // safe-area inset so it clears the notch on every device.
+  locationPillWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    marginBottom: 10,
+    gap: 6,
+    maxWidth: '86%',
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 100,
+    backgroundColor: COLORS.accent,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   locationText: {
-    maxWidth: '80%',
+    flexShrink: 1,
     fontFamily: FONTS.semibold,
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: '#fff',
   },
-  stepArea: { height: 296, marginBottom: 12 },
+  stepArea: { height: 268, marginBottom: 12 },
   step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   stepTitle: {
+    flex: 1,
     fontFamily: FONTS.heavy,
     fontSize: 19,
-    color: COLORS.textPrimary,
+    color: '#fff',
+    textAlign: 'center',
   },
-  stepSub: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
+  sectionPillRow: { flexGrow: 0, marginTop: 12, marginHorizontal: -20 },
+  sectionPillContent: { paddingHorizontal: 20, gap: 8 },
+  sectionPill: {
+    height: 32,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 100,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: 'rgba(15,24,44,0.08)',
+  },
+  sectionPillActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  sectionPillText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12.5,
     color: COLORS.textSecondary,
-    marginTop: 3,
   },
-  typeScroll: { flex: 1, marginTop: 14, marginHorizontal: -4 },
+  sectionPillTextActive: { fontFamily: FONTS.bold, color: '#fff' },
+  typeScroll: { flex: 1, marginTop: 12, marginHorizontal: -4 },
   typeScrollContent: { paddingHorizontal: 4, paddingBottom: 8 },
-  typeSection: { marginBottom: 18 },
-  typeSectionLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: 12,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-  },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -980,17 +1172,15 @@ const styles = StyleSheet.create({
     rowGap: 14,
   },
   typeItem: { width: '23%', alignItems: 'center', gap: 6 },
+  // Bare emoji, no plate. Only the selected type gets a tinted container.
   typeTile: {
     width: 58,
     height: 58,
     borderRadius: 17,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeEmoji: { fontSize: 24, lineHeight: 30 },
+  typeEmoji: { fontSize: 28, lineHeight: 34 },
   typeLabel: {
     fontFamily: FONTS.semibold,
     fontSize: 11,
@@ -1030,6 +1220,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 6,
   },
+  startRow: { flexDirection: 'row', gap: 10 },
   durScroll: { flexGrow: 0, marginHorizontal: -20 },
   durScrollContent: { paddingHorizontal: 20, gap: 8 },
   durChip: {
@@ -1133,13 +1324,22 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
+  // Pinned to the bottom of the step area and run 24pt past it, so the Next
+  // button (a later sibling, painted on top) covers the square bottom edge and
+  // the notice reads as one tray tucked behind it.
   photoFallback: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -24,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 36,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
     backgroundColor: COLORS.background,
   },
   photoFallbackText: {
@@ -1148,12 +1348,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     color: COLORS.textSecondary,
-  },
-  safetyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 14,
   },
   safetyRow: {
     flexDirection: 'row',

@@ -1,11 +1,21 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  FadeOutUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
@@ -15,6 +25,7 @@ import {
   getMyEvents,
 } from '@/services/events.service';
 import { getUnreadCount } from '@/services/notifications.service';
+import { getGreetingLines } from '@/services/greetings.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
@@ -44,12 +55,50 @@ function greeting(): string {
   return 'Good evening';
 }
 
+const LINE_ROTATE_MS = 18000;
+const WAVE_EVERY_MS = 6000;
+
+// 👋 pivots at its wrist and does a little wave, then rests until the next
+// cycle. Must be its own Text: transforms don't apply to nested Text spans.
+function WavingHand() {
+  const tilt = useSharedValue(0);
+
+  useEffect(() => {
+    const wiggle = { duration: 130, easing: Easing.inOut(Easing.quad) };
+    tilt.value = withRepeat(
+      withDelay(
+        WAVE_EVERY_MS,
+        withSequence(
+          withTiming(16, wiggle),
+          withTiming(-9, wiggle),
+          withTiming(13, wiggle),
+          withTiming(-5, wiggle),
+          withTiming(0, wiggle)
+        )
+      ),
+      -1
+    );
+  }, [tilt]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${tilt.value}deg` }],
+  }));
+
+  return (
+    <Animated.Text style={[styles.wave, style]} allowFontScaling={false}>
+      👋
+    </Animated.Text>
+  );
+}
+
 // Rich "Tonight near you" card: photo banner + host + attendees + Join.
 function NearbyCard({
   event,
+  joined = false,
   onPress,
 }: {
   event: ExploreEvent;
+  joined?: boolean;
   onPress: () => void;
 }) {
   const activity = ACTIVITY_MAP[event.activity];
@@ -95,8 +144,10 @@ function NearbyCard({
 
         <View style={styles.nearbyFooter}>
           <AttendeeStack count={event.participant_count} size={27} />
-          <View style={styles.joinBtn}>
-            <Text style={styles.joinBtnText}>Join</Text>
+          <View style={[styles.joinBtn, joined && styles.goingBtn]}>
+            <Text style={[styles.joinBtnText, joined && styles.goingBtnText]}>
+              {joined ? 'Going' : 'Join'}
+            </Text>
           </View>
         </View>
       </View>
@@ -229,6 +280,34 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
+  // Quirky header lines from the DB (greeting_lines table); the time-of-day
+  // greeting always leads, then the rest cycle in every LINE_ROTATE_MS.
+  const linesQuery = useQuery({
+    queryKey: ['greetingLines'],
+    queryFn: getGreetingLines,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const headerLines = useMemo(
+    () => [greeting(), ...(linesQuery.data ?? [])],
+    [linesQuery.data]
+  );
+  const [lineIndex, setLineIndex] = useState(0);
+
+  useEffect(() => {
+    if (headerLines.length < 2) return;
+    const id = setInterval(
+      () => setLineIndex((i) => i + 1),
+      LINE_ROTATE_MS
+    );
+    return () => clearInterval(id);
+  }, [headerLines.length]);
+
+  const headerLine = headerLines[lineIndex % headerLines.length];
+
+  // Events you've already RSVP'd to read "Going", not "Join".
+  const joinedIds = new Set(joinedQuery.data?.map((e) => e.id) ?? []);
+
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hasJoined = (joinedQuery.data?.length ?? 0) > 0;
   const hasHosting = (myEventsQuery.data?.length ?? 0) > 0;
@@ -241,8 +320,21 @@ export default function DashboardScreen() {
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <View style={styles.headerTop}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>{greeting()}</Text>
-              <Text style={styles.name}>{firstName} 👋</Text>
+              <Animated.Text
+                key={headerLine}
+                entering={FadeInDown.duration(320)}
+                exiting={FadeOutUp.duration(220)}
+                style={styles.greeting}
+                numberOfLines={1}
+              >
+                {headerLine}
+              </Animated.Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {firstName}
+                </Text>
+                <WavingHand />
+              </View>
             </View>
             <IconButton
               icon="bell"
@@ -314,6 +406,7 @@ export default function DashboardScreen() {
                   <NearbyCard
                     key={event.id}
                     event={event}
+                    joined={joinedIds.has(event.id)}
                     onPress={() => sheetRef.current?.open(event.id)}
                   />
                 ))}
@@ -426,14 +519,22 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
-    marginBottom: 4,
+    marginBottom: 9,
   },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   name: {
     fontFamily: FONTS.heading,
     fontSize: 25,
     lineHeight: 26,
     letterSpacing: -0.5,
     color: '#fff',
+    flexShrink: 1,
+  },
+  wave: {
+    fontSize: 22,
+    lineHeight: 26,
+    // Pivot near the wrist so the rotation reads as a wave, not a spin.
+    transformOrigin: '75% 100%',
   },
   searchBar: {
     height: 44,
@@ -591,6 +692,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   joinBtnText: { fontFamily: FONTS.heading, fontSize: 13, color: '#fff' },
+  goingBtn: {
+    backgroundColor: COLORS.successTint,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  goingBtnText: { color: COLORS.success },
 
   // You're hosting — rich full-width card
   hostingCard: {

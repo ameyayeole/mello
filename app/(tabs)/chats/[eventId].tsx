@@ -11,6 +11,8 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -200,6 +202,7 @@ function MessageBubble({
 export default function GroupChatScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   useActiveChat(eventId ? `event:${eventId}` : null);
@@ -464,11 +467,14 @@ export default function GroupChatScreen() {
   const pinnedByHost = isHost;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <IconButton
           icon="back"
           variant="ghost"
+          color="#fff"
+          style={styles.headerBtn}
           onPress={() => router.navigate('/(tabs)/chats')}
           accessibilityLabel="Go back"
         />
@@ -486,6 +492,8 @@ export default function GroupChatScreen() {
         <IconButton
           icon="dots"
           variant="ghost"
+          color="#fff"
+          style={styles.headerBtn}
           onPress={() => setMenuVisible(true)}
           accessibilityLabel="Chat options"
         />
@@ -661,7 +669,7 @@ export default function GroupChatScreen() {
         options={chatMenuOptions()}
         onClose={() => setMenuVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -673,21 +681,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(15,24,44,0.08)',
+    paddingBottom: 14,
+    backgroundColor: COLORS.accent,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
   },
+  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: 14.5,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    color: '#fff',
   },
   headerSub: {
     fontFamily: FONTS.semibold,
     fontSize: 11.5,
-    color: COLORS.success,
+    color: 'rgba(255,255,255,0.6)',
     marginTop: 1,
   },
   messageList: { padding: 16, gap: 10 },
