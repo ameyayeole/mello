@@ -18,6 +18,14 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { queryKeys } from '@/constants/queryKeys';
+import {
+  TITLE_MAX,
+  DESCRIPTION_MAX,
+  STEP_COUNT,
+  clampMaxPeople,
+  canAdvanceFrom,
+  eventEndTime,
+} from '@/utils/eventDraft';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import MapView, { Region } from 'react-native-maps';
@@ -87,9 +95,6 @@ interface Props {
   onExit: () => void;
 }
 
-const TITLE_MAX = 60;
-const DESCRIPTION_MAX = 500;
-const STEP_COUNT = 5;
 const PIN_SIZE = 60;
 const CIRCLE = 52;
 // Rough card height (dark heading sheet + body + button) plus the location
@@ -355,7 +360,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       setStep((s) => Math.max(s - 1, 0));
     }
 
-    const maxPeopleNum = Math.min(50, Math.max(2, parseInt(maxPeople, 10) || 4));
+    const maxPeopleNum = clampMaxPeople(maxPeople);
 
     async function handleHost() {
       if (!user || !activity || !coord) return;
@@ -448,9 +453,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       sectionFilter === 'all'
         ? ACTIVITIES
         : ACTIVITIES.filter((a) => a.section === sectionFilter);
-    const nextDisabled =
-      (step === 0 && !activity) || (step === 1 && !title.trim());
-    const endDate = new Date(startDate.getTime() + durationH * 60 * 60 * 1000);
+    const nextDisabled = !canAdvanceFrom(step, { activity, title });
+    const endDate = eventEndTime(startDate, durationH);
     const stepEntering = FadeIn.duration(150).easing(Easing.out(Easing.quad));
 
     return (
