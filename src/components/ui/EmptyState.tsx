@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName } from './Icon';
 import { Button } from './Button';
 
@@ -64,16 +64,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
   },
+  // Glyph metric, not typography — deliberately not a type step.
   emoji: { fontSize: 34 },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   body: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',

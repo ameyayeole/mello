@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { NavButton } from './NavButton';
 import { IconName } from './Icon';
 
@@ -90,10 +90,10 @@ const styles = StyleSheet.create({
   surface: { backgroundColor: COLORS.surface },
   dark: { backgroundColor: COLORS.accent },
   titleWrap: { flex: 1 },
-  title: { fontFamily: FONTS.heavy, fontSize: 20, letterSpacing: -0.4 },
+  title: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.title, letterSpacing: -0.4 },
   subtitle: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
     marginTop: 1,
   },

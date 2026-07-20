@@ -9,7 +9,7 @@ import {
   type TextInputProps,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 
 // Labelled text input with the app's focus ring, error state, optional trailing
 // accessory and character counter. Replaces the
@@ -132,13 +132,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
     color: COLORS.inkLabel,
   },
   trailingLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 10,
+    fontSize: TYPE_SIZE.nano,
     letterSpacing: 0.3,
     color: COLORS.verified,
   },
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
   inputMultiline: { height: 'auto', textAlignVertical: 'top' },
@@ -181,9 +181,9 @@ const styles = StyleSheet.create({
   hint: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
   errorText: { color: COLORS.error, fontFamily: FONTS.semibold },
-  count: { fontFamily: FONTS.semibold, fontSize: 11, color: COLORS.textMuted },
+  count: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.micro, color: COLORS.textMuted },
 });

@@ -7,7 +7,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PressableScale } from './PressableScale';
 import { Icon, IconName } from './Icon';
 
@@ -31,7 +31,7 @@ const SIZES = {
   sm: {
     height: 34,
     radius: 10,
-    font: 12.5,
+    font: TYPE_SIZE.caption,
     padding: 14,
     icon: 14,
     family: FONTS.bold,
@@ -39,7 +39,7 @@ const SIZES = {
   md: {
     height: 44,
     radius: 12,
-    font: 15,
+    font: TYPE_SIZE.body,
     padding: 18,
     icon: 16,
     family: FONTS.heading,
@@ -47,7 +47,7 @@ const SIZES = {
   lg: {
     height: 48,
     radius: 14,
-    font: 16,
+    font: TYPE_SIZE.bodyLg,
     padding: 24,
     icon: 18,
     family: FONTS.heading,
@@ -91,7 +91,7 @@ export function Button({
   // Raw-height callers keep the large treatment they were written against.
   const radius = height != null ? 14 : spec.radius;
   const padding = height != null ? 24 : spec.padding;
-  const fontSize = height != null ? 16 : spec.font;
+  const fontSize = height != null ? TYPE_SIZE.bodyLg : spec.font;
   const fontFamily = height != null ? FONTS.heading : spec.family;
   const labelColor = disabled ? COLORS.textMuted : LABEL_COLOR[variant];
 
