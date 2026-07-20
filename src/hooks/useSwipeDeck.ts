@@ -71,7 +71,7 @@ export function useSwipeDeck() {
   const lng = coords ? Math.round(coords.lng * 100) / 100 : null;
 
   const feed = useInfiniteQuery({
-    queryKey: ['swipeDeck', user?.id, lat, lng],
+    queryKey: queryKeys.swipeDeck.of(user?.id, lat, lng),
     queryFn: ({ pageParam }) =>
       getExploreFeed({
         userId: user!.id,

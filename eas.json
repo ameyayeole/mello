@@ -15,6 +15,12 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://vtrsagvueljzbbtpeenu.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_-DZwjVLqXcAY7GL--bzZ_Q_PmM76PTQ",
+        "GOOGLE_MAPS_IOS_KEY": "AIzaSyCrtxnyQe5ELAwW6rvTErJklaB4PKL8uaE",
+        "GOOGLE_MAPS_ANDROID_KEY": "AIzaSyCrtxnyQe5ELAwW6rvTErJklaB4PKL8uaE"
       }
     },
     "ios-simulator": {
