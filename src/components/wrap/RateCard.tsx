@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     height: 34,
-    borderRadius: 100,
+    borderRadius: 10,
     backgroundColor: COLORS.primary,
   },
   friendBtnSent: { backgroundColor: 'rgba(15,24,44,0.06)' },

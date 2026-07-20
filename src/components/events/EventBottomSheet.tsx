@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { queryKeys } from '@/constants/queryKeys';
 import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
 import BottomSheet, {
   BottomSheetScrollView,
@@ -40,9 +41,9 @@ import { CONFIG } from '@/constants/config';
 import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import { EventDetail, ParticipantStatus } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
+import { splitEventTime } from '@/utils/time';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { shareEvent } from '@/utils/shareEvent';
 import {
@@ -90,32 +91,6 @@ export interface EventBottomSheetRef {
   close: () => void;
 }
 
-// Split an ISO start into the design's two-line form: a friendly day label
-// ("Tonight" / "Tomorrow" / "Sat, 12 Jul") and a short time ("8:30 PM").
-function splitEventTime(iso: string) {
-  const start = new Date(iso);
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  const timeShort = start.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-  let dateShort: string;
-  if (start.toDateString() === now.toDateString()) {
-    dateShort = start.getHours() >= 17 ? 'Tonight' : 'Today';
-  } else if (start.toDateString() === tomorrow.toDateString()) {
-    dateShort = 'Tomorrow';
-  } else {
-    dateShort = start.toLocaleDateString([], {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
-  }
-  return { dateShort, timeShort };
-}
-
 interface Props {
   onDismiss?: () => void;
 }
@@ -130,10 +105,12 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
     const qc = useQueryClient();
 
     const { data: event, isLoading } = useQuery({
-      queryKey: ['eventDetail', eventId],
+      queryKey: queryKeys.eventDetail.of(eventId),
       queryFn: () => getEventDetail(eventId!),
       enabled: !!eventId,
     });
+
+    const when = event ? splitEventTime(event.starts_at) : null;
 
     // Wishlist toggle for this event — the same save a right-swipe performs, so
     // both paths share the ['savedEventIds'] cache every badge reads.
@@ -154,7 +131,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       },
       // Optimistic: the bookmark fills the instant it's tapped, then reconciles.
       onMutate: async (next: boolean) => {
-        const key = ['savedEventIds', user?.id];
+        const key = queryKeys.savedEventIds.of(user?.id);
         await qc.cancelQueries({ queryKey: key });
         const prev = qc.getQueryData<string[]>(key);
         qc.setQueryData<string[]>(key, (ids = []) =>
@@ -172,8 +149,8 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
         setToast("Couldn't update wishlist");
       },
       onSettled: () => {
-        qc.invalidateQueries({ queryKey: ['savedEventIds', user?.id] });
-        qc.invalidateQueries({ queryKey: ['savedEvents', user?.id] });
+        qc.invalidateQueries({ queryKey: queryKeys.savedEventIds.of(user?.id) });
+        qc.invalidateQueries({ queryKey: queryKeys.savedEvents.of(user?.id) });
       },
     });
 
@@ -234,7 +211,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       event?.participants?.filter((p) => p.status === 'pending') ?? []
     ).sort((a, b) => Number(isPremium(b)) - Number(isPremium(a)));
 
-    const detailKey = ['eventDetail', eventId] as const;
+    const detailKey = queryKeys.eventDetail.of(eventId);
     const invalidate = () => qc.invalidateQueries({ queryKey: detailKey });
 
     // Optimistic cache helpers — patch the eventDetail so the UI (button label,
@@ -585,10 +562,10 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   <Icon name="calendar" size={20} color={COLORS.primary} strokeWidth={2} />
                   <View style={styles.infoText}>
                     <Text style={styles.infoTitle} numberOfLines={1}>
-                      {splitEventTime(event.starts_at).dateShort}
+                      {when?.dateShort}
                     </Text>
                     <Text style={styles.infoSub}>
-                      {splitEventTime(event.starts_at).timeShort}
+                      {when?.timeShort}
                     </Text>
                   </View>
                 </View>
@@ -738,9 +715,12 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                                     ? 'Request to join'
                                     : 'Join event'
                       }
+                      // Joining is the sheet's headline action, so it gets
+                      // coral. Once you're in — or the event is closed to you —
+                      // it drops to the low-emphasis treatment.
                       variant={
                         isParticipant || isPending || isFull || womenOnlyLocked
-                          ? 'secondary'
+                          ? 'tertiary'
                           : 'primary'
                       }
                       onPress={() =>
@@ -773,7 +753,6 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 {isParticipant && !hasWrapped(event) && (
                   <Button
                     label="Check in"
-                    variant="secondary"
                     onPress={() => {
                       sheetRef.current?.close();
                       router.push(`/events/scan/${event.id}`);
@@ -784,7 +763,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 {(isParticipant || isHost) && (
                   <Button
                     label="Open chat"
-                    variant="secondary"
+                    variant="tertiary"
                     onPress={() => {
                       sheetRef.current?.close();
                       router.push(`/(tabs)/chats/${event.id}`);

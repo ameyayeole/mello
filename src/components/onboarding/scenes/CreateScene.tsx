@@ -5,7 +5,6 @@ import Animated, {
   ZoomIn,
   useSharedValue,
   useAnimatedStyle,
-  withRepeat,
   withSequence,
   withTiming,
   withDelay,

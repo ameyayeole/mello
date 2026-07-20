@@ -14,11 +14,12 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
-import { Avatar, Button, Icon, IconButton, PressableScale } from '@/components/ui';
+import { Avatar, Button, Icon, NavButton, PressableScale } from '@/components/ui';
 import { sendWrapNote } from '@/services/wrap.service';
 import { uploadChatPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
 import { CoAttendee } from '@/types/models';
+import { errorMessage } from '@/utils/errors';
 
 // Private note composer: text + optional photo, delivered sealed to the
 // recipient's inbox. One note per person per event (DB unique).
@@ -69,12 +70,13 @@ export function NoteComposer({
       setPhotoUri(null);
       onSent?.();
       onClose();
-    } catch (e: any) {
+    } catch (e) {
+      const msg = errorMessage(e);
       Alert.alert(
         'Note not sent',
-        /duplicate|unique/i.test(e?.message ?? '')
+        /duplicate|unique/i.test(msg)
           ? `You already left ${recipient.name} a note for this event.`
-          : e.message
+          : msg
       );
     } finally {
       setSending(false);
@@ -104,7 +106,7 @@ export function NoteComposer({
                   Delivered privately. They can't reply unless you're friends.
                 </Text>
               </View>
-              <IconButton icon="close" size={34} onPress={onClose} accessibilityLabel="Close" />
+              <NavButton icon="close" onPress={onClose} accessibilityLabel="Close" />
             </View>
 
             <TextInput

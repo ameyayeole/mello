@@ -307,6 +307,7 @@ export default function DateTimeField({
               ))}
 
             <Button
+              variant="tertiary"
               label="Done"
               height={46}
               onPress={() => setOpen(false)}

@@ -52,7 +52,8 @@ export default function WelcomeSafetyModal({
           </Text>
         </View>
         <View style={styles.actions}>
-          <Button label="Got it" onPress={onDone} />
+          <Button
+  variant="tertiary" label="Got it" onPress={onDone} />
           <TouchableOpacity onPress={onSafetyCentre} hitSlop={8} style={styles.secondaryBtn}>
             <Text style={styles.secondaryLabel}>Read the Safety Centre</Text>
           </TouchableOpacity>
