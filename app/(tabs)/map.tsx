@@ -20,8 +20,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
-// Google Maps on Android, Apple Maps on iOS (avoids the iOS Google Maps SDK podspec).
-const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 import { useNearbyEvents } from '@/hooks/useNearbyEvents';
 import { useFriends } from '@/hooks/useFriends';
 import { useLocation } from '@/hooks/useLocation';
@@ -39,11 +37,11 @@ import CreateEventFlow, {
   CreateEventFlowRef,
 } from '@/components/map/CreateEventFlow';
 import { ACTIVITY_MAP } from '@/constants/activities';
+import { FALLBACK_MAP_CENTER } from '@/utils/eventDraft';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { NearbyEvent } from '@/types/models';
-import { BOOST_ACCENT, BOOST_EMOJI } from '@/utils/boost';
-import { isBoosted } from '@/utils/boost';
+import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
 import { Avatar, Icon, PressableScale } from '@/components/ui';
 import { clusterPoints, Cluster } from '@/utils/clusterEvents';
 import { applyMapFilters, countActiveMapFilters } from '@/utils/mapFilters';
@@ -52,6 +50,9 @@ import { applyMapFilters, countActiveMapFilters } from '@/utils/mapFilters';
 // ends up at the top-left, so a bare scale grows diagonally; the translate
 // terms re-pin the view's centre on every frame, forcing a symmetric
 // inside-out pop from the map point itself.
+// Google Maps on Android, Apple Maps on iOS (avoids the iOS Google Maps SDK podspec).
+const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
+
 const PIN_SIZE = 60;
 
 function PopPin({ pop, children }: { pop: boolean; children: React.ReactNode }) {
@@ -234,8 +235,8 @@ export default function MapScreen() {
         longitudeDelta: 0.05,
       }
     : {
-        latitude: 19.076,
-        longitude: 72.8777,
+        latitude: FALLBACK_MAP_CENTER.lat,
+        longitude: FALLBACK_MAP_CENTER.lng,
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       };
