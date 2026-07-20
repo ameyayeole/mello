@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
 
 interface Props {
@@ -67,11 +68,11 @@ export function PhotoGridPicker({ photos, onChange, max = 6 }: Props) {
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2.5] },
   slot: {
     width: '31%',
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     backgroundColor: COLORS.surface,
   },
@@ -82,19 +83,19 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: SPACING[1],
   },
   addIcon: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.5)',
   },
   mainBadge: {
@@ -102,21 +103,21 @@ const styles = StyleSheet.create({
     left: 6,
     bottom: 6,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2],
+    paddingVertical: SPACING[0.5],
+    borderRadius: RADIUS.full,
   },
-  mainBadgeText: { fontFamily: FONTS.bold, fontSize: 10, color: '#fff' },
+  mainBadgeText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: '#fff' },
   remove: {
     position: 'absolute',
     top: 5,
     right: 5,
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: RADIUS.xs,
     backgroundColor: 'rgba(15,24,44,0.65)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeText: { color: '#fff', fontSize: 12, fontWeight: '700', lineHeight: 14 },
+  removeText: { color: '#fff', fontSize: TYPE_SIZE.caption, fontWeight: '700', lineHeight: 14 },
 });

@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, Easing } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Button, Dialog, Icon, PressableScale } from '@/components/ui';
 import { useFriends } from '@/hooks/useFriends';
 import { WrapNote } from '@/types/models';
@@ -150,32 +151,32 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
+    gap: SPACING[3],
+    paddingVertical: SPACING[2.5],
   },
   envelope: {
     width: 46,
     height: 46,
-    borderRadius: 23,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  envelopeEmoji: { fontSize: 22 },
+  envelopeEmoji: { fontSize: TYPE_SIZE.title },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   time: {
     fontFamily: FONTS.semibold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
   dot: {
@@ -185,36 +186,36 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   card: { overflow: 'hidden', padding: 0 },
-  cardInner: { padding: 20, gap: 14 },
-  senderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardInner: { padding: SPACING[5], gap: SPACING[3.5] },
+  senderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3] },
   senderName: {
     fontFamily: FONTS.heavy,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.32,
     color: COLORS.textPrimary,
   },
   senderMeta: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   noteText: {
     fontFamily: FONTS.semibold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     lineHeight: 23,
     color: COLORS.textPrimary,
   },
   notePhoto: {
     width: '100%',
     height: 220,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     backgroundColor: COLORS.primaryTint,
   },
-  actions: { gap: 10, marginTop: 2 },
+  actions: { gap: SPACING[2.5], marginTop: SPACING[0.5] },
   hint: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
     textAlign: 'center',
   },

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -12,7 +13,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CATEGORY_STYLE } from '@/constants/categoryStyle';
 import { Icon, IconName } from '@/components/ui';
 import { Stage } from '../Stage';
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_W,
     height: CARD_H,
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: COLORS.surface,
     overflow: 'hidden',
     shadowColor: '#0F182C',
@@ -187,18 +188,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardBody: { flex: 1, padding: 15 },
+  cardBody: { flex: 1, padding: SPACING[3.5] },
   cardTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.32,
     color: COLORS.textPrimary,
   },
   cardMeta: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 3,
+    marginTop: SPACING[0.5],
   },
   cardFooter: {
     flexDirection: 'row',
@@ -210,14 +211,14 @@ const styles = StyleSheet.create({
   avatar: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: RADIUS.xs,
     borderWidth: 2,
     borderColor: '#fff',
   },
   avatarOverlap: { marginLeft: -7 },
   going: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textSecondary,
   },
   stamp: {
@@ -226,17 +227,17 @@ const styles = StyleSheet.create({
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2.5],
     height: 30,
-    borderRadius: 9,
+    borderRadius: RADIUS.xs,
     borderWidth: 2.5,
     borderColor: COLORS.success,
     backgroundColor: 'rgba(255,255,255,0.92)',
   },
   stampText: {
     fontFamily: FONTS.heavy,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     letterSpacing: 1,
     color: COLORS.success,
   },

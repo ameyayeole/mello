@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { StyleSheet, Text, StyleProp, ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import SosModal from './SosModal';
 
@@ -50,7 +51,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: 'rgba(239,68,68,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -58,15 +59,15 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: SPACING[1.5],
     height: 34,
-    paddingHorizontal: 13,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3],
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(239,68,68,0.10)',
   },
   pillText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.error,
   },
 });

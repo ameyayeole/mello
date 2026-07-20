@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -18,7 +19,7 @@ import {
 } from '@/services/checkin.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import TicketQR from '@/components/events/TicketQR';
 import {
   Avatar,
@@ -137,7 +138,7 @@ export default function HostCheckinScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={{ gap: 16, marginBottom: 8 }}>
+          <View style={{ gap: SPACING[4], marginBottom: SPACING[2] }}>
             {/* The QR guests scan */}
             <Animated.View entering={FadeInDown.duration(350)} style={styles.qrCard}>
               <Text style={styles.qrHint}>Guests scan this to check in</Text>
@@ -221,45 +222,45 @@ const styles = StyleSheet.create({
   headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   notHost: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
-    marginTop: 40,
-    paddingHorizontal: 40,
+    marginTop: SPACING[10],
+    paddingHorizontal: SPACING[10],
   },
-  list: { padding: 20, paddingTop: 8, gap: 12, paddingBottom: 40 },
+  list: { padding: SPACING[5], paddingTop: SPACING[2], gap: SPACING[3], paddingBottom: SPACING[10] },
   qrCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 28,
-    paddingVertical: 26,
+    paddingVertical: SPACING[6],
     alignItems: 'center',
-    gap: 16,
+    gap: SPACING[4],
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
-  qrHint: { fontFamily: FONTS.semibold, fontSize: 13, color: COLORS.textSecondary },
-  eventBlock: { alignItems: 'center', gap: 6, marginTop: 4 },
+  qrHint: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.bodySm, color: COLORS.textSecondary },
+  eventBlock: { alignItems: 'center', gap: SPACING[1.5], marginTop: SPACING[1] },
   eventTitle: {
     fontFamily: FONTS.heading,
-    fontSize: 20,
+    fontSize: TYPE_SIZE.title,
     letterSpacing: -0.4,
     color: '#fff',
   },
   eventHint: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 18,
     color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: SPACING[5],
   },
   qrBox: {
     backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[3.5],
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.06)',
   },
@@ -268,12 +269,12 @@ const styles = StyleSheet.create({
     height: 236,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 24,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[6],
   },
   qrErrorText: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
     textAlign: 'center',
   },
@@ -299,71 +300,71 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
     backgroundColor: COLORS.accent,
   },
-  codeLabel: { fontFamily: FONTS.medium, fontSize: 12, color: COLORS.textMuted, marginBottom: -8 },
+  codeLabel: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.caption, color: COLORS.textMuted, marginBottom: -8 },
   code: {
     fontFamily: FONTS.heavy,
-    fontSize: 30,
+    fontSize: TYPE_SIZE.h1,
     letterSpacing: 5,
     color: COLORS.textPrimary,
   },
   progressCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 18,
+    padding: SPACING[4],
     alignItems: 'center',
   },
-  progressCount: { fontFamily: FONTS.heavy, fontSize: 34, color: COLORS.textPrimary },
-  progressTotal: { fontSize: 22, color: COLORS.textMuted },
+  progressCount: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.display, color: COLORS.textPrimary },
+  progressTotal: { fontSize: TYPE_SIZE.title, color: COLORS.textMuted },
   progressLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   progressBar: {
     alignSelf: 'stretch',
     height: 7,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', borderRadius: 100, backgroundColor: COLORS.success },
+  progressFill: { height: '100%', borderRadius: RADIUS.full, backgroundColor: COLORS.success },
   sectionTitle: {
     fontFamily: FONTS.heading,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: '#fff',
-    marginTop: 4,
+    marginTop: SPACING[1],
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    padding: 12,
+    padding: SPACING[3],
   },
-  rowName: { fontFamily: FONTS.bold, fontSize: 14.5, color: '#fff' },
-  rowSub: { fontFamily: FONTS.medium, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 1 },
+  rowName: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
+  rowSub: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.caption, color: 'rgba(255,255,255,0.55)', marginTop: SPACING[0.5] },
   inPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[3],
     height: 32,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(23,145,90,0.25)',
   },
-  inPillText: { fontFamily: FONTS.bold, fontSize: 12.5, color: '#3ED88A' },
-  waiting: { fontFamily: FONTS.semibold, fontSize: 12.5, color: 'rgba(255,255,255,0.4)' },
+  inPillText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#3ED88A' },
+  waiting: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.caption, color: 'rgba(255,255,255,0.4)' },
   empty: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
-    marginTop: 24,
+    marginTop: SPACING[6],
   },
 });

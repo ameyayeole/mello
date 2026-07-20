@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { NearbyEvent } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventTime } from '@/utils/time';
 import { CategoryTile, PressableScale } from '@/components/ui';
 
@@ -72,12 +73,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
-    borderRadius: 18,
-    padding: 11,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[2.5],
   },
   rowElevated: {
     shadowColor: '#000',
@@ -93,34 +94,34 @@ const styles = StyleSheet.create({
     right: -4,
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     borderWidth: 2,
     borderColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 11 },
+  emoji: { fontSize: TYPE_SIZE.micro },
   body: { flex: 1, minWidth: 0 },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     letterSpacing: -0.2,
     color: COLORS.textPrimary,
   },
   meta: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
 
   // Rounded rectangle matching Button's sm radius — the app has no pill
   // buttons. Colours mirror Button's `secondary` variant.
   pill: {
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: COLORS.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[1.5],
   },
-  pillText: { fontFamily: FONTS.heavy, fontSize: 10, color: COLORS.white },
+  pillText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.nano, color: COLORS.white },
 });

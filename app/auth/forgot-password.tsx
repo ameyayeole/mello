@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { sendPasswordReset } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, CoralGlow, Screen, TextField } from '@/components/ui';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
@@ -89,7 +90,7 @@ export default function ForgotPasswordScreen() {
                 onPress={handleSend}
                 loading={loading}
                 disabled={!email}
-                style={{ marginTop: 4 }}
+                style={{ marginTop: SPACING[1] }}
               />
             </>
           )}
@@ -107,30 +108,30 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    padding: 24,
-    paddingTop: 24,
-    gap: 32,
+    padding: SPACING[6],
+    paddingTop: SPACING[6],
+    gap: SPACING[8],
   },
-  header: { gap: 14 },
-  backButton: { alignSelf: 'flex-start', marginBottom: 10 },
+  header: { gap: SPACING[3.5] },
+  backButton: { alignSelf: 'flex-start', marginBottom: SPACING[2.5] },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: TYPE_SIZE.titleLg,
     color: COLORS.textPrimary,
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: COLORS.textSecondary,
   },
-  form: { gap: 13 },
+  form: { gap: SPACING[3] },
   resendText: {
     textAlign: 'center',
     fontFamily: FONTS.semibold,
     color: COLORS.textSecondary,
-    fontSize: 14,
-    marginTop: 6,
+    fontSize: TYPE_SIZE.bodyMd,
+    marginTop: SPACING[1.5],
   },
   resendLink: { color: COLORS.primary, fontFamily: FONTS.bold },
 });

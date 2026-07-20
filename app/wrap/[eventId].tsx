@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -13,7 +14,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { getPublicWrap } from '@/services/wrap.service';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Avatar,
   Icon,
@@ -72,7 +73,7 @@ export default function PublicWrapScreen() {
         <>
           <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
             <View style={styles.heroEmoji}>
-              <Text style={{ fontSize: 26 }}>{emoji}</Text>
+              <Text style={{ fontSize: TYPE_SIZE.titleLg }}>{emoji}</Text>
             </View>
             <Text style={styles.heroTitle} numberOfLines={2}>
               {eventMeta.title}
@@ -152,60 +153,60 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    padding: 30,
+    gap: SPACING[1.5],
+    padding: SPACING[7],
   },
   emptyTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     color: COLORS.textPrimary,
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  hero: { alignItems: 'center', gap: 5, paddingHorizontal: 24, paddingVertical: 8 },
+  hero: { alignItems: 'center', gap: SPACING[1], paddingHorizontal: SPACING[6], paddingVertical: SPACING[2] },
   heroEmoji: {
     width: 54,
     height: 54,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: SPACING[0.5],
   },
   heroTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 21,
+    fontSize: TYPE_SIZE.title,
     letterSpacing: -0.42,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   heroMeta: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
   bestChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3],
     height: 30,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.primaryTint,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
   bestChipText: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.primary,
   },
-  pager: { paddingHorizontal: 18, gap: 10, paddingVertical: 14 },
+  pager: { paddingHorizontal: SPACING[4], gap: SPACING[2.5], paddingVertical: SPACING[3.5] },
   photoCard: {
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     overflow: 'hidden',
     backgroundColor: COLORS.surface,
     shadowColor: '#0F182C',
@@ -215,31 +216,31 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   photo: { flex: 1, backgroundColor: COLORS.primaryTint },
-  photoFooter: { padding: 12, backgroundColor: COLORS.surface },
-  uploaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  photoFooter: { padding: SPACING[3], backgroundColor: COLORS.surface },
+  uploaderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   uploaderName: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   caption: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   likePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 9,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2],
     height: 26,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.primaryTint,
   },
   likeText: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
 });

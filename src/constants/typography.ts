@@ -8,25 +8,39 @@ export const FONTS = {
   headingBold: 'BricolageGrotesque_700Bold',
 } as const;
 
-// The type scale. Nine steps, whole pixels, named by the job the text does and
-// never by its size. That naming is the point: it lets a value change here
+// The type scale — whole pixels, named by the job the text does, never by its
+// size. That naming is the point: it lets a value change here
 // without touching a call site.
 //
-// The values are deliberately conservative. The app renders 34 distinct font
-// sizes today, 35% of them half-points, and there is no latent role structure
-// to recover — sizes were picked per screen, not per role. Snapping all 555
-// call sites onto a scale would move over half the text in the app, which is a
-// typographic redesign that needs a designer looking at screens, not a codemod.
+// Thirteen steps: 10 11 12 13 14 15 16 17 18 20 24 28 34. The whole app is
+// migrated onto them, so the scale has to span its real range — an earlier
+// nine-step version stopped at 20 below display and would have collapsed every
+// heading in the app onto it.
 //
-// So this is adopted in src/components/ui/ only: the primitives every screen is
-// meant to build from. New components inherit it for free, and the
-// screen-by-screen migration can follow later as a design review. Adopting it
-// moved no existing text by more than half a pixel.
-//
-// The previous version of this scale had eleven steps and zero importers, and
-// its values (22 title, 26 h2, 38 display) matched nothing the app actually
-// rendered — which is why nobody ever adopted it.
+// The version before that had eleven steps and zero importers, with values
+// (22 title, 26 h2, 38 display) matching nothing the app rendered. That is the
+// recurring failure: a scale written as an ideal rather than derived from the
+// code is one the first person to reach for it bounces off.
 export const TYPE = {
+  h1: {
+    fontFamily: FONTS.heading,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: -0.8,
+  },
+  titleLg: {
+    fontFamily: FONTS.heading,
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: -0.5,
+  },
+  sectionLg: {
+    fontFamily: FONTS.heavy,
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: -0.3,
+  },
+  bodyMd: { fontFamily: FONTS.medium, fontSize: 14, lineHeight: 19 },
   display: {
     fontFamily: FONTS.heading,
     fontSize: 34,
@@ -61,6 +75,10 @@ export const TYPE = {
 // chooses a family by size, badges invert their colour — and need just the step.
 export const TYPE_SIZE = {
   display: TYPE.display.fontSize,
+  h1: TYPE.h1.fontSize,
+  titleLg: TYPE.titleLg.fontSize,
+  sectionLg: TYPE.sectionLg.fontSize,
+  bodyMd: TYPE.bodyMd.fontSize,
   title: TYPE.title.fontSize,
   section: TYPE.section.fontSize,
   bodyLg: TYPE.bodyLg.fontSize,

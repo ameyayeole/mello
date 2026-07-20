@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -23,7 +24,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { getDmPin, setDmPin } from '@/services/dm.service';
 import { getChatPrefs, chatKey } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DirectMessage } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
 import { isPremium } from '@/utils/premium';
@@ -436,38 +437,38 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[4],
+    paddingBottom: SPACING[3.5],
     backgroundColor: COLORS.accent,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
   headerText: { flex: 1, minWidth: 0 },
-  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
   headerTitle: {
     flexShrink: 1,
     fontFamily: FONTS.heading,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.2,
     color: '#fff',
   },
   headerSub: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(255,255,255,0.6)',
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
-  messageList: { padding: 16, gap: 10, flexGrow: 1 },
+  messageList: { padding: SPACING[4], gap: SPACING[2.5], flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubble: {
     maxWidth: '74%',
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     borderBottomLeftRadius: 4,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[2],
     shadowColor: '#0F182C',
     shadowOpacity: 0.06,
     shadowRadius: 3,
@@ -482,7 +483,7 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textPrimary,
   },
@@ -490,51 +491,51 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING[1],
     alignSelf: 'flex-end',
-    marginTop: 3,
+    marginTop: SPACING[0.5],
   },
   bubbleTime: {
     fontFamily: FONTS.medium,
-    fontSize: 10.5,
+    fontSize: TYPE_SIZE.nano,
     color: 'rgba(15,24,44,0.35)',
   },
   bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
   imageMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING[1],
     alignSelf: 'flex-end',
-    marginTop: 4,
+    marginTop: SPACING[1],
   },
   imageMetaTime: {
     fontFamily: FONTS.medium,
-    fontSize: 10.5,
+    fontSize: TYPE_SIZE.nano,
     color: 'rgba(15,24,44,0.4)',
   },
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 60,
-    gap: 6,
+    gap: SPACING[1.5],
   },
   emptyName: {
     fontFamily: FONTS.bold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[2.5],
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
     borderTopColor: 'rgba(15,24,44,0.08)',
@@ -550,17 +551,17 @@ const styles = StyleSheet.create({
     minHeight: 42,
     maxHeight: 120,
     backgroundColor: '#F0F1F3',
-    borderRadius: 21,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    borderRadius: RADIUS['2xl'],
+    paddingHorizontal: SPACING[4],
+    paddingVertical: SPACING[2.5],
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   sendBtn: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',

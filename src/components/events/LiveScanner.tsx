@@ -1,11 +1,12 @@
 import { useRef } from 'react';
+import { SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, Modal } from 'react-native';
 // expo-camera is imported here (not in the host screen) so this whole module is
 // only ever evaluated after isLiveScannerAvailable() confirms the ExpoCamera
 // native module exists. On older binaries the host screen never imports this.
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, IconButton } from '@/components/ui';
 
 // Full-screen live QR scanner. Calls onScan with each decoded string; the parent
@@ -80,22 +81,22 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    padding: 32,
+    gap: SPACING[3],
+    padding: SPACING[8],
     backgroundColor: COLORS.background,
   },
   permTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 18,
+    fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
   },
   permBody: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 20,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING[2],
   },
   overlay: {
     position: 'absolute',
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
+    gap: SPACING[5],
   },
   reticle: {
     width: 240,
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontFamily: FONTS.semibold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: '#fff',
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowRadius: 6,

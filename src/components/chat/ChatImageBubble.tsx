@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS } from '@/constants/spacing';
 import { View, StyleSheet, Modal, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Icon, PressableScale } from '@/components/ui';
@@ -52,7 +53,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: 210,
     height: 210,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     backgroundColor: 'rgba(15,24,44,0.08)',
   },
   viewer: { flex: 1, backgroundColor: '#000' },
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
     right: 20,
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: RADIUS.xl,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',

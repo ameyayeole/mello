@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, IconName, Screen } from '@/components/ui';
 
 const RULES: {
@@ -105,58 +106,58 @@ export default function GuidelinesScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 26 },
+  content: { flex: 1, paddingHorizontal: SPACING[6], paddingTop: SPACING[6] },
   badge: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 27,
+    fontSize: TYPE_SIZE.h1,
     lineHeight: 28,
     letterSpacing: -0.7,
     color: COLORS.textPrimary,
-    marginTop: 16,
+    marginTop: SPACING[4],
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: COLORS.textSecondary,
-    marginTop: 10,
+    marginTop: SPACING[2.5],
   },
-  list: { gap: 14, marginTop: 22 },
-  row: { flexDirection: 'row', gap: 13, alignItems: 'flex-start' },
+  list: { gap: SPACING[3.5], marginTop: SPACING[5] },
+  row: { flexDirection: 'row', gap: SPACING[3], alignItems: 'flex-start' },
   rowIcon: {
     width: 30,
     height: 30,
-    borderRadius: 9,
+    borderRadius: RADIUS.xs,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowText: { flex: 1 },
   rowTitle: {
     fontFamily: FONTS.heading,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   rowDesc: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 16.8,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
-  actions: { paddingHorizontal: 24, paddingBottom: 30, paddingTop: 8 },
+  actions: { paddingHorizontal: SPACING[6], paddingBottom: SPACING[7], paddingTop: SPACING[2] },
   agreeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
+    gap: SPACING[2.5],
+    marginBottom: SPACING[3.5],
   },
   checkbox: {
     width: 24,
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
   },
   agreeText: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: '#5C5860',
   },
 });

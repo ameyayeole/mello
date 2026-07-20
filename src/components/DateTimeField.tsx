@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -8,7 +9,7 @@ import {
   Modal,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon } from '@/components/ui';
 
 // ─── Pure-JS date/time span picker ──────────────────────────────────────────
@@ -311,7 +312,7 @@ export default function DateTimeField({
               label="Done"
               height={46}
               onPress={() => setOpen(false)}
-              style={{ marginTop: 16 }}
+              style={{ marginTop: SPACING[4] }}
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -321,44 +322,44 @@ export default function DateTimeField({
 }
 
 const styles = StyleSheet.create({
-  chipScroll: { gap: 8, paddingVertical: 2 },
+  chipScroll: { gap: SPACING[2], paddingVertical: SPACING[0.5] },
   timeGridScroll: { maxHeight: 320 },
   timeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 2,
+    gap: SPACING[2],
+    paddingVertical: SPACING[0.5],
   },
   dateField: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: SPACING[2],
     height: 48,
     backgroundColor: COLORS.background,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING[3.5],
   },
   dateFieldCompact: {
-    gap: 6,
-    paddingHorizontal: 11,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[2.5],
   },
   dateFieldText: {
     flexShrink: 1,
     fontFamily: FONTS.semibold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15,24,44,0.45)',
     justifyContent: 'center',
-    padding: 24,
+    padding: SPACING[6],
   },
   calCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    padding: 18,
+    borderRadius: RADIUS['3xl'],
+    padding: SPACING[4],
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -369,11 +370,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    marginBottom: 12,
+    paddingHorizontal: SPACING[2],
+    marginBottom: SPACING[3],
   },
   calNav: {
-    fontSize: 28,
+    fontSize: TYPE_SIZE.h1,
     fontFamily: FONTS.bold,
     color: COLORS.primary,
     width: 32,
@@ -381,7 +382,7 @@ const styles = StyleSheet.create({
   },
   calMonthLabel: {
     fontFamily: FONTS.heavy,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
   },
   calWeekRow: { flexDirection: 'row' },
@@ -389,43 +390,43 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
-    marginBottom: 4,
+    marginBottom: SPACING[1],
   },
   calCell: {
     flex: 1,
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 2,
+    padding: SPACING[0.5],
   },
   calDayInner: {
     width: '100%',
     height: '100%',
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   calDaySel: { backgroundColor: COLORS.primary },
   calDayText: {
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
   calDayTextSel: { color: '#fff', fontFamily: FONTS.heavy },
   calDayTextDisabled: { color: COLORS.disabled },
   calTimeLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: SPACING[3],
+    marginBottom: SPACING[2],
   },
   timeChip: {
     width: 78,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: SPACING[2.5],
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.surface,
     borderWidth: 1.5,
     borderColor: COLORS.border,
@@ -433,7 +434,7 @@ const styles = StyleSheet.create({
   },
   timeChipText: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   chipActive: {

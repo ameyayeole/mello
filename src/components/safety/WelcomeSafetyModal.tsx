@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, CoralGlow, Icon, IconName, MelloPin } from '@/components/ui';
 
 // Safety popup #1 ("Welcome to a safer Mello") — full-screen interstitial per
@@ -70,62 +71,62 @@ const styles = StyleSheet.create({
     top: -70,
     alignSelf: 'center',
   },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 84 },
+  content: { flex: 1, paddingHorizontal: SPACING[6], paddingTop: 84 },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 25,
+    fontSize: TYPE_SIZE.titleLg,
     lineHeight: 30,
     letterSpacing: -0.5,
     color: COLORS.textPrimary,
-    marginTop: 18,
+    marginTop: SPACING[4],
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: 'rgba(15,24,44,0.55)',
-    marginTop: 10,
+    marginTop: SPACING[2.5],
   },
-  tips: { gap: 11, marginTop: 20 },
+  tips: { gap: SPACING[2.5], marginTop: SPACING[5] },
   tipCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.background,
-    borderRadius: 16,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING[3],
+    paddingHorizontal: SPACING[3.5],
   },
   tipIcon: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tipLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   footnote: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: 'rgba(15,24,44,0.5)',
-    marginTop: 16,
+    marginTop: SPACING[4],
   },
-  actions: { paddingHorizontal: 24, paddingBottom: 34 },
+  actions: { paddingHorizontal: SPACING[6], paddingBottom: SPACING[8] },
   secondaryBtn: {
     height: 40,
-    marginTop: 5,
+    marginTop: SPACING[1],
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(15,24,44,0.55)',
   },
 });

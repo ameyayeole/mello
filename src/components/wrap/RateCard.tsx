@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale, VerifiedBadge } from '@/components/ui';
 import { CoAttendee } from '@/types/models';
 
@@ -123,7 +124,7 @@ export default function RateCard({
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: COLORS.surface,
     overflow: 'hidden',
     shadowColor: '#0F182C',
@@ -151,79 +152,79 @@ const styles = StyleSheet.create({
     left: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2.5],
     height: 28,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
   },
-  hostChipText: { fontFamily: FONTS.bold, fontSize: 11.5, color: '#fff' },
-  body: { padding: 16, paddingTop: 13 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  hostChipText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.micro, color: '#fff' },
+  body: { padding: SPACING[4], paddingTop: SPACING[3] },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   name: {
     fontFamily: FONTS.heavy,
-    fontSize: 21,
+    fontSize: TYPE_SIZE.title,
     letterSpacing: -0.42,
     color: COLORS.textPrimary,
     flexShrink: 1,
   },
   username: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   bio: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: COLORS.textSecondary,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: SPACING[3],
   },
   thumbsPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2.5],
     height: 30,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.primaryTint,
   },
   thumbsText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
   friendBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3.5],
     height: 34,
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: COLORS.primary,
   },
   friendBtnSent: { backgroundColor: 'rgba(15,24,44,0.06)' },
-  friendBtnText: { fontFamily: FONTS.bold, fontSize: 12.5, color: '#fff' },
+  friendBtnText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#fff' },
   friendBtnTextSent: { color: COLORS.textMuted },
   friendsChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[3],
     height: 30,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(31,164,99,0.10)',
   },
   friendsChipText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.success,
   },
 });

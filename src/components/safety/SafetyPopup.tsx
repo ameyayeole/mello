@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, IconName, Sheet } from '@/components/ui';
 
 // Safety bottom sheet, matching the "Mello Screens" design gallery: left-aligned,
@@ -74,8 +75,8 @@ export default function SafetyPopup({
 
 const styles = StyleSheet.create({
   sheet: {
-    paddingHorizontal: 22,
-    paddingTop: 12,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3],
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -84,55 +85,55 @@ const styles = StyleSheet.create({
   iconTile: {
     width: 46,
     height: 46,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 13,
+    marginBottom: SPACING[3],
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 19,
+    fontSize: TYPE_SIZE.sectionLg,
     lineHeight: 24,
     letterSpacing: -0.2,
     color: COLORS.textPrimary,
   },
   body: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: 'rgba(15,24,44,0.6)',
-    marginTop: 9,
+    marginTop: SPACING[2],
   },
-  bullets: { marginTop: 2 },
+  bullets: { marginTop: SPACING[0.5] },
   bulletRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 9,
-    marginTop: 10,
+    gap: SPACING[2],
+    marginTop: SPACING[2.5],
   },
   bulletDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
   bulletText: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
     color: 'rgba(15,24,44,0.7)',
   },
-  primary: { marginTop: 18 },
+  primary: { marginTop: SPACING[4] },
   secondaryBtn: {
     height: 40,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(15,24,44,0.55)',
   },
 });

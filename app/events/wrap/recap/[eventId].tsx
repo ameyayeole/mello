@@ -5,6 +5,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import { queryKeys } from '@/constants/queryKeys';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +17,7 @@ import { useWrapGallery } from '@/hooks/useWrapGallery';
 import { getEventDetail } from '@/services/events.service';
 import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Loader, NavButton, PressableScale } from '@/components/ui';
 import { SuperlativeWinner } from '@/types/models';
 
@@ -210,67 +211,67 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   square: { width: 10, height: 10, borderRadius: 2, transform: [{ rotate: '20deg' }] },
-  header: { paddingHorizontal: 12, paddingVertical: 6, zIndex: 2 },
-  scroll: { paddingHorizontal: 22, paddingTop: 10, gap: 24, paddingBottom: 20 },
+  header: { paddingHorizontal: SPACING[3], paddingVertical: SPACING[1.5], zIndex: 2 },
+  scroll: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2.5], gap: SPACING[6], paddingBottom: SPACING[5] },
   overline: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     letterSpacing: 2,
     textTransform: 'uppercase',
     color: COLORS.primary,
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 34,
+    fontSize: TYPE_SIZE.display,
     lineHeight: 35,
     letterSpacing: -1,
     color: '#fff',
-    marginTop: 8,
+    marginTop: SPACING[2],
   },
   subtitle: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(255,255,255,0.5)',
-    marginTop: 8,
+    marginTop: SPACING[2],
   },
-  stats: { flexDirection: 'row', gap: 11 },
-  statCard: { flex: 1, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 14 },
-  statValue: { fontFamily: FONTS.heading, fontSize: 28, color: '#fff' },
+  stats: { flexDirection: 'row', gap: SPACING[2.5] },
+  statCard: { flex: 1, borderRadius: RADIUS['2xl'], paddingVertical: SPACING[4], paddingHorizontal: SPACING[3.5] },
+  statValue: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.h1, color: '#fff' },
   statLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   sectionTitle: {
     fontFamily: FONTS.heading,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: '#fff',
-    marginBottom: 12,
+    marginBottom: SPACING[3],
   },
-  awardRow: { flexDirection: 'row', gap: 11 },
+  awardRow: { flexDirection: 'row', gap: SPACING[2.5] },
   awardCard: {
     flex: 1,
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING[2],
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[3.5],
   },
-  awardName: { fontFamily: FONTS.heading, fontSize: 13, color: '#fff' },
-  awardLabel: { fontFamily: FONTS.bold, fontSize: 10, color: COLORS.primary },
+  awardName: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
+  awardLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: COLORS.primary },
   noVotes: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(255,255,255,0.6)',
   },
-  photoStrip: { flexDirection: 'row', gap: 8 },
+  photoStrip: { flexDirection: 'row', gap: SPACING[2] },
   photoTile: {
     flex: 1,
     height: 60,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
@@ -284,22 +285,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoMoreText: { fontFamily: FONTS.heading, fontSize: 15, color: '#fff' },
+  photoMoreText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.body, color: '#fff' },
   footer: {
     flexDirection: 'row',
-    gap: 11,
-    paddingHorizontal: 22,
-    paddingTop: 14,
-    paddingBottom: 30,
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3.5],
+    paddingBottom: SPACING[7],
   },
   footerBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: SPACING[3.5],
+    borderRadius: RADIUS.md,
   },
   footerBtnGhost: { backgroundColor: 'rgba(255,255,255,0.12)' },
   footerBtnPrimary: { backgroundColor: COLORS.primary },
-  footerBtnText: { fontFamily: FONTS.heading, fontSize: 14, color: '#fff' },
+  footerBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
 });

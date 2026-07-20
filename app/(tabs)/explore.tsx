@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import { SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -19,7 +20,7 @@ import EventBottomSheet, {
 } from '@/components/events/EventBottomSheet';
 import CreateEventFab from '@/components/CreateEventFab';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ExploreEvent, ExploreWrap } from '@/types/models';
 import { EmptyState, Loader, Screen } from '@/components/ui';
 import { errorMessage } from '@/utils/errors';
@@ -130,7 +131,7 @@ export default function ExploreScreen() {
               explore.isFetchingNextPage ? (
                 <ActivityIndicator
                   color={COLORS.primary}
-                  style={{ marginVertical: 16 }}
+                  style={{ marginVertical: SPACING[4] }}
                 />
               ) : null
             }
@@ -168,15 +169,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[2.5],
+    paddingBottom: SPACING[2],
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 22,
+    fontSize: TYPE_SIZE.title,
     letterSpacing: -0.44,
     color: COLORS.textPrimary,
   },
-  list: { padding: 16, paddingTop: 4, gap: 12 },
+  list: { padding: SPACING[4], paddingTop: SPACING[1], gap: SPACING[3] },
 });

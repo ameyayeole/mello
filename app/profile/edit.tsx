@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -21,7 +22,7 @@ import { PhotoGridPicker } from '@/components/PhotoGridPicker';
 import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
 import {
   ActivityGlyph,
@@ -337,24 +338,24 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  save: { fontFamily: FONTS.bold, fontSize: 15, color: COLORS.primary },
+  save: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.body, color: COLORS.primary },
   saveDisabled: { color: COLORS.textMuted },
-  scroll: { padding: 22, gap: 20, paddingBottom: 32 },
+  scroll: { padding: SPACING[5], gap: SPACING[5], paddingBottom: SPACING[8] },
   label: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
     color: 'rgba(15,24,44,0.5)',
-    marginBottom: 7,
+    marginBottom: SPACING[1.5],
   },
   hint: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
     marginTop: -3,
-    marginBottom: 10,
+    marginBottom: SPACING[2.5],
   },
-  form: { gap: 14 },
+  form: { gap: SPACING[3.5] },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -362,49 +363,49 @@ const styles = StyleSheet.create({
   },
   lockedTag: {
     fontFamily: FONTS.bold,
-    fontSize: 10,
+    fontSize: TYPE_SIZE.nano,
     letterSpacing: 0.3,
     color: COLORS.verified,
-    marginBottom: 7,
+    marginBottom: SPACING[1.5],
   },
   lockedNote: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 18,
     color: COLORS.textMuted,
     marginTop: -4,
   },
   atPrefix: {
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textSecondary,
-    marginRight: 1,
+    marginRight: SPACING[0.5],
   },
   suggestionRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+    gap: SPACING[2],
+    marginTop: SPACING[2],
   },
   suggestionChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.primaryTint,
   },
   suggestionText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2.5] },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING[2],
     height: 42,
-    paddingHorizontal: 15,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -417,7 +418,7 @@ const styles = StyleSheet.create({
   pillLocked: { opacity: 0.5 },
   pillLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(15,24,44,0.7)',
   },
   pillLabelSel: { color: COLORS.primary },

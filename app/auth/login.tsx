@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -19,7 +20,7 @@ import {
 } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, CoralGlow, Icon, MelloWordmark, Screen, TextField } from '@/components/ui';
 import { errorMessage } from '@/utils/errors';
 
@@ -230,7 +231,7 @@ export default function LoginScreen() {
             onPress={handleEmail}
             loading={loading}
             disabled={!email || !password}
-            style={{ marginTop: 4 }}
+            style={{ marginTop: SPACING[1] }}
           />
 
           <TouchableOpacity
@@ -270,30 +271,30 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    padding: 24,
+    padding: SPACING[6],
     justifyContent: 'space-between',
     paddingTop: 100,
-    paddingBottom: 24,
+    paddingBottom: SPACING[6],
   },
-  header: { alignItems: 'center', gap: 18 },
+  header: { alignItems: 'center', gap: SPACING[4] },
   tagline: {
     fontFamily: FONTS.semibold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     lineHeight: 23,
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  form: { gap: 13 },
+  form: { gap: SPACING[3] },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginVertical: 2,
+    gap: SPACING[3],
+    marginVertical: SPACING[0.5],
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
   dividerText: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
   },
   forgotWrap: { alignSelf: 'flex-end', marginTop: -4 },
@@ -301,37 +302,37 @@ const styles = StyleSheet.create({
   appleButton: { backgroundColor: '#000', shadowColor: '#000' },
   confirmTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 22,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   confirmBody: {
     fontFamily: FONTS.medium,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: SPACING[1.5],
   },
   forgotText: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
   },
   toggleText: {
     textAlign: 'center',
     fontFamily: FONTS.semibold,
     color: COLORS.textSecondary,
-    fontSize: 14,
-    marginTop: 6,
+    fontSize: TYPE_SIZE.bodyMd,
+    marginTop: SPACING[1.5],
   },
   toggleLink: { color: COLORS.primary, fontFamily: FONTS.bold },
   terms: {
     textAlign: 'center',
     fontFamily: FONTS.medium,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     lineHeight: 16,
     color: 'rgba(15,24,44,0.4)',
-    marginTop: 10,
+    marginTop: SPACING[2.5],
   },
 });

@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { searchEvents } from '@/services/events.service';
 import { searchUsers } from '@/services/friends.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { NearbyEvent, Profile } from '@/types/models';
 import { formatEventTime } from '@/utils/time';
 import { BOOST_ACCENT, BOOST_EMOJI, BOOST_TINT, isBoosted } from '@/utils/boost';
@@ -211,85 +212,85 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[4],
+    paddingVertical: SPACING[2.5],
     backgroundColor: COLORS.surface,
   },
   searchBar: {
     flex: 1,
     height: 44,
-    paddingLeft: 15,
-    paddingRight: 6,
+    paddingLeft: SPACING[3.5],
+    paddingRight: SPACING[1.5],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     backgroundColor: COLORS.background,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
   input: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
     paddingVertical: 0,
   },
   cancel: {
     fontFamily: FONTS.bold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
   },
-  scroll: { padding: 16, paddingBottom: 40, gap: 18 },
-  section: { gap: 10 },
+  scroll: { padding: SPACING[4], paddingBottom: SPACING[10], gap: SPACING[4] },
+  section: { gap: SPACING[2.5] },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.07)',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING[3],
+    paddingHorizontal: SPACING[3.5],
   },
   rowText: { flex: 1, minWidth: 0 },
-  rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   rowTitle: {
     flexShrink: 1,
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   boostBadge: {
     backgroundColor: BOOST_TINT,
-    paddingHorizontal: 6,
+    paddingHorizontal: SPACING[1.5],
     height: 18,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boostBadgeText: { fontSize: 10, color: BOOST_ACCENT },
+  boostBadgeText: { fontSize: TYPE_SIZE.nano, color: BOOST_ACCENT },
   rowMeta: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.5)',
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   loading: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 32,
+    marginTop: SPACING[8],
   },
   emptyState: {
     alignItems: 'center',
-    gap: 12,
-    marginTop: 48,
+    gap: SPACING[3],
+    marginTop: SPACING[12],
   },
   emptyText: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
     color: COLORS.textSecondary,
     textAlign: 'center',

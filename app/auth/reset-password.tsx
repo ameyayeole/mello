@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import { exchangeAuthCode, updatePassword } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
   CoralGlow,
@@ -102,7 +103,7 @@ export default function ResetPasswordScreen() {
               variant="tertiary"
               label="Request a new link"
               onPress={() => router.replace('/auth/forgot-password')}
-              style={{ alignSelf: 'stretch', marginTop: 12 }}
+              style={{ alignSelf: 'stretch', marginTop: SPACING[3] }}
             />
           </View>
         )}
@@ -162,7 +163,7 @@ export default function ResetPasswordScreen() {
                 onPress={handleSave}
                 loading={saving}
                 disabled={!password || !confirm}
-                style={{ marginTop: 4 }}
+                style={{ marginTop: SPACING[1] }}
               />
             </Animated.View>
           </>
@@ -180,37 +181,37 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    padding: 24,
-    paddingTop: 48,
-    gap: 32,
+    padding: SPACING[6],
+    paddingTop: SPACING[12],
+    gap: SPACING[8],
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
+    gap: SPACING[3.5],
     paddingBottom: 80,
   },
-  header: { gap: 14 },
+  header: { gap: SPACING[3.5] },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: TYPE_SIZE.titleLg,
     color: COLORS.textPrimary,
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: COLORS.textSecondary,
   },
-  form: { gap: 13 },
+  form: { gap: SPACING[3] },
   input: {
     height: 48,
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING[4],
     fontFamily: FONTS.medium,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -219,19 +220,19 @@ const styles = StyleSheet.create({
   passwordRow: {
     height: 48,
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING[4],
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
   },
   passwordInput: {
     flex: 1,
     height: '100%',
     fontFamily: FONTS.medium,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
 });

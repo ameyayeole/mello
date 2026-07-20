@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -11,7 +12,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CATEGORY_STYLE } from '@/constants/categoryStyle';
 import { Icon } from '@/components/ui';
 import { Stage, MapPanel, FloatingCard } from '../Stage';
@@ -119,10 +120,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3],
     height: 34,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: '#fff',
     shadowColor: '#0F182C',
     shadowOpacity: 0.14,
@@ -132,7 +133,7 @@ const styles = StyleSheet.create({
   },
   promptText: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
   pinColumn: {
@@ -159,9 +160,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  pinEmoji: { fontSize: 26, lineHeight: 33 },
+  pinEmoji: { fontSize: TYPE_SIZE.titleLg, lineHeight: 33 },
   groundShadow: {
-    marginTop: 5,
+    marginTop: SPACING[1],
     width: 18,
     height: 5,
     borderRadius: 3,
@@ -172,8 +173,8 @@ const styles = StyleSheet.create({
     bottom: '9%',
     width: '74%',
     maxWidth: 300,
-    padding: 16,
-    paddingTop: 10,
+    padding: SPACING[4],
+    paddingTop: SPACING[2.5],
     alignItems: 'stretch',
   },
   sheetHandle: {
@@ -182,28 +183,28 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: 'rgba(15,24,44,0.12)',
-    marginBottom: 10,
+    marginBottom: SPACING[2.5],
   },
   sheetTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     letterSpacing: -0.3,
     color: COLORS.textPrimary,
   },
-  chipRow: { flexDirection: 'row', gap: 7, marginTop: 10 },
+  chipRow: { flexDirection: 'row', gap: SPACING[1.5], marginTop: SPACING[2.5] },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
+    gap: SPACING[1],
+    paddingHorizontal: SPACING[2.5],
     height: 28,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
-  chipText: { fontFamily: FONTS.bold, fontSize: 11.5 },
+  chipText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.micro },
   chipGhost: {
-    paddingHorizontal: 10,
+    paddingHorizontal: SPACING[2.5],
     height: 28,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
@@ -211,18 +212,18 @@ const styles = StyleSheet.create({
   },
   chipGhostText: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
   sheetButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: SPACING[1.5],
     height: 38,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primary,
-    marginTop: 13,
+    marginTop: SPACING[3],
   },
-  sheetButtonText: { fontFamily: FONTS.bold, fontSize: 13, color: '#fff' },
+  sheetButtonText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
 });

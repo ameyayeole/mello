@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Dialog, Icon, PressableScale } from '@/components/ui';
 
 // Safety popup #13: block confirmation, per the design gallery — a centered
@@ -55,9 +56,9 @@ export default function BlockConfirmDialog({
 const styles = StyleSheet.create({
   dialog: {
     alignSelf: 'stretch',
-    paddingTop: 22,
-    paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingTop: SPACING[5],
+    paddingHorizontal: SPACING[5],
+    paddingBottom: SPACING[4],
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 48,
@@ -67,45 +68,45 @@ const styles = StyleSheet.create({
   iconBubble: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: RADIUS['3xl'],
     backgroundColor: 'rgba(239,68,68,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 17,
+    fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
-    marginTop: 12,
+    marginTop: SPACING[3],
     textAlign: 'center',
   },
   body: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: 'rgba(15,24,44,0.6)',
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: SPACING[2],
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 9,
+    gap: SPACING[2],
     alignSelf: 'stretch',
-    marginTop: 18,
+    marginTop: SPACING[4],
   },
   btn: {
     flex: 1,
     height: 44,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtn: { backgroundColor: '#F0F1F3' },
   cancelLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   blockBtn: { backgroundColor: COLORS.error },
-  blockLabel: { fontFamily: FONTS.bold, fontSize: 14, color: '#fff' },
+  blockLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
 });

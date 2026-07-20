@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -34,7 +35,7 @@ import {
   chatKey,
 } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   NearbyEvent,
   FriendConversation,
@@ -501,23 +502,23 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: {
     backgroundColor: COLORS.accent,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: SPACING[5],
+    paddingBottom: SPACING[4],
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 24,
+    fontSize: TYPE_SIZE.titleLg,
     letterSpacing: -0.5,
     color: '#fff',
   },
   segment: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 100,
-    padding: 4,
-    marginTop: 14,
+    borderRadius: RADIUS.full,
+    padding: SPACING[1],
+    marginTop: SPACING[3.5],
   },
   segmentPill: {
     position: 'absolute',
@@ -525,71 +526,71 @@ const styles = StyleSheet.create({
     left: 4,
     bottom: 4,
     backgroundColor: '#fff',
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
   segmentTab: {
     flex: 1,
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
   },
   segmentText: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: 'rgba(255,255,255,0.6)',
   },
   segmentTextActive: { color: COLORS.textPrimary },
-  list: { paddingBottom: 20 },
+  list: { paddingBottom: SPACING[5] },
   separator: {
     height: 1,
     backgroundColor: 'rgba(15,24,44,0.06)',
     marginLeft: 81,
   },
-  notesBlock: { paddingHorizontal: 20, paddingTop: 2 },
+  notesBlock: { paddingHorizontal: SPACING[5], paddingTop: SPACING[0.5] },
   notesLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.4,
     color: 'rgba(15,24,44,0.45)',
-    marginBottom: 2,
+    marginBottom: SPACING[0.5],
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
-    paddingHorizontal: 20,
-    paddingVertical: 13,
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[5],
+    paddingVertical: SPACING[3],
   },
   rowInfo: { flex: 1, minWidth: 0 },
-  rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  glyphRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
+  glyphRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
   rowTitle: {
     flexShrink: 1,
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   rowSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 3,
+    marginTop: SPACING[0.5],
   },
   rowTime: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.4)',
   },
   countPill: {
     backgroundColor: COLORS.background,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 100,
+    paddingHorizontal: SPACING[2],
+    paddingVertical: SPACING[1],
+    borderRadius: RADIUS.full,
   },
   countPillText: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.55)',
   },
 });

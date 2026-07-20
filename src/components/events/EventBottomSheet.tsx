@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
 import BottomSheet, {
@@ -38,7 +39,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { useEventParticipation } from '@/hooks/useEventParticipation';
 import { splitEventTime } from '@/utils/time';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatDistance } from '@/utils/distance';
 import { shareEvent } from '@/utils/shareEvent';
 import {
@@ -360,7 +361,7 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
           {isLoading || !event ? (
             <ActivityIndicator
               color={COLORS.primary}
-              style={{ marginTop: 40 }}
+              style={{ marginTop: SPACING[10] }}
             />
           ) : (
             <>
@@ -696,11 +697,11 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: -8 },
   },
-  content: { padding: 20, paddingTop: 0, gap: 13 },
+  content: { padding: SPACING[5], paddingTop: 0, gap: SPACING[3] },
   banner: {
     height: 200,
     marginHorizontal: -20,
-    marginBottom: 3,
+    marginBottom: SPACING[0.5],
     backgroundColor: '#E3E1E4',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -710,7 +711,7 @@ const styles = StyleSheet.create({
   },
   bannerHint: {
     fontFamily: FONTS.semibold,
-    fontSize: 10,
+    fontSize: TYPE_SIZE.nano,
     letterSpacing: 0.5,
     color: COLORS.textMuted,
   },
@@ -719,7 +720,7 @@ const styles = StyleSheet.create({
     top: 12,
     width: 40,
     height: 5,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(255,255,255,0.85)',
   },
   bannerPill: { position: 'absolute', top: 22, left: 16 },
@@ -729,50 +730,50 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING[2],
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 24,
+    fontSize: TYPE_SIZE.titleLg,
     lineHeight: 26,
     letterSpacing: -0.6,
     color: COLORS.textPrimary,
   },
-  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hostRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
   hostNameRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: SPACING[1],
   },
   hostName: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
     flexShrink: 1,
   },
   hostLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
-  goingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  goingWrap: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
   goingText: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textSecondary,
   },
-  infoRow: { flexDirection: 'row', gap: 9 },
+  infoRow: { flexDirection: 'row', gap: SPACING[2] },
   infoCard: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: SPACING[2],
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
-    borderRadius: 14,
-    padding: 11,
+    borderRadius: RADIUS.md,
+    padding: SPACING[2.5],
   },
   // Row children don't shrink by default, so without flex the text column
   // measures at full content width and spills past the card — long addresses
@@ -780,45 +781,45 @@ const styles = StyleSheet.create({
   infoText: { flex: 1, minWidth: 0 },
   infoTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
   infoSub: {
     fontFamily: FONTS.semibold,
-    fontSize: 10.5,
+    fontSize: TYPE_SIZE.nano,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   description: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     lineHeight: 21,
     color: '#5C5860',
   },
-  footerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
   spotsInfo: {},
   spotsCount: {
     fontFamily: FONTS.heading,
-    fontSize: 20,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
   },
   spotsLeft: {
     fontFamily: FONTS.semibold,
-    fontSize: 10,
+    fontSize: TYPE_SIZE.nano,
     color: COLORS.textSecondary,
-    marginTop: 3,
+    marginTop: SPACING[0.5],
   },
-  sectionLabel: { marginBottom: 8 },
+  sectionLabel: { marginBottom: SPACING[2] },
   participantsRow: { flexDirection: 'row', alignItems: 'center' },
   stackItem: {
-    borderRadius: 19,
+    borderRadius: RADIUS.xl,
     borderWidth: 2.5,
     borderColor: COLORS.surface,
   },
   overflowBubble: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: RADIUS.lg,
     backgroundColor: COLORS.primaryTint,
     borderWidth: 2.5,
     borderColor: COLORS.surface,
@@ -827,88 +828,88 @@ const styles = StyleSheet.create({
   },
   overflowText: {
     fontFamily: FONTS.heavy,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
-  pendingSection: { gap: 8 },
+  pendingSection: { gap: SPACING[2] },
   pendingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING[2.5],
     backgroundColor: COLORS.background,
-    borderRadius: 14,
-    padding: 10,
+    borderRadius: RADIUS.md,
+    padding: SPACING[2.5],
   },
   pendingNameWrap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: SPACING[1],
   },
   pendingName: {
     flexShrink: 1,
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   approveBtn: {
     height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    paddingHorizontal: SPACING[3.5],
+    borderRadius: RADIUS.xs,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  approveBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: 12.5 },
+  approveBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: TYPE_SIZE.caption },
   rejectBtn: {
     width: 34,
     height: 34,
-    borderRadius: 10,
+    borderRadius: RADIUS.xs,
     backgroundColor: '#F0F1F3',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actions: { gap: 10, marginTop: 4 },
+  actions: { gap: SPACING[2.5], marginTop: SPACING[1] },
   premiumPill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 100,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
     backgroundColor: PREMIUM_GOLD_TINT,
   },
   premiumPillText: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: PREMIUM_GOLD,
   },
   womenOnlyPill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 100,
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
     backgroundColor: 'rgba(149,9,82,0.10)',
   },
   womenOnlyText: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.secondary,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 8,
+    gap: SPACING[2],
   },
   shareBtn: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -919,10 +920,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[4],
     height: 42,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
     shadowColor: '#0F182C',
     shadowOpacity: 0.22,
@@ -930,5 +931,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  toastText: { fontFamily: FONTS.bold, fontSize: 13, color: '#fff' },
+  toastText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
 });

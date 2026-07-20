@@ -1,4 +1,5 @@
 import { Text, StyleSheet, FlatList } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   DISCOVERY_FEED_KEYS,
   queryKeys,
@@ -8,7 +9,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { getBlockedUsers, unblockUser } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Profile } from '@/types/models';
 import {
   Avatar,
@@ -89,14 +90,14 @@ export default function BlockedUsersScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 16, gap: 10 },
+  list: { padding: SPACING[4], gap: SPACING[2.5] },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: RADIUS.lg,
+    padding: SPACING[3],
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.07)',
     shadowColor: COLORS.ink,
@@ -108,7 +109,7 @@ const styles = StyleSheet.create({
   name: {
     flex: 1,
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
 });

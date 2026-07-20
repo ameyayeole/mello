@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName, PressableScale, Sheet } from '@/components/ui';
 
 // A bottom action sheet in the Mello style: dim backdrop, rounded card,
@@ -70,25 +71,25 @@ export default function OptionSheet({
 }
 
 const styles = StyleSheet.create({
-  card: { paddingHorizontal: 16, paddingTop: 14, gap: 2 },
+  card: { paddingHorizontal: SPACING[4], paddingTop: SPACING[3.5], gap: SPACING[0.5] },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
-    paddingHorizontal: 8,
-    paddingBottom: 10,
+    paddingHorizontal: SPACING[2],
+    paddingBottom: SPACING[2.5],
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
-    paddingHorizontal: 8,
-    paddingVertical: 11,
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[2],
+    paddingVertical: SPACING[2.5],
   },
   rowIcon: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
@@ -96,14 +97,14 @@ const styles = StyleSheet.create({
   rowIconDanger: { backgroundColor: '#FFF0EF' },
   rowLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   rowLabelDanger: { color: '#E5484D' },
   rowSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
 });

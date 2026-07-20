@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CATEGORY_STYLE } from '@/constants/categoryStyle';
 import { Icon } from '@/components/ui';
 import { Stage, MapPanel, EventPin, ClusterBubble, FloatingCard } from '../Stage';
@@ -62,35 +63,35 @@ const styles = StyleSheet.create({
     bottom: '11%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    gap: SPACING[2.5],
+    paddingVertical: SPACING[3],
+    paddingHorizontal: SPACING[3.5],
     width: '78%',
     maxWidth: 320,
   },
   eventIcon: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   eventTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   eventMeta: {
     fontFamily: FONTS.medium,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   avatars: { flexDirection: 'row' },
   avatar: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     borderWidth: 2,
     borderColor: '#fff',
   },

@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocation } from '@/hooks/useLocation';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, IconName, Screen } from '@/components/ui';
 
 type PermKey = 'location' | 'notifications' | 'camera';
@@ -119,67 +120,67 @@ export default function PermissionsScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 30,
+    paddingHorizontal: SPACING[6],
+    paddingTop: SPACING[7],
   },
   title: {
     fontFamily: FONTS.heading,
-    fontSize: 28,
+    fontSize: TYPE_SIZE.h1,
     lineHeight: 30,
     letterSpacing: -0.8,
     color: COLORS.textPrimary,
   },
   subtitle: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     lineHeight: 21,
     color: COLORS.textSecondary,
-    marginTop: 12,
+    marginTop: SPACING[3],
   },
-  list: { gap: 14, marginTop: 26 },
+  list: { gap: SPACING[3.5], marginTop: SPACING[6] },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: SPACING[3.5],
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
-    borderRadius: 18,
-    padding: 18,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[4],
   },
   cardIcon: {
     width: 48,
     height: 48,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardText: { flex: 1 },
   cardTitle: {
     fontFamily: FONTS.heading,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     letterSpacing: -0.2,
     color: COLORS.textPrimary,
   },
   cardDesc: {
     fontFamily: FONTS.semibold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 16,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
   toggle: {
     width: 52,
     height: 30,
-    borderRadius: 100,
-    padding: 3,
+    borderRadius: RADIUS.full,
+    padding: SPACING[0.5],
     justifyContent: 'center',
   },
   knob: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: RADIUS.sm,
     backgroundColor: '#fff',
   },
-  actions: { paddingHorizontal: 24, paddingBottom: 30, paddingTop: 8 },
+  actions: { paddingHorizontal: SPACING[6], paddingBottom: SPACING[7], paddingTop: SPACING[2] },
 });

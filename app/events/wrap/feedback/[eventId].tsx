@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
@@ -13,7 +14,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useWrap } from '@/hooks/useWrap';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
   PressableScale,
@@ -64,7 +65,7 @@ export default function EventFeedbackScreen() {
                   label="Back to the wrap"
                   height={44}
                   onPress={() => router.back()}
-                  style={{ marginTop: 12, alignSelf: 'stretch' }}
+                  style={{ marginTop: SPACING[3], alignSelf: 'stretch' }}
                 />
               </CompleteMoment>
             </View>
@@ -137,27 +138,27 @@ export default function EventFeedbackScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, gap: 18 },
+  scroll: { padding: SPACING[5], gap: SPACING[4] },
   completeWrap: { paddingTop: 70, alignItems: 'center' },
   title: {
     fontFamily: FONTS.heavy,
-    fontSize: 24,
+    fontSize: TYPE_SIZE.titleLg,
     letterSpacing: -0.48,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
-  thumbRow: { flexDirection: 'row', gap: 12 },
+  thumbRow: { flexDirection: 'row', gap: SPACING[3] },
   thumbBtn: {
     flex: 1,
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 22,
-    borderRadius: 20,
+    gap: SPACING[2],
+    paddingVertical: SPACING[5],
+    borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.surface,
     borderWidth: 1.5,
     borderColor: COLORS.border,
@@ -170,24 +171,24 @@ const styles = StyleSheet.create({
     borderColor: COLORS.error,
     backgroundColor: 'rgba(239,68,68,0.06)',
   },
-  thumbEmoji: { fontSize: 38 },
+  thumbEmoji: { fontSize: TYPE_SIZE.display },
   thumbLabel: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textSecondary,
   },
   thumbLabelOn: { color: COLORS.textPrimary },
   noteInput: {
     minHeight: 90,
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: RADIUS.md,
+    padding: SPACING[3.5],
     fontFamily: FONTS.semibold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  footer: { padding: 18, paddingTop: 8 },
+  footer: { padding: SPACING[4], paddingTop: SPACING[2] },
 });

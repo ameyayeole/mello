@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -42,7 +43,7 @@ import {
   FALLBACK_MAP_CENTER,
 } from '@/utils/eventDraft';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId, Coords } from '@/types/models';
 import {
   ActivityGlyph,
@@ -388,7 +389,7 @@ export default function EditEventScreen() {
             <Text style={styles.safetyTitle}>Safety</Text>
           </View>
           <View style={styles.safetyRow}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
+            <View style={{ flex: 1, paddingRight: SPACING[3] }}>
               <Text style={styles.safetyLabel}>Public event</Text>
               <Text style={styles.safetySub}>
                 {isPublic
@@ -404,7 +405,7 @@ export default function EditEventScreen() {
             />
           </View>
           <View style={styles.safetyRow}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
+            <View style={{ flex: 1, paddingRight: SPACING[3] }}>
               <Text style={styles.safetyLabel}>Approve who joins</Text>
               <Text style={styles.safetySub}>
                 {requiresApproval
@@ -422,7 +423,7 @@ export default function EditEventScreen() {
           {/* Female-only hosting is offered to female profiles only. */}
           {user?.gender === 'female' && (
             <View style={styles.safetyRow}>
-              <View style={{ flex: 1, paddingRight: 12 }}>
+              <View style={{ flex: 1, paddingRight: SPACING[3] }}>
                 <Text style={styles.safetyLabel}>Female-only event</Text>
                 <Text style={styles.safetySub}>
                   {womenOnly
@@ -518,14 +519,14 @@ export default function EditEventScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingTop: 8, gap: 7, paddingBottom: 24 },
+  scroll: { padding: SPACING[5], paddingTop: SPACING[2], gap: SPACING[1.5], paddingBottom: SPACING[6] },
   label: {
     fontFamily: FONTS.bold,
-    fontSize: 11.5,
+    fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
     color: 'rgba(15,24,44,0.5)',
-    marginTop: 10,
-    marginBottom: 3,
+    marginTop: SPACING[2.5],
+    marginBottom: SPACING[0.5],
   },
   labelOptional: {
     fontFamily: FONTS.medium,
@@ -534,17 +535,17 @@ const styles = StyleSheet.create({
   },
   charCount: {
     fontFamily: FONTS.medium,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.35)',
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: SPACING[1],
   },
-  categoryRow: { gap: 9, paddingHorizontal: 20 },
-  categoryItem: { width: 62, alignItems: 'center', gap: 6 },
+  categoryRow: { gap: SPACING[2], paddingHorizontal: SPACING[5] },
+  categoryItem: { width: 62, alignItems: 'center', gap: SPACING[1.5] },
   categoryTile: {
     width: 54,
     height: 54,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: 'rgba(15,24,44,0.08)',
@@ -553,16 +554,16 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: TYPE_SIZE.micro,
     color: 'rgba(15,24,44,0.55)',
   },
   input: {
     height: 48,
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 15,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING[3.5],
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -571,80 +572,80 @@ const styles = StyleSheet.create({
   multiline: {
     height: undefined,
     minHeight: 80,
-    paddingVertical: 12,
+    paddingVertical: SPACING[3],
     textAlignVertical: 'top',
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: TYPE_SIZE.bodyMd,
   },
   shortInput: { width: 120 },
   photoPicker: {
     height: 170,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     backgroundColor: COLORS.background,
   },
   photoPreview: { width: '100%', height: '100%' },
   photoActions: {
     flexDirection: 'row',
-    gap: 18,
-    marginTop: 8,
-    marginLeft: 4,
+    gap: SPACING[4],
+    marginTop: SPACING[2],
+    marginLeft: SPACING[1],
   },
   photoChange: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
   },
   photoPlaceholder: {
     height: 120,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: SPACING[2],
     borderStyle: 'dashed',
     borderWidth: 1.5,
     borderColor: 'rgba(15,24,44,0.2)',
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     backgroundColor: COLORS.surface,
   },
   photoAddIcon: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   photoPlaceholderText: {
     fontFamily: FONTS.bold,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(15,24,44,0.5)',
   },
   photoRemove: {
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.error,
   },
   spanSummary: {
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 6,
+    marginTop: SPACING[1.5],
   },
-  whenRow: { flexDirection: 'row', gap: 10 },
+  whenRow: { flexDirection: 'row', gap: SPACING[2.5] },
   whenCol: { flex: 1 },
   safetyCard: {
     backgroundColor: 'rgba(31,164,99,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(31,164,99,0.22)',
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 14,
-    gap: 12,
+    borderRadius: RADIUS.md,
+    padding: SPACING[3.5],
+    marginTop: SPACING[3.5],
+    gap: SPACING[3],
   },
-  safetyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  safetyHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
   safetyTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.success,
   },
   safetyRow: {
@@ -654,40 +655,40 @@ const styles = StyleSheet.create({
   },
   safetyLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: 13.5,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   safetySub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: SPACING[0.5],
   },
-  locationSearch: { marginTop: 4, marginBottom: 8 },
+  locationSearch: { marginTop: SPACING[1], marginBottom: SPACING[2] },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+    gap: SPACING[1.5],
+    marginBottom: SPACING[1.5],
   },
   locationName: {
     flex: 1,
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
   locationHint: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
-    marginBottom: 6,
+    marginBottom: SPACING[1.5],
   },
-  mapWrapper: { borderRadius: 16, overflow: 'hidden', height: 200 },
+  mapWrapper: { borderRadius: RADIUS.lg, overflow: 'hidden', height: 200 },
   miniMap: { flex: 1 },
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3],
+    paddingBottom: SPACING[2],
     borderTopWidth: 1,
     borderTopColor: 'rgba(15,24,44,0.08)',
     backgroundColor: COLORS.surface,

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, PressableScale } from '@/components/ui';
 
 export interface Mentionable {
@@ -74,23 +75,23 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(15,24,44,0.08)',
   },
   scroll: {
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[2],
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingLeft: 5,
-    paddingRight: 12,
+    gap: SPACING[1.5],
+    paddingLeft: SPACING[1],
+    paddingRight: SPACING[3],
     height: 34,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.background,
   },
   chipText: {
     fontFamily: FONTS.bold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
 });

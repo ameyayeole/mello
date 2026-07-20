@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -19,7 +20,7 @@ import { WrapChecklist, WrapStep } from '@/components/wrap/WrapChecklist';
 import WrapPhotoTile from '@/components/wrap/WrapPhotoTile';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
-import { FONTS } from '@/constants/typography';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
   Icon,
@@ -84,7 +85,7 @@ export default function WrapHubScreen() {
           {!ended ? 'This event hasn’t wrapped yet' : 'This wrap is for attendees'}
         </Text>
         <Button
-  variant="tertiary" label="Go back" onPress={() => router.back()} style={{ marginTop: 14 }} />
+  variant="tertiary" label="Go back" onPress={() => router.back()} style={{ marginTop: SPACING[3.5] }} />
       </Screen>
     );
   }
@@ -100,7 +101,7 @@ export default function WrapHubScreen() {
         {/* Event summary */}
         <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
           <View style={styles.heroEmoji}>
-            <Text style={{ fontSize: 30 }}>{emoji}</Text>
+            <Text style={{ fontSize: TYPE_SIZE.h1 }}>{emoji}</Text>
           </View>
           <Text style={styles.heroTitle} numberOfLines={2}>
             {event.title}
@@ -123,7 +124,7 @@ export default function WrapHubScreen() {
               onStepPress={openStep}
             />
           ) : (
-            <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 20 }} />
+            <ActivityIndicator color={COLORS.primary} style={{ marginVertical: SPACING[5] }} />
           )}
         </Animated.View>
 
@@ -233,80 +234,80 @@ export default function WrapHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', padding: 30 },
+  center: { alignItems: 'center', justifyContent: 'center', padding: SPACING[7] },
   guardTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
-  scroll: { padding: 18, paddingTop: 8, gap: 18, paddingBottom: 30 },
-  hero: { alignItems: 'center', gap: 6, paddingVertical: 6 },
+  scroll: { padding: SPACING[4], paddingTop: SPACING[2], gap: SPACING[4], paddingBottom: SPACING[7] },
+  hero: { alignItems: 'center', gap: SPACING[1.5], paddingVertical: SPACING[1.5] },
   heroEmoji: {
     width: 64,
     height: 64,
-    borderRadius: 22,
+    borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: SPACING[1],
   },
   heroTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 22,
+    fontSize: TYPE_SIZE.title,
     letterSpacing: -0.44,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   heroMeta: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: SPACING[2.5],
   },
   sectionTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 16,
+    fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.32,
     color: COLORS.textPrimary,
   },
   seeAll: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
   },
-  previewRow: { flexDirection: 'row', gap: 8 },
+  previewRow: { flexDirection: 'row', gap: SPACING[2] },
   emptyPool: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
+    gap: SPACING[2.5],
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 15,
+    padding: SPACING[3.5],
   },
   emptyPoolText: {
     flex: 1,
     fontFamily: FONTS.semibold,
-    fontSize: 12.5,
+    fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
     color: COLORS.textSecondary,
   },
   encoreCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 15,
+    padding: SPACING[3.5],
   },
   encoreCardOn: {
     borderColor: 'rgba(255,94,91,0.35)',
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
   encoreIcon: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -323,42 +324,42 @@ const styles = StyleSheet.create({
   encoreIconOn: { backgroundColor: COLORS.primary },
   encoreTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 14.5,
+    fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
   encoreSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
   recapCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING[3],
     backgroundColor: COLORS.accent,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: RADIUS.xl,
+    padding: SPACING[4],
   },
   recapLocked: { opacity: 0.92 },
   recapIcon: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: RADIUS.sm,
     backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   recapTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: 15,
+    fontSize: TYPE_SIZE.body,
     letterSpacing: -0.3,
     color: '#fff',
   },
   recapSub: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: TYPE_SIZE.caption,
     color: 'rgba(255,255,255,0.7)',
-    marginTop: 1,
+    marginTop: SPACING[0.5],
   },
 });
