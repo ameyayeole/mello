@@ -16,6 +16,7 @@
 // `undefined` from `user?.id` before auth resolves, and `null` from nullable
 // state. All three serialize into a key fine, so the builders accept any.
 type Id = string | null | undefined;
+type Coord = number | null | undefined;
 
 export const queryKeys = {
   // Nearby-events map/feed. `nearby` is a sub-prefix, so invalidating `all`
@@ -45,6 +46,19 @@ export const queryKeys = {
       activity: string | null,
       boostedOnly: boolean
     ) => ['exploreFeed', userId, lat, lng, activity, boostedOnly] as const,
+  },
+  // The dashboard's own nearby feed. Same RPC as exploreFeed but a separate
+  // cache entry, which is exactly why blocking someone used to clear their
+  // events from the map and Explore while leaving them on the home screen.
+  dashboardNearby: {
+    all: ['dashboardNearby'] as const,
+    of: (userId: Id, lat: Coord, lng: Coord) =>
+      ['dashboardNearby', userId, lat, lng] as const,
+  },
+  swipeDeck: {
+    all: ['swipeDeck'] as const,
+    of: (userId: Id, lat: Coord, lng: Coord) =>
+      ['swipeDeck', userId, lat, lng] as const,
   },
   savedEvents: {
     all: ['savedEvents'] as const,
@@ -94,3 +108,16 @@ export const queryKeys = {
     of: (userId: Id) => ['friendships', userId] as const,
   },
 } as const;
+
+// Every cache that surfaces other people's events. Blocking or unblocking has
+// to clear all of them, and listing them at each call site does not survive
+// contact with a new feed — it already failed twice. `dashboardNearby` and
+// `swipeDeck` both run the same RPC as `exploreFeed` under their own keys, and
+// neither was invalidated on block, so a blocked user's events stayed on the
+// home screen and in the swipe deck after vanishing from the map.
+export const DISCOVERY_FEED_KEYS = [
+  queryKeys.events.nearby,
+  queryKeys.exploreFeed.all,
+  queryKeys.dashboardNearby.all,
+  queryKeys.swipeDeck.all,
+] as const;

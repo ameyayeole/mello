@@ -1,5 +1,8 @@
 import { Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { queryKeys } from '@/constants/queryKeys';
+import {
+  DISCOVERY_FEED_KEYS,
+  queryKeys,
+} from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
@@ -31,8 +34,9 @@ export default function BlockedUsersScreen() {
       qc.invalidateQueries({ queryKey: ['blockedUsers', me?.id] });
       qc.invalidateQueries({ queryKey: queryKeys.blocked.of(me?.id, blockedId) });
       // The unblocked host's events can show in the map + Explore feed again.
-      qc.invalidateQueries({ queryKey: queryKeys.events.nearby });
-      qc.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
+      for (const queryKey of DISCOVERY_FEED_KEYS) {
+        qc.invalidateQueries({ queryKey });
+      }
     },
   });
 

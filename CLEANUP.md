@@ -128,12 +128,12 @@ the token and primitive changes will otherwise serve stale modules).
 
 If any of these fail the branch is broken and the rest of the list is noise.
 
-- [ ] App launches past the splash screen without a red box
-- [ ] Sign in works
-- [ ] Map tab renders with pins
-- [ ] Tap a pin → event sheet opens → Join works
-- [ ] Dashboard, Explore, Chats, Profile tabs all render
-- [ ] Create an event end to end
+- [x] App launches past the splash screen without a red box
+- [x] Sign in works
+- [x] Map tab renders with pins
+- [x] Tap a pin → event sheet opens → Join works
+- [x] Dashboard, Explore, Chats, Profile tabs all render
+- [x] Create an event end to end
 
 ### 4.1 Type scale & primitives — NEW, touches every screen
 
@@ -143,20 +143,20 @@ The scale changed sizes by up to 0.5px inside `Button`, `TextField`,
 wrapping**, not for size: a label that fitted at 11.5px and now wraps at 11px
 is the failure mode.
 
-- [ ] Button labels on all three sizes — nothing clipped or wrapped
-- [ ] `TextField` labels, error text, hint text, character counters
-- [ ] Screen header titles and subtitles — long event titles still truncate with `…` on one line
-- [ ] Section labels (the small uppercase headers)
+- [x] Button labels on all three sizes — nothing clipped or wrapped
+- [x] `TextField` labels, error text, hint text, character counters
+- [x] Screen header titles and subtitles — long event titles still truncate with `…` on one line
+- [x] Section labels (the small uppercase headers)
 - [ ] Attendee stack overflow count (`+3`) still fits inside its circle
-- [ ] Category pills — label and emoji still aligned
-- [ ] Empty states — icon, title and body
+- [x] Category pills — label and emoji still aligned
+- [x] Empty states — icon, title and body
 
 ### 4.2 Overlays — NEW
 
 Four moved to the shared `Sheet`/`Dialog`. Card corner radius changed slightly
 (20/24/26 → 22) and the scrim is now one value.
 
-- [ ] **Chat message long-press menu** (`OptionSheet`) — opens, actions fire, **tapping the card itself does NOT dismiss it**, tapping the backdrop does
+- [x] **Chat message long-press menu** (`OptionSheet`) — opens, actions fire, **tapping the card itself does NOT dismiss it**, tapping the backdrop does
 - [ ] **Note composer** (Rate flow → pencil) — keyboard pushes the sheet up, does not cover the input
 - [ ] **Block confirm dialog** — centred, Cancel and Block both work
 - [ ] **Superlatives picker** — opens, selecting a person closes it
@@ -164,10 +164,10 @@ Four moved to the shared `Sheet`/`Dialog`. Card corner radius changed slightly
 
 ### 4.3 Edit event — NEW
 
-- [ ] Open an event you host → Edit. Every field prefilled correctly
-- [ ] Change the party size to `999` → saves as **50**, not 999
-- [ ] Change it to `abc` or empty → falls back sensibly, does not crash
-- [ ] Tap the map to move the location → pin moves, address updates
+- [x] Open an event you host → Edit. Every field prefilled correctly
+- [x] Change the party size to `999` → saves as **50**, not 999
+- [x] Change it to `abc` or empty → falls back sensibly, does not crash
+- [x] Tap the map to move the location → pin moves, address updates
 - [ ] Save → changes appear on the event sheet and the dashboard
 
 ### Android — highest priority

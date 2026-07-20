@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { queryKeys } from '@/constants/queryKeys';
+import {
+  DISCOVERY_FEED_KEYS,
+  queryKeys,
+} from '@/constants/queryKeys';
 import {
   View,
   Text,
@@ -102,9 +105,10 @@ export default function UserProfileScreen() {
       // Blocking severs the friendship; refresh the friends list + counts.
       qc.invalidateQueries({ queryKey: queryKeys.friendships.of(me?.id) });
       qc.invalidateQueries({ queryKey: queryKeys.profile.of(userId) });
-      // Drop the blocked host's events from the map + Explore feed.
-      qc.invalidateQueries({ queryKey: queryKeys.events.nearby });
-      qc.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
+      // Drop their events from every discovery feed, not just the map.
+      for (const queryKey of DISCOVERY_FEED_KEYS) {
+        qc.invalidateQueries({ queryKey });
+      }
     },
     onError: (e) => showError(e),
   });
@@ -113,8 +117,9 @@ export default function UserProfileScreen() {
     mutationFn: () => unblockUser(me!.id, userId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.blocked.of(me?.id, userId) });
-      qc.invalidateQueries({ queryKey: queryKeys.events.nearby });
-      qc.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
+      for (const queryKey of DISCOVERY_FEED_KEYS) {
+        qc.invalidateQueries({ queryKey });
+      }
     },
     onError: (e) => showError(e),
   });

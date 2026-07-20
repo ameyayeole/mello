@@ -214,7 +214,7 @@ export default function DashboardScreen() {
   useSelectedEventSheet(sheetRef);
 
   const nearbyQuery = useQuery({
-    queryKey: ['dashboardNearby', user?.id, coords?.lat, coords?.lng],
+    queryKey: queryKeys.dashboardNearby.of(user?.id, coords?.lat, coords?.lng),
     queryFn: () => getExploreFeed({ userId: user!.id, coords, limit: 10 }),
     enabled: !!user,
   });
