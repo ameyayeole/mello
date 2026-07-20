@@ -169,38 +169,6 @@ export interface ExploreEvent extends NearbyEvent {
   score: number;
 }
 
-// ─── LIVE ACTIVITY FEED (Explore → "Live" tab, migration 027) ────────────────
-// The kinds of "moment" the activity_feed() RPC streams. Each row is one thing
-// that just happened in the app; the card renders differently per kind.
-export type MomentKind = 'live_now' | 'event_boosted' | 'event_joined';
-
-export interface ActivityMoment {
-  moment_id: string;
-  kind: MomentKind;
-  sort_ts: string;
-  event_id: string;
-  title: string;
-  activity: ActivityId;
-  image_url: string | null;
-  location_name: string | null;
-  starts_at: string;
-  ends_at: string | null;
-  distance_m: number | null;
-  host_id: string;
-  host_name: string;
-  host_photo_url: string | null;
-  host_verified: boolean;
-  // event_joined only: the most-recent joiner. Null for live_now / event_boosted.
-  actor_id: string | null;
-  actor_name: string | null;
-  actor_photo_url: string | null;
-  participant_count: number;
-  friends_count: number;
-  // event_joined only: joiners behind the actor ("+N others").
-  extra_count: number;
-  is_boosted: boolean;
-}
-
 // A wishlisted event with just enough attendee info for the wishlist cards
 // (avatar stack + first few names).
 export interface SavedEventItem extends NearbyEvent {

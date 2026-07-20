@@ -103,9 +103,3 @@ export const ACTIVITIES: Activity[] = [
 export const ACTIVITY_MAP = Object.fromEntries(
   ACTIVITIES.map((a) => [a.id, a])
 ) as Record<ActivityId, Activity>;
-
-// Activities grouped by section, in SECTIONS order — for sectioned pickers.
-export const ACTIVITIES_BY_SECTION = SECTIONS.map((section) => ({
-  section,
-  activities: ACTIVITIES.filter((a) => a.section === section.id),
-}));
