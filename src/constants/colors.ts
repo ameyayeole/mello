@@ -18,6 +18,15 @@ export const COLORS = {
   border: 'rgba(0, 0, 0, 0.10)',
   borderSoft: 'rgba(0, 0, 0, 0.06)',
 
+  // Ink — the blue-black neutral this app shadows and dims with. The literal
+  // #0F182C / rgba(15,24,44,…) appears ~160 times across screens; these are the
+  // rungs that were actually in use, named.
+  ink: '#0F182C',
+  inkFaint: 'rgba(15, 24, 44, 0.04)', // locked / read-only field fill
+  placeholder: 'rgba(15, 24, 44, 0.40)', // TextInput placeholderTextColor
+  inkLabel: 'rgba(15, 24, 44, 0.50)', // small field labels
+  scrim: 'rgba(15, 24, 44, 0.45)', // modal / sheet backdrop
+
   // Text
   textPrimary: '#17151A',
   textSecondary: '#8A8690',
