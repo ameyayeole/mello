@@ -22,7 +22,12 @@ import CreateEventFab from '@/components/CreateEventFab';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ExploreEvent, ExploreWrap } from '@/types/models';
-import { EmptyState, Loader, Screen } from '@/components/ui';
+import {
+  EmptyState,
+  Loader,
+  Screen,
+  useTabBarInset,
+} from '@/components/ui';
 import { errorMessage } from '@/utils/errors';
 
 // One Instagram-style feed: upcoming events as post cards, with a wrapped
@@ -53,6 +58,7 @@ function mergeFeeds(events: ExploreEvent[], wraps: ExploreWrap[]): FeedItem[] {
 
 export default function ExploreScreen() {
   const sheetRef = useRef<EventBottomSheetRef>(null);
+  const tabBarInset = useTabBarInset();
   useSelectedEventSheet(sheetRef);
 
   const explore = useExploreFeed();
@@ -98,7 +104,10 @@ export default function ExploreScreen() {
           <FlatList
             data={feed}
             keyExtractor={(item) => item.key}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[
+              styles.list,
+              { paddingBottom: tabBarInset },
+            ]}
             showsVerticalScrollIndicator={false}
             ListHeaderComponent={<WrapEntryCard />}
             renderItem={({ item, index }) => (
@@ -164,7 +173,9 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
+  // Transparent, not COLORS.background: <AppBackground> is mounted behind the
+  // tab navigator and this would paint over it.
+  root: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -433,6 +433,9 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   </View>
                   <View style={styles.goingWrap}>
                     <AttendeeStack
+                      people={event.participants.filter(
+                        (p) => p.status === 'approved'
+                      )}
                       count={event.participant_count}
                       size={26}
                       emptyLabel={null}

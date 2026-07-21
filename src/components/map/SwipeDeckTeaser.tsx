@@ -19,7 +19,11 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { PressableScale } from '@/components/ui';
+import { PressableScale, useTabBarInset } from '@/components/ui';
+
+// How far the card stack's lower edge slides under the floating tab bar. The
+// stack reads as tucked into the nav rather than parked above it.
+const TUCK = 26;
 
 // Front card sits upright-ish; the two behind fan away to the left, like a
 // hand of cards peeking out of a pocket.
@@ -88,6 +92,7 @@ const CAUGHT_UP_EMOJI = ['✨', '🎉', '👀'];
 export default function SwipeDeckTeaser() {
   const router = useRouter();
   const { deck, isLoading } = useSwipeDeck();
+  const tabBarInset = useTabBarInset();
 
   const sway = useSharedValue(0);
   useEffect(() => {
@@ -114,7 +119,7 @@ export default function SwipeDeckTeaser() {
   return (
     <Animated.View
       entering={FadeInUp.delay(350).duration(450)}
-      style={[styles.wrap, swayStyle]}
+      style={[styles.wrap, { bottom: tabBarInset - TUCK }, swayStyle]}
       pointerEvents="box-none"
     >
       <PressableScale
@@ -156,9 +161,7 @@ const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
     left: 4,
-    // Negative so the cards' lower edge slides out of the map view and ends up
-    // hidden behind the tab bar — a stack tucked into the nav.
-    bottom: -26,
+    // `bottom` is set inline — see TUCK.
   },
   stack: {
     width: 116,

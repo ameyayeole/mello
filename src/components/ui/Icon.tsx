@@ -433,7 +433,10 @@ export function PremiumBadge({ size = 14 }: { size?: number }) {
   );
 }
 
-// Tab-bar icons from Solar: bold + coral when active, linear + grey otherwise.
+// Tab-bar icons from Solar: bold + ink when active, linear + grey otherwise.
+// The active glyph is ink rather than coral because the floating tab bar marks
+// selection with a chip behind the icon — coral on top of that reads as two
+// competing signals, and coral is reserved for one CTA per screen.
 const TAB_SOLAR: Record<'home' | 'explore' | 'map' | 'inbox', string> = {
   home: 'Home2',
   explore: 'Compass',
@@ -450,7 +453,7 @@ export function TabGlyph({
   active: boolean;
   size?: number;
 }) {
-  const color = active ? COLORS.primary : '#BCB8C0';
+  const color = active ? COLORS.accent : '#BCB8C0';
   const pack = active ? SB : SL;
   const Comp = (pack as Record<string, SolarComp>)[TAB_SOLAR[name]] as
     | SolarComp

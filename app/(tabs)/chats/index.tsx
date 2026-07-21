@@ -49,6 +49,7 @@ import {
   EmptyState,
   Icon,
   PressableScale,
+  useTabBarInset,
 } from '@/components/ui';
 import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
@@ -175,6 +176,7 @@ export default function ChatsListScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset();
   const [tab, setTab] = useState<Tab>('events');
 
   // Sliding pill behind the active segment. Width comes from the measured
@@ -433,7 +435,7 @@ export default function ChatsListScreen() {
               />
             )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={{ paddingBottom: tabBarInset }}
           />
         )
       ) : conversations.length === 0 &&
@@ -480,7 +482,7 @@ export default function ChatsListScreen() {
             />
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={{ paddingBottom: tabBarInset }}
         />
       )}
       </Animated.View>
@@ -541,7 +543,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
   segmentTextActive: { color: COLORS.textPrimary },
-  list: { paddingBottom: SPACING[5] },
   separator: {
     height: 1,
     backgroundColor: 'rgba(15,24,44,0.06)',

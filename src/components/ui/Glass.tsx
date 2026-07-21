@@ -1,0 +1,133 @@
+import { Platform, StyleSheet, StyleProp, View, ViewStyle } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { COLORS } from '@/constants/colors';
+import { SHADOWS } from '@/constants/spacing';
+
+// A frosted surface. The single most repeated thing in the design — search
+// bars, plan rows, header buttons, the pills that float on photo cards — so it
+// is one component with three tiers rather than the same six style properties
+// copy-pasted into every screen. See DESIGN.md §3.
+//
+// The tier is chosen by how much the surface should assert itself, not by
+// where it happens to sit:
+//
+//   chrome    the nav bar. The most opaque; content passes visibly under it.
+//   panel     rows, search fields, header buttons. The default.
+//   onPhoto   pills and icon buttons sitting on top of an image. The only dark
+//             tier — smoked glass, so its white contents stay legible over a
+//             bright photo and a dark one alike. Put white text on this one and
+//             ink text on the other two.
+//
+// ── Android ──────────────────────────────────────────────────────────────────
+// There is no true backdrop blur on Android. expo-blur can approximate one with
+// `experimentalBlurMethod="dimezisBlurView"`, but it re-renders the view tree
+// beneath on every frame, which is exactly the wrong trade for surfaces that
+// live inside scrolling lists — and it is documented as crashing on some
+// devices.
+//
+// So Android gets a flat translucent fill instead, at a higher opacity than the
+// blurred version. It loses the blur; it keeps the layout, the bright edge, the
+// shadow and the sense of a pane floating over the background. That is most of
+// what the design is doing. Untested on a physical Android device.
+export type GlassTier = 'chrome' | 'panel' | 'onPhoto';
+
+const BLUR_INTENSITY: Record<GlassTier, number> = {
+  chrome: 40,
+  panel: 28,
+  onPhoto: 22,
+};
+
+// Which way the native blur leans. `onPhoto` is the dark one — see the tier
+// note above.
+const TINT: Record<GlassTier, 'light' | 'dark'> = {
+  chrome: 'light',
+  panel: 'light',
+  onPhoto: 'dark',
+};
+
+const FILL: Record<GlassTier, string> = {
+  chrome: COLORS.glassChrome,
+  panel: COLORS.glassPanel,
+  onPhoto: COLORS.glassOnPhoto,
+};
+
+// Android's no-blur fallback: further from transparent, since there is no blur
+// doing half the work.
+const SOLID_FILL: Record<GlassTier, string> = {
+  chrome: COLORS.glassChromeSolid,
+  panel: COLORS.glassPanelSolid,
+  onPhoto: COLORS.glassOnPhotoSolid,
+};
+
+const BORDER: Record<GlassTier, string> = {
+  chrome: COLORS.glassBorder,
+  panel: COLORS.glassBorder,
+  onPhoto: COLORS.glassBorderOnPhoto,
+};
+
+const supportsBlur = Platform.OS === 'ios';
+
+export function Glass({
+  children,
+  tier = 'panel',
+  radius,
+  // A pane over a photo has nothing behind it worth casting a shadow onto — the
+  // card it sits on already has one — so the shadow is opt-out.
+  shadow = true,
+  style,
+}: {
+  children?: React.ReactNode;
+  tier?: GlassTier;
+  radius: number;
+  shadow?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  // The pane is a clipped layer *behind* the children rather than their parent.
+  //
+  // Two reasons, both of which bit an earlier version. The pane needs
+  // `overflow: 'hidden'` to clip the blur to its radius, and on Android that
+  // also clips away the elevation shadow — so the shadow has to live on an
+  // unclipped element. And `style` carries the caller's layout: padding, size,
+  // position. Putting it on the pane meant padding shrank the glass instead of
+  // insetting the content.
+  //
+  // With the fill absolutely positioned, `style` lands on the outer view where
+  // layout belongs, and children lay out inside it normally.
+  const pane: ViewStyle = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: BORDER[tier],
+    overflow: 'hidden',
+  };
+
+  // `onPhoto` panes sit on a card that already casts one; a second shadow there
+  // just muddies the image under it.
+  const wantsShadow = shadow && tier !== 'onPhoto';
+
+  return (
+    <View style={[wantsShadow && SHADOWS.glass, { borderRadius: radius }, style]}>
+      {supportsBlur ? (
+        <BlurView
+          intensity={BLUR_INTENSITY[tier]}
+          tint={TINT[tier]}
+          style={pane}
+        >
+          {/* The blur alone is grey and lifeless. The wash over it is what
+              turns "the background, out of focus" into "a pane of glass" —
+              white for the light tiers, smoked ink for `onPhoto`. */}
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: FILL[tier] }]}
+          />
+        </BlurView>
+      ) : (
+        <View style={[pane, { backgroundColor: SOLID_FILL[tier] }]} />
+      )}
+      {children}
+    </View>
+  );
+}

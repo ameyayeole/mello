@@ -42,6 +42,7 @@ import {
   PremiumBadge,
   PressableScale,
   SectionLabel,
+  useTabBarInset,
   VerifiedBadge,
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
@@ -49,6 +50,7 @@ import EventRow from '@/components/events/EventRow';
 export default function ProfileTabScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset();
   const user = useAuthStore((s) => s.user);
   const { width } = useWindowDimensions();
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -201,7 +203,7 @@ export default function ProfileTabScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarInset }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Stats */}
@@ -460,7 +462,9 @@ export default function ProfileTabScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  // Transparent, not COLORS.background: <AppBackground> is mounted behind the
+  // tab navigator and this would paint over it.
+  container: { flex: 1 },
   header: {
     backgroundColor: COLORS.accent,
     borderBottomLeftRadius: 26,
@@ -482,7 +486,8 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', gap: SPACING[2.5] },
   headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  scroll: { padding: SPACING[4], gap: SPACING[3], paddingBottom: 90 },
+  // See index.tsx: paddingBottom comes from useTabBarInset, inline.
+  scroll: { padding: SPACING[4], gap: SPACING[3] },
   hero: {
     height: 250,
     marginHorizontal: SPACING[4],

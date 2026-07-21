@@ -75,6 +75,25 @@ export const SHADOWS = {
     shadowRadius: 24,
     elevation: 8,
   },
+  // Under a glass panel. Wide, soft and barely-there — glass is held off the
+  // background by a large diffuse shadow, not by a tight drop shadow, which is
+  // what stops it looking like a white box.
+  glass: {
+    shadowColor: COLORS.ink,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 3,
+  },
+  // Under a full-bleed photo card. Deeper, and warm rather than blue-black so
+  // it sits with the coral in the background instead of fighting it.
+  photoCard: {
+    shadowColor: COLORS.shadowWarm,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.28,
+    shadowRadius: 32,
+    elevation: 8,
+  },
   // The coral glow under a primary button.
   primary: {
     shadowColor: COLORS.primary,

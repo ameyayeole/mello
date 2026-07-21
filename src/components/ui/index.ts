@@ -6,6 +6,22 @@ export { Button } from './Button';
 export { PressableScale } from './PressableScale';
 export { IconButton } from './IconButton';
 export { NavButton, NAV_ICON_SIZE, NAV_BUTTON_SIZE } from './NavButton';
+export {
+  TabBarBackground,
+  useTabBarInset,
+  useTabBarBottomMargin,
+  useTabBarSideMargin,
+  CHIP_HEIGHT,
+  CHIP_RADIUS,
+  CHIP_WIDTH,
+  TAB_BAR_PADDING_X,
+  TAB_BAR_HEIGHT,
+  TAB_BAR_RADIUS,
+  TAB_BAR_SIDE_INSET,
+} from './TabBar';
+export { AppBackground } from './AppBackground';
+export { Glass } from './Glass';
+export type { GlassTier } from './Glass';
 export { CategoryTile } from './CategoryTile';
 export { CategoryPill } from './CategoryPill';
 export { AttendeeStack } from './AttendeeStack';

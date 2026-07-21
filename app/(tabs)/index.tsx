@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { RADIUS, SPACING } from '@/constants/spacing';
+import { RADIUS, SHADOWS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -10,7 +10,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, {
@@ -25,22 +27,25 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
+import { useSavedEventIds, useSaveEvent } from '@/hooks/useSwipeDeck';
 import { useAuthStore } from '@/stores/authStore';
 import { useLocationStore } from '@/stores/locationStore';
 import {
   getExploreFeed,
   getJoinedEvents,
+  getAttendeePreviews,
+  getMyParticipation,
   getMyEvents,
 } from '@/services/events.service';
+import type { AttendeePreview } from '@/services/events.service';
 import { getUnreadCount } from '@/services/notifications.service';
 import { getGreetingLines } from '@/services/greetings.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
-import { ExploreEvent, NearbyEvent } from '@/types/models';
+import { ExploreEvent, NearbyEvent, ParticipantStatus } from '@/types/models';
 import { formatEventTime } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
-import CreateEventFab from '@/components/CreateEventFab';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
@@ -48,9 +53,10 @@ import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import {
   Avatar,
   AttendeeStack,
+  Glass,
   Icon,
-  IconButton,
   PressableScale,
+  useTabBarInset,
   VerifiedBadge,
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
@@ -98,63 +104,171 @@ function WavingHand() {
   );
 }
 
-// Rich "Tonight near you" card: photo banner + host + attendees + Join.
+// Much wider and shorter than the mockup's 206×298. Width is the lever that
+// actually buys the photo room: it gives the title enough line length to stay
+// on one line, which is what keeps the caption band short, which is what leaves
+// the image as the thing you look at.
+const CARD_WIDTH = 280;
+// Taller than it was: the caption is a fixed height driven by its contents, so
+// height is what the *photo* gets. 262 → 300 is all image.
+const CARD_HEIGHT = 300;
+
+// No CAPTION_HEIGHT constant on purpose. An earlier version fixed the band's
+// height so its top edge landed identically on every card — but a one-line
+// title then left ~80pt of empty frosted space above the host row, which is
+// the opposite of the caption sitting cushioned at the bottom.
+//
+// Instead the frost is an absolutely-filled child *of* the caption block, so it
+// takes exactly the caption's own height whatever the title does. No measuring
+// pass, no first-frame flicker: the layout engine already knows the answer.
+
+/**
+ * "Tonight near you" — a full-bleed photo with everything floating on it.
+ *
+ * The scrim under the caption is the load-bearing part: white text on an
+ * arbitrary user photo is illegible about a third of the time. It is a single
+ * frosted band with a hard top edge, plus a gradient inside it for contrast.
+ *
+ * DESIGN.md §3 specifies a *masked* blur that fades in down the image. This is
+ * deliberately not that. A frosted panel with a straight edge reads as a
+ * deliberate surface — the same pane of glass the search bar and the plan rows
+ * are made of — where a fade reads as an effect applied to the photo. It is
+ * also one native blur view per card instead of several, which matters on a row
+ * that renders all of its children.
+ */
 function NearbyCard({
   event,
-  joined = false,
+  status,
+  preview,
+  saved,
+  onToggleSave,
   onPress,
 }: {
   event: ExploreEvent;
-  joined?: boolean;
+  // My participation, or undefined if I have not asked to join. `pending` is a
+  // request awaiting the host — the card must say so rather than offering Join
+  // a second time.
+  status?: ParticipantStatus;
+  // Faces and the true count. Undefined until the RPC lands (or if migration
+  // 038 hasn't been run), in which case the card falls back to the feed's own
+  // count and draws no faces.
+  preview?: AttendeePreview;
+  saved: boolean;
+  onToggleSave: () => void;
   onPress: () => void;
 }) {
   const activity = ACTIVITY_MAP[event.activity];
+  const joined = status === 'approved';
+  const requested = status === 'pending';
+  const label = joined ? 'Going' : requested ? 'Requested' : 'Join';
+
   return (
     <PressableScale style={styles.nearbyCard} onPress={onPress} scaleTo={0.98}>
-      <View style={styles.nearbyMedia}>
-        {event.image_url ? (
-          <Image
-            source={{ uri: event.image_url }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            transition={150}
+      {event.image_url && (
+        <Image
+          source={{ uri: event.image_url }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={150}
+        />
+      )}
+
+
+      {/* Activity and distance share one pill: they answer the same question,
+          "is this worth crossing town for", and two pills on a photo is one
+          more thing between you and the picture. */}
+      {event.distance_m != null && (
+        <Glass tier="onPhoto" radius={RADIUS.full} style={styles.metaPill}>
+          <Text style={styles.metaText}>
+            {activity?.emoji ?? '📍'} {formatDistance(event.distance_m)}
+          </Text>
+        </Glass>
+      )}
+
+      <PressableScale
+        scaleTo={0.86}
+        onPress={onToggleSave}
+        hitSlop={8}
+        style={styles.saveBtn}
+        accessibilityRole="button"
+        accessibilityLabel={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+      >
+        <Glass tier="onPhoto" radius={17} style={styles.saveBtnGlass}>
+          <Icon
+            name={saved ? 'bookmarkFilled' : 'bookmark'}
+            size={16}
+            color={saved ? COLORS.primary : COLORS.white}
+            strokeWidth={2}
           />
-        ) : (
-          <Text style={styles.mediaHint}>EVENT PHOTO</Text>
-        )}
-        <View style={styles.mediaBadge}>
-          <Text style={styles.mediaBadgeEmoji}>{activity?.emoji ?? '📍'}</Text>
-        </View>
-        {event.distance_m != null && (
-          <View style={styles.distanceBadge}>
-            <Text style={styles.distanceText}>
-              {formatDistance(event.distance_m)}
-            </Text>
-          </View>
-        )}
-      </View>
+        </Glass>
+      </PressableScale>
 
       <View style={styles.nearbyBody}>
+        {/* Both fill the caption block exactly, and both sit before the text so
+            the text paints over them. The gradient goes *inside* the frost
+            rather than over the whole card: extending it above the band would
+            put a second, soft edge over the hard one. */}
+        <BlurView
+          tint="dark"
+          intensity={34}
+          style={StyleSheet.absoluteFill}
+        />
+        <Svg style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id="nearbyScrim" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={COLORS.ink} stopOpacity={0.36} />
+              <Stop offset="100%" stopColor={COLORS.ink} stopOpacity={0.74} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#nearbyScrim)" />
+        </Svg>
+
         <View style={styles.nearbyHostRow}>
           <Avatar name={event.host_name} photoUrl={event.host_photo_url} size={20} />
           <Text style={styles.nearbyHostName} numberOfLines={1}>
             {event.host_name}
           </Text>
-          {event.host_verified && <VerifiedBadge size={13} />}
-          <Text style={styles.nearbyHostLabel}>is hosting</Text>
+          {event.host_verified && <VerifiedBadge size={12} />}
+          <Text style={styles.nearbyHostLabel} numberOfLines={1}>
+            is hosting
+          </Text>
+          {/* Pushes the stack to the right edge of the row. */}
+          <View style={styles.rowSpacer} />
+          {/* `emptyLabel` off: "Be the first to join" is too long to share a
+              line with the host's name, and an empty right edge next to a Join
+              button already says the same thing. */}
+          <AttendeeStack
+            people={preview?.attendees}
+            count={preview?.going_count ?? event.participant_count}
+            size={22}
+            emptyLabel={null}
+          />
         </View>
 
-        <Text style={styles.nearbyTitle} numberOfLines={1}>
+        <Text style={styles.nearbyTitle} numberOfLines={2}>
           {event.title}
         </Text>
-        <Text style={styles.nearbyTime}>{formatEventTime(event.starts_at)}</Text>
 
         <View style={styles.nearbyFooter}>
-          <AttendeeStack count={event.participant_count} size={27} />
-          <View style={[styles.joinBtn, joined && styles.goingBtn]}>
-            <Text style={[styles.joinBtnText, joined && styles.goingBtnText]}>
-              {joined ? 'Going' : 'Join'}
+          {/* Takes the slack, so the button sizes to its label instead of
+              stretching across whatever is left. */}
+          <View style={styles.footerFill}>
+            <Text style={styles.nearbyTime} numberOfLines={1}>
+              {formatEventTime(event.starts_at)}
             </Text>
+          </View>
+          {/* Three states, three colours: coral is an offer, green is settled,
+              neutral is waiting on someone else. Coral only while Join is
+              actually on offer — a coral chip that does nothing is a worse lie
+              than a quiet one. */}
+          <View
+            style={[
+              styles.joinBtn,
+              requested && styles.requestedBtn,
+              joined && styles.goingBtn,
+            ]}
+          >
+            <Text style={styles.joinBtnText}>{label}</Text>
           </View>
         </View>
       </View>
@@ -162,63 +276,21 @@ function NearbyCard({
   );
 }
 
-// Full-width row: category tile + title + meta + Manage/View pill.
-// A single hosting event as a rich, full-width card (photo banner + Manage).
-function HostingCard({
-  event,
-  onPress,
-}: {
-  event: NearbyEvent;
-  onPress: () => void;
-}) {
-  const activity = ACTIVITY_MAP[event.activity];
-  return (
-    <PressableScale style={styles.hostingCard} onPress={onPress} scaleTo={0.98}>
-      <View style={styles.hostingMedia}>
-        {event.image_url ? (
-          <Image
-            source={{ uri: event.image_url }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            transition={150}
-          />
-        ) : (
-          <Text style={styles.mediaHint}>EVENT PHOTO</Text>
-        )}
-        <View style={styles.mediaBadge}>
-          <Text style={styles.mediaBadgeEmoji}>{activity?.emoji ?? '📍'}</Text>
-        </View>
-        <View style={styles.hostingBadge}>
-          <Text style={styles.hostingBadgeText}>You're hosting</Text>
-        </View>
-      </View>
-      <View style={styles.hostingBody}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.nearbyTitle} numberOfLines={1}>
-            {event.title}
-          </Text>
-          <Text style={styles.nearbyTime}>
-            {formatEventTime(event.starts_at)}
-            {event.participant_count ? ` · ${event.participant_count} going` : ''}
-          </Text>
-        </View>
-        <View style={styles.manageBtn}>
-          <Text style={styles.manageBtnText}>Manage</Text>
-        </View>
-      </View>
-    </PressableScale>
-  );
-}
+// One plan, hosted or joined, as it appears in "Your plans".
+type Plan = { event: NearbyEvent; hosting: boolean };
 
 export default function DashboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [showAllHosting, setShowAllHosting] = useState(false);
+  const tabBarInset = useTabBarInset();
   const user = useAuthStore((s) => s.user);
   const cityName = useLocationStore((s) => s.cityName);
   const coords = useLocationStore((s) => s.coords);
   const sheetRef = useRef<EventBottomSheetRef>(null);
   useSelectedEventSheet(sheetRef);
+
+  const savedIdsQuery = useSavedEventIds();
+  const saveEvent = useSaveEvent();
 
   const nearbyQuery = useQuery({
     queryKey: queryKeys.dashboardNearby.of(user?.id, coords?.lat, coords?.lng),
@@ -230,6 +302,27 @@ export default function DashboardScreen() {
     queryKey: queryKeys.joinedEvents.of(user?.id),
     queryFn: () => getJoinedEvents(user!.id),
     enabled: !!user,
+  });
+
+  // Drives the Join / Requested / Going label. Separate from `joinedQuery`
+  // because that one is approved-only — see getMyParticipation.
+  const participationQuery = useQuery({
+    queryKey: queryKeys.myParticipation.of(user?.id),
+    queryFn: () => getMyParticipation(user!.id),
+    enabled: !!user,
+  });
+
+  // Who's going to the events in the nearby row. A second round trip rather
+  // than part of the feed, because the feed reads participants through RLS and
+  // therefore cannot see them — see migration 038.
+  const nearbyIds = useMemo(
+    () => (nearbyQuery.data ?? []).map((e) => e.id),
+    [nearbyQuery.data]
+  );
+  const previewsQuery = useQuery({
+    queryKey: queryKeys.attendeePreviews.of(nearbyIds),
+    queryFn: () => getAttendeePreviews(nearbyIds),
+    enabled: nearbyIds.length > 0,
   });
 
   const myEventsQuery = useQuery({
@@ -277,173 +370,122 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     if (headerLines.length < 2) return;
-    const id = setInterval(
-      () => setLineIndex((i) => i + 1),
-      LINE_ROTATE_MS
-    );
+    const id = setInterval(() => setLineIndex((i) => i + 1), LINE_ROTATE_MS);
     return () => clearInterval(id);
   }, [headerLines.length]);
 
   const headerLine = headerLines[lineIndex % headerLines.length];
 
-  // Events you've already RSVP'd to read "Going", not "Join".
-  const joinedIds = new Set(joinedQuery.data?.map((e) => e.id) ?? []);
+  const participation = participationQuery.data ?? {};
+  const savedIds = new Set(savedIdsQuery.data ?? []);
 
+  // Hosting and attending are one list, because that is how a day works: what
+  // matters is what's next, not which side of it you're on. The eyebrow on each
+  // row carries the distinction the two separate headings used to.
+  const plans = useMemo<Plan[]>(() => {
+    const hosted: Plan[] = (myEventsQuery.data ?? []).map((event) => ({
+      event,
+      hosting: true,
+    }));
+    const joined: Plan[] = (joinedQuery.data ?? []).map((event) => ({
+      event,
+      hosting: false,
+    }));
+    return [...hosted, ...joined].sort(
+      (a, b) =>
+        new Date(a.event.starts_at).getTime() -
+        new Date(b.event.starts_at).getTime()
+    );
+  }, [myEventsQuery.data, joinedQuery.data]);
+
+  const plansLoading = myEventsQuery.isLoading || joinedQuery.isLoading;
   const firstName = user?.name?.split(' ')[0] ?? 'there';
-  const hasJoined = (joinedQuery.data?.length ?? 0) > 0;
-  const hasHosting = (myEventsQuery.data?.length ?? 0) > 0;
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <View style={styles.headerTop}>
-            <View style={{ flex: 1 }}>
-              <Animated.Text
-                key={headerLine}
-                entering={FadeInDown.duration(320)}
-                exiting={FadeOutUp.duration(220)}
-                style={styles.greeting}
-                numberOfLines={1}
-              >
-                {headerLine}
-              </Animated.Text>
-              <View style={styles.nameRow}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {firstName}
-                </Text>
-                <WavingHand />
-              </View>
-            </View>
-            <IconButton
-              icon="bell"
-              iconSize={21}
-              size={42}
-              color="#fff"
-              style={styles.headerBtn}
-              badge={(unreadQuery.data ?? 0) > 0}
-              onPress={() => router.push('/notifications')}
-              accessibilityLabel="Notifications"
-            />
-            <PressableScale
-              scaleTo={0.92}
-              onPress={() => router.push('/(tabs)/profile')}
+      {/* Dark glyphs: the backdrop is light on every screen now. */}
+      <StatusBar style="dark" />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + SPACING[3], paddingBottom: tabBarInset },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.primary}
+          />
+        }
+      >
+        {/* Header — no chrome behind it. The greeting sits directly on the
+            backdrop, so the first thing on screen is the background itself. */}
+        <View style={styles.headerTop}>
+          <View style={styles.headerText}>
+            <Animated.Text
+              key={headerLine}
+              entering={FadeInDown.duration(320)}
+              exiting={FadeOutUp.duration(220)}
+              style={styles.greeting}
+              numberOfLines={1}
             >
-              <Avatar name={user?.name} photoUrl={user?.photo_url} size={42} />
-            </PressableScale>
+              {headerLine}
+            </Animated.Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={1}>
+                {firstName}
+              </Text>
+              <WavingHand />
+            </View>
           </View>
 
-          {/* Search events & people */}
           <PressableScale
-            scaleTo={0.98}
-            style={styles.searchBar}
-            onPress={() => router.push('/search')}
+            scaleTo={0.9}
+            onPress={() => router.push('/notifications')}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
           >
-            <Icon name="search" size={17} color="rgba(255,255,255,0.55)" />
-            <Text style={styles.searchText}>Search events & people</Text>
+            <Glass tier="panel" radius={23} style={styles.headerBtn}>
+              <Icon name="bell" size={20} color={COLORS.textPrimary} />
+              {(unreadQuery.data ?? 0) > 0 && <View style={styles.headerDot} />}
+            </Glass>
+          </PressableScale>
+
+          <PressableScale
+            scaleTo={0.92}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <Avatar name={user?.name} photoUrl={user?.photo_url} size={46} />
           </PressableScale>
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scroll}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-        >
-          {cityName ? (
-            <Animated.View
-              entering={FadeInDown.duration(350)}
-              style={styles.cityRow}
-            >
-              <Icon name="location" size={14} color={COLORS.primary} />
-              <Text style={styles.cityText}>{cityName}</Text>
-            </Animated.View>
-          ) : null}
+        <PressableScale scaleTo={0.98} onPress={() => router.push('/search')}>
+          <Glass tier="panel" radius={RADIUS.lg} style={styles.searchBar}>
+            <Icon name="search" size={18} color={COLORS.textMuted} />
+            <Text style={styles.searchText}>Search events & people</Text>
+          </Glass>
+        </PressableScale>
 
-          {/* Post-event wrap prompt (hidden once completed) */}
-          <WrapEntryCard />
+        {cityName ? (
+          <Animated.View
+            entering={FadeInDown.duration(350)}
+            style={styles.cityRow}
+          >
+            <Icon name="location" size={15} color={COLORS.primary} />
+            <Text style={styles.cityText}>{cityName}</Text>
+          </Animated.View>
+        ) : null}
 
-          {/* Tonight near you */}
-          {(nearbyQuery.data?.length ?? 0) > 0 && (
-            <Animated.View entering={FadeInDown.delay(30).duration(350)}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Tonight near you</Text>
-                <Text
-                  style={styles.seeAll}
-                  onPress={() => router.push('/(tabs)/explore')}
-                >
-                  See all
-                </Text>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.nearbyScroll}
-                contentContainerStyle={styles.nearbyScrollContent}
-                snapToInterval={285}
-                decelerationRate="fast"
-              >
-                {nearbyQuery.data!.map((event) => (
-                  <NearbyCard
-                    key={event.id}
-                    event={event}
-                    joined={joinedIds.has(event.id)}
-                    onPress={() => sheetRef.current?.open(event.id)}
-                  />
-                ))}
-              </ScrollView>
-            </Animated.View>
-          )}
+        {/* Post-event wrap prompt (hidden once completed) */}
+        <WrapEntryCard />
 
-          {/* You're hosting — one rich card, "See all" expands to a list */}
-          {hasHosting && (
-            <Animated.View entering={FadeInDown.delay(60).duration(350)}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>You're hosting</Text>
-                {myEventsQuery.data!.length > 1 && (
-                  <Text
-                    style={styles.seeAll}
-                    onPress={() => setShowAllHosting((v) => !v)}
-                  >
-                    {showAllHosting ? 'Show less' : 'See all'}
-                  </Text>
-                )}
-              </View>
-              {showAllHosting ? (
-                <View style={styles.rowList}>
-                  {myEventsQuery.data!.map((event) => (
-                    <EventRow
-                      key={event.id}
-                      event={event}
-                      cta="manage"
-                      elevated
-                      onPress={() => router.push(`/events/host/${event.id}`)}
-                    />
-                  ))}
-                </View>
-              ) : (
-                <HostingCard
-                  event={myEventsQuery.data![0]}
-                  // Hosts land on the manage panel (attendees, requests, edit).
-                  onPress={() =>
-                    router.push(`/events/host/${myEventsQuery.data![0].id}`)
-                  }
-                />
-              )}
-            </Animated.View>
-          )}
-
-          {/* Your upcoming */}
-          <Animated.View entering={FadeInDown.delay(90).duration(350)}>
+        {/* Tonight near you */}
+        {(nearbyQuery.data?.length ?? 0) > 0 && (
+          <Animated.View entering={FadeInDown.delay(30).duration(350)}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your upcoming</Text>
+              <Text style={styles.sectionTitle}>Tonight near you</Text>
               <Text
                 style={styles.seeAll}
                 onPress={() => router.push('/(tabs)/explore')}
@@ -451,298 +493,332 @@ export default function DashboardScreen() {
                 See all
               </Text>
             </View>
-            {joinedQuery.isLoading ? (
-              <Text style={styles.emptyText}>Loading…</Text>
-            ) : !hasJoined ? (
-              <View style={styles.emptyCard}>
-                <View style={styles.emptyIcon}>
-                  <Icon name="calendar" size={26} color={COLORS.primary} />
-                </View>
-                <Text style={styles.emptyTitle}>No plans yet</Text>
-                <Text style={styles.emptyText}>
-                  Explore what's happening and join something nearby.
-                </Text>
-                <PressableScale
-                  scaleTo={0.97}
-                  style={styles.exploreBtn}
-                  onPress={() => router.push('/(tabs)/explore')}
-                >
-                  <Text style={styles.exploreBtnText}>Explore events</Text>
-                </PressableScale>
-              </View>
-            ) : (
-              <View style={styles.rowList}>
-                {joinedQuery.data!.map((event) => (
-                  <EventRow
-                    key={event.id}
-                    event={event}
-                    cta="view"
-                    elevated
-                    onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
-                  />
-                ))}
-              </View>
-            )}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.nearbyScroll}
+              contentContainerStyle={styles.nearbyScrollContent}
+              snapToInterval={CARD_WIDTH + SPACING[3.5]}
+              decelerationRate="fast"
+            >
+              {nearbyQuery.data!.map((event) => (
+                <NearbyCard
+                  key={event.id}
+                  event={event}
+                  status={participation[event.id]}
+                  preview={previewsQuery.data?.[event.id]}
+                  saved={savedIds.has(event.id)}
+                  onToggleSave={() =>
+                    saveEvent.mutate({
+                      eventId: event.id,
+                      save: !savedIds.has(event.id),
+                    })
+                  }
+                  onPress={() => sheetRef.current?.open(event.id)}
+                />
+              ))}
+            </ScrollView>
           </Animated.View>
-        </ScrollView>
-      </View>
-      <CreateEventFab />
+        )}
+
+        {/* Your plans — hosting and attending in one list, soonest first */}
+        <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your plans</Text>
+            {plans.length > 0 && (
+              <Text
+                style={styles.seeAll}
+                onPress={() => router.push('/(tabs)/explore')}
+              >
+                See all
+              </Text>
+            )}
+          </View>
+
+          {plansLoading ? (
+            <Text style={styles.emptyText}>Loading…</Text>
+          ) : plans.length === 0 ? (
+            <Glass tier="panel" radius={RADIUS.xl} style={styles.emptyCard}>
+              <View style={styles.emptyIcon}>
+                <Icon name="calendar" size={26} color={COLORS.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>No plans yet</Text>
+              <Text style={styles.emptyText}>
+                Explore what's happening and join something nearby.
+              </Text>
+              <PressableScale
+                scaleTo={0.97}
+                style={styles.exploreBtn}
+                onPress={() => router.push('/(tabs)/explore')}
+              >
+                <Text style={styles.exploreBtnText}>Explore events</Text>
+              </PressableScale>
+            </Glass>
+          ) : (
+            <View style={styles.rowList}>
+              {plans.map(({ event, hosting }) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  glass
+                  photo
+                  eyebrow={hosting ? 'hosting' : 'attending'}
+                  cta={hosting ? 'manage' : 'details'}
+                  tone={hosting ? 'strong' : 'quiet'}
+                  onPress={() =>
+                    // Hosts land on the manage panel (attendees, requests,
+                    // edit); guests land in the event chat.
+                    router.push(
+                      hosting
+                        ? `/events/host/${event.id}`
+                        : `/(tabs)/chats/${event.id}`
+                    )
+                  }
+                />
+              ))}
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
+
       <EventBottomSheet ref={sheetRef} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1 },
-  header: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: SPACING[5],
-    paddingTop: SPACING[2],
-    paddingBottom: SPACING[4],
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-  },
-  headerTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3] },
-  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  // No background colour: <AppBackground> is mounted behind the tab navigator
+  // and this screen is a transparent sheet over it.
+  root: { flex: 1 },
+  // paddingTop/paddingBottom are applied inline — the top comes from the safe
+  // area and the bottom from the floating tab bar's clearance, both of which
+  // are device-dependent.
+  scroll: { paddingHorizontal: SPACING[5], gap: SPACING[5] },
+
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
+  headerText: { flex: 1 },
   greeting: {
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.caption,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: SPACING[2],
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+    color: COLORS.textEyebrow,
+    marginBottom: SPACING[1],
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   name: {
     fontFamily: FONTS.heading,
-    fontSize: TYPE_SIZE.titleLg,
-    lineHeight: 26,
-    letterSpacing: -0.5,
-    color: '#fff',
+    fontSize: TYPE_SIZE.h1,
+    lineHeight: 30,
+    letterSpacing: -0.7,
+    color: COLORS.textPrimary,
     flexShrink: 1,
   },
   wave: {
-    fontSize: TYPE_SIZE.title,
-    lineHeight: 26,
+    fontSize: TYPE_SIZE.titleLg,
+    lineHeight: 30,
     // Pivot near the wrist so the rotation reads as a wave, not a spin.
     transformOrigin: '75% 100%',
   },
+  // 46 to match the avatar beside it; radius is half the width, which is
+  // geometry rather than a step on the radius scale.
+  headerBtn: {
+    width: 46,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerDot: {
+    position: 'absolute',
+    top: 11,
+    right: 12,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+
   searchBar: {
-    height: 44,
-    marginTop: SPACING[4],
+    height: 54,
     paddingHorizontal: SPACING[4],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING[2.5],
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: RADIUS.full,
+    gap: SPACING[3],
   },
   searchText: {
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(255,255,255,0.55)',
+    fontSize: TYPE_SIZE.body,
+    color: COLORS.textMuted,
   },
-  scroll: { padding: SPACING[5], paddingBottom: 100, gap: SPACING[5] },
+
   cityRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[1.5],
-    marginBottom: -6,
+    marginBottom: -SPACING[1.5],
   },
   cityText: {
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textPrimary,
   },
+
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     justifyContent: 'space-between',
-    marginBottom: SPACING[3],
+    marginBottom: SPACING[3.5],
   },
   sectionTitle: {
     fontFamily: FONTS.heading,
-    fontSize: TYPE_SIZE.section,
-    letterSpacing: -0.3,
+    fontSize: TYPE_SIZE.titleLg,
+    letterSpacing: -0.5,
     color: COLORS.textPrimary,
   },
-  seeAll: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: COLORS.primary },
+  seeAll: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.textSecondary,
+  },
 
-  // Rich nearby card
-  nearbyScroll: { marginHorizontal: -20 },
-  nearbyScrollContent: { paddingHorizontal: SPACING[5], gap: SPACING[3] },
+  // Tonight near you — full-bleed photo cards
+  nearbyScroll: { marginHorizontal: -SPACING[5] },
+  nearbyScrollContent: {
+    paddingHorizontal: SPACING[5],
+    paddingVertical: SPACING[1],
+    gap: SPACING[3.5],
+  },
   nearbyCard: {
-    width: 272,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-    borderRadius: RADIUS['2xl'],
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: RADIUS['3xl'],
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    backgroundColor: COLORS.accentMid,
+    ...SHADOWS.photoCard,
   },
-  nearbyMedia: {
-    height: 120,
-    backgroundColor: '#E6E4E7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mediaHint: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.nano,
-    letterSpacing: 0.5,
-    color: COLORS.textMuted,
-  },
-  mediaBadge: {
+  metaPill: {
     position: 'absolute',
-    top: 11,
-    left: 11,
+    top: SPACING[3.5],
+    left: SPACING[3.5],
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[1.5],
+  },
+  saveBtn: { position: 'absolute', top: SPACING[3], right: SPACING[3] },
+  saveBtnGlass: {
     width: 34,
     height: 34,
-    borderRadius: RADIUS.lg,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
-  mediaBadgeEmoji: { fontSize: TYPE_SIZE.bodyLg },
-  distanceBadge: {
+  // White, because `onPhoto` is the dark tier.
+  metaText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.white,
+  },
+  // Natural height — the frost is a child, so the band is however tall the
+  // caption is. paddingTop is the cushion between the frost's hard top edge and
+  // the host row; paddingBottom the cushion under the Join button.
+  nearbyBody: {
     position: 'absolute',
-    top: 11,
-    right: 11,
-    backgroundColor: 'rgba(23,21,26,0.7)',
-    paddingHorizontal: SPACING[2.5],
-    paddingVertical: SPACING[1],
-    borderRadius: RADIUS.full,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: SPACING[4],
+    paddingTop: SPACING[3],
+    paddingBottom: SPACING[3.5],
   },
-  distanceText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: '#fff' },
-  nearbyBody: { padding: SPACING[3.5] },
-  nearbyHostRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
+  nearbyHostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1.5],
+    // Air between "is hosting" and the event title. They are different kinds of
+    // fact — who, then what — and ran together at 4pt.
+    marginBottom: SPACING[2.5],
+  },
+  rowSpacer: { flex: 1 },
   nearbyHostName: {
     fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textPrimary,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.white,
     flexShrink: 1,
   },
   nearbyHostLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: 'rgba(255,255,255,0.82)',
   },
   nearbyTitle: {
-    fontFamily: FONTS.heading,
-    fontSize: TYPE_SIZE.sectionLg,
-    lineHeight: 20,
-    letterSpacing: -0.4,
-    color: COLORS.textPrimary,
-    marginTop: SPACING[2],
+    fontFamily: FONTS.headingBold,
+    fontSize: TYPE_SIZE.bodyLg,
+    lineHeight: 17,
+    letterSpacing: -0.3,
+    color: COLORS.white,
   },
   nearbyTime: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
-    marginTop: SPACING[1.5],
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: 'rgba(255,255,255,0.8)',
   },
   nearbyFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: SPACING[3.5],
+    gap: SPACING[2.5],
+    marginTop: SPACING[2.5],
   },
-  attendeeStack: { flexDirection: 'row', alignItems: 'center' },
-  attendeeRing: {
-    borderRadius: RADIUS.md,
-    borderWidth: 2,
-    borderColor: COLORS.surface,
-  },
-  attendeeOverflow: {
-    width: 27,
-    height: 27,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.accent,
+  footerFill: { flex: 1, minWidth: 0 },
+  // Coral. Joining something is the one thing this screen exists to get you to
+  // do, so it takes the brand colour and the glow that goes with it.
+  //
+  // Worth naming, since AGENTS.md asks for roughly one coral CTA per screen and
+  // a row of cards means several: they are the *same* action repeated, not
+  // competing ones, so they read as one offer rather than as several shouts.
+  // Nothing else on this screen is coral except the location pin and the
+  // hosting dot.
+  // Sized to its label, not to the space available. A button that stretches to
+  // fill the row reads as a banner; one that hugs its word reads as a button.
+  joinBtn: {
+    height: 36,
+    paddingHorizontal: SPACING[6],
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  attendeeOverflowText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.nano, color: '#fff' },
-  joinBtn: {
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING[5],
-    paddingVertical: SPACING[2],
-    borderRadius: RADIUS.xs,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    ...SHADOWS.primary,
   },
-  joinBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
-  goingBtn: {
-    backgroundColor: COLORS.successTint,
+  joinBtnText: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.white,
+  },
+  // Requested: waiting on the host, so neither an offer nor a settled fact.
+  // Neutral glass says "in progress" without claiming either.
+  requestedBtn: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
     shadowOpacity: 0,
     elevation: 0,
   },
-  goingBtnText: { color: COLORS.success },
+  // Going: settled, and green because that is what green means. Solid rather
+  // than the tinted chip the white cards use — `successTint` is a near-white
+  // fill designed to sit on paper, and on the dark band it would read as a
+  // brighter, louder chip than the coral it is meant to be calmer than.
+  //
+  // Keeps the glow off: the cards you can still act on should be the ones that
+  // catch the eye.
+  goingBtn: {
+    backgroundColor: COLORS.success,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
 
-  // You're hosting — rich full-width card
-  hostingCard: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-    borderRadius: RADIUS['2xl'],
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  hostingMedia: {
-    height: 120,
-    backgroundColor: '#E6E4E7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hostingBadge: {
-    position: 'absolute',
-    top: 11,
-    right: 11,
-    backgroundColor: 'rgba(23,21,26,0.7)',
-    paddingHorizontal: SPACING[2.5],
-    paddingVertical: SPACING[1],
-    borderRadius: RADIUS.full,
-  },
-  hostingBadgeText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: '#fff' },
-  hostingBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[3],
-    padding: SPACING[3.5],
-  },
-  manageBtn: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: SPACING[4],
-    paddingVertical: SPACING[2],
-    borderRadius: RADIUS.xs,
-  },
-  manageBtnText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.micro, color: COLORS.white },
-
-  // Full-width event row
   rowList: { gap: SPACING[2.5] },
 
   // Empty state
   emptyCard: {
     alignItems: 'center',
     gap: SPACING[1.5],
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
     paddingVertical: SPACING[7],
     paddingHorizontal: SPACING[5],
   },
@@ -755,7 +831,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: SPACING[1],
   },
-  emptyTitle: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.body, color: COLORS.textPrimary },
+  emptyTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.body,
+    color: COLORS.textPrimary,
+  },
   emptyText: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
@@ -767,7 +847,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     paddingHorizontal: SPACING[5],
     paddingVertical: SPACING[3],
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
   },
-  exploreBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
+  exploreBtnText: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.white,
+  },
 });

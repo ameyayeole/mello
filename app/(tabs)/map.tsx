@@ -43,7 +43,12 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { NearbyEvent } from '@/types/models';
 import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
-import { Avatar, Icon, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Icon,
+  PressableScale,
+  useTabBarInset,
+} from '@/components/ui';
 import { clusterPoints, Cluster } from '@/utils/clusterEvents';
 import { applyMapFilters, countActiveMapFilters } from '@/utils/mapFilters';
 
@@ -99,6 +104,7 @@ export default function MapScreen() {
   const sheetRef = useRef<EventBottomSheetRef>(null);
   useSelectedEventSheet(sheetRef);
   const mapRef = useRef<MapView>(null);
+  const tabBarInset = useTabBarInset();
   const didCenter = useRef(false);
   // Where the map is looking; pins load for this region, not the GPS position.
   const [region, setRegion] = useState<Region | null>(null);
@@ -416,7 +422,7 @@ export default function MapScreen() {
       >
       {/* Recenter on the user's location */}
       <PressableScale
-        style={styles.locateFab}
+        style={[styles.locateFab, { bottom: tabBarInset + 80 }]}
         scaleTo={0.88}
         onPress={() => {
           if (coords) {
@@ -610,7 +616,8 @@ const styles = StyleSheet.create({
   locateFab: {
     position: 'absolute',
     right: 18,
-    bottom: 92,
+    // `bottom` is inline: this stacks on top of CreateEventFab, which is itself
+    // positioned off the floating tab bar (12 gap + 56 FAB + 12 gap).
     width: 48,
     height: 48,
     borderRadius: RADIUS['3xl'],
