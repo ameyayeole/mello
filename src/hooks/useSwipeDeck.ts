@@ -44,6 +44,62 @@ export function useSavedEventIds() {
   });
 }
 
+/**
+ * Save / unsave one event, optimistically.
+ *
+ * Lifted out of `useSwipeDeck` when the home screen's bookmark button needed
+ * it: the deck's version was identical, and a second copy would have been the
+ * fourth thing in this app to drift after being duplicated.
+ *
+ * The optimistic write is what makes the bookmark feel instant, and it is also
+ * the part that fails silently when it's wrong — `tsc` cannot see a cache key
+ * that no longer matches. Both keys come from `queryKeys`.
+ */
+export function useSaveEvent() {
+  const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ eventId, save }: { eventId: string; save: boolean }) =>
+      save ? saveEvent(user!.id, eventId) : unsaveEvent(user!.id, eventId),
+    onMutate: async ({ eventId, save }) => {
+      // Cancel first. A refetch already on the wire will otherwise land *after*
+      // this write and overwrite it — the bookmark fills in, then empties again
+      // a moment later on a slow connection. Same bug CLEANUP.md §1 records for
+      // join/leave.
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.savedEventIds.of(user?.id),
+      });
+      const previous = queryClient.getQueryData<string[]>(
+        queryKeys.savedEventIds.of(user?.id)
+      );
+      queryClient.setQueryData<string[]>(
+        queryKeys.savedEventIds.of(user?.id),
+        (ids = []) =>
+          save
+            ? ids.includes(eventId)
+              ? ids
+              : [...ids, eventId]
+            : ids.filter((i) => i !== eventId)
+      );
+      return { previous };
+    },
+    onError: (_e, _vars, context) => {
+      if (context?.previous === undefined) return;
+      queryClient.setQueryData(
+        queryKeys.savedEventIds.of(user?.id),
+        context.previous
+      );
+    },
+    onSettled: () => {
+      // The wishlist page/profile show full rows; refresh after any toggle.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.savedEvents.of(user?.id),
+      });
+    },
+  });
+}
+
 // The swipeable event deck: the ranked explore_feed (interest match, proximity,
 // friends going, starts-soon — i.e. "most likely to join" first), minus events
 // the user already swiped, hosts, or that sit outside the city limits.
@@ -161,25 +217,7 @@ export function useSwipeDeck() {
     },
   });
 
-  const saveMutation = useMutation({
-    mutationFn: ({ eventId, save }: { eventId: string; save: boolean }) =>
-      save ? saveEvent(user!.id, eventId) : unsaveEvent(user!.id, eventId),
-    onMutate: ({ eventId, save }) => {
-      queryClient.setQueryData<string[]>(
-        queryKeys.savedEventIds.of(user?.id),
-        (ids = []) =>
-          save
-            ? ids.includes(eventId)
-              ? ids
-              : [...ids, eventId]
-            : ids.filter((i) => i !== eventId)
-      );
-    },
-    onSettled: () => {
-      // The wishlist page/profile show full rows; refresh after any toggle.
-      queryClient.invalidateQueries({ queryKey: queryKeys.savedEvents.of(user?.id) });
-    },
-  });
+  const saveMutation = useSaveEvent();
 
   const swipe = (eventId: string, direction: 'like' | 'pass') => {
     setHistory((h) => [...h, { eventId, direction }]);

@@ -15,7 +15,7 @@ import {
   scheduleEventSafetyReminder,
   cancelEventSafetyReminder,
 } from '@/services/reminders';
-import { queryKeys } from '@/constants/queryKeys';
+import { DISCOVERY_FEED_KEYS, queryKeys } from '@/constants/queryKeys';
 import { EventDetail, ParticipantStatus, Profile } from '@/types/models';
 
 // The four participation mutations for one event: join, leave, and the host's
@@ -42,7 +42,30 @@ export function participationMutations(
 ) {
   const detailKey = queryKeys.eventDetail.of(eventId);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: detailKey });
+  // Joining changes more than the sheet you joined from.
+  //
+  // This used to invalidate `eventDetail` alone, which meant the screens that
+  // ask "am I going to this?" never heard about it: the home screen's Join
+  // button stayed on "Join" after a successful join, and the event was missing
+  // from Your plans until a pull-to-refresh or an app restart. Nothing else in
+  // the app invalidated `joinedEvents` either — only event *creation* and
+  // *editing* did — so the staleness had no other way to clear.
+  //
+  // Exactly the failure mode AGENTS.md warns about: no error, no type error,
+  // no lint warning, just a screen that quietly stops agreeing with the
+  // database.
+  //
+  // `myParticipation` carries the pending/approved status the cards label
+  // themselves from; the discovery feeds carry participant counts, which every
+  // join changes.
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: detailKey });
+    qc.invalidateQueries({ queryKey: queryKeys.joinedEvents.all });
+    qc.invalidateQueries({ queryKey: queryKeys.myParticipation.all });
+    DISCOVERY_FEED_KEYS.forEach((queryKey) =>
+      qc.invalidateQueries({ queryKey })
+    );
+  };
 
   // Snapshot for rollback. Cancelling first is the part the copies missed: an
   // in-flight refetch resolving later would otherwise clobber what we write.
