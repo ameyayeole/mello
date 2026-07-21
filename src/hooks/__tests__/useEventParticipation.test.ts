@@ -1,7 +1,7 @@
 import { Alert } from 'react-native';
 import { QueryClient, MutationObserver } from '@tanstack/react-query';
 import { participationMutations } from '../useEventParticipation';
-import { queryKeys } from '@/constants/queryKeys';
+import { DISCOVERY_FEED_KEYS, queryKeys } from '@/constants/queryKeys';
 import {
   joinEvent,
   leaveEvent,
@@ -191,4 +191,38 @@ describe('settling', () => {
       queryKey: queryKeys.eventDetail.of(EVENT_ID),
     });
   });
+
+  // Regression. Joining used to invalidate the detail query and nothing else,
+  // so every *other* screen kept its stale answer to "am I going to this?":
+  // the home screen's button stayed on "Join" after a successful join and the
+  // event was missing from Your plans until a restart. Nothing in the app
+  // invalidated `joinedEvents` on a join, so it never healed on its own.
+  //
+  // There is no type error or lint warning for a cache key nobody invalidates —
+  // this test is the only thing that can see it.
+  it.each(['join', 'leave'])(
+    '%s invalidates every cache that answers "am I going to this?"',
+    async (key) => {
+      (joinEvent as jest.Mock).mockResolvedValue(undefined);
+      (leaveEvent as jest.Mock).mockResolvedValue(undefined);
+      const { qc, m } = setup();
+      const invalidate = jest.spyOn(qc, 'invalidateQueries');
+
+      await run(qc, m[key as 'join' | 'leave']);
+
+      const invalidated = invalidate.mock.calls.map(([arg]) =>
+        JSON.stringify((arg as { queryKey: unknown }).queryKey)
+      );
+      // Approved-only list behind Your plans and the event chats.
+      expect(invalidated).toContain(JSON.stringify(queryKeys.joinedEvents.all));
+      // pending/approved status behind the Join / Requested / Going label.
+      expect(invalidated).toContain(
+        JSON.stringify(queryKeys.myParticipation.all)
+      );
+      // Participant counts shown on every card in every feed.
+      DISCOVERY_FEED_KEYS.forEach((feedKey) =>
+        expect(invalidated).toContain(JSON.stringify(feedKey))
+      );
+    }
+  );
 });
