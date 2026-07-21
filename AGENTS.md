@@ -47,6 +47,12 @@ So, in order:
 
 ## Hardcoding
 
+**Read `DESIGN.md` before any visual change.** It holds the target look — the
+frosted-glass surface tiers, the animated background, the colour and radius
+values — taken from the home-screen mockup, and marks which parts are already
+built. Do not re-derive the design from a screenshot when the numbers are
+written down.
+
 **Never hardcode a colour.** Use `COLORS` from `@/constants/colors`. It has the
 ink ramp (`inkFaint`, `placeholder`, `inkLabel`, `scrim`) that the raw
 `rgba(15,24,44,*)` literals were approximating. `COLORS.accent` is the app black
@@ -129,4 +135,5 @@ logic by extracting it — see `participationMutations` in
 `useEventParticipation.ts`, where the mutation options are a plain factory
 precisely so they can be driven without a renderer.
 
-See `CLEANUP.md` for outstanding work and the current state of the audit.
+See `CLEANUP.md` for outstanding work and the current state of the audit, and
+`DESIGN.md` for the visual direction and what of it is still unbuilt.
