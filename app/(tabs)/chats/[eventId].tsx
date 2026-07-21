@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -209,6 +210,10 @@ export default function GroupChatScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // The tab bar hides on a conversation, so the composer sits on the screen
+  // edge and owes the home indicator its own inset — but only with the
+  // keyboard down, or it opens a gap above the keys.
+  const composerInset = useKeyboardVisible() ? 0 : insets.bottom;
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   useActiveChat(eventId ? `event:${eventId}` : null);
@@ -588,14 +593,25 @@ export default function GroupChatScreen() {
         )}
 
         {locked && !isHost ? (
-          <View style={styles.lockedBar}>
+          <View
+            style={[
+              styles.lockedBar,
+              { paddingBottom: composerInset + SPACING[4] },
+            ]}
+          >
             <Icon name="lock" size={15} color={COLORS.textSecondary} />
             <Text style={styles.lockedText}>
               Only the host can send messages right now
             </Text>
           </View>
         ) : (
-          <View style={[styles.inputBar, announceMode && styles.inputBarAnnounce]}>
+          <View
+            style={[
+              styles.inputBar,
+              announceMode && styles.inputBarAnnounce,
+              { paddingBottom: composerInset + SPACING[2.5] },
+            ]}
+          >
             <PressableScale
               scaleTo={0.85}
               style={styles.attachBtn}

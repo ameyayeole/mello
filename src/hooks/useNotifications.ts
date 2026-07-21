@@ -127,6 +127,11 @@ export function useNotifications() {
           const notif = payload.new as Notification;
           qc.invalidateQueries({ queryKey: queryKeys.notifications.of(userId) });
           qc.invalidateQueries({ queryKey: queryKeys.notificationsUnread.of(userId) });
+          // The Inbox tab badge. A DM insert writes one of these rows via the
+          // on_direct_message trigger, and this hook is the app's only
+          // single-instance realtime listener — see useUnreadDms for why the
+          // badge can't subscribe for itself.
+          qc.invalidateQueries({ queryKey: queryKeys.unreadDms.of(userId) });
 
           let senderName: string | undefined;
           if (notif.sender_id) {

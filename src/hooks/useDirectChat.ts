@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
+import { queryKeys } from '@/constants/queryKeys';
 import {
   getDirectMessages,
   sendDirectMessage,
@@ -18,6 +19,7 @@ function tempId() {
 
 export function useDirectChat(friendId: string, clearedAt?: string | null) {
   const userId = useAuthStore((s) => s.user?.id);
+  const qc = useQueryClient();
 
   const { data: initial } = useQuery({
     queryKey: ['dm', userId, friendId, clearedAt ?? null],
@@ -104,8 +106,14 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
       (m) => m.sender_id === friendId && !m.read_at && !m._status
     );
     if (!hasUnread) return;
-    markDmRead(userId, friendId).catch(() => {});
-  }, [messages, userId, friendId]);
+    // The Inbox badge counts these rows. Nothing else notices the flip — the
+    // badge's own channel only listens for INSERTs — so tell it here.
+    markDmRead(userId, friendId)
+      .then(() =>
+        qc.invalidateQueries({ queryKey: queryKeys.unreadDms.of(userId) })
+      )
+      .catch(() => {});
+  }, [messages, userId, friendId, qc]);
 
   function makeOptimistic(content: string, type: DirectMessage['type']) {
     return {
