@@ -221,6 +221,50 @@ The `SafeAreaView` → `Screen` swap touched ~40 screens and Android is the half
 - [ ] Map's floating search/filter bar sits below the status bar
 - [ ] Profile photo viewer's ✕ button sits below the status bar
 
+### Android — floating tab bar 🤖 NEVER RUN ON ANDROID
+
+The tab bar was rebuilt as a floating frosted bar (`src/components/ui/TabBar.tsx`
++ `app/(tabs)/_layout.tsx`). Verified on iOS only — iPhone 17 Pro throughout,
+plus one iPhone SE run for the zero-inset path. **Three things are known to
+behave differently on Android**, so budget real work here, not just a look.
+
+- [ ] **There is no real blur.** `expo-blur` only blurs live content on Android
+      when handed a `BlurTargetView` ref, and the screens that would need
+      wrapping sit inside the navigator where `tabBarBackground` cannot reach
+      them. With no target it falls back to `blurMethod: 'none'` — a flat
+      semi-transparent fill. So the `wash` layer in `TabBar.tsx`
+      (`rgba(255,255,255,0.35)`) is the **entire effect** on Android, not the
+      contrast tweak its comment describes on iOS. Either tune the wash per
+      platform, or wrap the navigator in `BlurTargetView` and thread the ref
+      down to `tabBarBackground`.
+- [ ] **No elevation shadow.** The bar's container is
+      `backgroundColor: 'transparent'` so the blur shows through, and Android
+      will not draw an elevation shadow on a transparent view. Only the hairline
+      border on the glass separates it from the content behind. Check it reads
+      as floating at all; it may need a border or a solid-ish fill on Android.
+- [ ] **The bottom gap is calibrated against iOS.** `bottomGap()` is
+      `max(insets.bottom - 8, 16)`. That 8pt is sized against iOS's 34pt home
+      indicator inset, leaving the bar ~13pt clear of the indicator. Android
+      reports **16–48pt** depending on gesture vs 3-button navigation: gesture
+      (~24pt) falls to the 16pt floor, buttons (~48pt) gives 40pt and may look
+      stranded. **Test both navigation modes** — this is the most likely thing
+      to need a per-platform constant.
+
+Layout that moved with it, and so needs an Android eye:
+
+- [ ] Home / Explore / Profile / Chats lists — last row clears the bar (`useTabBarInset`)
+- [ ] Map: locate button and coral FAB stack above the bar; swipe-deck cards tuck *under* it bottom-left, not clipped by the screen edge
+- [ ] Landscape on a notched device — `useTabBarSideMargin` adds `max(left,right)`; never exercised
+
+### Tab bar — unverified on *any* platform 🚧
+
+These typecheck and have never been run anywhere. Not Android-specific, but
+they land in the same files, so do them in the same pass.
+
+- [ ] Bar hides inside a conversation (`usePathname().startsWith('/chats/')`), returns on the list
+- [ ] Chat composers take `insets.bottom` **only** with the keyboard down (`useKeyboardVisible`). Android uses `keyboardDidShow/Hide` and `KeyboardAvoidingView` has no `behavior` there — watch for a double gap above the keyboard, or a composer clipped under gesture nav.
+- [ ] Inbox unread badge appears / clears. **DMs only** — event chats use a `last_read_at` watermark that would need an RPC to count, so the badge under-counts by design. A *muted* DM writes no notification row, so its badge catches up on the next refetch rather than live.
+
 ### iOS modals — the double-padding fix
 - [ ] No dead band above the header on: Wishlist, Edit event, Settings, Profile edit, Change password, Change email, Verify, Notifications, Search, Map filters, Premium
 - [ ] Swipe screen — compare against the screenshot that started this; gap should shrink by ~one status bar
