@@ -56,6 +56,23 @@ export async function markDmRead(
   if (error) throw error;
 }
 
+// How many DMs are sitting unread for this user, for the Inbox tab badge.
+// Counts rows, not conversations — `head: true` means no bodies come back.
+//
+// This is DMs only. Event chats track reads with a `last_read_at` watermark
+// per event (migration 031), so counting those means comparing message times
+// against a watermark for every event you're in — a per-event query or a new
+// RPC. Until that exists the badge under-counts rather than guesses.
+export async function getUnreadDmCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('direct_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_id', userId)
+    .is('read_at', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 // Hard delete of your own DM (RLS in migration 030).
 export async function deleteDirectMessage(id: string): Promise<void> {
   const { error } = await supabase

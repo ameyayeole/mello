@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -131,6 +132,10 @@ export default function DirectChatScreen() {
   const { friendId } = useLocalSearchParams<{ friendId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // The tab bar hides on a conversation, so the composer sits on the screen
+  // edge and owes the home indicator its own inset — but only with the
+  // keyboard down, or it opens a gap above the keys.
+  const composerInset = useKeyboardVisible() ? 0 : insets.bottom;
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   useActiveChat(friendId ? `dm:${friendId}` : null);
@@ -392,7 +397,12 @@ export default function DirectChatScreen() {
           />
         )}
 
-        <View style={styles.inputBar}>
+        <View
+          style={[
+            styles.inputBar,
+            { paddingBottom: composerInset + SPACING[2.5] },
+          ]}
+        >
           <PressableScale
             scaleTo={0.85}
             style={styles.attachBtn}
