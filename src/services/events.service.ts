@@ -7,6 +7,7 @@ import {
   ExploreEvent,
   SavedEventItem,
   ActivityId,
+  ParticipantStatus,
   Profile,
 } from '@/types/models';
 
@@ -439,6 +440,77 @@ export async function getMyEvents(userId: string): Promise<NearbyEvent[]> {
 
   if (error) throw error;
   return ((data ?? []) as any[]).map(withParticipantCount);
+}
+
+/** The faces on an event card, plus the true number going. */
+export interface AttendeePreview {
+  attendees: Pick<Profile, 'id' | 'name' | 'photo_url'>[];
+  going_count: number;
+}
+
+/**
+ * Attendee previews for a batch of events, keyed by event id.
+ *
+ * Goes through the `event_attendees_preview` RPC rather than reading
+ * `event_participants`, because that table is deny-by-default: RLS exposes only
+ * your own rows and the rows of events you host. Read directly from a client,
+ * "who is going" collapses to "just me" — which is also why participant counts
+ * on cards read low. Migration 038 explains why the fix is a locked-down
+ * function and not a looser policy.
+ *
+ * Returns `{}` rather than throwing if the function isn't there yet, so a
+ * client running ahead of the migration degrades to counts-without-faces
+ * instead of an error state.
+ */
+export async function getAttendeePreviews(
+  eventIds: string[]
+): Promise<Record<string, AttendeePreview>> {
+  if (eventIds.length === 0) return {};
+
+  const { data, error } = await supabase.rpc('event_attendees_preview', {
+    p_event_ids: eventIds,
+  });
+
+  if (error) {
+    console.warn('event_attendees_preview unavailable:', error.message);
+    return {};
+  }
+
+  const byEvent: Record<string, AttendeePreview> = {};
+  for (const row of (data ?? []) as any[]) {
+    byEvent[row.event_id] = {
+      attendees: row.attendees ?? [],
+      going_count: row.going_count ?? 0,
+    };
+  }
+  return byEvent;
+}
+
+/**
+ * My participation status on every event I've asked to join, keyed by event id.
+ *
+ * `getJoinedEvents` deliberately returns approved rows only — a pending request
+ * must not surface the event chat — which leaves nothing able to answer "have I
+ * already requested this?". Cards need that to show "Requested" rather than
+ * offering Join a second time.
+ *
+ * Ids and statuses only, no event rows: this is read alongside feeds that
+ * already carry the events themselves.
+ */
+export async function getMyParticipation(
+  userId: string
+): Promise<Record<string, ParticipantStatus>> {
+  const { data, error } = await supabase
+    .from('event_participants')
+    .select('event_id, status')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  const byEvent: Record<string, ParticipantStatus> = {};
+  for (const row of data ?? []) {
+    byEvent[row.event_id] = row.status as ParticipantStatus;
+  }
+  return byEvent;
 }
 
 export async function getJoinedEvents(userId: string): Promise<NearbyEvent[]> {

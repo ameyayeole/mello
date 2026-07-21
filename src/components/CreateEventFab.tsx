@@ -1,9 +1,9 @@
 import { StyleSheet } from 'react-native';
-import { RADIUS } from '@/constants/spacing';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { useUIStore } from '@/stores/uiStore';
-import { Icon, PressableScale } from '@/components/ui';
+import { Icon, PressableScale, useTabBarInset } from '@/components/ui';
 
 // Starts the in-map creation flow (no standalone create screen anymore — the
 // map itself is the form). Screens other than the map hop to the map tab with
@@ -11,9 +11,12 @@ import { Icon, PressableScale } from '@/components/ui';
 export default function CreateEventFab({ onPress }: { onPress?: () => void }) {
   const router = useRouter();
   const setCreatingEvent = useUIStore((s) => s.setCreatingEvent);
+  // Every call site is a tab screen, and the tab bar now floats over the
+  // content — without this the FAB sits underneath the glass.
+  const tabBarInset = useTabBarInset();
   return (
     <PressableScale
-      style={styles.fab}
+      style={[styles.fab, { bottom: tabBarInset + SPACING[3] }]}
       scaleTo={0.88}
       onPress={
         onPress ??
@@ -34,7 +37,6 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 18,
-    bottom: 24,
     width: 56,
     height: 56,
     borderRadius: RADIUS.xl,

@@ -33,6 +33,21 @@ export const queryKeys = {
     all: ['myEvents'] as const,
     of: (userId: Id) => ['myEvents', userId] as const,
   },
+  // Faces + true going-count for a batch of events. Keyed by the batch so two
+  // feeds asking about different events don't evict each other.
+  attendeePreviews: {
+    all: ['attendeePreviews'] as const,
+    of: (eventIds: readonly string[]) =>
+      ['attendeePreviews', [...eventIds].sort().join(',')] as const,
+  },
+  // My status on every event I've asked to join — 'pending' or 'approved'.
+  // Distinct from `joinedEvents`, which is approved-only on purpose (a pending
+  // request must not open the event chat) and so cannot answer "have I already
+  // requested this?".
+  myParticipation: {
+    all: ['myParticipation'] as const,
+    of: (userId: Id) => ['myParticipation', userId] as const,
+  },
   joinedEvents: {
     all: ['joinedEvents'] as const,
     of: (userId: Id) => ['joinedEvents', userId] as const,
@@ -79,6 +94,13 @@ export const queryKeys = {
   chatPrefs: {
     all: ['chatPrefs'] as const,
     of: (userId: Id) => ['chatPrefs', userId] as const,
+  },
+  // Drives the Inbox tab badge. Read in the tab layout, invalidated from
+  // useDirectChat when a thread is opened and read — two files, so it lives
+  // here rather than being typed twice.
+  unreadDms: {
+    all: ['unreadDms'] as const,
+    of: (userId: Id) => ['unreadDms', userId] as const,
   },
   // Post-event wrap. Scoped per viewer as well as per event — what you owe the
   // wrap (ratings left, photos added) differs by who is asking.

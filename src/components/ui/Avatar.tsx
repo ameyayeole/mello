@@ -14,6 +14,7 @@ export function Avatar({
   online = false,
   verified = false,
   ringColor,
+  ringWidth = 2.5,
 }: {
   name?: string | null;
   photoUrl?: string | null;
@@ -21,6 +22,11 @@ export function Avatar({
   online?: boolean;
   verified?: boolean;
   ringColor?: string;
+  // React Native borders are drawn *inside* the box, so the ring eats into the
+  // photo rather than surrounding it. At 2.5 on a 22px bubble that is nearly a
+  // quarter of the diameter and the face reads as cropped — small avatars want
+  // a thinner one.
+  ringWidth?: number;
 }) {
   const radius = size / 2;
   const initial = name?.trim()?.[0]?.toUpperCase() ?? '?';
@@ -31,7 +37,7 @@ export function Avatar({
         style={[
           styles.circle,
           { width: size, height: size, borderRadius: radius },
-          ringColor ? { borderWidth: 2.5, borderColor: ringColor } : null,
+          ringColor ? { borderWidth: ringWidth, borderColor: ringColor } : null,
         ]}
       >
         {photoUrl ? (
