@@ -50,6 +50,9 @@ import {
   activeMentionQuery,
   insertMention,
 } from '@/components/chat';
+import ProfileBottomSheet, {
+  ProfileBottomSheetRef,
+} from '@/components/profile/ProfileBottomSheet';
 import {
   messageExcerpt,
   pickChatImage,
@@ -76,6 +79,7 @@ export default function DirectChatScreen() {
   const [input, setInput] = useState('');
   const [messageSheet, setMessageSheet] = useState<DirectMessage | null>(null);
   const listRef = useRef<FlatList>(null);
+  const profileSheet = useRef<ProfileBottomSheetRef>(null);
 
   const prefsQuery = useQuery({
     queryKey: queryKeys.chatPrefs.of(user?.id),
@@ -379,7 +383,7 @@ export default function DirectChatScreen() {
                   setReactingTo(null);
                   setMessageSheet(item);
                 }}
-                onAvatarPress={() => router.push(`/friends/${friendId}`)}
+                onAvatarPress={() => profileSheet.current?.open(friendId)}
               />
             );
           }}
@@ -468,6 +472,7 @@ export default function DirectChatScreen() {
         others={receiptFor?.read_at ? [] : [friendProfile]}
         onClose={() => setReceiptFor(null)}
       />
+      <ProfileBottomSheet ref={profileSheet} />
     </View>
   );
 }

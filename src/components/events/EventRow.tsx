@@ -16,12 +16,15 @@ import { CategoryTile, Glass, PressableScale } from '@/components/ui';
 // `cta` picks the label only. All three share the app's secondary (black)
 // button treatment — coral is reserved for major CTAs, and an inline row
 // affordance isn't one.
-export type EventRowCta = 'manage' | 'view' | 'details';
+export type EventRowCta = 'manage' | 'view' | 'details' | 'chat';
 
 const CTA_LABEL: Record<EventRowCta, string> = {
   manage: 'Manage',
   view: 'View',
   details: 'View details',
+  // Inbox search: the row is a conversation you're already in, not an event
+  // to consider.
+  chat: 'Open chat',
 };
 
 // How much weight the row's action carries. `strong` is the app's secondary
