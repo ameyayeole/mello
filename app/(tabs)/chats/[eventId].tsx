@@ -18,10 +18,9 @@ import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
-  Easing,
   FadeInDown,
   useSharedValue,
-  withTiming,
+  withSpring,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useEventChat } from '@/hooks/useEventChat';
@@ -43,7 +42,11 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Message, Profile } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
-import { readersByMessage, runFlags } from '@/utils/messageGroups';
+import {
+  readersByMessage,
+  runFlags,
+  startsTimeBlock,
+} from '@/utils/messageGroups';
 import {
   CategoryTile,
   Glass,
@@ -84,6 +87,12 @@ import {
   promptReportMessage,
 } from '@/utils/chatActions';
 import { showError } from '@/utils/errors';
+
+// How much of a pull past the gutter actually moves the thread, and the spring
+// that returns it. Slightly overdamped: it should settle, not wobble — this is
+// a peek at the time, not a toy.
+const RUBBER = 0.5;
+const SPRING_BACK = { damping: 20, stiffness: 220, mass: 0.5 };
 
 function tickStatus(message: Message, read: boolean): TickStatus {
   if (message._status === 'sending') return 'sending';
@@ -216,17 +225,23 @@ export default function GroupChatScreen() {
   const revealPan = Gesture.Pan()
     .activeOffsetX([-14, 14])
     .failOffsetY([-12, 12])
-    .onChange((e) => {
-      // Rubberbands past the gutter rather than stopping dead, and refuses to
-      // open rightward — there is nothing over there to reveal.
-      const next = revealX.value + e.changeX;
-      revealX.value = next > 0 ? 0 : Math.max(next, -TIME_GUTTER * 1.25);
+    // Driven off the gesture's own total translation rather than accumulated
+    // deltas. Accumulating and then clamping puts a kink in the motion at the
+    // moment resistance starts; computing the whole offset each frame keeps
+    // the curve continuous, which is what makes it feel like rubber rather
+    // than like something hitting a wall.
+    .onUpdate((e) => {
+      const raw = Math.min(0, e.translationX);
+      const past = -raw - TIME_GUTTER;
+      revealX.value =
+        past <= 0
+          ? raw
+          : // Asymptotic: every further pixel of pull moves it less than the
+            // last, so it never quite reaches the end and never stops dead.
+            -(TIME_GUTTER + (past * RUBBER) / (1 + past / TIME_GUTTER));
     })
     .onEnd(() => {
-      revealX.value = withTiming(0, {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-      });
+      revealX.value = withSpring(0, SPRING_BACK);
     });
 
   const isHost = !!user && event?.host_id === user.id;
@@ -586,14 +601,15 @@ export default function GroupChatScreen() {
             const longPress = () => {
               if (!item._status) setMessageSheet(item);
             };
-            // Above every burst, not just every day: the time came out from
-            // under the bubbles and this is where it went.
             const { isFirstOfRun, isLastOfRun } = runFlags(
               messages[index - 1],
               item,
               messages[index + 1]
             );
-            const divider = isFirstOfRun ? (
+            // Only where the conversation actually paused — an hour, or a new
+            // day. A header over every burst was a clock stapled to the thread
+            // rather than a marker in it.
+            const divider = startsTimeBlock(messages[index - 1], item) ? (
               <TimeDivider date={item.created_at} />
             ) : null;
 
