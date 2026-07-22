@@ -56,7 +56,6 @@ import {
   SectionLabel,
   useTabBarInset,
 } from '@/components/ui';
-import EventRow from '@/components/events/EventRow';
 import {
   useHandedOver,
   useOpenOverlay,
@@ -411,13 +410,26 @@ export default function ChatsListScreen() {
   const items: (NearbyEvent | FriendConversation)[] =
     tab === 'events' ? eventChats : conversations;
 
-  const renderEventRow = (event: NearbyEvent, index: number) => (
+  const renderEventRow = (event: NearbyEvent, index: number) => {
+    // The right-hand slot is when the chat last said something, matching the
+    // DM rows and the mockup. `lastMsgTimes` is already fetched for the
+    // deleted-chat filter, so this costs nothing. A chat nobody has posted in
+    // falls back to the event's own date rather than an empty corner.
+    const lastAt = lastMsgTimes?.get(event.id);
+    return (
     <ChatRow
       index={index}
       thumb={<EventThumb activity={event.activity} />}
       title={event.title}
-      preview={formatEventWhen(event.starts_at)}
-      time={`${event.participant_count ?? 0} going`}
+      preview={
+        lastAt
+          ? `${event.participant_count ?? 0} going · ${formatEventWhen(event.starts_at)}`
+          : 'No messages yet'
+      }
+      // Empty rather than the event's own date when nothing has been said: the
+      // right-hand slot means "last activity" on every other row, and
+      // "Completed" sitting in it read as the chat's status.
+      time={lastAt ? formatChatTime(lastAt) : undefined}
       pref={prefs?.get(chatKey('event', event.id))}
       onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
       onLongPress={() =>
@@ -429,7 +441,8 @@ export default function ChatsListScreen() {
         })
       }
     />
-  );
+    );
+  };
 
   const renderFriendRow = (convo: FriendConversation, index: number) => {
     const { friend, lastMessage } = convo;
@@ -538,26 +551,38 @@ export default function ChatsListScreen() {
           </ScrollView>
         </View>
       ) : promoted.length > 0 ? (
-        // Nobody's around. Rather than an empty rail, show what there is to
-        // turn up to — boosted first, then nearby.
+        // Nobody's around. The rail keeps its shape and fills with what there
+        // is to turn up to instead — boosted first, then nearby. Same tiles,
+        // same rhythm; swapping in full-width rows here made the top of the
+        // page lurch every time a friend went offline.
         <View style={styles.block}>
           <SectionLabel>Happening near you</SectionLabel>
-          <View style={styles.promoted}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.activeScroll}
+            contentContainerStyle={styles.activeRow}
+          >
             {promoted.map((event) => (
-              <EventRow
+              <PressableScale
                 key={event.id}
-                event={event}
-                glass
-                photo
-                cta="details"
-                tone="quiet"
+                scaleTo={0.92}
                 onPress={() => {
                   useUIStore.getState().setSelectedEvent(event.id);
                   router.push('/(tabs)/explore');
                 }}
-              />
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${event.title}`}
+              >
+                <View style={styles.activeItem}>
+                  <CategoryTile activity={event.activity} size={60} radius={30} />
+                  <Text style={styles.activeName} numberOfLines={1}>
+                    {event.title}
+                  </Text>
+                </View>
+              </PressableScale>
             ))}
-          </View>
+          </ScrollView>
         </View>
       ) : null}
 
@@ -574,7 +599,9 @@ export default function ChatsListScreen() {
         </View>
       ) : null}
 
-      {/* Segmented tab switcher with a pill that slides between tabs */}
+      {/* The switcher stands in for the mockup's "CHATS" label — it names the
+          section and picks it at the same time, and both would be saying the
+          same word twice. */}
       <View style={styles.segment} onLayout={onSegmentLayout}>
         {pillW > 0 && (
           <Animated.View
