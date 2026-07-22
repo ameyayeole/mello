@@ -1,26 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import {
-  DISCOVERY_FEED_KEYS,
-  queryKeys,
-} from '@/constants/queryKeys';
+import { DISCOVERY_FEED_KEYS, queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
+  Pressable,
   StyleSheet,
-  ScrollView,
+  Modal,
+  FlatList,
   Alert,
   Linking,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useFriends } from '@/hooks/useFriends';
-import { hasThumbed, giveThumb, removeThumb } from '@/services/thumbs.service';
 import {
   isBlocked,
   blockUser,
@@ -28,6 +37,8 @@ import {
   reportUser,
   ReportReason,
 } from '@/services/moderation.service';
+import { getMyEvents } from '@/services/events.service';
+import { splitByWhen } from '@/utils/events';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
@@ -36,30 +47,108 @@ import { Profile } from '@/types/models';
 import {
   Avatar,
   Button,
+  CategoryPill,
+  Glass,
   Icon,
-  IconButton,
-  IconName,
   Loader,
+  NavButton,
   PremiumBadge,
   PressableScale,
-  Screen,
-  ScreenHeader,
-  SectionLabel,
   VerifiedBadge,
 } from '@/components/ui';
+import EventBottomSheet, {
+  EventBottomSheetRef,
+} from '@/components/events/EventBottomSheet';
+import EventRow from '@/components/events/EventRow';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
 import { showError } from '@/utils/errors';
 
+// ── Frosted-sheet scaffold ───────────────────────────────────────────────────
+// These five constants and the three animated styles below are mirrored from
+// the own-profile tab (app/(tabs)/profile.tsx). It is a deliberate, temporary
+// duplication, NOT a fork left to rot: the scaffold — photo window, parallax,
+// Ken Burns, self-frosting pane — is subtle enough that two copies will drift,
+// so it is queued to be lifted into a shared <ProfileHeroSheet> in one pass.
+// That extraction was held back only because the own-profile file is mid-edit
+// (the settings overlay hand-off); doing it now risked clobbering that work.
+// See DESIGN.md §3 "The full-bleed sheet" for what every number means.
+const HERO_RATIO = 1.25;
+const SHEET_RADIUS = 32;
+const PARALLAX = 0.5;
+const PHOTO_BLEED = 250;
+const KEN_BURNS_SCALE = 1.07;
+const KEN_BURNS_MS = 24000;
+const SHEET_UNDERHANG = 500;
+
+// One metric box, shared shape with the own-profile screen's Stat. Local — it
+// is four uses on one screen, and a premature primitive is as bad as a fork.
+function Stat({
+  value,
+  label,
+  accent = false,
+}: {
+  value: number;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <View style={styles.statBox}>
+      <Text style={[styles.statValue, accent && styles.statValueAccent]}>
+        {value}
+      </Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
   const { sendRequest, accept, remove, relationshipWith } = useFriends();
   const rel = relationshipWith(userId);
+  const { width, height } = useWindowDimensions();
 
   const isSelf = me?.id === userId;
+
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const sheetRef = useRef<EventBottomSheetRef>(null);
+
+  // Safety popup #12: intro sheet shown every time before the report reasons.
+  const [reportIntroVisible, setReportIntroVisible] = useState(false);
+  // Safety popup #13: block confirmation dialog (every time).
+  const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
+
+  // ── Scaffold animation (all hooks, so they run before any early return) ──
+  const photoHeight = width * HERO_RATIO;
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  const photoStyle = useAnimatedStyle(() => {
+    const y = scrollY.value;
+    if (y < 0) return { transform: [{ scale: 1 - y / photoHeight }] };
+    return { transform: [{ translateY: y * PARALLAX }] };
+  });
+  const ken = useSharedValue(1);
+  useEffect(() => {
+    ken.value = withRepeat(
+      withTiming(KEN_BURNS_SCALE, {
+        duration: KEN_BURNS_MS,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true
+    );
+  }, [ken]);
+  const kenStyle = useAnimatedStyle(() => ({ transform: [{ scale: ken.value }] }));
+  const frostStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: scrollY.value - photoHeight + SHEET_RADIUS }],
+  }));
 
   const { data: profile, isLoading } = useQuery({
     queryKey: queryKeys.profile.of(userId),
@@ -74,29 +163,25 @@ export default function UserProfileScreen() {
     },
   });
 
-  // Whether the current user has already given this profile a thumbs.
-  const { data: thumbed } = useQuery({
-    queryKey: ['thumbed', me?.id, userId],
-    queryFn: () => hasThumbed(me!.id, userId),
-    enabled: !!me && !isSelf,
-  });
-
-  const toggleThumb = useMutation({
-    mutationFn: () =>
-      thumbed ? removeThumb(me!.id, userId) : giveThumb(me!.id, userId),
-    // Refresh the viewed profile (its thumbs_count changed) and the thumbed flag.
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.profile.of(userId) });
-      qc.invalidateQueries({ queryKey: ['thumbed', me?.id, userId] });
-    },
-    onError: (e) => showError(e),
-  });
+  // Note: there is no give-thumbs control here. Thumbs are a post-event action
+  // — you rate the people you actually met, from the wrap flow (RateCard) — so
+  // the profile only ever *displays* the count, never awards it.
 
   // Whether the current user has blocked this profile.
   const { data: blocked } = useQuery({
     queryKey: queryKeys.blocked.of(me?.id, userId),
     queryFn: () => isBlocked(me!.id, userId),
     enabled: !!me && !isSelf,
+  });
+
+  // Their public events, split to the upcoming ones — someone else's hosted
+  // events are public, their participations are not, so this is "what they're
+  // throwing that you could join". Degrades to nothing if RLS hides them.
+  const { data: theirEvents } = useQuery({
+    queryKey: queryKeys.myEvents.of(userId),
+    queryFn: () => getMyEvents(userId),
+    enabled: !!userId && !isSelf,
+    select: (rows) => splitByWhen(rows).upcoming,
   });
 
   const block = useMutation({
@@ -138,11 +223,6 @@ export default function UserProfileScreen() {
       onError: (e) => showError(e),
     });
   }
-
-  // Safety popup #12: intro sheet shown every time before the report reasons.
-  const [reportIntroVisible, setReportIntroVisible] = useState(false);
-  // Safety popup #13: block confirmation dialog (every time).
-  const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
 
   function confirmBlock() {
     setBlockConfirmVisible(true);
@@ -190,9 +270,7 @@ export default function UserProfileScreen() {
           text: 'Unfriend',
           style: 'destructive',
           onPress: () =>
-            remove.mutate(rel.friendshipId!, {
-              onError: (e) => showError(e),
-            }),
+            remove.mutate(rel.friendshipId!, { onError: (e) => showError(e) }),
         },
       ]
     );
@@ -200,9 +278,10 @@ export default function UserProfileScreen() {
 
   if (isLoading || !profile) {
     return (
-      <Screen background={COLORS.surface}>
+      <View style={[styles.container, styles.loading]}>
+        <StatusBar style="light" />
         <Loader />
-      </Screen>
+      </View>
     );
   }
 
@@ -212,251 +291,402 @@ export default function UserProfileScreen() {
       ? [profile.photo_url]
       : [];
   const mainPhoto = gallery[0] ?? null;
-  const firstName = profile.name?.split(' ')[0] ?? 'Profile';
+
+  const metaBits = [
+    profile.username ? `@${profile.username}` : null,
+    profile.age != null ? String(profile.age) : null,
+    profile.city ?? null,
+  ].filter(Boolean);
+
+  function openViewer(index: number) {
+    if (gallery.length === 0) return;
+    setViewerIndex(index);
+    setViewerOpen(true);
+  }
+
+  // The friend action row: one coral primary for the state's main move, with a
+  // neutral on-dark square for the secondary where there is one. On the dark
+  // sheet the black `secondary` button vanishes, so nothing uses it here.
+  function friendActions() {
+    if (isSelf || blocked) return null;
+    switch (rel.status) {
+      case 'friends':
+        return (
+          <View style={styles.actionRow}>
+            <Button
+              label="Message"
+              variant="primary"
+              size="md"
+              icon="chat"
+              style={styles.actionPrimary}
+              onPress={() => router.push(`/(tabs)/chats/dm/${userId}`)}
+            />
+            <PressableScale
+              scaleTo={0.92}
+              style={styles.actionSquare}
+              onPress={handleUnfriend}
+              disabled={remove.isPending}
+              accessibilityRole="button"
+              accessibilityLabel="Remove friend"
+            >
+              <Icon name="check" size={20} color={COLORS.white} />
+            </PressableScale>
+          </View>
+        );
+      case 'request_sent':
+        return (
+          <Button
+            label="Requested · tap to withdraw"
+            variant="tertiary"
+            size="md"
+            fullWidth
+            disabled={remove.isPending}
+            onPress={() =>
+              remove.mutate(rel.friendshipId!, { onError: (e) => showError(e) })
+            }
+          />
+        );
+      case 'request_received':
+        return (
+          <View style={styles.actionRow}>
+            <Button
+              label="Accept request"
+              variant="primary"
+              size="md"
+              style={styles.actionPrimary}
+              disabled={accept.isPending}
+              onPress={() => accept.mutate(rel.friendshipId!)}
+            />
+            <PressableScale
+              scaleTo={0.92}
+              style={styles.actionSquare}
+              disabled={remove.isPending}
+              onPress={() =>
+                remove.mutate(rel.friendshipId!, { onError: (e) => showError(e) })
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Decline request"
+            >
+              <Icon name="close" size={20} color={COLORS.white} />
+            </PressableScale>
+          </View>
+        );
+      default:
+        return (
+          <Button
+            label="Add friend"
+            variant="primary"
+            size="md"
+            icon="userPlus"
+            fullWidth
+            onPress={handleAddFriend}
+          />
+        );
+    }
+  }
 
   return (
-    <Screen background={COLORS.surface}>
-      <ScreenHeader
-        title={firstName}
-        right={
-          !isSelf ? (
-            <IconButton
-              icon="dots"
-              onPress={openMenu}
-              accessibilityLabel="More options"
-            />
-          ) : undefined
-        }
-      />
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
-        {/* Hero photo card */}
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.hero}>
-          {mainPhoto ? (
-            <Image
-              source={{ uri: mainPhoto }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            <View style={styles.heroFallback}>
-              <Avatar name={profile.name} size={96} />
-            </View>
-          )}
-          <Svg style={styles.heroGradient} pointerEvents="none">
-            <Defs>
-              <LinearGradient id="heroFade" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#0F182C" stopOpacity={0} />
-                <Stop offset="1" stopColor="#0F182C" stopOpacity={0.6} />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#heroFade)" />
-          </Svg>
-          <View style={styles.heroInfo}>
-            <View style={styles.heroNameRow}>
-              <Text style={styles.heroName}>{profile.name}</Text>
-              <VerifiedBadge size={18} />
-              {isPremium(profile) && <PremiumBadge size={18} />}
-            </View>
-            {profile.username ? (
-              <Text style={styles.heroUsername}>@{profile.username}</Text>
-            ) : null}
-            <View style={styles.heroMetaRow}>
-              <Icon name="thumbsUp" size={13} color="#fff" strokeWidth={2} />
-              <Text style={styles.heroThumbs}>
-                {profile.thumbs_count ?? 0}
-              </Text>
-              {(profile.age != null || profile.city) && (
-                <Text style={styles.heroMeta}>
-                  · {[profile.age, profile.city].filter(Boolean).join(' · ')}
-                </Text>
-              )}
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* Thumbs action */}
-        {!isSelf && !blocked && (
-          <Animated.View entering={FadeInDown.delay(60).duration(400)}>
-            <PressableScale
-              scaleTo={0.95}
-              style={[styles.thumbsPill, thumbed && styles.thumbsPillActive]}
-              onPress={() => toggleThumb.mutate()}
-              disabled={toggleThumb.isPending}
-            >
-              <Icon name="thumbsUp" size={16} color={COLORS.success} strokeWidth={2} />
-              <Text style={styles.thumbsCount}>
-                {profile.thumbs_count ?? 0}
-              </Text>
-              <Text style={styles.thumbsLabel}>
-                {thumbed ? 'Thumbed' : 'Give thumbs'}
-              </Text>
-            </PressableScale>
-          </Animated.View>
-        )}
-
-        {/* Stats */}
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(400)}
-          style={styles.stats}
+        {/* Photo window — clips the parallaxing photo to the sheet's top edge,
+            so the corners show photo and the self-frosting pane has a uniform
+            backdrop. See app/(tabs)/profile.tsx for the full rationale. */}
+        <Pressable
+          style={[styles.photoWindow, { height: photoHeight + PHOTO_BLEED }]}
+          onPress={() => openViewer(0)}
+          accessibilityRole="button"
+          accessibilityLabel="View photos"
         >
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{profile.events_hosted}</Text>
-            <Text style={styles.statLabel}>Hosted</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>
-              {profile.events_attended ?? 0}
-            </Text>
-            <Text style={styles.statLabel}>Attended</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{profile.friends_count}</Text>
-            <Text style={styles.statLabel}>Friends</Text>
-          </View>
-        </Animated.View>
-
-        {/* Bio prompt card */}
-        {profile.bio ? (
           <Animated.View
-            entering={FadeInDown.delay(140).duration(400)}
-            style={styles.promptCard}
+            style={[styles.photoInner, { height: photoHeight }, photoStyle]}
           >
-            <Text style={styles.promptLabel}>About</Text>
-            <Text style={styles.promptText}>{profile.bio}</Text>
-          </Animated.View>
-        ) : null}
-
-        {/* Photos */}
-        {gallery.length > 1 && (
-          <Animated.View entering={FadeInDown.delay(180).duration(400)}>
-            <SectionLabel style={styles.sectionLabel}>Photos</SectionLabel>
-            <View style={styles.photoGrid}>
-              {gallery.slice(1).map((uri, i) => (
+            {mainPhoto ? (
+              <Animated.View style={[StyleSheet.absoluteFill, kenStyle]}>
                 <Image
-                  key={`${uri}-${i}`}
-                  source={{ uri }}
-                  style={styles.photo}
+                  source={{ uri: mainPhoto }}
+                  style={StyleSheet.absoluteFill}
                   contentFit="cover"
                   transition={200}
                 />
-              ))}
-            </View>
+              </Animated.View>
+            ) : (
+              <View style={styles.photoFallback}>
+                <Avatar name={profile.name} size={96} />
+              </View>
+            )}
+            <Svg style={styles.photoTopFade}>
+              <Defs>
+                <LinearGradient id="friendTopFade" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={COLORS.ink} stopOpacity={0.5} />
+                  <Stop offset="1" stopColor={COLORS.ink} stopOpacity={0} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#friendTopFade)" />
+            </Svg>
           </Animated.View>
-        )}
+        </Pressable>
 
-        {/* Interests */}
-        {(profile.interests?.length ?? 0) > 0 && (
-          <Animated.View entering={FadeInDown.delay(220).duration(400)}>
-            <SectionLabel style={styles.sectionLabel}>Interests</SectionLabel>
-            <View style={styles.pills}>
+        <Glass
+          tier="onPhoto"
+          radius={SHEET_RADIUS}
+          edge="top"
+          backdrop={
+            mainPhoto ? (
+              <Animated.View
+                style={[styles.frost, { height }, frostStyle]}
+                pointerEvents="none"
+              >
+                <Image
+                  source={{ uri: mainPhoto }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  blurRadius={60}
+                />
+                <View style={styles.frostVeil} />
+              </Animated.View>
+            ) : undefined
+          }
+          style={[
+            styles.sheet,
+            {
+              minHeight: height - photoHeight + SHEET_RADIUS + SHEET_UNDERHANG,
+              paddingBottom:
+                insets.bottom + SPACING[8] + SHEET_UNDERHANG,
+              marginBottom: -SHEET_UNDERHANG,
+            },
+          ]}
+        >
+          <View style={styles.grabber} />
+
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={1}>
+                {profile.name}
+              </Text>
+              {profile.kyc_status === 'approved' && <VerifiedBadge size={20} />}
+              {isPremium(profile) && <PremiumBadge size={20} />}
+            </View>
+            {metaBits.length > 0 && (
+              <Text style={styles.handle}>{metaBits.join(' · ')}</Text>
+            )}
+            {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+          </Animated.View>
+
+          {/* The one coral CTA on the screen is whichever friend action is
+              live. `friendActions` is null for yourself and blocked users. */}
+          {!isSelf && !blocked && (
+            <Animated.View
+              entering={FadeInDown.delay(60).duration(400)}
+              style={styles.actions}
+            >
+              {friendActions()}
+            </Animated.View>
+          )}
+
+          <Animated.View
+            entering={FadeInDown.delay(90).duration(400)}
+            style={styles.stats}
+          >
+            <Stat value={profile.events_hosted} label="Hosted" />
+            <Stat value={profile.events_attended ?? 0} label="Attended" />
+            <Stat value={profile.friends_count} label="Friends" />
+            <Stat value={profile.thumbs_count ?? 0} label="Thumbs" accent />
+          </Animated.View>
+
+          {(profile.interests?.length ?? 0) > 0 && (
+            <Animated.View
+              entering={FadeInDown.delay(120).duration(400)}
+              style={styles.pills}
+            >
               {profile.interests.map((id) => {
                 const a = ACTIVITY_MAP[id];
                 if (!a) return null;
-                const cat = categoryStyle(id);
                 return (
-                  <View
+                  <CategoryPill
                     key={id}
-                    style={[styles.pill, { backgroundColor: cat.tint }]}
-                  >
-                    <Icon name={id as IconName} size={15} color={cat.accent} />
-                    <Text style={[styles.pillLabel, { color: cat.accent }]}>
-                      {a.label}
-                    </Text>
-                  </View>
+                    emoji={a.emoji}
+                    label={a.label}
+                    color={categoryStyle(id).accent}
+                    tone="translucent"
+                  />
                 );
               })}
-            </View>
-          </Animated.View>
-        )}
+            </Animated.View>
+          )}
 
-        {!isSelf && blocked && (
-          <View style={styles.blockedBanner}>
-            <Text style={styles.blockedText}>You blocked this user.</Text>
-            <Button
-              label={unblock.isPending ? 'Unblocking…' : 'Unblock'}
-              variant="tertiary"
-              height={44}
-              onPress={() => unblock.mutate()}
-              disabled={unblock.isPending}
+          {gallery.length > 1 && (
+            <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+              <Text style={styles.sectionTitle}>Photos</Text>
+              <Animated.ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.bleed}
+                contentContainerStyle={styles.photoRow}
+              >
+                {gallery.map((uri, i) => (
+                  <PressableScale
+                    key={`${uri}-${i}`}
+                    scaleTo={0.96}
+                    style={styles.photoTile}
+                    onPress={() => openViewer(i)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Photo ${i + 1}`}
+                  >
+                    <Image
+                      source={{ uri }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={150}
+                    />
+                  </PressableScale>
+                ))}
+              </Animated.ScrollView>
+            </Animated.View>
+          )}
+
+          {/* Their upcoming public events — something you could actually join. */}
+          {(theirEvents?.length ?? 0) > 0 && (
+            <Animated.View entering={FadeInDown.delay(180).duration(400)}>
+              <Text style={styles.sectionTitle}>Hosting</Text>
+              <View style={{ gap: SPACING[2.5] }}>
+                {theirEvents!.map((e) => (
+                  <EventRow
+                    key={e.id}
+                    event={e}
+                    onDark
+                    onPress={() => sheetRef.current?.open(e.id)}
+                  />
+                ))}
+              </View>
+            </Animated.View>
+          )}
+
+          {!isSelf && blocked && (
+            <View style={styles.blockedBanner}>
+              <Text style={styles.blockedText}>You blocked this user.</Text>
+              <Button
+                label={unblock.isPending ? 'Unblocking…' : 'Unblock'}
+                variant="tertiary"
+                size="md"
+                onPress={() => unblock.mutate()}
+                disabled={unblock.isPending}
+              />
+            </View>
+          )}
+        </Glass>
+      </Animated.ScrollView>
+
+      {/* Top bar: back (left), whose profile (centre), overflow menu (right). */}
+      <View
+        style={[styles.topBar, { top: insets.top + SPACING[1] }]}
+        pointerEvents="box-none"
+      >
+        <Glass tier="onPhoto" radius={20} style={styles.topGlyph}>
+          <NavButton
+            icon="back"
+            color={COLORS.white}
+            onPress={() => router.back()}
+            accessibilityLabel="Go back"
+          />
+        </Glass>
+        <Text style={styles.topHandle} numberOfLines={1}>
+          {profile.username ? `@${profile.username}` : profile.name}
+        </Text>
+        {!isSelf ? (
+          <PressableScale
+            scaleTo={0.9}
+            onPress={openMenu}
+            accessibilityRole="button"
+            accessibilityLabel="More options"
+          >
+            <Glass tier="onPhoto" radius={20} style={styles.topGlyph}>
+              <Icon name="dots" size={18} color={COLORS.white} />
+            </Glass>
+          </PressableScale>
+        ) : (
+          // Keeps the handle centred when there's no menu.
+          <View style={styles.topGlyph} />
+        )}
+      </View>
+
+      {/* Fullscreen photo viewer — dims the profile and opens over it. */}
+      <Modal
+        visible={viewerOpen}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setViewerOpen(false)}
+      >
+        <View style={styles.viewer}>
+          <FlatList
+            data={gallery}
+            horizontal
+            pagingEnabled
+            initialScrollIndex={viewerIndex}
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(uri, i) => `${uri}-${i}`}
+            getItemLayout={(_, index) => ({
+              length: width,
+              offset: width * index,
+              index,
+            })}
+            onMomentumScrollEnd={(e) =>
+              setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / width))
+            }
+            renderItem={({ item }) => (
+              <Pressable
+                style={[styles.viewerPage, { width }]}
+                onPress={() => setViewerOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close photos"
+              >
+                <Image
+                  source={{ uri: item }}
+                  style={styles.viewerImage}
+                  contentFit="contain"
+                  transition={150}
+                />
+              </Pressable>
+            )}
+          />
+          <View
+            style={[styles.viewerTop, { paddingTop: insets.top + SPACING[2] }]}
+            pointerEvents="box-none"
+          >
+            <Text style={styles.viewerCounter}>
+              {viewerIndex + 1} / {gallery.length}
+            </Text>
+            <NavButton
+              icon="close"
+              color={COLORS.white}
+              onPress={() => setViewerOpen(false)}
+              accessibilityLabel="Close photos"
             />
           </View>
-        )}
-      </ScrollView>
-
-      {/* Sticky action bar */}
-      {!isSelf && !blocked && (
-        <View style={styles.actionBar}>
-          {rel.status === 'friends' ? (
-            <>
-              <Button
-                label="Message"
-                height={46}
-                style={{ flex: 1 }}
-                onPress={() => router.push(`/(tabs)/chats/dm/${userId}`)}
-              />
-              <PressableScale
-                scaleTo={0.92}
-                style={styles.squareBtn}
-                onPress={handleUnfriend}
-                disabled={remove.isPending}
-                accessibilityLabel="Remove friend"
-              >
-                <Icon name="check" size={20} color="rgba(15,24,44,0.6)" />
-              </PressableScale>
-            </>
-          ) : rel.status === 'request_sent' ? (
-            <Button
-              label="Requested · tap to withdraw"
-              variant="tertiary"
-              height={46}
-              style={{ flex: 1 }}
-              disabled={remove.isPending}
-              onPress={() =>
-                remove.mutate(rel.friendshipId!, {
-                  onError: (e) => showError(e),
-                })
-              }
-            />
-          ) : rel.status === 'request_received' ? (
-            <>
-              <Button
-                label="Accept request"
-                height={46}
-                style={{ flex: 1 }}
-                disabled={accept.isPending}
-                onPress={() => accept.mutate(rel.friendshipId!)}
-              />
-              <PressableScale
-                scaleTo={0.92}
-                style={styles.squareBtn}
-                disabled={remove.isPending}
-                onPress={() =>
-                  remove.mutate(rel.friendshipId!, {
-                    onError: (e) => showError(e),
-                  })
-                }
-                accessibilityLabel="Decline request"
-              >
-                <Icon name="close" size={20} color="rgba(15,24,44,0.6)" />
-              </PressableScale>
-            </>
-          ) : (
-            <Button
-              label="Add friend"
-              height={46}
-              style={{ flex: 1 }}
-              onPress={handleAddFriend}
-            />
+          {gallery.length > 1 && (
+            <View
+              style={[styles.viewerDots, { bottom: insets.bottom + SPACING[6] }]}
+              pointerEvents="none"
+            >
+              {gallery.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.viewerDot,
+                    i === viewerIndex && styles.viewerDotActive,
+                  ]}
+                />
+              ))}
+            </View>
           )}
         </View>
-      )}
+      </Modal>
 
       {/* Safety popup #12: before-you-report sheet (every time). */}
       <SafetyPopup
@@ -490,189 +720,209 @@ export default function UserProfileScreen() {
         }}
         onCancel={() => setBlockConfirmVisible(false)}
       />
-    </Screen>
+
+      <EventBottomSheet ref={sheetRef} />
+    </View>
   );
 }
 
+const FILL = {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+} as const;
+
 const styles = StyleSheet.create({
-  scroll: { padding: SPACING[4], gap: SPACING[3], paddingBottom: SPACING[6] },
-  hero: {
-    height: 300,
-    borderRadius: RADIUS['2xl'],
-    overflow: 'hidden',
-    backgroundColor: COLORS.surface,
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+  container: { flex: 1, backgroundColor: COLORS.accent },
+  loading: { alignItems: 'center', justifyContent: 'center' },
+
+  frost: { position: 'absolute', top: 0, left: 0, right: 0 },
+  frostVeil: { ...FILL, backgroundColor: COLORS.inkVeil },
+
+  photoWindow: { marginTop: -PHOTO_BLEED, overflow: 'hidden' },
+  photoInner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    transformOrigin: 'bottom',
   },
-  heroFallback: {
+  photoFallback: {
+    ...FILL,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoTopFade: { position: 'absolute', top: 0, left: 0, right: 0, height: 150 },
+
+  sheet: {
+    marginTop: -SHEET_RADIUS,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[4],
+  },
+  grabber: {
+    width: 42,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.textOnDarkMuted,
+    alignSelf: 'center',
+    marginBottom: SPACING[4],
+  },
+
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
+  name: {
+    flexShrink: 1,
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.display,
+    lineHeight: 36,
+    letterSpacing: -1,
+    color: COLORS.white,
+  },
+  handle: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textOnDark,
+    marginTop: SPACING[0.5],
+  },
+  bio: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodyMd,
+    lineHeight: 20,
+    color: COLORS.textOnDark,
+    marginTop: SPACING[3.5],
+  },
+
+  actions: { marginTop: SPACING[5] },
+  actionRow: { flexDirection: 'row', gap: SPACING[2.5] },
+  actionPrimary: { flex: 1 },
+  actionSquare: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.fillOnDark,
+    borderWidth: 1,
+    borderColor: COLORS.borderOnDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  stats: { flexDirection: 'row', gap: SPACING[2], marginTop: SPACING[5] },
+  statBox: {
+    flex: 1,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING[3],
+    alignItems: 'center',
+    backgroundColor: COLORS.fillOnDark,
+    borderWidth: 1,
+    borderColor: COLORS.borderOnDark,
+  },
+  statValue: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.titleLg,
+    lineHeight: 26,
+    color: COLORS.white,
+  },
+  statValueAccent: { color: COLORS.primaryLight },
+  statLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textOnDarkMuted,
+    marginTop: SPACING[1],
+  },
+
+  pills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING[2],
+    marginTop: SPACING[5],
+  },
+
+  sectionTitle: {
+    fontFamily: FONTS.headingBold,
+    fontSize: TYPE_SIZE.sectionLg,
+    letterSpacing: -0.3,
+    color: COLORS.white,
+    marginTop: SPACING[6],
+    marginBottom: SPACING[3.5],
+  },
+  bleed: { marginHorizontal: -SPACING[5] },
+  photoRow: { gap: SPACING[2.5], paddingHorizontal: SPACING[5] },
+  photoTile: {
+    width: 132,
+    height: 168,
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.borderOnDark,
+    backgroundColor: COLORS.fillOnDark,
+  },
+
+  blockedBanner: {
+    alignItems: 'center',
+    gap: SPACING[2.5],
+    marginTop: SPACING[6],
+  },
+  blockedText: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textOnDarkMuted,
+  },
+
+  topBar: {
+    position: 'absolute',
+    left: SPACING[5],
+    right: SPACING[5],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING[3],
+  },
+  topGlyph: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topHandle: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.white,
+  },
+
+  viewer: { flex: 1, backgroundColor: COLORS.lightbox },
+  viewerPage: { flex: 1, justifyContent: 'center' },
+  viewerImage: { width: '100%', height: '100%' },
+  viewerTop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primaryTint,
-  },
-  heroGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 110,
-  },
-  heroInfo: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: SPACING[4],
-    paddingBottom: SPACING[3.5],
-  },
-  heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
-  heroName: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.titleLg, color: '#fff' },
-  heroUsername: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: SPACING[0.5],
-  },
-  heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING[1],
-    marginTop: SPACING[1],
-  },
-  heroThumbs: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#fff' },
-  heroMeta: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: 'rgba(255,255,255,0.85)',
-  },
-  thumbsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    gap: SPACING[1.5],
-    height: 40,
+    justifyContent: 'space-between',
     paddingHorizontal: SPACING[4],
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(31,164,99,0.10)',
   },
-  thumbsPillActive: {
-    borderWidth: 1.5,
-    borderColor: COLORS.success,
-  },
-  thumbsCount: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.body,
-    color: COLORS.success,
-  },
-  thumbsLabel: {
+  viewerCounter: {
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.success,
-  },
-  stats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING[3.5],
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  stat: { alignItems: 'center', flex: 1 },
-  statValue: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.sectionLg,
-    color: COLORS.textPrimary,
-  },
-  statLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.5)',
-    marginTop: SPACING[0.5],
-  },
-  statDivider: {
-    width: 1,
-    height: 26,
-    backgroundColor: 'rgba(15,24,44,0.1)',
-  },
-  promptCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING[4],
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  promptLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: 'rgba(15,24,44,0.5)',
-  },
-  promptText: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.body,
-    lineHeight: 20,
-    color: COLORS.textPrimary,
-    marginTop: SPACING[1],
-  },
-  sectionLabel: { marginTop: SPACING[1.5], marginBottom: SPACING[2.5], marginLeft: SPACING[1] },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING[2.5],
-  },
-  photo: {
-    width: '48%',
-    aspectRatio: 1,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surface,
-  },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2] },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1.5],
-    paddingHorizontal: SPACING[3],
-    height: 34,
-    borderRadius: RADIUS.full,
-  },
-  pillLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption },
-  blockedBanner: { alignItems: 'center', gap: SPACING[2.5], marginTop: SPACING[2] },
-  blockedText: {
-    fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textSecondary,
+    color: COLORS.white,
   },
-  actionBar: {
+  viewerDots: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    gap: SPACING[2.5],
-    paddingHorizontal: SPACING[5],
-    paddingTop: SPACING[3],
-    paddingBottom: SPACING[2],
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(15,24,44,0.08)',
-  },
-  squareBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
     justifyContent: 'center',
+    gap: SPACING[1.5],
   },
+  viewerDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.borderOnDark,
+  },
+  viewerDotActive: { backgroundColor: COLORS.white },
 });

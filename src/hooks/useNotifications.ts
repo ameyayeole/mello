@@ -218,11 +218,22 @@ async function registerForPushNotifications(userId: string) {
 
   if (!Device.isDevice) return;
 
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId as
-    | string
-    | undefined;
-  const token = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined
-  );
-  await updatePushToken(userId, token.data);
+  // Getting an APNs/Expo push token needs the `aps-environment` entitlement,
+  // which a locally `run:ios`-signed debug build does not carry — it throws
+  // there, and because this whole function is fire-and-forget that surfaces as
+  // an uncaught promise rejection (a redbox in dev). A transient APNs failure
+  // would do the same. Push is best-effort: never let it take the app down, on
+  // any build. The token just won't refresh until a build that has the
+  // entitlement runs.
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as
+      | string
+      | undefined;
+    const token = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    await updatePushToken(userId, token.data);
+  } catch (e) {
+    console.warn('[push] token registration skipped:', e);
+  }
 }
