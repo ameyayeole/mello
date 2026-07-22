@@ -171,18 +171,29 @@ export function Glass({
           />
         </View>
       ) : supportsBlur ? (
-        <BlurView
-          intensity={BLUR_INTENSITY[tier]}
-          tint={TINT[tier]}
-          style={pane}
-        >
+        // The blur is *inside* a plain clipping View rather than being the
+        // clipping View itself. A `BlurView` does not reliably clip its own
+        // backdrop to its border radius — the effect layer keeps drawing the
+        // full rectangle — so at small radii the pane rendered as a square
+        // corner peeking out from behind a round one, which reads as a
+        // hexagon. Most visible on a 22pt disc; present on every size.
+        //
+        // An ordinary View honours `overflow: 'hidden'` on both platforms, so
+        // clipping there and letting the blur fill it is the reliable order.
+        // This is the same shape the `backdrop` path above already uses.
+        <View style={pane}>
+          <BlurView
+            intensity={BLUR_INTENSITY[tier]}
+            tint={TINT[tier]}
+            style={StyleSheet.absoluteFill}
+          />
           {/* The blur alone is grey and lifeless. The wash over it is what
               turns "the background, out of focus" into "a pane of glass" —
               white for the light tiers, smoked ink for `onPhoto`. */}
           <View
             style={[StyleSheet.absoluteFill, { backgroundColor: FILL[tier] }]}
           />
-        </BlurView>
+        </View>
       ) : (
         <View style={[pane, { backgroundColor: SOLID_FILL[tier] }]} />
       )}
