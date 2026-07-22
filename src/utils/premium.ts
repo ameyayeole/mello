@@ -3,6 +3,11 @@ import { Profile } from '@/types/models';
 // Mello+ gold — used by the badge, the paywall and every locked-feature chip.
 export const PREMIUM_GOLD = '#C9930A';
 export const PREMIUM_GOLD_TINT = '#FBF3DC';
+// The same gold lifted for dark surfaces. #C9930A is tuned to carry on white;
+// on the profile sheet it goes muddy brown, and the tint disappears entirely.
+export const PREMIUM_GOLD_ON_DARK = '#E0B45E';
+export const PREMIUM_GOLD_TINT_ON_DARK = 'rgba(224, 180, 94, 0.22)';
+export const PREMIUM_GOLD_BORDER_ON_DARK = 'rgba(224, 180, 94, 0.45)';
 
 export const PREMIUM_PLANS = [
   {

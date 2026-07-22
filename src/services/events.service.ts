@@ -216,6 +216,33 @@ export async function joinEvent(
   if (error) throw error;
 }
 
+// Which join requests in a batch of events are *still* pending, as
+// `${eventId}:${userId}` keys.
+//
+// The notifications screen offers Accept/Decline inline, and a notification row
+// cannot answer this by itself: its payload is frozen at insert time, so a
+// request approved last week still reads `pending: true` forever. Without this
+// the Decline button on an already-approved row would silently remove a real
+// attendee — the same row delete rejecting uses.
+//
+// One query for the whole list rather than an event fetch per row. RLS
+// (`participants_select`, migration 003) exposes participant rows to the event's
+// host, which is exactly who receives these notifications.
+export async function getPendingRequestKeys(
+  eventIds: string[]
+): Promise<Set<string>> {
+  if (eventIds.length === 0) return new Set();
+
+  const { data, error } = await supabase
+    .from('event_participants')
+    .select('event_id, user_id')
+    .in('event_id', eventIds)
+    .eq('status', 'pending');
+
+  if (error) throw error;
+  return new Set((data ?? []).map((r) => `${r.event_id}:${r.user_id}`));
+}
+
 // Host approves a pending join request.
 export async function approveParticipant(
   eventId: string,

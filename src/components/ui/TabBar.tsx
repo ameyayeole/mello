@@ -1,5 +1,11 @@
-import { useEffect, useRef } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated as RNAnimated,
+  Easing as RNEasing,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -12,6 +18,7 @@ import { Glass } from './Glass';
 import { usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/colors';
+import { OVERLAY_TRANSITION } from '@/constants/motion';
 import { RADIUS, SPACING } from '@/constants/spacing';
 
 // The tab bar is a floating bar: it sits *over* the screen instead of below
@@ -102,6 +109,74 @@ export function useTabBarSideMargin() {
 export function useTabBarInset() {
   const { bottom } = useSafeAreaInsets();
   return TAB_BAR_HEIGHT + bottomGap(bottom) + SPACING[3];
+}
+
+/**
+ * The bar's own exit: it slides down off the bottom of the screen and back,
+ * rather than blinking out of existence.
+ *
+ * Feed it whatever means "something else owns the screen now" — a full-screen
+ * overlay, an open chat thread, the in-map create flow — and spread the result
+ * into `tabBarStyle`. It times itself against `OVERLAY_TRANSITION.scene*`, the
+ * same numbers the page underneath an overlay recedes on, so the whole scene
+ * steps back as one movement instead of the bar cutting out mid-transition.
+ *
+ * ── Why the legacy Animated API, in a Reanimated codebase ───────────────────
+ * The view being animated is React Navigation's, not ours, and it reaches us
+ * only through the `tabBarStyle` prop. That bar is a `react-native`
+ * `Animated.View` — `tabBarStyle` is typed `Animated.WithAnimatedValue<…>`
+ * precisely so a value like this can be handed to it — and a Reanimated style
+ * means nothing to a view Reanimated does not own. This is the rare case where
+ * the old API is the correct tool; everything else in this file is Reanimated.
+ *
+ * `tabBarStyle` is applied last in the bar's style array, so this `transform`
+ * replaces the built-in keyboard-hide one. That is fine: `tabBarHideOnKeyboard`
+ * is off, and the two would be describing the same movement anyway.
+ *
+ * The previous version was `display: 'none'`, which cannot animate at all — the
+ * bar vanished in one frame in the middle of an otherwise 500ms transition.
+ */
+export function useTabBarSlide(hidden: boolean) {
+  const bottomMargin = useTabBarBottomMargin();
+  // Clear of the bar, the gap under it, and the soft shadow that extends past
+  // both — otherwise its lower edge parks just off-screen and the shadow stays
+  // visible as a smudge along the bottom.
+  const travel = TAB_BAR_HEIGHT + bottomMargin + SPACING[6];
+
+  // 1 = in place, 0 = gone. Seeded from `hidden` rather than always starting at
+  // 1: a screen entered with the bar already hidden should find it gone, not
+  // watch it slide away.
+  const [shown] = useState(() => new RNAnimated.Value(hidden ? 0 : 1));
+
+  useEffect(() => {
+    const animation = RNAnimated.timing(shown, {
+      toValue: hidden ? 0 : 1,
+      // Out immediately, back only once whatever covered it has cleared —
+      // see OVERLAY_TRANSITION for why those two are not mirror images.
+      delay: hidden ? 0 : OVERLAY_TRANSITION.sceneReturnDelayMs,
+      duration: hidden
+        ? OVERLAY_TRANSITION.sceneOutMs
+        : OVERLAY_TRANSITION.sceneReturnMs,
+      easing: RNEasing.out(RNEasing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [hidden, shown]);
+
+  return useMemo(
+    () => ({
+      transform: [
+        {
+          translateY: shown.interpolate({
+            inputRange: [0, 1],
+            outputRange: [travel, 0],
+          }),
+        },
+      ],
+    }),
+    [shown, travel]
+  );
 }
 
 // Which tab the pathname belongs to. Longest match wins, so `/chats/dm/x`

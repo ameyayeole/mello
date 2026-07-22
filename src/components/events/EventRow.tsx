@@ -6,7 +6,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
+import { formatEventWhen } from '@/utils/time';
 import { CategoryTile, Glass, PressableScale } from '@/components/ui';
 
 // The compact event list row used by the dashboard and the profile tab:
@@ -56,6 +56,7 @@ export default function EventRow({
   eyebrow,
   photo = false,
   glass = false,
+  onDark = false,
   onPress,
 }: {
   event: NearbyEvent;
@@ -72,6 +73,11 @@ export default function EventRow({
   photo?: boolean;
   // Frosted rather than solid white, for rows sitting over <AppBackground>.
   glass?: boolean;
+  // Inverted, for rows nested in a dark frosted pane (the profile sheet). Not a
+  // second component: it is the same row with the ink ramp flipped, and ink
+  // text on that sheet is simply unreadable. No blur of its own — the pane it
+  // sits in is already blurred; see the `fillOnDark` note in COLORS.
+  onDark?: boolean;
   onPress: () => void;
 }) {
   const emoji = ACTIVITY_MAP[event.activity]?.emoji ?? '📍';
@@ -109,18 +115,30 @@ export default function EventRow({
             </Text>
           </View>
         )}
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, onDark && styles.titleOnDark]} numberOfLines={1}>
           {event.title}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {formatEventTime(event.starts_at)}
+        <Text style={[styles.meta, onDark && styles.metaOnDark]} numberOfLines={1}>
+          {formatEventWhen(event.starts_at)}
           {event.participant_count ? ` · ${event.participant_count} going` : ''}
         </Text>
       </View>
 
-      <View style={[styles.pill, tone === 'quiet' && styles.pillQuiet]}>
+      {/* On dark the CTA is the tertiary (white) treatment whatever the tone:
+          both ink fills disappear into the sheet. */}
+      <View
+        style={[
+          styles.pill,
+          tone === 'quiet' && styles.pillQuiet,
+          onDark && styles.pillOnDark,
+        ]}
+      >
         <Text
-          style={[styles.pillText, tone === 'quiet' && styles.pillTextQuiet]}
+          style={[
+            styles.pillText,
+            tone === 'quiet' && styles.pillTextQuiet,
+            onDark && styles.pillTextQuiet,
+          ]}
         >
           {CTA_LABEL[cta]}
         </Text>
@@ -140,7 +158,11 @@ export default function EventRow({
 
   return (
     <PressableScale
-      style={[styles.row, elevated && styles.rowElevated]}
+      style={[
+        styles.row,
+        elevated && styles.rowElevated,
+        onDark && styles.rowOnDark,
+      ]}
       onPress={onPress}
       scaleTo={0.98}
     >
@@ -159,6 +181,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderSoft,
     borderRadius: RADIUS.xl,
     padding: SPACING[2.5],
+  },
+  rowOnDark: {
+    backgroundColor: COLORS.fillOnDark,
+    borderColor: COLORS.borderOnDark,
   },
   rowElevated: {
     shadowColor: '#000',
@@ -211,12 +237,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     color: COLORS.textPrimary,
   },
+  titleOnDark: { color: COLORS.white },
   meta: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
+  metaOnDark: { color: COLORS.textOnDarkMuted },
 
   // Rounded rectangle matching Button's sm radius — the app has no pill
   // buttons. Colours mirror Button's `secondary` variant.
@@ -229,5 +257,6 @@ const styles = StyleSheet.create({
   pillText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.nano, color: COLORS.white },
   // Button's `tertiary` treatment, for the rows whose action is low-stakes.
   pillQuiet: { backgroundColor: COLORS.inkSubtle },
+  pillOnDark: { backgroundColor: COLORS.white },
   pillTextQuiet: { color: COLORS.textPrimary },
 });

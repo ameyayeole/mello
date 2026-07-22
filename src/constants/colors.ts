@@ -72,6 +72,16 @@ export const COLORS = {
   placeholder: 'rgba(15, 24, 44, 0.40)', // TextInput placeholderTextColor
   inkLabel: 'rgba(15, 24, 44, 0.50)', // small field labels
   scrim: 'rgba(15, 24, 44, 0.45)', // modal / sheet backdrop
+  // Behind a fullscreen photo viewer. Far heavier than `scrim`: a lightbox has
+  // to kill the page behind it or the photo competes with it — but stopping
+  // short of solid keeps the screen underneath sensed rather than replaced,
+  // which is what makes it read as opening over the page instead of cutting to
+  // a different one.
+  lightbox: 'rgba(9, 14, 26, 0.94)',
+  // Knocks a full-bleed photo back far enough that white type over it stays
+  // legible without hiding the photo. Lighter than `scrim`, which is there to
+  // push a whole screen away, not to temper one.
+  inkVeil: 'rgba(15, 24, 44, 0.28)',
 
   // Text — a cool blue-grey ramp, retuned from the warm one the app shipped
   // with (#17151A / #8A8690 / #A8A2AA).
@@ -88,6 +98,25 @@ export const COLORS = {
   textMuted: '#8A8F9C',
   // Uppercase eyebrow labels above a section or card title.
   textEyebrow: '#9198A6',
+
+  // ── On a dark frosted surface ────────────────────────────────────────────
+  // The ink ramp inverted, for content sitting on `onPhoto` glass — today the
+  // profile sheet, which is a dark pane over the user's own photo. Primary text
+  // there is plain `white`; these are the two rungs below it.
+  //
+  // The two fills are a translucent white *lift*, not another glass tier: a
+  // card inside an already-blurred sheet does not need a blur of its own, and
+  // giving it one costs a native blur view per row and reads as mud over the
+  // image. Use them for cards nested in a dark pane; use <Glass> for the pane.
+  textOnDark: 'rgba(255, 255, 255, 0.72)',
+  textOnDarkMuted: 'rgba(255, 255, 255, 0.56)',
+  // Two rungs, same reason the ink ramp has several: `fillOnDark` is a card
+  // lifted off the sheet, `fillOnDarkStrong` is a chip lifted off a card that
+  // is already lifted — the emoji circle inside a translucent category pill.
+  // One rung cannot do both without the chip vanishing or the card shouting.
+  fillOnDark: 'rgba(255, 255, 255, 0.08)',
+  fillOnDarkStrong: 'rgba(255, 255, 255, 0.16)',
+  borderOnDark: 'rgba(255, 255, 255, 0.14)',
 
   // Status
   success: '#17915A',

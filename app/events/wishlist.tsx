@@ -20,7 +20,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
+import { formatEventWhen } from '@/utils/time';
 import { shortLocation } from '@/utils/location';
 import { NearbyEvent, SavedEventItem } from '@/types/models';
 import {
@@ -68,7 +68,7 @@ function WishlistCard({
           <View style={styles.timeRow}>
             <Icon name="clock" size={14} color={COLORS.textSecondary} />
             <Text style={styles.timeText} numberOfLines={1}>
-              {formatEventTime(event.starts_at)}
+              {formatEventWhen(event.starts_at)}
             </Text>
           </View>
         </View>

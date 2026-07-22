@@ -28,7 +28,7 @@ import { hasWrapped } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
+import { formatEventTime, formatEventWhen } from '@/utils/time';
 import {
   Button,
   CategoryTile,
@@ -195,7 +195,7 @@ export default function AttendeeScanScreen() {
                 <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
                 <View style={styles.metaRow}>
                   <Icon name="clock" size={13} color="rgba(15,24,44,0.6)" />
-                  <Text style={styles.metaText}>{formatEventTime(event.starts_at)}</Text>
+                  <Text style={styles.metaText}>{formatEventWhen(event.starts_at)}</Text>
                 </View>
               </View>
             </Animated.View>

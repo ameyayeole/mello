@@ -23,11 +23,7 @@ export function AttendeeStack({
   max = 3,
   size = 27,
   ring = true,
-  // A hairline rather than a solid white collar. The ring exists to separate
-  // bubbles where they overlap, and that only needs a suggestion of an edge —
-  // a solid opaque ring on a small avatar reads as the photo being trimmed,
-  // especially over a dark surface where white is at maximum contrast.
-  ringColor = 'rgba(255, 255, 255, 0.55)',
+  ringColor = COLORS.white,
   ringWidth = 1.5,
   emptyLabel = 'Be the first to join',
   style,

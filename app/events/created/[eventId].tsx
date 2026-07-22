@@ -12,7 +12,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
+import { formatEventWhen } from '@/utils/time';
 import { shareEvent } from '@/utils/shareEvent';
 import { Icon, PressableScale } from '@/components/ui';
 
@@ -72,7 +72,7 @@ export default function EventCreatedScreen() {
                 {event.title}
               </Text>
               <Text style={styles.summaryMeta} numberOfLines={1}>
-                {formatEventTime(event.starts_at)} · {event.participant_count} going
+                {formatEventWhen(event.starts_at)} · {event.participant_count} going
               </Text>
             </View>
           </Animated.View>

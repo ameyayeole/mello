@@ -6,7 +6,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { relativeTime, formatEventTime } from '@/utils/time';
+import { relativeTime, formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { shortLocation } from '@/utils/location';
 import { BOOST_ACCENT, BOOST_EMOJI, BOOST_TINT, isBoosted } from '@/utils/boost';
@@ -72,7 +72,7 @@ export default function ExploreEventCard({
         {/* When & where */}
         <View style={styles.metaRow}>
           <Icon name="clock" size={13} color="rgba(15,24,44,0.55)" />
-          <Text style={styles.metaText}>{formatEventTime(event.starts_at)}</Text>
+          <Text style={styles.metaText}>{formatEventWhen(event.starts_at)}</Text>
           {event.location_name ? (
             <>
               <Text style={styles.metaDot}>·</Text>

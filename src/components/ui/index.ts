@@ -11,6 +11,7 @@ export {
   useTabBarInset,
   useTabBarBottomMargin,
   useTabBarSideMargin,
+  useTabBarSlide,
   CHIP_HEIGHT,
   CHIP_RADIUS,
   CHIP_WIDTH,
