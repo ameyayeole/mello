@@ -503,6 +503,7 @@ export default function ChatsListScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.activeScroll}
             contentContainerStyle={styles.activeRow}
           >
             <PressableScale
@@ -694,7 +695,11 @@ const styles = StyleSheet.create({
   },
   block: { gap: SPACING[2.5] },
 
-  activeRow: { gap: SPACING[3.5], paddingRight: SPACING[5] },
+  // Runs to both screen edges: the rail should look like it continues past the
+  // screen, not like a list that stops short of it. The negative margin
+  // cancels the list's own padding; the content puts it back as scroll inset.
+  activeScroll: { marginHorizontal: -SPACING[5] },
+  activeRow: { gap: SPACING[3.5], paddingHorizontal: SPACING[5] },
   activeItem: { alignItems: 'center', gap: SPACING[1.5], width: 64 },
   addTile: {
     width: 60,
