@@ -27,9 +27,9 @@ import { getDmPin, setDmPin } from '@/services/dm.service';
 import { getChatPrefs, chatKey } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { DirectMessage } from '@/types/models';
+import { DirectMessage, Profile } from '@/types/models';
 import { isPremium } from '@/utils/premium';
-import { runFlags } from '@/utils/messageGroups';
+import { readersByMessage, runFlags } from '@/utils/messageGroups';
 import {
   Avatar,
   Icon,
@@ -42,6 +42,7 @@ import {
   OptionSheet,
   SheetOption,
   MessageBubble,
+  ReadReceiptSheet,
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
@@ -101,6 +102,29 @@ export default function DirectChatScreen() {
   );
   const [reactingTo, setReactingTo] = useState<string | null>(null);
 
+  // The read rail. A DM has one reader, so their face parks under the newest
+  // message of yours they've opened — the same shape as the group chat, built
+  // from read_at rather than a watermark table.
+  const friendWatermark = useMemo(() => {
+    const map = new Map<string, string>();
+    const lastRead = messages
+      .filter((m) => m.sender_id === user?.id && m.read_at)
+      .reduce<string | null>(
+        (latest, m) =>
+          !latest || m.read_at! > latest ? m.read_at! : latest,
+        null
+      );
+    if (lastRead) map.set(friendId, lastRead);
+    return map;
+  }, [messages, friendId, user?.id]);
+
+  const readRail = useMemo(
+    () => readersByMessage(messages, friendWatermark, user?.id),
+    [messages, friendWatermark, user?.id]
+  );
+
+  const [receiptFor, setReceiptFor] = useState<DirectMessage | null>(null);
+
   // Scam guard (#11): warn when an incoming message looks like a money
   // request, once per conversation per day.
   const moneyGuard = useMoneyGuard(
@@ -130,6 +154,20 @@ export default function DirectChatScreen() {
     },
     enabled: !!friendId,
   });
+
+  // The one face the rail and its sheet can show.
+  const friendProfile = useMemo(
+    () =>
+      ({
+        id: friendId,
+        name: friend?.name,
+        photo_url: friend?.photo_url,
+      }) as Profile,
+    [friendId, friend?.name, friend?.photo_url]
+  );
+
+  const readers = (message: DirectMessage): Profile[] =>
+    readRail.get(message.id) ? [friendProfile] : [];
 
   // Pinned message for this conversation (either side can pin).
   const { data: pinnedMessage } = useQuery({
@@ -335,6 +373,8 @@ export default function DirectChatScreen() {
                   item._status ? undefined : () => setReactingTo(item.id)
                 }
                 onCloseReactions={() => setReactingTo(null)}
+                readers={isMine ? readers(item) : undefined}
+                onReadersPress={() => setReceiptFor(item)}
                 onLongPress={() => {
                   setReactingTo(null);
                   setMessageSheet(item);
@@ -419,6 +459,14 @@ export default function DirectChatScreen() {
         title="Message"
         options={messageSheet ? messageOptions(messageSheet) : []}
         onClose={() => setMessageSheet(null)}
+      />
+      <ReadReceiptSheet
+        visible={!!receiptFor}
+        // A DM's read_at is a flag on the row, not a per-person time we can
+        // attribute, so the sheet shows the face without a timestamp.
+        readers={receiptFor?.read_at ? [{ profile: friendProfile }] : []}
+        others={receiptFor?.read_at ? [] : [friendProfile]}
+        onClose={() => setReceiptFor(null)}
       />
     </View>
   );

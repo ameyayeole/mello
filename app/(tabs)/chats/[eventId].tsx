@@ -35,9 +35,9 @@ import { getChatPrefs, setChatMuted, chatKey } from '@/services/chatPrefs.servic
 import { hasWrapped } from '@/services/wrap.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Message } from '@/types/models';
+import { Message, Profile } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
-import { runFlags } from '@/utils/messageGroups';
+import { readersByMessage, runFlags } from '@/utils/messageGroups';
 import {
   CategoryTile,
   Icon,
@@ -55,6 +55,7 @@ import {
   SheetOption,
   MentionText,
   MessageBubble,
+  ReadReceiptSheet,
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
@@ -213,17 +214,28 @@ export default function GroupChatScreen() {
 
   const mentionQuery = activeMentionQuery(input);
 
-  // Everyone who must have read a message for it to show ✓✓ (WhatsApp group
-  // rule: all other members).
-  const otherMemberIds = useMemo(() => {
-    if (!event || !user) return [];
-    const ids = new Set<string>();
-    if (event.host_id !== user.id) ids.add(event.host_id);
-    for (const p of event.participants ?? []) {
-      if ((p as any).status === 'approved' && p.id !== user.id) ids.add(p.id);
-    }
-    return [...ids];
+  // Everyone else in the chat: who must have read a message for it to show ✓✓
+  // (WhatsApp group rule), and who the read rail and its sheet draw faces for.
+  const otherMembers = useMemo(() => {
+    if (!event || !user) return [] as Profile[];
+    const people = [
+      ...(event.host ? [event.host] : []),
+      ...(event.participants ?? []).filter(
+        (p: any) => p.status === 'approved'
+      ),
+    ];
+    const seen = new Set<string>();
+    return people.filter((p) => {
+      if (!p || p.id === user.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    }) as Profile[];
   }, [event, user]);
+
+  const otherMemberIds = useMemo(
+    () => otherMembers.map((p) => p.id),
+    [otherMembers]
+  );
 
   const readByAll = (m: Message) =>
     otherMemberIds.length > 0 &&
@@ -231,6 +243,39 @@ export default function GroupChatScreen() {
       const t = reads.get(id);
       return !!t && t >= m.created_at;
     });
+
+  // Which of your messages each person's face sits under. `reads` is already
+  // live — the watermark table is on this chat's realtime channel — so a face
+  // slides down the thread as the other side scrolls.
+  const readRail = useMemo(
+    () => readersByMessage(messages, reads, user?.id),
+    [messages, reads, user?.id]
+  );
+
+  const memberById = useMemo(() => {
+    const map = new Map<string, Profile>();
+    for (const p of otherMembers) map.set(p.id, p);
+    return map;
+  }, [otherMembers]);
+
+  const readersOf = (messageId: string): Profile[] =>
+    (readRail.get(messageId) ?? [])
+      .map((id) => memberById.get(id))
+      .filter((p): p is Profile => !!p);
+
+  // The message whose "who's seen this" sheet is open.
+  const [receiptFor, setReceiptFor] = useState<Message | null>(null);
+  const receiptReaders = receiptFor
+    ? readersOf(receiptFor.id).map((profile) => ({
+        profile,
+        readAt: reads.get(profile.id),
+      }))
+    : [];
+  const receiptOthers = receiptFor
+    ? otherMembers.filter(
+        (p) => !receiptReaders.some((r) => r.profile.id === p.id)
+      )
+    : [];
 
   // Pinned message banner content.
   const { data: pinnedMessage } = useQuery({
@@ -536,6 +581,8 @@ export default function GroupChatScreen() {
                   item._status ? undefined : () => setReactingTo(item.id)
                 }
                 onCloseReactions={() => setReactingTo(null)}
+                readers={isMine ? readersOf(item.id) : undefined}
+                onReadersPress={() => setReceiptFor(item)}
                 onRetry={() => retry(item)}
                 onLongPress={() => {
                   setReactingTo(null);
@@ -660,6 +707,12 @@ export default function GroupChatScreen() {
         title={event?.title ?? 'Chat options'}
         options={chatMenuOptions()}
         onClose={() => setMenuVisible(false)}
+      />
+      <ReadReceiptSheet
+        visible={!!receiptFor}
+        readers={receiptReaders}
+        others={receiptOthers}
+        onClose={() => setReceiptFor(null)}
       />
     </View>
   );

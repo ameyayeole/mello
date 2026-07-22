@@ -58,3 +58,54 @@ export function runFlags(
     isLastOfRun: !sameRun(current, next),
   };
 }
+
+// A message with an id, for the read rail below.
+export interface Readable extends Groupable {
+  id: string;
+}
+
+/**
+ * Where each person's "seen this far" face hangs, keyed by message id.
+ *
+ * Instagram's read rail: one small avatar per reader, parked under the newest
+ * message they have read, so the faces spread down a busy group thread instead
+ * of piling up at the bottom. `watermarks` is user id → the timestamp they have
+ * read up to (`chat_reads` in migration 031, or a DM's `read_at`).
+ *
+ * Only messages you sent can carry a face — a reader's position among their own
+ * messages tells nobody anything — and a reader never appears against their own
+ * message.
+ */
+export function readersByMessage(
+  messages: Readable[],
+  watermarks: Map<string, string>,
+  myUserId: string | undefined
+): Map<string, string[]> {
+  const byMessage = new Map<string, string[]>();
+  if (!myUserId) return byMessage;
+
+  const mine = messages.filter(
+    (m) => m.sender_id === myUserId && !isBreaker(m)
+  );
+  if (mine.length === 0) return byMessage;
+
+  for (const [readerId, readAt] of watermarks) {
+    if (readerId === myUserId) continue;
+    // Parsed, not compared as strings: Postgres hands back '+00:00' while an
+    // optimistic message is minted with toISOString()'s 'Z', and those two do
+    // not sort against each other.
+    const readMs = Date.parse(readAt);
+    if (Number.isNaN(readMs)) continue;
+    // The newest of my messages this person has read past. Walking backwards
+    // stops at the first hit, which is that message.
+    for (let i = mine.length - 1; i >= 0; i--) {
+      if (Date.parse(mine[i].created_at) <= readMs) {
+        const list = byMessage.get(mine[i].id);
+        if (list) list.push(readerId);
+        else byMessage.set(mine[i].id, [readerId]);
+        break;
+      }
+    }
+  }
+  return byMessage;
+}

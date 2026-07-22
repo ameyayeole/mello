@@ -4,12 +4,13 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatChatTime } from '@/utils/time';
-import { MessageReaction } from '@/types/models';
+import { MessageReaction, Profile } from '@/types/models';
 import { Avatar, PressableScale } from '@/components/ui';
 import ChatImageBubble from './ChatImageBubble';
 import MentionText from './MentionText';
 import ReactionBar from './ReactionBar';
 import ReactionPills from './ReactionPills';
+import ReadRail from './ReadRail';
 import Ticks, { TickStatus } from './Ticks';
 
 // The one bubble both threads render. Event chat and DM had a private copy
@@ -56,6 +57,10 @@ export interface MessageBubbleProps {
   onReact?: (emoji: string) => void;
   onOpenReactions?: () => void;
   onCloseReactions?: () => void;
+  // Everyone whose "read up to" has passed this message. Only your own
+  // messages ever carry them.
+  readers?: Profile[];
+  onReadersPress?: () => void;
   onRetry?: () => void;
   onLongPress?: () => void;
   onAvatarPress?: () => void;
@@ -78,6 +83,8 @@ export default function MessageBubble({
   onReact,
   onOpenReactions,
   onCloseReactions,
+  readers,
+  onReadersPress,
   onRetry,
   onLongPress,
   onAvatarPress,
@@ -178,6 +185,14 @@ export default function MessageBubble({
             myUserId={myUserId}
             isMine={isMine}
             onPress={onOpenReactions}
+          />
+        ) : null}
+
+        {readers && readers.length > 0 ? (
+          <ReadRail
+            readers={readers}
+            alignRight={isMine}
+            onPress={onReadersPress}
           />
         ) : null}
       </View>
