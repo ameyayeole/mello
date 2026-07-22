@@ -194,9 +194,9 @@ function ChatRow({
 function GoingCount({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <Glass tier="onPhoto" radius={11} shadow={false} style={styles.goingChip}>
+    <View style={styles.goingChip}>
       <Text style={styles.goingText}>{count}</Text>
-    </Glass>
+    </View>
   );
 }
 
@@ -219,21 +219,19 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      {/* Smoked glass, not the category tint: this disc sits on a photo, and
-          `onPhoto` is the tier the design has for exactly that — dark enough to
-          hold its shape over a bright image or a dark one, with a light
-          hairline so it still reads as glass. A pastel tint disappeared into
-          pale photos. */}
-      <Glass
-        tier="onPhoto"
-        radius={11}
-        shadow={false}
-        style={styles.typeBadge}
-      >
+      {/* Smoked ink and a white ring — the same separation AttendeeStack gives
+          its faces, and for the same reason: a disc sitting directly on a
+          photo has no edge of its own until you draw it one.
+
+          A plain View, not <Glass>. At 22pt there is nothing behind this worth
+          blurring, and a native blur layer per row is the cost DESIGN.md §3
+          warns about — but mostly it removes the clipping question entirely
+          rather than relying on it having been solved. */}
+      <View style={styles.typeBadge}>
         <Text style={styles.typeEmoji}>
           {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
         </Text>
-      </Glass>
+      </View>
     </View>
   );
 }
@@ -960,15 +958,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: COLORS.inkFaint,
   },
-  // What kind of event, on the corner of its photo.
+  // What kind of event, on the corner of its photo. The ring is what holds it
+  // off the image behind it; without one the disc's edge lands wherever the
+  // photo happens to be dark and disappears wherever it doesn't.
   typeBadge: {
     position: 'absolute',
-    right: -4,
-    bottom: -4,
-    width: 22,
-    height: 22,
+    right: -5,
+    bottom: -5,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.glassOnPhotoSolid,
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   // Glyph metrics, not typography: an emoji's own box sits well inside its
   // font size, so 10 fills roughly half the disc — which is the proportion the
@@ -984,11 +988,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -4,
-    minWidth: 22,
-    height: 22,
+    minWidth: 24,
+    height: 24,
     paddingHorizontal: SPACING[1],
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.glassOnPhotoSolid,
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   goingText: {
     fontFamily: FONTS.bold,
