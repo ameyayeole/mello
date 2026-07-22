@@ -970,7 +970,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.glassOnPhotoSolid,
+    // Opaque ink, not the translucent on-photo fill: at 58% the photo behind
+    // showed straight through the disc, so the emoji sat on whatever the
+    // image happened to be rather than on a surface of its own.
+    backgroundColor: COLORS.accent,
     borderWidth: 2,
     borderColor: COLORS.white,
   },
@@ -994,7 +997,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.glassOnPhotoSolid,
+    backgroundColor: COLORS.accent,
     borderWidth: 2,
     borderColor: COLORS.white,
   },
