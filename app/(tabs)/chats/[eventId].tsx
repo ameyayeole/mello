@@ -29,6 +29,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useEventChat } from '@/hooks/useEventChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
+import { useChatScroll } from '@/hooks/useChatScroll';
 import { useAuthStore } from '@/stores/authStore';
 import {
   getEventDetail,
@@ -244,6 +245,33 @@ export default function GroupChatScreen() {
   useEffect(() => {
     for (const m of messages) seen.current.add(m.id);
   }, [messages]);
+
+  // Where to open: the first message posted after your read watermark.
+  //
+  // Captured once, and from the *first* watermark the server gives us —
+  // useEventChat bumps it as soon as you are looking at the chat, so a live
+  // read would say "nothing unread" a moment later and the anchor would vanish
+  // before the list had laid out.
+  const unreadAnchor = useRef<number | null>(null);
+  const anchored = useRef(false);
+  useEffect(() => {
+    if (anchored.current || messages.length === 0 || !user) return;
+    const watermark = reads.get(user.id);
+    // No watermark yet means the fetch hasn't landed; wait for it rather than
+    // deciding there is nothing unread.
+    if (!watermark) return;
+    anchored.current = true;
+    const at = Date.parse(watermark);
+    const i = messages.findIndex(
+      (m) =>
+        m.sender_id !== user.id &&
+        !m._status &&
+        Date.parse(m.created_at) > at
+    );
+    unreadAnchor.current = i >= 0 ? i : null;
+  }, [messages, reads, user]);
+
+  const chatScroll = useChatScroll(listRef, unreadAnchor);
 
   // Drag the thread left to read the times. One shared value for every bubble,
   // so the column moves as a single sheet.
@@ -718,9 +746,10 @@ export default function GroupChatScreen() {
           }}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
-          onContentSizeChange={() =>
-            listRef.current?.scrollToEnd({ animated: true })
-          }
+          onScroll={chatScroll.onScroll}
+          scrollEventThrottle={64}
+          onContentSizeChange={chatScroll.onContentSizeChange}
+          onScrollToIndexFailed={chatScroll.onScrollToIndexFailed}
         />
         </GestureDetector>
 

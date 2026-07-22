@@ -12,10 +12,16 @@ import { uploadChatPhoto } from '@/services/storage.service';
 import { DirectMessage } from '@/types/models';
 import { useAuthStore } from '@/stores/authStore';
 import { CONFIG } from '@/constants/config';
+import { newId } from '@/utils/id';
 
-function tempId() {
-  return `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-}
+// The optimistic row's id is minted here and sent with the insert, so the row
+// React first paints and the row the server confirms are the *same* row.
+//
+// It used to be a `tmp-…` string swapped for the real id on success, which
+// changed the FlatList's key mid-flight: React unmounted the bubble and mounted
+// a new one, and the entering animation played a second time a few hundred
+// milliseconds after the first. That is what read as the message jumping.
+// useEventChat has always minted ids this way.
 
 export function useDirectChat(friendId: string, clearedAt?: string | null) {
   const userId = useAuthStore((s) => s.user?.id);
@@ -120,9 +126,13 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
       .catch(() => {});
   }, [messages, userId, friendId, qc]);
 
-  function makeOptimistic(content: string, type: DirectMessage['type']) {
+  function makeOptimistic(
+    id: string,
+    content: string,
+    type: DirectMessage['type']
+  ) {
     return {
-      id: tempId(),
+      id,
       sender_id: userId!,
       recipient_id: friendId,
       content,
@@ -132,45 +142,48 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
     } as DirectMessage;
   }
 
-  const send = useMutation({
+  // The id travels with the send, so the confirmed row comes back carrying the
+  // one the optimistic row already had. `onSuccess` still replaces the row —
+  // to pick up the server's timestamp and joined sender — but it replaces it
+  // *in place*, under the same key.
+  const sendMutation = useMutation({
     mutationFn: ({
       content,
       type = 'text',
+      id,
     }: {
       content: string;
       type?: DirectMessage['type'];
-    }) => sendDirectMessage(userId!, friendId, content, type),
-    onMutate: ({ content, type = 'text' }) => {
-      const optimistic = makeOptimistic(content, type);
+      id?: string;
+    }) => sendDirectMessage(userId!, friendId, content, type, id),
+    onMutate: ({ content, type = 'text', id }) => {
+      const optimistic = makeOptimistic(id ?? newId(), content, type);
       setMessages((prev) => [...prev, optimistic]);
-      return { tempId: optimistic.id };
+      return { id: optimistic.id };
     },
     onSuccess: (msg, _vars, ctx) =>
-      setMessages((prev) =>
-        prev.map((m) => (m.id === ctx?.tempId ? msg : m))
-      ),
+      setMessages((prev) => prev.map((m) => (m.id === ctx?.id ? msg : m))),
     onError: (_e, _vars, ctx) =>
-      setMessages((prev) => prev.filter((m) => m.id !== ctx?.tempId)),
+      setMessages((prev) => prev.filter((m) => m.id !== ctx?.id)),
   });
 
   // Image send: the optimistic bubble shows the local file while the shared
-  // encoder uploads; the public-URL row replaces it on success.
-  const sendImage = useMutation({
-    mutationFn: async ({ localUri }: { localUri: string }) => {
+  // encoder uploads; the public-URL row replaces it on success — same id, so
+  // the bubble is updated rather than swapped.
+  const sendImageMutation = useMutation({
+    mutationFn: async ({ localUri, id }: { localUri: string; id?: string }) => {
       const url = await uploadChatPhoto(userId!, localUri);
-      return sendDirectMessage(userId!, friendId, url, 'image');
+      return sendDirectMessage(userId!, friendId, url, 'image', id);
     },
-    onMutate: ({ localUri }) => {
-      const optimistic = makeOptimistic(localUri, 'image');
+    onMutate: ({ localUri, id }) => {
+      const optimistic = makeOptimistic(id ?? newId(), localUri, 'image');
       setMessages((prev) => [...prev, optimistic]);
-      return { tempId: optimistic.id };
+      return { id: optimistic.id };
     },
     onSuccess: (msg, _vars, ctx) =>
-      setMessages((prev) =>
-        prev.map((m) => (m.id === ctx?.tempId ? msg : m))
-      ),
+      setMessages((prev) => prev.map((m) => (m.id === ctx?.id ? msg : m))),
     onError: (_e, _vars, ctx) =>
-      setMessages((prev) => prev.filter((m) => m.id !== ctx?.tempId)),
+      setMessages((prev) => prev.filter((m) => m.id !== ctx?.id)),
   });
 
   // Optimistic delete of your own message.
@@ -178,6 +191,30 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
     deleteDirectMessage(messageId).catch(() => {});
   }, []);
+
+  // The id is minted here rather than at the call site: react-query hands the
+  // same `variables` object to `onMutate` and to `mutationFn`, so this is the
+  // only place both halves can agree on one without every screen having to
+  // remember to pass it.
+  //
+  // Only `.mutate` is exposed because only `.mutate` is used — wrapping the
+  // whole mutation object meant cloning its prototype, which is a lot of
+  // machinery to keep two call sites working.
+  const send = useCallback(
+    (
+      vars: { content: string; type?: DirectMessage['type'] },
+      opts?: Parameters<typeof sendMutation.mutate>[1]
+    ) => sendMutation.mutate({ ...vars, id: newId() }, opts),
+    [sendMutation]
+  );
+
+  const sendImage = useCallback(
+    (
+      vars: { localUri: string },
+      opts?: Parameters<typeof sendImageMutation.mutate>[1]
+    ) => sendImageMutation.mutate({ ...vars, id: newId() }, opts),
+    [sendImageMutation]
+  );
 
   return { messages, send, sendImage, remove };
 }
