@@ -1,9 +1,11 @@
 import { useWindowDimensions, Modal, Pressable, View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import ReactionBar from './ReactionBar';
+import { barEnter, liftEnter } from './motion';
 
 // iMessage's tapback: the thread dims, the message you pressed stays lit where
 // it already was, and the emoji float beside it.
@@ -78,16 +80,28 @@ export default function ReactionOverlay({
       {/* One press target over everything: anywhere off the bar puts it away,
           including on the bubble itself. */}
       <Pressable style={styles.fill} onPress={onClose}>
+        {/* Blurred rather than merely darkened. The thread stays legible
+            behind the message you lifted — you can still see the conversation
+            you are reacting inside of — which a flat 45% scrim destroys.
+            Full-screen and square, so none of the corner-clipping that bit the
+            small discs applies. */}
         <Animated.View
           entering={FadeIn.duration(140)}
-          style={[StyleSheet.absoluteFill, styles.scrim]}
-        />
+          style={StyleSheet.absoluteFill}
+        >
+          <BlurView
+            intensity={18}
+            tint="light"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[StyleSheet.absoluteFill, styles.scrim]} />
+        </Animated.View>
 
-        {/* Springs up from the bubble's own centre rather than fading in from
-            nowhere: the copy is meant to read as the message you pressed
-            lifting off the thread, not as a new thing appearing over it. */}
+        {/* Lifts from 94%, not from nothing: this is the message you are
+            already looking at, raised. A preset ZoomIn scales from zero, which
+            reads as a notification appearing over the thread. */}
         <Animated.View
-          entering={ZoomIn.springify().damping(16).stiffness(220).mass(0.5)}
+          entering={liftEnter}
           style={[
             styles.copy,
             // The measured rect, straight through: the copy lands exactly on
@@ -107,11 +121,7 @@ export default function ReactionOverlay({
         </Animated.View>
 
         <Animated.View
-          entering={ZoomIn.springify()
-            .damping(15)
-            .stiffness(240)
-            .mass(0.5)
-            .delay(40)}
+          entering={barEnter}
           style={[styles.barSlot, { top: barTop }]}
           pointerEvents="box-none"
         >
@@ -129,7 +139,9 @@ export default function ReactionOverlay({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  scrim: { backgroundColor: COLORS.scrim },
+  // Light, because the blur is doing most of the work. `inkVeil` is the token
+  // for exactly this — keeping contrast without killing what is behind.
+  scrim: { backgroundColor: COLORS.inkVeil },
   copy: { position: 'absolute' },
   bubble: {
     backgroundColor: COLORS.glassPanel,
