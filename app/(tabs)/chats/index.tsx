@@ -43,7 +43,6 @@ import {
   chatKey,
 } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
-import { categoryStyle } from '@/constants/categoryStyle';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
@@ -54,7 +53,6 @@ import {
 } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
 import {
-  AttendeeStack,
   Avatar,
   CategoryTile,
   EmptyState,
@@ -94,6 +92,13 @@ function previewText(content: string, type: string): string {
   if (type === 'image') return 'Photo';
   if (type === 'announcement') return `Announcement: ${content}`;
   return content;
+}
+
+// What a chat with nothing said in it yet reads as. "You're hosting" rather
+// than your own name back at you — the row is addressed to you.
+function hostingLine(event: NearbyEvent, myUserId?: string): string {
+  if (event.host_id === myUserId) return "You're hosting this event";
+  return `${event.host_name ?? 'The host'} is hosting this event`;
 }
 
 function PrefGlyphs({ pref }: { pref?: ChatPref }) {
@@ -184,6 +189,17 @@ function ChatRow({
   );
 }
 
+// How many people are going, as a chip on a rail tile. Hidden at zero rather
+// than showing "0" — a brand-new event should read as new, not as unwanted.
+function GoingCount({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <Glass tier="onPhoto" radius={11} shadow={false} style={styles.goingChip}>
+      <Text style={styles.goingText}>{count}</Text>
+    </Glass>
+  );
+}
+
 // An event's thumbnail: its own photo, with the category in the little disc on
 // the corner. The photo says *which* event, the disc says what kind — the tile
 // alone said only the kind, and three house parties looked identical.
@@ -191,7 +207,6 @@ function ChatRow({
 // No photo falls back to the category tile, same as EventRow: `photo` is a
 // request, not a guarantee.
 function EventThumb({ event }: { event: NearbyEvent }) {
-  const { accent, tint } = categoryStyle(event.activity);
   return (
     <View>
       {event.image_url ? (
@@ -204,20 +219,21 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      {/* The emoji, not the stroke glyph. Only some activities have a drawn
-          icon, so the glyph version fell back to a coloured dot on most rows —
-          which tells you a category exists without telling you which. The
-          emoji exists for every one of them and is legible at this size. */}
-      <View
-        style={[
-          styles.typeBadge,
-          { backgroundColor: tint, borderColor: accent },
-        ]}
+      {/* Smoked glass, not the category tint: this disc sits on a photo, and
+          `onPhoto` is the tier the design has for exactly that — dark enough to
+          hold its shape over a bright image or a dark one, with a light
+          hairline so it still reads as glass. A pastel tint disappeared into
+          pale photos. */}
+      <Glass
+        tier="onPhoto"
+        radius={11}
+        shadow={false}
+        style={styles.typeBadge}
       >
         <Text style={styles.typeEmoji}>
           {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
         </Text>
-      </View>
+      </Glass>
     </View>
   );
 }
@@ -480,7 +496,11 @@ export default function ChatsListScreen() {
       preview={
         last
           ? `${last.senderName && last.type !== 'system' ? `${last.senderName}: ` : ''}${previewText(last.content, last.type)}`
-          : 'No messages yet'
+          : // Migration 042 posts this into the chat itself, so events created
+            // from now on carry it as a real message. Derived here for every
+            // event made before that trigger existed, which would otherwise
+            // read as an empty chat forever.
+            hostingLine(event, user?.id)
       }
       time={last ? formatChatTime(last.created_at) : undefined}
       pref={prefs?.get(chatKey('event', event.id))}
@@ -591,7 +611,7 @@ export default function ChatsListScreen() {
                 <Avatar
                   name={friend.name}
                   photoUrl={friend.photo_url}
-                  size={60}
+                  size={72}
                   online
                   onPress={() =>
                     router.push(`/(tabs)/chats/dm/${friend.id}`)
@@ -617,6 +637,28 @@ export default function ChatsListScreen() {
             style={styles.activeScroll}
             contentContainerStyle={styles.activeRow}
           >
+            {/* Always first, whatever is in the rail: the way to put your own
+                event in it. Creation lives on the map — there is no standalone
+                form — so this arms the flow and hops there, the same as the
+                FAB does from explore. */}
+            <PressableScale
+              scaleTo={0.92}
+              onPress={() => {
+                useUIStore.getState().setCreatingEvent(true);
+                router.push('/(tabs)/map');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Host your own event"
+            >
+              <View style={styles.activeItem}>
+                <View style={styles.hostTile}>
+                  <Icon name="plus" size={26} color={COLORS.white} />
+                </View>
+                <Text style={styles.activeName} numberOfLines={1}>
+                  Host
+                </Text>
+              </View>
+            </PressableScale>
             {promoted.map((event) => (
               <PressableScale
                 key={event.id}
@@ -640,25 +682,20 @@ export default function ChatsListScreen() {
                     ) : (
                       <CategoryTile
                         activity={event.activity}
-                        size={60}
-                        radius={30}
+                        size={72}
+                        radius={36}
                       />
                     )}
-                    {/* Who's going, on the corner. It answers the only question
-                        a stranger's event raises — max 2 faces, because past
-                        that the stack is wider than the circle it sits on. */}
-                    <AttendeeStack
-                      people={previews?.[event.id]?.attendees ?? []}
+                    {/* How many are going, on the corner. A count, not faces —
+                        at this size the faces were unrecognisable, which is
+                        the whole point of a stack, and the number is the thing
+                        you actually want off a stranger's event. */}
+                    <GoingCount
                       count={
                         previews?.[event.id]?.going_count ??
                         event.participant_count ??
                         0
                       }
-                      max={2}
-                      size={20}
-                      ringWidth={1.5}
-                      emptyLabel={null}
-                      style={styles.promotedStack}
                     />
                   </View>
                   <Text style={styles.activeName} numberOfLines={1}>
@@ -818,11 +855,13 @@ const styles = StyleSheet.create({
   // cancels the list's own padding; the content puts it back as scroll inset.
   activeScroll: { marginHorizontal: -SPACING[5] },
   activeRow: { gap: SPACING[3.5], paddingHorizontal: SPACING[5] },
-  activeItem: { alignItems: 'center', gap: SPACING[1.5], width: 64 },
+  // 72, up from 60 — the rail is the second thing on the page and was reading
+  // as a footnote to the title above it.
+  activeItem: { alignItems: 'center', gap: SPACING[1.5], width: 76 },
   addTile: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
@@ -831,6 +870,16 @@ const styles = StyleSheet.create({
     // Not <Glass>: a dashed border needs the fill without the blur, and this
     // is the "there could be someone here" placeholder, not a surface.
     backgroundColor: COLORS.glassPanel,
+  },
+  // The one solid tile in the rail. Ink, because it is an action among a row
+  // of things that merely exist — and the app's coral is spoken for.
+  hostTile: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.accent,
   },
   activeName: {
     fontFamily: FONTS.semibold,
@@ -911,30 +960,41 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: COLORS.inkFaint,
   },
-  // What kind of event, on the corner of its photo: the category emoji on its
-  // own tint, ringed in the category's accent so the disc reads as a label
-  // rather than as a notification dot.
+  // What kind of event, on the corner of its photo.
   typeBadge: {
     position: 'absolute',
-    right: -5,
-    bottom: -5,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    right: -4,
+    bottom: -4,
+    width: 22,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
   },
-  // An emoji's own box sits well inside its font size, so this is smaller than
-  // the disc by more than it looks. Glyph metrics, not typography.
-  typeEmoji: { fontSize: 12, lineHeight: 15 },
+  // Glyph metrics, not typography: an emoji's own box sits well inside its
+  // font size, so 10 fills roughly half the disc — which is the proportion the
+  // reference draws.
+  typeEmoji: { fontSize: 10, lineHeight: 13 },
   promotedPhoto: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: COLORS.inkFaint,
   },
-  promotedStack: { position: 'absolute', top: -2, right: -6 },
+  goingChip: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: SPACING[1],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goingText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.white,
+  },
   unreadPill: {
     minWidth: 20,
     height: 20,
