@@ -17,7 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useDirectChat } from '@/hooks/useDirectChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
@@ -30,7 +31,6 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DirectMessage, Profile } from '@/types/models';
 import { isPremium } from '@/utils/premium';
-import { startsNewDay } from '@/utils/time';
 import { readersByMessage, runFlags } from '@/utils/messageGroups';
 import {
   Avatar,
@@ -47,7 +47,8 @@ import {
   MessageBubble,
   ReactionOverlay,
   BubbleAnchor,
-  DayDivider,
+  TimeDivider,
+  TIME_GUTTER,
   ReadReceiptSheet,
   PinnedMessageBanner,
   MentionAutocomplete,
@@ -120,6 +121,29 @@ export default function DirectChatScreen() {
     isMine: boolean;
     anchor: BubbleAnchor;
   } | null>(null);
+
+  // Drag the thread left to read the times. One shared value for every bubble,
+  // so the column moves as a single sheet.
+  //
+  // `activeOffsetX` / `failOffsetY` are what keep this from stealing the
+  // list's vertical scroll: the gesture only takes over once the finger has
+  // committed sideways, and gives up the moment it commits downward.
+  const revealX = useSharedValue(0);
+  const revealPan = Gesture.Pan()
+    .activeOffsetX([-14, 14])
+    .failOffsetY([-12, 12])
+    .onChange((e) => {
+      // Rubberbands past the gutter rather than stopping dead, and refuses to
+      // open rightward — there is nothing over there to reveal.
+      const next = revealX.value + e.changeX;
+      revealX.value = next > 0 ? 0 : Math.max(next, -TIME_GUTTER * 1.25);
+    })
+    .onEnd(() => {
+      revealX.value = withTiming(0, {
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+      });
+    });
 
   // The read rail. A DM has one reader, so their face parks under the newest
   // message of yours they've opened — the same shape as the group chat, built
@@ -361,13 +385,14 @@ export default function DirectChatScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <GestureDetector gesture={revealPan}>
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
           renderItem={({ item, index }) => {
             const isMine = item.sender_id === user?.id;
-            const { isLastOfRun } = runFlags(
+            const { isFirstOfRun, isLastOfRun } = runFlags(
               messages[index - 1],
               item,
               messages[index + 1]
@@ -375,12 +400,8 @@ export default function DirectChatScreen() {
 
             return (
               <>
-              {startsNewDay(
-                messages[index - 1]?.created_at,
-                item.created_at
-              ) ? (
-                <DayDivider date={item.created_at} />
-              ) : null}
+              {/* Above every burst — see the event thread. */}
+              {isFirstOfRun ? <TimeDivider date={item.created_at} /> : null}
               <MessageBubble
                 content={item.content}
                 type={item.type === 'image' ? 'image' : 'text'}
@@ -393,7 +414,8 @@ export default function DirectChatScreen() {
                   photoUrl: friend?.photo_url,
                 }}
                 showAvatar={isLastOfRun}
-                showMeta={isLastOfRun}
+                isFirstOfRun={isFirstOfRun}
+                revealX={revealX}
                 // A DM has one other person in it and their name is in the
                 // header — a label over every run would be noise.
                 showName={false}
@@ -439,6 +461,7 @@ export default function DirectChatScreen() {
             </View>
           }
         />
+        </GestureDetector>
 
         <MoneyGuardBanner
           visible={moneyGuard.visible}

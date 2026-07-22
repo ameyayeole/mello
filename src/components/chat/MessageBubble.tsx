@@ -1,6 +1,10 @@
 import { useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  SharedValue,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -28,6 +32,10 @@ import Ticks, { TickStatus } from './Ticks';
 // the run stays flush against one edge.
 const AVATAR_SIZE = 26;
 
+// How far the thread slides, and how wide the gutter it opens is. One number:
+// the drag stops exactly where the times are fully clear.
+export const TIME_GUTTER = 62;
+
 export interface BubbleSender {
   id: string;
   name?: string | null;
@@ -44,10 +52,13 @@ export interface MessageBubbleProps {
   sender?: BubbleSender;
   // Last message of a run — where the face goes.
   showAvatar?: boolean;
-  // The time and ticks, once per run rather than once per bubble. Four
-  // messages in the same minute stamped four times is noise; the run's last
-  // message carries them for all of it.
-  showMeta?: boolean;
+  // First of its run: everything else in the run tucks up against the message
+  // above it, so a burst reads as one block rather than as separate messages
+  // that happen to be adjacent.
+  isFirstOfRun?: boolean;
+  // How far the thread has been dragged left, 0…1. Every bubble shares one
+  // value, so the whole column moves as a sheet and the times arrive together.
+  revealX?: SharedValue<number>;
   // First message of a run in a group chat.
   showName?: boolean;
   // Omitted on messages that aren't yours; only your own carry ticks.
@@ -77,7 +88,8 @@ export default function MessageBubble({
   status,
   sender,
   showAvatar,
-  showMeta = true,
+  isFirstOfRun,
+  revealX,
   showName,
   tick,
   mentionables,
@@ -92,6 +104,14 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const failed = status === 'failed';
   const sending = status === 'sending';
+
+  // The whole row slides; the time sits in the gutter the slide opens up.
+  const slide = useAnimatedStyle(() =>
+    revealX ? { transform: [{ translateX: revealX.value }] } : {}
+  );
+  const timeStyle = useAnimatedStyle(() =>
+    revealX ? { opacity: Math.min(1, -revealX.value / TIME_GUTTER) } : {}
+  );
   // The ref lives on a plain wrapping View, not on the PressableScale: its
   // host ref is not something to rely on, and `collapsable={false}` is what
   // stops Android's view flattening removing the wrapper — measureInWindow
@@ -113,7 +133,12 @@ export default function MessageBubble({
   return (
     <Animated.View
       entering={FadeInDown.duration(250)}
-      style={[styles.row, isMine && styles.rowMine]}
+      style={[
+        styles.row,
+        isMine && styles.rowMine,
+        isFirstOfRun ? styles.rowFirst : styles.rowTight,
+        slide,
+      ]}
     >
       {!isMine &&
         (showAvatar ? (
@@ -175,15 +200,9 @@ export default function MessageBubble({
           </View>
         )}
 
-        {/* Outside the bubble, per the mockup: the time is about the message,
-            not part of it, and inside it was competing with the last line of
-            text for the same corner. */}
-        {type === 'text' && (showMeta || failed) ? (
+        {failed ? (
           <View style={[styles.metaRow, isMine && styles.metaRowMine]}>
-            <Text style={styles.bubbleTime}>
-              {failed ? 'Not sent · tap to retry' : formatChatTime(createdAt)}
-            </Text>
-            {tick && !failed ? <Ticks status={tick} /> : null}
+            <Text style={styles.failedText}>Not sent · tap to retry</Text>
           </View>
         ) : null}
 
@@ -204,6 +223,15 @@ export default function MessageBubble({
           />
         ) : null}
       </View>
+
+      {/* The time lives in the gutter to the right, off-screen until the thread
+          is dragged. Instagram's answer to a timestamp under every message: the
+          when is available on demand instead of competing with the what.
+          Absolutely positioned so revealing it costs no layout. */}
+      <Animated.View style={[styles.gutter, timeStyle]} pointerEvents="none">
+        <Text style={styles.gutterTime}>{formatChatTime(createdAt)}</Text>
+        {tick && !failed ? <Ticks status={tick} /> : null}
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -215,6 +243,10 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
   },
   rowMine: { justifyContent: 'flex-end' },
+  // Between bursts, and inside one. The tight value is what makes four
+  // messages in a minute read as a single block.
+  rowFirst: { marginTop: SPACING[2.5] },
+  rowTight: { marginTop: SPACING[0.5] },
   avatarSpacer: { width: AVATAR_SIZE },
   column: { maxWidth: '74%' },
   senderName: {
@@ -270,7 +302,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[1.5],
   },
   metaRowMine: { alignSelf: 'flex-end' },
-  bubbleTime: {
+  failedText: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.nano,
+    color: COLORS.error,
+  },
+  gutter: {
+    position: 'absolute',
+    right: -TIME_GUTTER,
+    bottom: 0,
+    width: TIME_GUTTER,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: SPACING[1],
+    paddingLeft: SPACING[2],
+    height: 26,
+  },
+  gutterTime: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.nano,
     color: COLORS.textMuted,
