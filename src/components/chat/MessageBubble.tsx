@@ -1,10 +1,6 @@
 import { useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, {
-  FadeInDown,
-  SharedValue,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
+import Animated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -17,6 +13,7 @@ import MentionText from './MentionText';
 import ReactionPills from './ReactionPills';
 import ReadRail from './ReadRail';
 import Ticks, { TickStatus } from './Ticks';
+import { receiveEnter, sendEnter } from './motion';
 
 // The one bubble both threads render. Event chat and DM had a private copy
 // each, near-identical and already drifting (the DM one had no avatar at all),
@@ -59,6 +56,12 @@ export interface MessageBubbleProps {
   // How far the thread has been dragged left, 0…1. Every bubble shares one
   // value, so the whole column moves as a sheet and the times arrive together.
   revealX?: SharedValue<number>;
+  // Whether this message is arriving *now*. A FlatList unmounts and remounts
+  // rows as they leave and re-enter the window, and an entering animation
+  // fires on every mount — so without this, scrolling back up replays the
+  // arrival of messages you read minutes ago. The thread owns the answer
+  // because only it knows what was already on screen.
+  isNew?: boolean;
   // First message of a run in a group chat.
   showName?: boolean;
   // Omitted on messages that aren't yours; only your own carry ticks.
@@ -90,6 +93,7 @@ export default function MessageBubble({
   showAvatar,
   isFirstOfRun,
   revealX,
+  isNew,
   showName,
   tick,
   mentionables,
@@ -132,7 +136,9 @@ export default function MessageBubble({
 
   return (
     <Animated.View
-      entering={FadeInDown.duration(250)}
+      // Yours rises out of the composer; theirs settles in from below. Nothing
+      // animates unless it genuinely just arrived.
+      entering={isNew ? (isMine ? sendEnter : receiveEnter) : undefined}
       style={[
         styles.row,
         isMine && styles.rowMine,

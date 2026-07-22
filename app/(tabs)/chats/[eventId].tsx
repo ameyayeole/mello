@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
@@ -19,8 +19,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   FadeInDown,
+  useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useEventChat } from '@/hooks/useEventChat';
@@ -215,6 +218,32 @@ export default function GroupChatScreen() {
     anchor: BubbleAnchor;
   } | null>(null);
 
+  // The send button's own kick. It dips and springs back as the message
+  // leaves — the physical half of the bubble rising out of the bar, so the two
+  // read as one event rather than as a button press followed by a bubble.
+  const sendKick = useSharedValue(0);
+  const sendStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - sendKick.value * 0.16 }],
+  }));
+  const kickSend = () => {
+    sendKick.value = withSequence(
+      withTiming(1, { duration: 70 }),
+      withSpring(0, { damping: 12, stiffness: 320, mass: 0.4 })
+    );
+  };
+
+  // Which messages have already been on screen. An entering animation fires on
+  // every mount, and a FlatList remounts rows as you scroll — so without this,
+  // scrolling back up replays the arrival of everything you already read.
+  //
+  // Filled in an effect rather than during render: the render that first shows
+  // a message must see it as new, and the commit right after is what marks it
+  // seen. Ids are never removed; a deleted message cannot arrive again.
+  const seen = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const m of messages) seen.current.add(m.id);
+  }, [messages]);
+
   // Drag the thread left to read the times. One shared value for every bubble,
   // so the column moves as a single sheet.
   //
@@ -240,8 +269,11 @@ export default function GroupChatScreen() {
             // last, so it never quite reaches the end and never stops dead.
             -(TIME_GUTTER + (past * RUBBER) / (1 + past / TIME_GUTTER));
     })
-    .onEnd(() => {
-      revealX.value = withSpring(0, SPRING_BACK);
+    .onEnd((e) => {
+      // The release velocity carries into the spring instead of being thrown
+      // away — a flick and a slow let-go should not return at the same speed.
+      // That handoff is most of what separates "animated" from "physical".
+      revealX.value = withSpring(0, { ...SPRING_BACK, velocity: e.velocityX });
     });
 
   const isHost = !!user && event?.host_id === user.id;
@@ -365,6 +397,7 @@ export default function GroupChatScreen() {
   function handleSend() {
     const text = input.trim();
     if (!text || !user) return;
+    kickSend();
     setInput('');
     send(user.id, text, announceMode ? 'announcement' : 'text');
     if (announceMode) setAnnounceMode(false);
@@ -656,6 +689,7 @@ export default function GroupChatScreen() {
                 showAvatar={isLastOfRun}
                 isFirstOfRun={isFirstOfRun}
                 revealX={revealX}
+                isNew={!seen.current.has(item.id)}
                 showName={isFirstOfRun}
                 tick={isMine ? tickStatus(item, read) : undefined}
                 mentionables={mentionables}
@@ -762,6 +796,9 @@ export default function GroupChatScreen() {
               multiline
               autoCapitalize="none"
             />
+            {/* The kick lives on a wrapper: PressableScale owns its own
+                press-scale, and two animated transforms on one node fight. */}
+            <Animated.View style={sendStyle}>
             <PressableScale
               scaleTo={0.85}
               style={[
@@ -780,6 +817,7 @@ export default function GroupChatScreen() {
                 strokeWidth={2}
               />
             </PressableScale>
+            </Animated.View>
           </Glass>
         )}
       </KeyboardAvoidingView>
