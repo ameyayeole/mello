@@ -44,6 +44,7 @@ import {
 } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
 import { categoryStyle } from '@/constants/categoryStyle';
+import { ACTIVITY_MAP } from '@/constants/activities';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   NearbyEvent,
@@ -58,9 +59,7 @@ import {
   CategoryTile,
   EmptyState,
   Glass,
-  hasGlyph,
   Icon,
-  IconName,
   PressableScale,
   SectionLabel,
   useTabBarInset,
@@ -205,12 +204,19 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      <View style={[styles.typeBadge, { backgroundColor: tint }]}>
-        {hasGlyph(event.activity) ? (
-          <Icon name={event.activity as IconName} size={12} color={accent} />
-        ) : (
-          <View style={[styles.typeDot, { backgroundColor: accent }]} />
-        )}
+      {/* The emoji, not the stroke glyph. Only some activities have a drawn
+          icon, so the glyph version fell back to a coloured dot on most rows —
+          which tells you a category exists without telling you which. The
+          emoji exists for every one of them and is legible at this size. */}
+      <View
+        style={[
+          styles.typeBadge,
+          { backgroundColor: tint, borderColor: accent },
+        ]}
+      >
+        <Text style={styles.typeEmoji}>
+          {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
+        </Text>
       </View>
     </View>
   );
@@ -905,23 +911,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: COLORS.inkFaint,
   },
-  // What kind of event, on the corner of its photo. Its own category tint, so
-  // it reads as a label rather than as a notification dot.
+  // What kind of event, on the corner of its photo: the category emoji on its
+  // own tint, ringed in the category's accent so the disc reads as a label
+  // rather than as a notification dot.
   typeBadge: {
     position: 'absolute',
-    right: -4,
-    bottom: -4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    right: -5,
+    bottom: -5,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.surface,
+    borderWidth: 1.5,
   },
-  // Categories with no drawn glyph get their accent as a dot rather than the
-  // emoji CategoryTile would fall back to — at 12pt an emoji is a smudge.
-  typeDot: { width: 7, height: 7, borderRadius: 3.5 },
+  // An emoji's own box sits well inside its font size, so this is smaller than
+  // the disc by more than it looks. Glyph metrics, not typography.
+  typeEmoji: { fontSize: 12, lineHeight: 15 },
   promotedPhoto: {
     width: 60,
     height: 60,
