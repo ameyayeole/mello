@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { RADIUS, SPACING } from '@/constants/spacing';
+import { RADIUS, SHADOWS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Alert,
   LayoutChangeEvent,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,12 +25,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { getJoinedEvents, getMyEvents } from '@/services/events.service';
+import {
+  getAttendeePreviews,
+  getJoinedEvents,
+  getMyEvents,
+} from '@/services/events.service';
 import {
   getFriendConversations,
   getUnreadDmCounts,
 } from '@/services/dm.service';
-import { getLastMessageTimes } from '@/services/chat.service';
+import { getLastMessages } from '@/services/chat.service';
 import {
   getChatPrefs,
   setChatPinned,
@@ -38,6 +43,7 @@ import {
   chatKey,
 } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
+import { categoryStyle } from '@/constants/categoryStyle';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   NearbyEvent,
@@ -45,13 +51,16 @@ import {
   ChatPref,
   WrapNote,
 } from '@/types/models';
-import { formatEventWhen, formatChatTime } from '@/utils/time';
+import { formatChatTime } from '@/utils/time';
 import {
+  AttendeeStack,
   Avatar,
   CategoryTile,
   EmptyState,
   Glass,
+  hasGlyph,
   Icon,
+  IconName,
   PressableScale,
   SectionLabel,
   useTabBarInset,
@@ -79,6 +88,15 @@ interface SheetTarget {
   pref?: ChatPref;
 }
 
+// What a row shows for a message that isn't text. A word, not an emoji: the
+// thumbnail beside it is already carrying the picture, and a 📷 in the preview
+// line reads as part of what the person actually said.
+function previewText(content: string, type: string): string {
+  if (type === 'image') return 'Photo';
+  if (type === 'announcement') return `Announcement: ${content}`;
+  return content;
+}
+
 function PrefGlyphs({ pref }: { pref?: ChatPref }) {
   if (!pref) return null;
   return (
@@ -93,10 +111,13 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
   );
 }
 
-// A conversation row: frosted card over the drifting background, per the
-// mockup. Both kinds share it — what differs is the thumbnail, the meta line
-// and what sits on the right, so those are passed in rather than the row being
-// forked in two.
+// A conversation row: frosted card over the drifting background. Instagram's
+// content, exactly — who it is, the latest message, when. Nothing else. It used
+// to carry the event's date and going-count as well, which meant the one line
+// you actually read was competing with two you don't.
+//
+// Unread is weight, not decoration: bold ink for the message and the time,
+// regular grey once read.
 function ChatRow({
   index,
   thumb,
@@ -111,6 +132,7 @@ function ChatRow({
   index: number;
   thumb: React.ReactNode;
   title: string;
+  // "Ana: see you there" in a group, just the message in a DM.
   preview: string;
   time?: string;
   unread?: number;
@@ -163,14 +185,32 @@ function ChatRow({
   );
 }
 
-// The group badge on an event chat's thumbnail — how you tell "Sunset picnic"
-// from a person at a glance.
-function EventThumb({ activity }: { activity: NearbyEvent['activity'] }) {
+// An event's thumbnail: its own photo, with the category in the little disc on
+// the corner. The photo says *which* event, the disc says what kind — the tile
+// alone said only the kind, and three house parties looked identical.
+//
+// No photo falls back to the category tile, same as EventRow: `photo` is a
+// request, not a guarantee.
+function EventThumb({ event }: { event: NearbyEvent }) {
+  const { accent, tint } = categoryStyle(event.activity);
   return (
     <View>
-      <CategoryTile activity={activity} size={52} radius={16} />
-      <View style={styles.groupBadge}>
-        <Icon name="users" size={11} color={COLORS.white} strokeWidth={2.6} />
+      {event.image_url ? (
+        <Image
+          source={{ uri: event.image_url }}
+          style={styles.eventPhoto}
+          contentFit="cover"
+          transition={150}
+        />
+      ) : (
+        <CategoryTile activity={event.activity} size={52} radius={16} />
+      )}
+      <View style={[styles.typeBadge, { backgroundColor: tint }]}>
+        {hasGlyph(event.activity) ? (
+          <Icon name={event.activity as IconName} size={12} color={accent} />
+        ) : (
+          <View style={[styles.typeDot, { backgroundColor: accent }]} />
+        )}
       </View>
     </View>
   );
@@ -279,6 +319,17 @@ export default function ChatsListScreen() {
     return (boosted.length > 0 ? boosted : nearby).slice(0, 3);
   }, [boostedFeed.data, nearbyFeed.data]);
 
+  // Faces for the promoted tiles. The feed's own participant_count includes
+  // pending requests; this RPC is approved-only and carries the people, which
+  // is what a stack needs — see migration 038.
+  const promotedIds = useMemo(() => promoted.map((e) => e.id), [promoted]);
+  const previewsQuery = useQuery({
+    queryKey: queryKeys.attendeePreviews.of(promotedIds),
+    queryFn: () => getAttendeePreviews(promotedIds),
+    enabled: promotedIds.length > 0,
+  });
+  const previews = previewsQuery.data;
+
   const allEventChats = useMemo(
     () => [
       ...(myEventsQuery.data ?? []),
@@ -293,11 +344,11 @@ export default function ChatsListScreen() {
   // reappears once someone sends a newer message).
   const eventIds = allEventChats.map((e) => e.id);
   const lastMsgQuery = useQuery({
-    queryKey: ['lastMessageTimes', eventIds.join(',')],
-    queryFn: () => getLastMessageTimes(eventIds),
+    queryKey: ['lastMessages', eventIds.join(',')],
+    queryFn: () => getLastMessages(eventIds),
     enabled: eventIds.length > 0,
   });
-  const lastMsgTimes = lastMsgQuery.data;
+  const lastMessages = lastMsgQuery.data;
 
   const eventChats = useMemo(() => {
     let list = allEventChats;
@@ -305,7 +356,7 @@ export default function ChatsListScreen() {
       list = list.filter((e) => {
         const pref = prefs.get(chatKey('event', e.id));
         if (!pref?.cleared_at) return true;
-        const last = lastMsgTimes?.get(e.id);
+        const last = lastMessages?.get(e.id)?.created_at;
         return !!last && last > pref.cleared_at;
       });
       list = [...list].sort((a, b) => {
@@ -317,7 +368,7 @@ export default function ChatsListScreen() {
       });
     }
     return list;
-  }, [allEventChats, prefs, lastMsgTimes]);
+  }, [allEventChats, prefs, lastMessages]);
 
   const conversations = useMemo(() => {
     let list = conversationsQuery.data ?? [];
@@ -411,25 +462,21 @@ export default function ChatsListScreen() {
     tab === 'events' ? eventChats : conversations;
 
   const renderEventRow = (event: NearbyEvent, index: number) => {
-    // The right-hand slot is when the chat last said something, matching the
-    // DM rows and the mockup. `lastMsgTimes` is already fetched for the
-    // deleted-chat filter, so this costs nothing. A chat nobody has posted in
-    // falls back to the event's own date rather than an empty corner.
-    const lastAt = lastMsgTimes?.get(event.id);
+    const last = lastMessages?.get(event.id);
     return (
     <ChatRow
       index={index}
-      thumb={<EventThumb activity={event.activity} />}
+      thumb={<EventThumb event={event} />}
       title={event.title}
+      // Who said it, then what they said — a group chat's preview is useless
+      // without the name in front of it. Except for a system notice, which
+      // already names the person it is about: "Iris: Iris joined the event".
       preview={
-        lastAt
-          ? `${event.participant_count ?? 0} going · ${formatEventWhen(event.starts_at)}`
+        last
+          ? `${last.senderName && last.type !== 'system' ? `${last.senderName}: ` : ''}${previewText(last.content, last.type)}`
           : 'No messages yet'
       }
-      // Empty rather than the event's own date when nothing has been said: the
-      // right-hand slot means "last activity" on every other row, and
-      // "Completed" sitting in it read as the chat's status.
-      time={lastAt ? formatChatTime(lastAt) : undefined}
+      time={last ? formatChatTime(last.created_at) : undefined}
       pref={prefs?.get(chatKey('event', event.id))}
       onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
       onLongPress={() =>
@@ -460,9 +507,7 @@ export default function ChatsListScreen() {
         title={friend.name}
         preview={
           lastMessage
-            ? lastMessage.type === 'image'
-              ? '📷 Photo'
-              : lastMessage.content
+            ? previewText(lastMessage.content, lastMessage.type)
             : 'Tap to start chatting'
         }
         time={
@@ -487,6 +532,11 @@ export default function ChatsListScreen() {
   // title, who's around, and the switcher.
   const header = (
     <View style={styles.header}>
+      {/* Title first, then the field. The page's own name has to lead, or the
+          section labels below read as headings for a screen that never named
+          itself. */}
+      <Text style={styles.title}>Messages</Text>
+
       {/* The field that flies up into the search overlay. The plain wrapping
           View is what gets measured — see useOpenOverlay for why the ref
           cannot go on the PressableScale, and why it needs collapsable. */}
@@ -507,8 +557,6 @@ export default function ChatsListScreen() {
           </Glass>
         </PressableScale>
       </View>
-
-      <Text style={styles.title}>Messages</Text>
 
       {activeFriends.length > 0 ? (
         <View style={styles.block}>
@@ -575,7 +623,38 @@ export default function ChatsListScreen() {
                 accessibilityLabel={`Open ${event.title}`}
               >
                 <View style={styles.activeItem}>
-                  <CategoryTile activity={event.activity} size={60} radius={30} />
+                  <View>
+                    {event.image_url ? (
+                      <Image
+                        source={{ uri: event.image_url }}
+                        style={styles.promotedPhoto}
+                        contentFit="cover"
+                        transition={150}
+                      />
+                    ) : (
+                      <CategoryTile
+                        activity={event.activity}
+                        size={60}
+                        radius={30}
+                      />
+                    )}
+                    {/* Who's going, on the corner. It answers the only question
+                        a stranger's event raises — max 2 faces, because past
+                        that the stack is wider than the circle it sits on. */}
+                    <AttendeeStack
+                      people={previews?.[event.id]?.attendees ?? []}
+                      count={
+                        previews?.[event.id]?.going_count ??
+                        event.participant_count ??
+                        0
+                      }
+                      max={2}
+                      size={20}
+                      ringWidth={1.5}
+                      emptyLabel={null}
+                      style={styles.promotedStack}
+                    />
+                  </View>
                   <Text style={styles.activeName} numberOfLines={1}>
                     {event.title}
                   </Text>
@@ -602,7 +681,12 @@ export default function ChatsListScreen() {
       {/* The switcher stands in for the mockup's "CHATS" label — it names the
           section and picks it at the same time, and both would be saying the
           same word twice. */}
-      <View style={styles.segment} onLayout={onSegmentLayout}>
+      <Glass
+        tier="panel"
+        radius={RADIUS.full}
+        style={styles.segment}
+        onLayout={onSegmentLayout}
+      >
         {pillW > 0 && (
           <Animated.View
             style={[styles.segmentPill, { width: pillW }, pillStyle]}
@@ -623,7 +707,7 @@ export default function ChatsListScreen() {
             </Text>
           </Pressable>
         ))}
-      </View>
+      </Glass>
     </View>
   );
 
@@ -711,14 +795,15 @@ const styles = StyleSheet.create({
   },
   header: { gap: SPACING[4], paddingBottom: SPACING[1] },
   title: {
-    // The scale's top step. The mockup draws 40; a screen does not get its own
-    // type size, and at 34 the two-word title still owns the top of the page.
+    // `h1`, the app's screen-title step — not `display`. Leading the page now
+    // rather than sitting under the field, 34 shouted over the section labels
+    // beneath it; 28 reads as the same system they belong to.
     fontFamily: FONTS.heading,
-    fontSize: TYPE_SIZE.display,
-    lineHeight: 38,
-    letterSpacing: -1,
+    fontSize: TYPE_SIZE.h1,
+    lineHeight: 32,
+    letterSpacing: -0.8,
     color: COLORS.textPrimary,
-    marginBottom: -SPACING[1],
+    marginBottom: -SPACING[1.5],
   },
   block: { gap: SPACING[2.5] },
 
@@ -748,10 +833,10 @@ const styles = StyleSheet.create({
   },
   promoted: { gap: SPACING[2.5] },
 
+  // Frosted like everything else on this page — it used to be a flat ink wash,
+  // which was the one surface here not on the glass system.
   segment: {
     flexDirection: 'row',
-    backgroundColor: COLORS.inkFaint,
-    borderRadius: RADIUS.full,
     padding: SPACING[1],
   },
   segmentPill: {
@@ -761,6 +846,7 @@ const styles = StyleSheet.create({
     bottom: 4,
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.full,
+    ...SHADOWS.sm,
   },
   segmentTab: {
     flex: 1,
@@ -813,20 +899,36 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   rowTimeUnread: { color: COLORS.primary },
-  // The group marker on an event chat's tile.
-  groupBadge: {
+  eventPhoto: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: COLORS.inkFaint,
+  },
+  // What kind of event, on the corner of its photo. Its own category tint, so
+  // it reads as a label rather than as a notification dot.
+  typeBadge: {
     position: 'absolute',
-    right: -3,
-    bottom: -3,
-    width: 20,
-    height: 20,
-    borderRadius: 7,
+    right: -4,
+    bottom: -4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.primary,
     borderWidth: 2,
     borderColor: COLORS.surface,
   },
+  // Categories with no drawn glyph get their accent as a dot rather than the
+  // emoji CategoryTile would fall back to — at 12pt an emoji is a smudge.
+  typeDot: { width: 7, height: 7, borderRadius: 3.5 },
+  promotedPhoto: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.inkFaint,
+  },
+  promotedStack: { position: 'absolute', top: -2, right: -6 },
   unreadPill: {
     minWidth: 20,
     height: 20,

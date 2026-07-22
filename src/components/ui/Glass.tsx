@@ -1,4 +1,11 @@
-import { Platform, StyleSheet, StyleProp, View, ViewStyle } from 'react-native';
+import {
+  Platform,
+  StyleSheet,
+  StyleProp,
+  View,
+  ViewProps,
+  ViewStyle,
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import { COLORS } from '@/constants/colors';
 import { SHADOWS } from '@/constants/spacing';
@@ -91,6 +98,7 @@ export function Glass({
   // card it sits on already has one — so the shadow is opt-out.
   shadow = true,
   style,
+  onLayout,
 }: {
   children?: React.ReactNode;
   tier?: GlassTier;
@@ -106,6 +114,11 @@ export function Glass({
   backdrop?: React.ReactNode;
   shadow?: boolean;
   style?: StyleProp<ViewStyle>;
+  // Measured like any other view. A segmented control needs its own width to
+  // size the pill that slides inside it, and that measurement belongs to the
+  // outer box `style` lands on — not to the pane, which is absolutely
+  // positioned and would report the same number a frame later.
+  onLayout?: ViewProps['onLayout'];
 }) {
   // The pane is a clipped layer *behind* the children rather than their parent.
   //
@@ -143,7 +156,10 @@ export function Glass({
   const wantsShadow = shadow && tier !== 'onPhoto';
 
   return (
-    <View style={[wantsShadow && SHADOWS.glass, { borderRadius: radius }, style]}>
+    <View
+      style={[wantsShadow && SHADOWS.glass, { borderRadius: radius }, style]}
+      onLayout={onLayout}
+    >
       {backdrop ? (
         // Self-frosting: the caller's already-blurred layer, then the same wash
         // the blurred tiers get. No BlurView, so this path is identical on both

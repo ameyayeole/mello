@@ -111,22 +111,40 @@ export async function upsertChatRead(
   if (error) throw error;
 }
 
-// Latest message timestamp per event, for inbox sorting and "deleted chat"
-// hiding. Best-effort single query over the given events.
-export async function getLastMessageTimes(
+// The latest message in each event chat: what the Inbox row shows, and the
+// timestamp "deleted chat" hiding compares against.
+export interface LastMessage {
+  created_at: string;
+  content: string;
+  type: Message['type'];
+  senderName?: string;
+}
+
+// One query for every chat at once, newest first — the first row seen for an
+// event is that event's latest. The cap is a page of messages across all your
+// chats, not per chat; past it an inactive conversation shows no preview
+// rather than a wrong one.
+export async function getLastMessages(
   eventIds: string[]
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+): Promise<Map<string, LastMessage>> {
+  const map = new Map<string, LastMessage>();
   if (eventIds.length === 0) return map;
   const { data, error } = await supabase
     .from('messages')
-    .select('event_id, created_at')
+    .select('event_id, created_at, content, type, sender:profiles!sender_id(name)')
     .in('event_id', eventIds)
     .order('created_at', { ascending: false })
     .limit(400);
   if (error) return map;
-  for (const row of (data ?? []) as { event_id: string; created_at: string }[]) {
-    if (!map.has(row.event_id)) map.set(row.event_id, row.created_at);
+
+  for (const row of (data ?? []) as any[]) {
+    if (map.has(row.event_id)) continue;
+    map.set(row.event_id, {
+      created_at: row.created_at,
+      content: row.content,
+      type: row.type,
+      senderName: row.sender?.name ?? undefined,
+    });
   }
   return map;
 }
