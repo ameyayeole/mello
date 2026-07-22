@@ -15,22 +15,36 @@ const LAND = { damping: 18, stiffness: 260, mass: 0.55 };
 const LIFT = { damping: 15, stiffness: 240, mass: 0.5 };
 
 /**
- * A message you just sent: rises out of the composer.
+ * A message you just sent: it leaves the field and travels to its place.
  *
- * The offset is roughly the distance from the input bar to where the bubble
- * lands, so it reads as the text leaving the field rather than as a bubble
- * fading in near it. Small scale-up with it — the same gesture as something
- * being released.
+ * It starts down and to the **left** — where the text field is, not where the
+ * send button is. The words were in that box a moment ago, so that is where
+ * the bubble should come from; launching it from the button made it look like
+ * the button had produced it.
+ *
+ * Eased in *and* out, deliberately not a spring. A spring leaves at full speed
+ * and only decelerates; this gathers pace off the field and settles into its
+ * place, which is what makes a short distance still read as travel. Small
+ * numbers on purpose — this fires on every message, and anything with a
+ * flourish in it gets old by the third one.
  */
+const SEND_TRAVEL = { duration: 260, easing: Easing.inOut(Easing.cubic) };
+
 export function sendEnter() {
   'worklet';
   return {
-    initialValues: { opacity: 0, transform: [{ translateY: 26 }, { scale: 0.92 }] },
+    initialValues: {
+      opacity: 0,
+      transform: [{ translateX: -18 }, { translateY: 18 }, { scale: 0.96 }],
+    },
     animations: {
-      opacity: withTiming(1, { duration: 140, easing: Easing.out(Easing.quad) }),
+      // Fades in well before it lands, so what you watch is the movement
+      // rather than the appearing.
+      opacity: withTiming(1, { duration: 110, easing: Easing.out(Easing.quad) }),
       transform: [
-        { translateY: withSpring(0, LAND) },
-        { scale: withSpring(1, LAND) },
+        { translateX: withTiming(0, SEND_TRAVEL) },
+        { translateY: withTiming(0, SEND_TRAVEL) },
+        { scale: withTiming(1, SEND_TRAVEL) },
       ],
     },
   };
