@@ -6,9 +6,14 @@
 // on import under Jest), so anything with a rule in it has to be liftable out
 // of the view to be testable at all.
 
-// Two messages from the same person more than this far apart read as two
-// separate thoughts, not one burst, and get their own avatar and timestamp.
-export const RUN_GAP_MS = 5 * 60 * 1000;
+// A minute. Messages from one person inside it are one burst — they tuck
+// together tightly and share a single timestamp above them; past it, the next
+// message starts a new group with its own.
+//
+// It was five minutes, which is WhatsApp's feel: long runs, timestamps that
+// stop meaning much. A minute is Instagram's, and it is also the unit people
+// actually think in — "they sent that all at once".
+export const RUN_GAP_MS = 60 * 1000;
 
 // The subset of a Message / DirectMessage this cares about. Both models
 // structurally satisfy it, so neither screen has to convert anything.

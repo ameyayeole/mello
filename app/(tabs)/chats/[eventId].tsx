@@ -17,7 +17,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useEventChat } from '@/hooks/useEventChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
@@ -36,7 +42,7 @@ import { hasWrapped } from '@/services/wrap.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Message, Profile } from '@/types/models';
-import { formatChatTime, startsNewDay } from '@/utils/time';
+import { formatChatTime } from '@/utils/time';
 import { readersByMessage, runFlags } from '@/utils/messageGroups';
 import {
   CategoryTile,
@@ -58,7 +64,8 @@ import {
   MessageBubble,
   ReactionOverlay,
   BubbleAnchor,
-  DayDivider,
+  TimeDivider,
+  TIME_GUTTER,
   ReadReceiptSheet,
   PinnedMessageBanner,
   MentionAutocomplete,
@@ -198,6 +205,29 @@ export default function GroupChatScreen() {
     isMine: boolean;
     anchor: BubbleAnchor;
   } | null>(null);
+
+  // Drag the thread left to read the times. One shared value for every bubble,
+  // so the column moves as a single sheet.
+  //
+  // `activeOffsetX` / `failOffsetY` are what keep this from stealing the
+  // list's vertical scroll: the gesture only takes over once the finger has
+  // committed sideways, and gives up the moment it commits downward.
+  const revealX = useSharedValue(0);
+  const revealPan = Gesture.Pan()
+    .activeOffsetX([-14, 14])
+    .failOffsetY([-12, 12])
+    .onChange((e) => {
+      // Rubberbands past the gutter rather than stopping dead, and refuses to
+      // open rightward — there is nothing over there to reveal.
+      const next = revealX.value + e.changeX;
+      revealX.value = next > 0 ? 0 : Math.max(next, -TIME_GUTTER * 1.25);
+    })
+    .onEnd(() => {
+      revealX.value = withTiming(0, {
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+      });
+    });
 
   const isHost = !!user && event?.host_id === user.id;
   const locked = !!event?.chat_locked;
@@ -545,6 +575,7 @@ export default function GroupChatScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <GestureDetector gesture={revealPan}>
         <FlatList
           ref={listRef}
           data={messages}
@@ -555,11 +586,15 @@ export default function GroupChatScreen() {
             const longPress = () => {
               if (!item._status) setMessageSheet(item);
             };
-            const divider = startsNewDay(
-              messages[index - 1]?.created_at,
-              item.created_at
-            ) ? (
-              <DayDivider date={item.created_at} />
+            // Above every burst, not just every day: the time came out from
+            // under the bubbles and this is where it went.
+            const { isFirstOfRun, isLastOfRun } = runFlags(
+              messages[index - 1],
+              item,
+              messages[index + 1]
+            );
+            const divider = isFirstOfRun ? (
+              <TimeDivider date={item.created_at} />
             ) : null;
 
             if (item.type === 'system')
@@ -584,12 +619,6 @@ export default function GroupChatScreen() {
                 </>
               );
 
-            const { isFirstOfRun, isLastOfRun } = runFlags(
-              messages[index - 1],
-              item,
-              messages[index + 1]
-            );
-
             return (
               <>
               {divider}
@@ -609,9 +638,8 @@ export default function GroupChatScreen() {
                     : { id: item.sender_id }
                 }
                 showAvatar={isLastOfRun}
-                // One timestamp per run, on its last message — four messages
-                // in the same minute stamped four times is noise.
-                showMeta={isLastOfRun}
+                isFirstOfRun={isFirstOfRun}
+                revealX={revealX}
                 showName={isFirstOfRun}
                 tick={isMine ? tickStatus(item, read) : undefined}
                 mentionables={mentionables}
@@ -643,6 +671,7 @@ export default function GroupChatScreen() {
             listRef.current?.scrollToEnd({ animated: true })
           }
         />
+        </GestureDetector>
 
         <MoneyGuardBanner
           visible={moneyGuard.visible}

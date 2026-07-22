@@ -52,6 +52,21 @@ describe('runFlags', () => {
     expect(runFlags(msg('a'), late, undefined).isFirstOfRun).toBe(true);
   });
 
+  // The rule is a minute, deliberately — Instagram's feel, and the unit people
+  // think in ("they sent that all at once"). It was five, which made runs long
+  // enough that a single timestamp stopped describing them.
+  it('groups a burst inside one minute', () => {
+    expect(runFlags(msg('a', 0), msg('a', 45_000), undefined).isFirstOfRun).toBe(
+      false
+    );
+  });
+
+  it('starts a new group once a minute has passed', () => {
+    expect(runFlags(msg('a', 0), msg('a', 90_000), undefined).isFirstOfRun).toBe(
+      true
+    );
+  });
+
   it('keeps the run at exactly RUN_GAP_MS', () => {
     const edge = msg('a', RUN_GAP_MS);
     expect(runFlags(msg('a'), edge, undefined).isFirstOfRun).toBe(false);
