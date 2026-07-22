@@ -64,6 +64,9 @@ import {
   activeMentionQuery,
   insertMention,
 } from '@/components/chat';
+import ProfileBottomSheet, {
+  ProfileBottomSheetRef,
+} from '@/components/profile/ProfileBottomSheet';
 import {
   messageExcerpt,
   pickChatImage,
@@ -148,6 +151,7 @@ export default function GroupChatScreen() {
   const [messageSheet, setMessageSheet] = useState<Message | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const profileSheet = useRef<ProfileBottomSheetRef>(null);
 
   // Full event detail: header info, host, participants (mentions + host
   // controls), chat lock + pinned message (migration 030 columns).
@@ -588,7 +592,7 @@ export default function GroupChatScreen() {
                   setReactingTo(null);
                   longPress();
                 }}
-                onAvatarPress={() => router.push(`/friends/${item.sender_id}`)}
+                onAvatarPress={() => profileSheet.current?.open(item.sender_id)}
               />
             );
           }}
@@ -714,6 +718,9 @@ export default function GroupChatScreen() {
         others={receiptOthers}
         onClose={() => setReceiptFor(null)}
       />
+      {/* Tapping a face in the thread. A sheet rather than the profile route:
+          you are checking who said this, not leaving the conversation. */}
+      <ProfileBottomSheet ref={profileSheet} />
     </View>
   );
 }

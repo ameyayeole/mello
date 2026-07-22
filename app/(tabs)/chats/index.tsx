@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
@@ -47,10 +47,16 @@ import {
   Avatar,
   CategoryTile,
   EmptyState,
+  Glass,
   Icon,
   PressableScale,
   useTabBarInset,
 } from '@/components/ui';
+import {
+  useHandedOver,
+  useOpenOverlay,
+  useOverlayRecede,
+} from '@/hooks/useOverlayScreen';
 import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
 import { SealedNoteRow, NoteRevealModal } from '@/components/wrap/SealedNoteRow';
@@ -178,6 +184,11 @@ export default function ChatsListScreen() {
   const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset();
   const [tab, setTab] = useState<Tab>('events');
+
+  const openOverlay = useOpenOverlay();
+  const handedOver = useHandedOver();
+  const recedeStyle = useOverlayRecede();
+  const searchRef = useRef<View>(null);
 
   // Sliding pill behind the active segment. Width comes from the measured
   // track (half of it, minus the 4pt inset on each side).
@@ -375,6 +386,27 @@ export default function ChatsListScreen() {
 
       {/* Dark header — wraps the title and the Events/Direct switcher */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        {/* The field that flies up into the search overlay. The plain wrapping
+            View is what gets measured — see useOpenOverlay for why the ref
+            cannot go on the PressableScale, and why it needs collapsable. */}
+        <View
+          ref={searchRef}
+          collapsable={false}
+          style={handedOver === 'chatSearch' && styles.handedOver}
+        >
+          <PressableScale
+            scaleTo={0.98}
+            onPress={() => openOverlay('chatSearch', searchRef)}
+            accessibilityRole="search"
+            accessibilityLabel="Search events and people"
+          >
+            <Glass tier="panel" radius={RADIUS.lg} style={styles.searchBar}>
+              <Icon name="search" size={18} color={COLORS.textMuted} />
+              <Text style={styles.searchText}>Search events & people</Text>
+            </Glass>
+          </PressableScale>
+        </View>
+
         <Text style={styles.title}>Inbox</Text>
 
         {/* Segmented tab switcher with a pill that slides between tabs */}
@@ -405,6 +437,9 @@ export default function ChatsListScreen() {
         </View>
       </View>
 
+      {/* Steps back while the search overlay is up. On the list rather than
+          the whole screen: the option sheet must not shrink with it. */}
+      <Animated.View style={[styles.flex, recedeStyle]}>
       <Animated.View key={tab} entering={contentEnter} style={styles.flex}>
       {tab === 'events' ? (
         eventChats.length === 0 ? (
@@ -486,6 +521,7 @@ export default function ChatsListScreen() {
         />
       )}
       </Animated.View>
+      </Animated.View>
 
       <OptionSheet
         visible={!!sheetTarget}
@@ -502,6 +538,21 @@ export default function ChatsListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.surface },
   flex: { flex: 1 },
+  // The field the overlay is flying. Hidden outright, not faded — two copies
+  // of one object mid-transition is what a hand-off must never look like.
+  handedOver: { opacity: 0 },
+  searchBar: {
+    height: 54,
+    paddingHorizontal: SPACING[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[3],
+  },
+  searchText: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.body,
+    color: COLORS.textMuted,
+  },
   header: {
     backgroundColor: COLORS.accent,
     paddingHorizontal: SPACING[5],

@@ -17,6 +17,10 @@ import { Handoff, OverlayKey, useUIStore } from '@/stores/uiStore';
 const OVERLAY_ROUTE = {
   notifications: '/notifications',
   search: '/search',
+  // Same screen, different job: the Inbox's field searches the conversations
+  // you can actually open rather than every event on the map. The mode rides
+  // in the URL so the route is the only thing that has to know.
+  chatSearch: '/search?mode=chats',
   settings: '/profile/settings',
 } as const;
 

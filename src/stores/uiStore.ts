@@ -25,7 +25,16 @@ export interface InAppBanner {
 // One of the app's full-screen overlays, named by the element it takes over
 // from. Adding one means adding it here and measuring its origin — see
 // `Handoff` below.
-export type OverlayKey = 'notifications' | 'search' | 'settings';
+//
+// `chatSearch` lands on the same route as `search` but is its own key on
+// purpose: the key is what tells a page which of *its* elements to hide while
+// the flying copy is out, and home and the Inbox each have a search bar. One
+// shared key would hide both.
+export type OverlayKey =
+  | 'notifications'
+  | 'search'
+  | 'chatSearch'
+  | 'settings';
 
 // Where the element a full-screen overlay is taking over sat, in window
 // coordinates, at the moment it was tapped: home's notification chip, home's

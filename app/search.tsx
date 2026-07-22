@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   View,
@@ -8,7 +8,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -19,11 +19,20 @@ import Animated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { queryKeys } from '@/constants/queryKeys';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useOverlayScreen } from '@/hooks/useOverlayScreen';
-import { searchEvents } from '@/services/events.service';
+import { useFriends } from '@/hooks/useFriends';
+import {
+  getJoinedEvents,
+  getMyEvents,
+  searchEvents,
+} from '@/services/events.service';
 import { searchUsers } from '@/services/friends.service';
+import ProfileBottomSheet, {
+  ProfileBottomSheetRef,
+} from '@/components/profile/ProfileBottomSheet';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Profile } from '@/types/models';
@@ -104,6 +113,16 @@ export default function SearchScreen() {
   const { width } = useWindowDimensions();
   const user = useAuthStore((s) => s.user);
   const inputRef = useRef<TextInput>(null);
+  const profileSheet = useRef<ProfileBottomSheetRef>(null);
+
+  // Two screens in one file, because they are one object: the same field flies
+  // up from home and from the Inbox, and only what it reaches differs.
+  //
+  //   default  every event on the map, and everyone
+  //   chats    the conversations you can actually open, and everyone
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const chatMode = mode === 'chats';
+  const { relationshipWith } = useFriends();
 
   // The field's flight up from the home screen, the results' arrival and the
   // way out — the app's overlay choreography, shared with notifications.
@@ -127,7 +146,21 @@ export default function SearchScreen() {
   const eventsQuery = useQuery({
     queryKey: ['searchEvents', debounced],
     queryFn: () => searchEvents(debounced),
-    enabled,
+    enabled: enabled && !chatMode,
+  });
+
+  // Chat mode's events are the chats you're in, which the Inbox has already
+  // fetched under these two keys — reading them here is a cache hit, not a
+  // second round trip, and there is no server-side search to add for it.
+  const joinedQuery = useQuery({
+    queryKey: queryKeys.joinedEvents.of(user?.id),
+    queryFn: () => getJoinedEvents(user!.id),
+    enabled: !!user && chatMode,
+  });
+  const myEventsQuery = useQuery({
+    queryKey: queryKeys.myEvents.of(user?.id),
+    queryFn: () => getMyEvents(user!.id),
+    enabled: !!user && chatMode,
   });
 
   const peopleQuery = useQuery({
@@ -136,9 +169,32 @@ export default function SearchScreen() {
     enabled,
   });
 
-  const events = eventsQuery.data ?? [];
+  const myChats = useMemo(() => {
+    const mine = myEventsQuery.data ?? [];
+    const joined = (joinedQuery.data ?? []).filter(
+      (e) => !mine.some((m) => m.id === e.id)
+    );
+    return [...mine, ...joined];
+  }, [myEventsQuery.data, joinedQuery.data]);
+
+  const chatResults = useMemo(() => {
+    if (!enabled) return [];
+    const needle = debounced.toLowerCase();
+    return myChats.filter(
+      (e) =>
+        e.title.toLowerCase().includes(needle) ||
+        (e.location_name ?? '').toLowerCase().includes(needle)
+    );
+  }, [myChats, debounced, enabled]);
+
+  const events = chatMode ? chatResults : (eventsQuery.data ?? []);
   const people = peopleQuery.data ?? [];
-  const isLoading = enabled && (eventsQuery.isLoading || peopleQuery.isLoading);
+  const isLoading =
+    enabled &&
+    ((chatMode
+      ? joinedQuery.isLoading || myEventsQuery.isLoading
+      : eventsQuery.isLoading) ||
+      peopleQuery.isLoading);
   const noResults =
     enabled && !isLoading && events.length === 0 && people.length === 0;
 
@@ -220,11 +276,29 @@ export default function SearchScreen() {
   // come out of it rather than back on the home screen; the keyboard still goes
   // down, since you are leaving either way.
   const openEvent = (eventId: string) => {
+    // In chat mode the row *is* a conversation, so it opens the thread rather
+    // than the details sheet — the details are a tap away inside it.
+    if (chatMode) {
+      close(() => router.push(`/(tabs)/chats/${eventId}`));
+      return;
+    }
     useUIStore.getState().setSelectedEvent(eventId);
     close();
   };
 
+  // A friend is someone you can already message, so chat mode takes you
+  // straight there. Anyone else opens as a sheet over the results: you are
+  // deciding whether to add them, not leaving to read a profile.
   const openPerson = (userId: string) => {
+    if (chatMode && relationshipWith(userId).status === 'friends') {
+      close(() => router.push(`/(tabs)/chats/dm/${userId}`));
+      return;
+    }
+    if (chatMode) {
+      Keyboard.dismiss();
+      profileSheet.current?.open(userId);
+      return;
+    }
     Keyboard.dismiss();
     router.push(`/friends/${userId}`);
   };
@@ -253,7 +327,11 @@ export default function SearchScreen() {
             <EmptyState
               icon="search"
               title="What are you after?"
-              body="Search events by name or place, or find people to add."
+              body={
+                chatMode
+                  ? 'Search the events you’re in, or find someone to message.'
+                  : 'Search events by name or place, or find people to add.'
+              }
             />
           ) : isLoading ? (
             <Loader />
@@ -261,13 +339,19 @@ export default function SearchScreen() {
             <EmptyState
               icon="search"
               title={`Nothing for “${debounced}”`}
-              body="Try a shorter word, or a place instead of a name."
+              body={
+                chatMode
+                  ? 'This only covers events you’re in. Try a person’s name.'
+                  : 'Try a shorter word, or a place instead of a name.'
+              }
             />
           ) : (
             <>
               {events.length > 0 && (
                 <View style={styles.section}>
-                  <SectionLabel style={styles.sectionLabel}>Events</SectionLabel>
+                  <SectionLabel style={styles.sectionLabel}>
+                    {chatMode ? 'Event chats' : 'Events'}
+                  </SectionLabel>
                   {events.map((event, i) => (
                     <Animated.View
                       key={event.id}
@@ -279,7 +363,7 @@ export default function SearchScreen() {
                         event={event}
                         glass
                         photo
-                        cta="details"
+                        cta={chatMode ? 'chat' : 'details'}
                         tone="quiet"
                         onPress={() => openEvent(event.id)}
                       />
@@ -360,7 +444,7 @@ export default function SearchScreen() {
             </Animated.View>
           </View>
 
-          {query.length > 0 && (
+          {query.length > 0 ? (
             <PressableScale
               scaleTo={0.86}
               hitSlop={8}
@@ -377,9 +461,15 @@ export default function SearchScreen() {
                 />
               </View>
             </PressableScale>
-          )}
+          ) : null}
         </Glass>
       </Animated.View>
+
+      {/* Someone you aren't friends with yet. It lives here, on the overlay,
+          rather than on the Inbox underneath: this route is full-screen, so
+          the sheet opens over the results you found them in and closing it
+          puts you back there. */}
+      <ProfileBottomSheet ref={profileSheet} />
     </View>
   );
 }
