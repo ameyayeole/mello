@@ -3,6 +3,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
 import { Profile } from '@/types/models';
 import { Avatar } from './Avatar';
+import { OverflowCount } from './OverflowCount';
 
 /** Just enough of a person to draw their bubble. */
 export type Attendee = Pick<Profile, 'id' | 'name' | 'photo_url'>;
@@ -48,12 +49,6 @@ export function AttendeeStack({
   // Everyone we did not draw — including people the caller knows about but did
   // not hand us.
   const overflow = count - faces.length;
-  // With no faces at all the chip is not an overflow, it is the whole count, so
-  // it reads "3" rather than "+3". A "+3" with nothing to add to is a bug on
-  // its face. This is the state a feed lands in when it knows how many are
-  // going but not who they are.
-  const prefix = faces.length > 0 ? '+' : '';
-  const radius = size / 2;
 
   return (
     <View style={[styles.row, style]}>
@@ -69,19 +64,13 @@ export function AttendeeStack({
         </View>
       ))}
       {overflow > 0 && (
-        <View
-          style={[
-            styles.overflow,
-            { width: size, height: size, borderRadius: radius },
-            faces.length > 0 && styles.overlap,
-            ring ? { borderWidth: ringWidth, borderColor: ringColor } : null,
-          ]}
-        >
-          <Text style={styles.overflowText}>
-            {prefix}
-            {overflow}
-          </Text>
-        </View>
+        <OverflowCount
+          count={overflow}
+          size={size}
+          ringColor={ring ? ringColor : undefined}
+          ringWidth={ringWidth}
+          style={faces.length > 0 ? styles.overlap : undefined}
+        />
       )}
     </View>
   );
@@ -91,16 +80,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   // Each bubble tucks under the one before it. Not applied to the first.
   overlap: { marginLeft: -9 },
-  overflow: {
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overflowText: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.nano,
-    color: COLORS.white,
-  },
   empty: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,

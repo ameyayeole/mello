@@ -26,6 +26,7 @@ export type { GlassTier } from './Glass';
 export { CategoryTile } from './CategoryTile';
 export { CategoryPill } from './CategoryPill';
 export { AttendeeStack } from './AttendeeStack';
+export { OverflowCount } from './OverflowCount';
 export { ScreenHeader } from './ScreenHeader';
 export { SectionLabel } from './SectionLabel';
 export { Screen } from './Screen';

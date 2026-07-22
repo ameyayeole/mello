@@ -58,6 +58,7 @@ import {
   EmptyState,
   Glass,
   Icon,
+  OverflowCount,
   PressableScale,
   SectionLabel,
   useTabBarInset,
@@ -189,21 +190,6 @@ function ChatRow({
   );
 }
 
-// How many people are going, as a chip on a rail tile. Hidden at zero rather
-// than showing "0" — a brand-new event should read as new, not as unwanted.
-function GoingCount({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <Glass tier="onPhoto" radius={12} shadow={false} style={styles.goingChip}>
-      {/* Always "+N", never a bare count. AttendeeStack drops the plus when it
-          has drawn no faces — "+3" with nothing to add to reads as a bug there
-          — but this chip sits on the event's own photo, so the thing it is
-          adding to is the event itself. */}
-      <Text style={styles.goingText}>+{count}</Text>
-    </Glass>
-  );
-}
-
 // An event's thumbnail: its own photo, with the category in the little disc on
 // the corner. The photo says *which* event, the disc says what kind — the tile
 // alone said only the kind, and three house parties looked identical.
@@ -223,20 +209,36 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      {/* Smoked glass, and a white ring to hold it off the image — the same
-          separation AttendeeStack gives its faces.
+      {/* Smoked glass with a white ring — and it frosts *itself* rather than
+          blurring what is behind it.
 
-          `onPhoto` is the tier for exactly this, and it has to *blur*: a flat
-          translucent ink over a sharp photo is how the first version leaked
-          the picture through the disc. Blurring is what lets the fill stay
-          light enough to read as glass without the photograph coming with it.
-          (Android has no backdrop blur, so it falls back to the flat fill and
-          this one disc loses the effect — DESIGN.md §7's standing trade.) */}
+          `backdrop` exists for this (DESIGN.md §3). A backdrop blur is a
+          `UIVisualEffectView`, which does not reliably respect a parent's
+          corner mask — at this size that leaves a square corner poking out
+          from behind a round one, which is the clipping that survived two
+          attempts to fix it. Compositing our own blurred copy of the photo is
+          plain Views end to end, so it cannot fail to clip. It also renders
+          identically on Android, where there is no backdrop blur at all.
+
+          No photo means nothing to frost, so the disc falls back to flat ink —
+          still the backdrop path, still guaranteed to clip. */}
       <Glass
         tier="onPhoto"
         radius={12}
         shadow={false}
         style={styles.typeBadge}
+        backdrop={
+          event.image_url ? (
+            <Image
+              source={{ uri: event.image_url }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              blurRadius={28}
+            />
+          ) : (
+            <View style={styles.typeBadgeFallback} />
+          )
+        }
       >
         <Text style={styles.typeEmoji}>
           {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
@@ -698,12 +700,16 @@ export default function ChatsListScreen() {
                         at this size the faces were unrecognisable, which is
                         the whole point of a stack, and the number is the thing
                         you actually want off a stranger's event. */}
-                    <GoingCount
+                    <OverflowCount
                       count={
                         previews?.[event.id]?.going_count ??
                         event.participant_count ??
                         0
                       }
+                      size={26}
+                      ringColor={COLORS.white}
+                      ringWidth={2}
+                      style={styles.goingChip}
                     />
                   </View>
                   <Text style={styles.activeName} numberOfLines={1}>
@@ -985,6 +991,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
+  // Nothing to frost when the event has no photo.
+  typeBadgeFallback: { flex: 1, backgroundColor: COLORS.accent },
   // Glyph metrics, not typography: an emoji's own box sits well inside its
   // font size, so 10 fills roughly half the disc — which is the proportion the
   // reference draws.
@@ -995,24 +1003,8 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     backgroundColor: COLORS.inkFaint,
   },
-  goingChip: {
-    position: 'absolute',
-    top: -2,
-    right: -4,
-    minWidth: 24,
-    height: 24,
-    paddingHorizontal: SPACING[1],
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  goingText: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.white,
-  },
+  // Position only — OverflowCount owns the disc's colour, shape and type.
+  goingChip: { position: 'absolute', top: -2, right: -4 },
   unreadPill: {
     minWidth: 20,
     height: 20,
