@@ -36,10 +36,11 @@ import { hasWrapped } from '@/services/wrap.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Message, Profile } from '@/types/models';
-import { formatChatTime } from '@/utils/time';
+import { formatChatTime, startsNewDay } from '@/utils/time';
 import { readersByMessage, runFlags } from '@/utils/messageGroups';
 import {
   CategoryTile,
+  Glass,
   Icon,
   IconButton,
   NavButton,
@@ -55,6 +56,7 @@ import {
   SheetOption,
   MentionText,
   MessageBubble,
+  DayDivider,
   ReadReceiptSheet,
   PinnedMessageBanner,
   MentionAutocomplete,
@@ -447,10 +449,13 @@ export default function GroupChatScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <StatusBar style="dark" />
+      <Glass
+        tier="chrome"
+        radius={0}
+        style={[styles.header, { paddingTop: insets.top + 8 }]}
+      >
         <NavButton
-          color={COLORS.white}
           onPress={() => router.navigate('/(tabs)/chats')}
           accessibilityLabel="Go back"
         />
@@ -468,8 +473,6 @@ export default function GroupChatScreen() {
         <IconButton
           icon="dots"
           variant="ghost"
-          color="#fff"
-          style={styles.headerBtn}
           onPress={() => setMenuVisible(true)}
           accessibilityLabel="Chat options"
         />
@@ -479,7 +482,7 @@ export default function GroupChatScreen() {
             event ? () => router.push(`/friends/${event.host_id}`) : undefined
           }
         />
-      </View>
+      </Glass>
 
       {/* Post-event: nudge the wrap from the chat */}
       {event && hasWrapped(event) && (
@@ -533,19 +536,33 @@ export default function GroupChatScreen() {
             const longPress = () => {
               if (!item._status) setMessageSheet(item);
             };
+            const divider = startsNewDay(
+              messages[index - 1]?.created_at,
+              item.created_at
+            ) ? (
+              <DayDivider date={item.created_at} />
+            ) : null;
 
             if (item.type === 'system')
-              return <SystemRow content={item.content} />;
+              return (
+                <>
+                  {divider}
+                  <SystemRow content={item.content} />
+                </>
+              );
 
             if (item.type === 'announcement')
               return (
-                <AnnouncementCard
-                  message={item}
-                  isMine={isMine}
-                  read={read}
-                  mentionables={mentionables}
-                  onLongPress={longPress}
-                />
+                <>
+                  {divider}
+                  <AnnouncementCard
+                    message={item}
+                    isMine={isMine}
+                    read={read}
+                    mentionables={mentionables}
+                    onLongPress={longPress}
+                  />
+                </>
               );
 
             const { isFirstOfRun, isLastOfRun } = runFlags(
@@ -555,6 +572,8 @@ export default function GroupChatScreen() {
             );
 
             return (
+              <>
+              {divider}
               <MessageBubble
                 content={item.content}
                 type={item.type === 'image' ? 'image' : 'text'}
@@ -594,6 +613,7 @@ export default function GroupChatScreen() {
                 }}
                 onAvatarPress={() => profileSheet.current?.open(item.sender_id)}
               />
+              </>
             );
           }}
           contentContainerStyle={styles.messageList}
@@ -650,7 +670,9 @@ export default function GroupChatScreen() {
             </Text>
           </View>
         ) : (
-          <View
+          <Glass
+            tier="chrome"
+            radius={0}
             style={[
               styles.inputBar,
               announceMode && styles.inputBarAnnounce,
@@ -692,7 +714,7 @@ export default function GroupChatScreen() {
                 strokeWidth={2}
               />
             </PressableScale>
-          </View>
+          </Glass>
         )}
       </KeyboardAvoidingView>
 
@@ -726,30 +748,28 @@ export default function GroupChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  // Transparent — the thread runs over the app's drifting background now, the
+  // same as the Inbox it came from.
+  container: { flex: 1 },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2.5],
     paddingHorizontal: SPACING[4],
-    paddingBottom: SPACING[3.5],
-    backgroundColor: COLORS.accent,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
+    paddingBottom: SPACING[3],
   },
-  headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
     fontFamily: FONTS.heading,
     fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.2,
-    color: '#fff',
+    color: COLORS.textPrimary,
   },
   headerSub: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(255,255,255,0.6)',
+    color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
   messageList: { padding: SPACING[4], gap: SPACING[2.5], flexGrow: 1 },
@@ -855,38 +875,38 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: SPACING[2],
     paddingHorizontal: SPACING[3.5],
-    paddingVertical: SPACING[2.5],
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(15,24,44,0.08)',
+    paddingTop: SPACING[2.5],
   },
   inputBarAnnounce: { backgroundColor: '#FFF6E9' },
   attachBtn: {
     width: 38,
-    height: 42,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
     // Grows with the message instead of scrolling a single line sideways,
-    // matching the DM screen. The radius is half the collapsed height so it
-    // still reads as a pill when empty.
-    minHeight: 42,
+    // matching the DM screen.
+    minHeight: 44,
     maxHeight: 120,
-    backgroundColor: '#F0F1F3',
-    borderRadius: RADIUS['2xl'],
+    backgroundColor: COLORS.glassPanel,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    borderRadius: RADIUS.xl,
     paddingHorizontal: SPACING[4],
     paddingVertical: SPACING[2.5],
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
+  // Ink, matching the mockup and the outgoing bubbles. Send is the thing you
+  // do here constantly; coral is for the decisions.
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS['2xl'],
-    backgroundColor: COLORS.primary,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },

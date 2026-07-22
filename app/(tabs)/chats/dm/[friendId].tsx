@@ -21,6 +21,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useDirectChat } from '@/hooks/useDirectChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
+import { usePresence } from '@/hooks/usePresence';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { getDmPin, setDmPin } from '@/services/dm.service';
@@ -29,9 +30,11 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DirectMessage, Profile } from '@/types/models';
 import { isPremium } from '@/utils/premium';
+import { startsNewDay } from '@/utils/time';
 import { readersByMessage, runFlags } from '@/utils/messageGroups';
 import {
   Avatar,
+  Glass,
   Icon,
   NavButton,
   PremiumBadge,
@@ -42,6 +45,7 @@ import {
   OptionSheet,
   SheetOption,
   MessageBubble,
+  DayDivider,
   ReadReceiptSheet,
   PinnedMessageBanner,
   MentionAutocomplete,
@@ -80,6 +84,7 @@ export default function DirectChatScreen() {
   const [messageSheet, setMessageSheet] = useState<DirectMessage | null>(null);
   const listRef = useRef<FlatList>(null);
   const profileSheet = useRef<ProfileBottomSheetRef>(null);
+  const { isOnline } = usePresence();
 
   const prefsQuery = useQuery({
     queryKey: queryKeys.chatPrefs.of(user?.id),
@@ -295,14 +300,20 @@ export default function DirectChatScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <NavButton
-          color={COLORS.white}
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
+      <StatusBar style="dark" />
+      <Glass
+        tier="chrome"
+        radius={0}
+        style={[styles.header, { paddingTop: insets.top + 8 }]}
+      >
+        <NavButton onPress={() => router.back()} accessibilityLabel="Go back" />
+        <Avatar
+          name={friend?.name}
+          photoUrl={friend?.photo_url}
+          size={38}
+          online={isOnline(friendId)}
+          onPress={() => profileSheet.current?.open(friendId)}
         />
-        <Avatar name={friend?.name} photoUrl={friend?.photo_url} size={38} />
         <View style={styles.headerText}>
           <View style={styles.headerTitleRow}>
             <Text style={styles.headerTitle} numberOfLines={1}>
@@ -311,10 +322,14 @@ export default function DirectChatScreen() {
             {isPremium(friend) && <PremiumBadge size={14} />}
           </View>
           <Text style={styles.headerSub}>
-            {friend?.username ? `@${friend.username}` : 'Direct message'}
+            {isOnline(friendId)
+              ? 'Active now'
+              : friend?.username
+                ? `@${friend.username}`
+                : 'Direct message'}
           </Text>
         </View>
-      </View>
+      </Glass>
 
       {pinnedMessage && (
         <PinnedMessageBanner
@@ -349,6 +364,13 @@ export default function DirectChatScreen() {
             );
 
             return (
+              <>
+              {startsNewDay(
+                messages[index - 1]?.created_at,
+                item.created_at
+              ) ? (
+                <DayDivider date={item.created_at} />
+              ) : null}
               <MessageBubble
                 content={item.content}
                 type={item.type === 'image' ? 'image' : 'text'}
@@ -385,6 +407,7 @@ export default function DirectChatScreen() {
                 }}
                 onAvatarPress={() => profileSheet.current?.open(friendId)}
               />
+              </>
             );
           }}
           contentContainerStyle={styles.messageList}
@@ -424,7 +447,9 @@ export default function DirectChatScreen() {
           />
         )}
 
-        <View
+        <Glass
+          tier="chrome"
+          radius={0}
           style={[
             styles.inputBar,
             { paddingBottom: composerInset + SPACING[2.5] },
@@ -455,7 +480,7 @@ export default function DirectChatScreen() {
           >
             <Icon name="send" size={19} color="#fff" strokeWidth={2} />
           </PressableScale>
-        </View>
+        </Glass>
       </KeyboardAvoidingView>
 
       <OptionSheet
@@ -478,17 +503,15 @@ export default function DirectChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  // Transparent, over the app's drifting background — see the Inbox.
+  container: { flex: 1 },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2.5],
     paddingHorizontal: SPACING[4],
-    paddingBottom: SPACING[3.5],
-    backgroundColor: COLORS.accent,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
+    paddingBottom: SPACING[3],
   },
   headerText: { flex: 1, minWidth: 0 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
@@ -497,12 +520,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.heading,
     fontSize: TYPE_SIZE.bodyLg,
     letterSpacing: -0.2,
-    color: '#fff',
+    color: COLORS.textPrimary,
   },
   headerSub: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(255,255,255,0.6)',
+    color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
   messageList: { padding: SPACING[4], gap: SPACING[2.5], flexGrow: 1 },
@@ -528,23 +551,22 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: SPACING[2],
     paddingHorizontal: SPACING[3.5],
-    paddingVertical: SPACING[2.5],
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(15,24,44,0.08)',
+    paddingTop: SPACING[2.5],
   },
   attachBtn: {
     width: 38,
-    height: 42,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     maxHeight: 120,
-    backgroundColor: '#F0F1F3',
-    borderRadius: RADIUS['2xl'],
+    backgroundColor: COLORS.glassPanel,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    borderRadius: RADIUS.xl,
     paddingHorizontal: SPACING[4],
     paddingVertical: SPACING[2.5],
     fontFamily: FONTS.medium,
@@ -552,10 +574,10 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS['2xl'],
-    backgroundColor: COLORS.primary,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },

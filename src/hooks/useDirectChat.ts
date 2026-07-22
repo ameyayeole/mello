@@ -106,12 +106,17 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
       (m) => m.sender_id === friendId && !m.read_at && !m._status
     );
     if (!hasUnread) return;
-    // The Inbox badge counts these rows. Nothing else notices the flip — the
-    // badge's own channel only listens for INSERTs — so tell it here.
+    // The tab badge and the Inbox row badges both count these rows. Nothing
+    // else notices the flip — the badge's own channel only listens for
+    // INSERTs — so tell both here. Missing the second one leaves a row
+    // claiming unread messages you are looking at.
     markDmRead(userId, friendId)
-      .then(() =>
-        qc.invalidateQueries({ queryKey: queryKeys.unreadDms.of(userId) })
-      )
+      .then(() => {
+        qc.invalidateQueries({ queryKey: queryKeys.unreadDms.of(userId) });
+        qc.invalidateQueries({
+          queryKey: queryKeys.unreadDmCounts.of(userId),
+        });
+      })
       .catch(() => {});
   }, [messages, userId, friendId, qc]);
 

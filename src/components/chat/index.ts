@@ -7,6 +7,7 @@ export { default as MessageBubble } from './MessageBubble';
 export type { MessageBubbleProps, BubbleSender } from './MessageBubble';
 export { default as ReactionBar, TAPBACKS } from './ReactionBar';
 export { default as ReactionPills } from './ReactionPills';
+export { default as DayDivider } from './DayDivider';
 export { default as ReadRail } from './ReadRail';
 export { default as ReadReceiptSheet } from './ReadReceiptSheet';
 export type { Reader } from './ReadReceiptSheet';

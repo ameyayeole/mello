@@ -3,6 +3,8 @@ import {
   format,
   isToday,
   isTomorrow,
+  isYesterday,
+  isSameDay,
   differenceInCalendarDays,
 } from 'date-fns';
 
@@ -142,4 +144,32 @@ export function splitEventTime(dateString: string): {
 
 export function formatChatTime(dateString: string): string {
   return format(new Date(dateString), 'h:mm a');
+}
+
+/**
+ * The divider chip between days in a chat thread: Today · Yesterday · the
+ * weekday inside a week · the date beyond that.
+ *
+ * Backwards-looking, unlike `eventDayLabel`, which is about when something is
+ * going to happen — a message from last Tuesday is "Tuesday", never
+ * "Completed".
+ */
+export function chatDayLabel(dateString: string): string {
+  const date = new Date(dateString);
+  if (isToday(date)) return 'Today';
+  if (isYesterday(date)) return 'Yesterday';
+  // Same rule as the event ladder: past a week, "Saturday" could be either of
+  // two Saturdays.
+  const age = differenceInCalendarDays(new Date(), date);
+  if (age < WEEKDAY_HORIZON_DAYS) return format(date, 'EEEE');
+  return format(date, 'MMM d');
+}
+
+/** True when these two messages need a day divider between them. */
+export function startsNewDay(
+  previous: string | undefined,
+  current: string
+): boolean {
+  if (!previous) return true;
+  return !isSameDay(new Date(previous), new Date(current));
 }

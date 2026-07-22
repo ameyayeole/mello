@@ -170,14 +170,20 @@ export default function MessageBubble({
               mentionables={mentionables}
               light={isMine}
             />
-            <View style={styles.metaRow}>
-              <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
-                {failed ? 'Not sent · tap to retry' : formatChatTime(createdAt)}
-              </Text>
-              {tick && !failed ? <Ticks status={tick} light={isMine} /> : null}
-            </View>
           </PressableScale>
         )}
+
+        {/* Outside the bubble, per the mockup: the time is about the message,
+            not part of it, and inside it was competing with the last line of
+            text for the same corner. */}
+        {type === 'text' ? (
+          <View style={[styles.metaRow, isMine && styles.metaRowMine]}>
+            <Text style={styles.bubbleTime}>
+              {failed ? 'Not sent · tap to retry' : formatChatTime(createdAt)}
+            </Text>
+            {tick && !failed ? <Ticks status={tick} /> : null}
+          </View>
+        ) : null}
 
         {reactions && reactions.length > 0 ? (
           <ReactionPills
@@ -217,44 +223,56 @@ const styles = StyleSheet.create({
     marginBottom: SPACING[0.5],
   },
   bubble: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal: SPACING[3],
-    paddingVertical: SPACING[2],
-    shadowColor: '#0F182C',
+    // Frosted rather than solid white — this thread now runs over the app's
+    // drifting background. Not <Glass>: a bubble per message is a native blur
+    // view per message, which is exactly the "blur inside a blur" cost
+    // DESIGN.md §3 warns about, so it takes the fill and the hairline without
+    // the blur pass.
+    backgroundColor: COLORS.glassPanel,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    borderRadius: RADIUS['2xl'],
+    borderBottomLeftRadius: 6,
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[2.5],
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
+  // Ink, not coral. The mockup's outgoing bubbles are the app black, and coral
+  // is reserved for a screen's one real decision — a wall of it down the right
+  // of every thread is the opposite of that.
   bubbleMine: {
-    backgroundColor: COLORS.primary,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 4,
-    shadowOpacity: 0,
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+    borderBottomLeftRadius: RADIUS['2xl'],
+    borderBottomRightRadius: 6,
+    shadowOpacity: 0.14,
   },
   bubblePending: { opacity: 0.6 },
   bubbleText: {
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    lineHeight: 19,
+    fontSize: TYPE_SIZE.bodyMd,
+    lineHeight: 20,
     color: COLORS.textPrimary,
   },
-  bubbleTextMine: { color: '#fff' },
+  bubbleTextMine: { color: COLORS.white },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[1],
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
     marginTop: SPACING[0.5],
+    paddingHorizontal: SPACING[1.5],
   },
+  metaRowMine: { alignSelf: 'flex-end' },
   bubbleTime: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.35)',
+    color: COLORS.textMuted,
   },
-  bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
   imageMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -102,6 +102,13 @@ export const queryKeys = {
     all: ['unreadDms'] as const,
     of: (userId: Id) => ['unreadDms', userId] as const,
   },
+  // The same rows as `unreadDms`, bucketed by who sent them, for the Inbox
+  // row badges. A separate key rather than a shape change: the tab badge only
+  // needs a number and is read on every screen, so it stays a HEAD count.
+  unreadDmCounts: {
+    all: ['unreadDmCounts'] as const,
+    of: (userId: Id) => ['unreadDmCounts', userId] as const,
+  },
   // Post-event wrap. Scoped per viewer as well as per event — what you owe the
   // wrap (ratings left, photos added) differs by who is asking.
   wrap: {

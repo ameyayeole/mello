@@ -7,6 +7,7 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
+  ScrollView,
   Alert,
   LayoutChangeEvent,
 } from 'react-native';
@@ -17,15 +18,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   FadeInDown,
-  SlideInLeft,
-  SlideInRight,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import { getJoinedEvents, getMyEvents } from '@/services/events.service';
-import { getFriendConversations } from '@/services/dm.service';
+import {
+  getFriendConversations,
+  getUnreadDmCounts,
+} from '@/services/dm.service';
 import { getLastMessageTimes } from '@/services/chat.service';
 import {
   getChatPrefs,
@@ -50,13 +53,18 @@ import {
   Glass,
   Icon,
   PressableScale,
+  SectionLabel,
   useTabBarInset,
 } from '@/components/ui';
+import EventRow from '@/components/events/EventRow';
 import {
   useHandedOver,
   useOpenOverlay,
   useOverlayRecede,
 } from '@/hooks/useOverlayScreen';
+import { usePresence } from '@/hooks/usePresence';
+import { useFriends } from '@/hooks/useFriends';
+import { useExploreFeed } from '@/hooks/useExploreFeed';
 import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
 import { SealedNoteRow, NoteRevealModal } from '@/components/wrap/SealedNoteRow';
@@ -86,94 +94,86 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
   );
 }
 
-function EventChatRow({
-  event,
+// A conversation row: frosted card over the drifting background, per the
+// mockup. Both kinds share it — what differs is the thumbnail, the meta line
+// and what sits on the right, so those are passed in rather than the row being
+// forked in two.
+function ChatRow({
   index,
+  thumb,
+  title,
+  preview,
+  time,
+  unread,
   pref,
+  onPress,
   onLongPress,
 }: {
-  event: NearbyEvent;
   index: number;
+  thumb: React.ReactNode;
+  title: string;
+  preview: string;
+  time?: string;
+  unread?: number;
   pref?: ChatPref;
+  onPress: () => void;
   onLongPress: () => void;
 }) {
-  const router = useRouter();
-
   return (
-    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}>
+    <Animated.View
+      entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}
+    >
       <PressableScale
-        style={styles.row}
         scaleTo={0.98}
-        onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+        onPress={onPress}
         onLongPress={onLongPress}
       >
-        <CategoryTile activity={event.activity} size={48} radius={14} />
-        <View style={styles.rowInfo}>
-          <View style={styles.rowTitleRow}>
-            <Text style={styles.rowTitle} numberOfLines={1}>
-              {event.title}
-            </Text>
-            <PrefGlyphs pref={pref} />
+        <Glass tier="panel" radius={RADIUS['2xl']} style={styles.row}>
+          {thumb}
+          <View style={styles.rowInfo}>
+            <View style={styles.rowTitleRow}>
+              <Text style={styles.rowTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              <PrefGlyphs pref={pref} />
+              {time ? (
+                <Text
+                  style={[styles.rowTime, !!unread && styles.rowTimeUnread]}
+                >
+                  {time}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.rowPreviewRow}>
+              <Text
+                style={[styles.rowSub, !!unread && styles.rowSubUnread]}
+                numberOfLines={1}
+              >
+                {preview}
+              </Text>
+              {unread ? (
+                <View style={styles.unreadPill}>
+                  <Text style={styles.unreadText}>{unread}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-          <Text style={styles.rowSub} numberOfLines={1}>
-            {formatEventWhen(event.starts_at)}
-          </Text>
-        </View>
-        <View style={styles.countPill}>
-          <Text style={styles.countPillText}>
-            {event.participant_count ?? 0} going
-          </Text>
-        </View>
+        </Glass>
       </PressableScale>
     </Animated.View>
   );
 }
 
-function FriendChatRow({
-  convo,
-  index,
-  pref,
-  onLongPress,
-}: {
-  convo: FriendConversation;
-  index: number;
-  pref?: ChatPref;
-  onLongPress: () => void;
-}) {
-  const router = useRouter();
-  const { friend, lastMessage } = convo;
-
+// The group badge on an event chat's thumbnail — how you tell "Sunset picnic"
+// from a person at a glance.
+function EventThumb({ activity }: { activity: NearbyEvent['activity'] }) {
   return (
-    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}>
-      <PressableScale
-        style={styles.row}
-        scaleTo={0.98}
-        onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
-        onLongPress={onLongPress}
-      >
-        <Avatar name={friend.name} photoUrl={friend.photo_url} size={48} />
-        <View style={styles.rowInfo}>
-          <View style={styles.rowTitleRow}>
-            <Text style={styles.rowTitle} numberOfLines={1}>
-              {friend.name}
-            </Text>
-            <PrefGlyphs pref={pref} />
-          </View>
-          <Text style={styles.rowSub} numberOfLines={1}>
-            {lastMessage
-              ? lastMessage.type === 'image'
-                ? '📷 Photo'
-                : lastMessage.content
-              : 'Tap to start chatting'}
-          </Text>
-        </View>
-        {lastMessage && (
-          <Text style={styles.rowTime}>
-            {formatChatTime(lastMessage.created_at)}
-          </Text>
-        )}
-      </PressableScale>
-    </Animated.View>
+    <View>
+      <CategoryTile activity={activity} size={52} radius={16} />
+      <View style={styles.groupBadge}>
+        <Icon name="users" size={11} color={COLORS.white} strokeWidth={2.6} />
+      </View>
+    </View>
   );
 }
 
@@ -211,10 +211,6 @@ export default function ChatsListScreen() {
     transform: [{ translateX: slide.value * pillW }],
   }));
 
-  // The list slides in from whichever side the new tab sits on.
-  const contentEnter = (tabIndex === 1 ? SlideInRight : SlideInLeft)
-    .duration(260)
-    .easing(Easing.out(Easing.cubic));
   const [sheetTarget, setSheetTarget] = useState<SheetTarget | null>(null);
   const [revealedNote, setRevealedNote] = useState<WrapNote | null>(null);
 
@@ -251,6 +247,38 @@ export default function ChatsListScreen() {
     enabled: !!user,
   });
   const prefs = prefsQuery.data;
+
+  // Unread badges on the DM rows. Event chats have no equivalent: unread there
+  // means comparing every message against a per-event read watermark, which is
+  // a query per event until an RPC exists. Under-counting beats guessing.
+  const unreadQuery = useQuery({
+    queryKey: queryKeys.unreadDmCounts.of(user?.id),
+    queryFn: () => getUnreadDmCounts(user!.id),
+    enabled: !!user,
+  });
+  const unreadByFriend = unreadQuery.data;
+
+  // "Active now": friends with the app open, off the presence channel the
+  // Friends screen already runs. Nobody there is the common case in a young
+  // app, so the row falls back to events worth opening instead — boosted
+  // first, then whatever is nearby.
+  const { isOnline } = usePresence();
+  const { friends } = useFriends();
+  const activeFriends = useMemo(
+    () =>
+      friends
+        .map((f) => f.friend)
+        .filter((p): p is NonNullable<typeof p> => !!p && isOnline(p.id)),
+    [friends, isOnline]
+  );
+
+  const boostedFeed = useExploreFeed(true, activeFriends.length === 0);
+  const nearbyFeed = useExploreFeed(false, activeFriends.length === 0);
+  const promoted = useMemo(() => {
+    const boosted = boostedFeed.data?.pages.flat() ?? [];
+    const nearby = nearbyFeed.data?.pages.flat() ?? [];
+    return (boosted.length > 0 ? boosted : nearby).slice(0, 3);
+  }, [boostedFeed.data, nearbyFeed.data]);
 
   const allEventChats = useMemo(
     () => [
@@ -380,147 +408,243 @@ export default function ChatsListScreen() {
     ];
   }
 
-  return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
+  const items: (NearbyEvent | FriendConversation)[] =
+    tab === 'events' ? eventChats : conversations;
 
-      {/* Dark header — wraps the title and the Events/Direct switcher */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        {/* The field that flies up into the search overlay. The plain wrapping
-            View is what gets measured — see useOpenOverlay for why the ref
-            cannot go on the PressableScale, and why it needs collapsable. */}
-        <View
-          ref={searchRef}
-          collapsable={false}
-          style={handedOver === 'chatSearch' && styles.handedOver}
+  const renderEventRow = (event: NearbyEvent, index: number) => (
+    <ChatRow
+      index={index}
+      thumb={<EventThumb activity={event.activity} />}
+      title={event.title}
+      preview={formatEventWhen(event.starts_at)}
+      time={`${event.participant_count ?? 0} going`}
+      pref={prefs?.get(chatKey('event', event.id))}
+      onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+      onLongPress={() =>
+        setSheetTarget({
+          chatType: 'event',
+          chatId: event.id,
+          title: event.title,
+          pref: prefs?.get(chatKey('event', event.id)),
+        })
+      }
+    />
+  );
+
+  const renderFriendRow = (convo: FriendConversation, index: number) => {
+    const { friend, lastMessage } = convo;
+    return (
+      <ChatRow
+        index={index}
+        thumb={
+          <Avatar
+            name={friend.name}
+            photoUrl={friend.photo_url}
+            size={52}
+            online={isOnline(friend.id)}
+          />
+        }
+        title={friend.name}
+        preview={
+          lastMessage
+            ? lastMessage.type === 'image'
+              ? '📷 Photo'
+              : lastMessage.content
+            : 'Tap to start chatting'
+        }
+        time={
+          lastMessage ? formatChatTime(lastMessage.created_at) : undefined
+        }
+        unread={unreadByFriend?.get(friend.id)}
+        pref={prefs?.get(chatKey('dm', friend.id))}
+        onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
+        onLongPress={() =>
+          setSheetTarget({
+            chatType: 'dm',
+            chatId: friend.id,
+            title: friend.name,
+            pref: prefs?.get(chatKey('dm', friend.id)),
+          })
+        }
+      />
+    );
+  };
+
+  // Everything above the conversations, scrolling with them: the field, the
+  // title, who's around, and the switcher.
+  const header = (
+    <View style={styles.header}>
+      {/* The field that flies up into the search overlay. The plain wrapping
+          View is what gets measured — see useOpenOverlay for why the ref
+          cannot go on the PressableScale, and why it needs collapsable. */}
+      <View
+        ref={searchRef}
+        collapsable={false}
+        style={handedOver === 'chatSearch' && styles.handedOver}
+      >
+        <PressableScale
+          scaleTo={0.98}
+          onPress={() => openOverlay('chatSearch', searchRef)}
+          accessibilityRole="search"
+          accessibilityLabel="Search events and people"
         >
-          <PressableScale
-            scaleTo={0.98}
-            onPress={() => openOverlay('chatSearch', searchRef)}
-            accessibilityRole="search"
-            accessibilityLabel="Search events and people"
+          <Glass tier="panel" radius={RADIUS.lg} style={styles.searchBar}>
+            <Icon name="search" size={18} color={COLORS.textMuted} />
+            <Text style={styles.searchText}>Search events & people</Text>
+          </Glass>
+        </PressableScale>
+      </View>
+
+      <Text style={styles.title}>Messages</Text>
+
+      {activeFriends.length > 0 ? (
+        <View style={styles.block}>
+          <SectionLabel>Active now</SectionLabel>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.activeRow}
           >
-            <Glass tier="panel" radius={RADIUS.lg} style={styles.searchBar}>
-              <Icon name="search" size={18} color={COLORS.textMuted} />
-              <Text style={styles.searchText}>Search events & people</Text>
-            </Glass>
-          </PressableScale>
-        </View>
-
-        <Text style={styles.title}>Inbox</Text>
-
-        {/* Segmented tab switcher with a pill that slides between tabs */}
-        <View style={styles.segment} onLayout={onSegmentLayout}>
-          {pillW > 0 && (
-            <Animated.View
-              style={[styles.segmentPill, { width: pillW }, pillStyle]}
-            />
-          )}
-          {(['events', 'friends'] as Tab[]).map((t) => (
-            <Pressable
-              key={t}
-              style={styles.segmentTab}
-              onPress={() => setTab(t)}
+            <PressableScale
+              scaleTo={0.92}
+              onPress={() => router.push('/friends')}
               accessibilityRole="button"
-              accessibilityState={{ selected: tab === t }}
+              accessibilityLabel="Find friends"
             >
-              <Text
-                style={[
-                  styles.segmentText,
-                  tab === t && styles.segmentTextActive,
-                ]}
-              >
-                {t === 'events' ? 'Events' : 'Direct'}
-              </Text>
-            </Pressable>
+              <View style={styles.activeItem}>
+                <View style={styles.addTile}>
+                  <Icon name="plus" size={22} color={COLORS.textPrimary} />
+                </View>
+                <Text style={styles.activeName}>Add</Text>
+              </View>
+            </PressableScale>
+            {activeFriends.map((friend) => (
+              <View key={friend.id} style={styles.activeItem}>
+                <Avatar
+                  name={friend.name}
+                  photoUrl={friend.photo_url}
+                  size={60}
+                  online
+                  onPress={() =>
+                    router.push(`/(tabs)/chats/dm/${friend.id}`)
+                  }
+                />
+                <Text style={styles.activeName} numberOfLines={1}>
+                  {friend.name.split(' ')[0]}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      ) : promoted.length > 0 ? (
+        // Nobody's around. Rather than an empty rail, show what there is to
+        // turn up to — boosted first, then nearby.
+        <View style={styles.block}>
+          <SectionLabel>Happening near you</SectionLabel>
+          <View style={styles.promoted}>
+            {promoted.map((event) => (
+              <EventRow
+                key={event.id}
+                event={event}
+                glass
+                photo
+                cta="details"
+                tone="quiet"
+                onPress={() => {
+                  useUIStore.getState().setSelectedEvent(event.id);
+                  router.push('/(tabs)/explore');
+                }}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Post-event notes, above the DM threads they belong with. */}
+      {tab === 'friends' && (sealedNotes.length > 0 || openedNotes.length > 0) ? (
+        <View style={styles.block}>
+          <SectionLabel>Notes</SectionLabel>
+          {sealedNotes.map((n) => (
+            <SealedNoteRow key={n.id} note={n} onOpen={handleOpenNote} />
+          ))}
+          {openedNotes.slice(0, 3).map((n) => (
+            <SealedNoteRow key={n.id} note={n} onOpen={handleOpenNote} />
           ))}
         </View>
+      ) : null}
+
+      {/* Segmented tab switcher with a pill that slides between tabs */}
+      <View style={styles.segment} onLayout={onSegmentLayout}>
+        {pillW > 0 && (
+          <Animated.View
+            style={[styles.segmentPill, { width: pillW }, pillStyle]}
+          />
+        )}
+        {(['events', 'friends'] as Tab[]).map((t) => (
+          <Pressable
+            key={t}
+            style={styles.segmentTab}
+            onPress={() => setTab(t)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: tab === t }}
+          >
+            <Text
+              style={[styles.segmentText, tab === t && styles.segmentTextActive]}
+            >
+              {t === 'events' ? 'Events' : 'Direct'}
+            </Text>
+          </Pressable>
+        ))}
       </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
 
       {/* Steps back while the search overlay is up. On the list rather than
           the whole screen: the option sheet must not shrink with it. */}
       <Animated.View style={[styles.flex, recedeStyle]}>
-      <Animated.View key={tab} entering={contentEnter} style={styles.flex}>
-      {tab === 'events' ? (
-        eventChats.length === 0 ? (
-          <EmptyState
-            icon="chat"
-            title="No event chats yet"
-            body="Join or create an event to start chatting with people going."
-            actionLabel="Explore map"
-            onAction={() => router.push('/(tabs)/map')}
-          />
-        ) : (
-          <FlatList
-            data={eventChats}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <EventChatRow
-                event={item}
-                index={index}
-                pref={prefs?.get(chatKey('event', item.id))}
-                onLongPress={() =>
-                  setSheetTarget({
-                    chatType: 'event',
-                    chatId: item.id,
-                    title: item.title,
-                    pref: prefs?.get(chatKey('event', item.id)),
-                  })
-                }
-              />
-            )}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            contentContainerStyle={{ paddingBottom: tabBarInset }}
-          />
-        )
-      ) : conversations.length === 0 &&
-        sealedNotes.length === 0 &&
-        openedNotes.length === 0 ? (
-        <EmptyState
-          icon="userPlus"
-          title="No friends yet"
-          body="Add friends to start direct conversations."
-          actionLabel="Find friends"
-          onAction={() => router.push('/friends')}
-        />
-      ) : (
         <FlatList
-          data={conversations}
-          keyExtractor={(item) => item.friend.id}
-          ListHeaderComponent={
-            sealedNotes.length > 0 || openedNotes.length > 0 ? (
-              <View style={styles.notesBlock}>
-                <Text style={styles.notesLabel}>NOTES</Text>
-                {sealedNotes.map((n) => (
-                  <SealedNoteRow key={n.id} note={n} onOpen={handleOpenNote} />
-                ))}
-                {openedNotes.slice(0, 3).map((n) => (
-                  <SealedNoteRow key={n.id} note={n} onOpen={handleOpenNote} />
-                ))}
-                <View style={styles.separator} />
-              </View>
-            ) : null
+          data={items}
+          keyExtractor={(item) =>
+            // The tab is part of the key so switching tabs remounts the rows
+            // and re-runs their entering animation — the movement the old
+            // slide-in used to carry, without animating the header with it.
+            'friend' in item ? `dm:${item.friend.id}` : `event:${item.id}`
           }
-          renderItem={({ item, index }) => (
-            <FriendChatRow
-              convo={item}
-              index={index}
-              pref={prefs?.get(chatKey('dm', item.friend.id))}
-              onLongPress={() =>
-                setSheetTarget({
-                  chatType: 'dm',
-                  chatId: item.friend.id,
-                  title: item.friend.name,
-                  pref: prefs?.get(chatKey('dm', item.friend.id)),
-                })
-              }
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          contentContainerStyle={{ paddingBottom: tabBarInset }}
+          renderItem={({ item, index }) =>
+            'friend' in item
+              ? renderFriendRow(item, index)
+              : renderEventRow(item, index)
+          }
+          ListHeaderComponent={header}
+          ListEmptyComponent={
+            tab === 'events' ? (
+              <EmptyState
+                icon="chat"
+                title="No event chats yet"
+                body="Join or create an event to start chatting with people going."
+                actionLabel="Explore map"
+                onAction={() => router.push('/(tabs)/map')}
+              />
+            ) : (
+              <EmptyState
+                icon="userPlus"
+                title="No friends yet"
+                body="Add friends to start direct conversations."
+                actionLabel="Find friends"
+                onAction={() => router.push('/friends')}
+              />
+            )
+          }
+          contentContainerStyle={[
+            styles.listBody,
+            { paddingTop: insets.top + SPACING[3], paddingBottom: tabBarInset },
+          ]}
+          showsVerticalScrollIndicator={false}
         />
-      )}
-      </Animated.View>
       </Animated.View>
 
       <OptionSheet
@@ -536,8 +660,12 @@ export default function ChatsListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
+  // Transparent: what shows through is the <AppBackground> mounted once behind
+  // the tab navigator. This tab used to be the one opaque white list in the
+  // app — see DESIGN.md §7, which this reverses.
+  container: { flex: 1 },
   flex: { flex: 1 },
+  listBody: { paddingHorizontal: SPACING[5], gap: SPACING[2.5] },
   // The field the overlay is flying. Hidden outright, not faded — two copies
   // of one object mid-transition is what a hand-off must never look like.
   handedOver: { opacity: 0 },
@@ -553,32 +681,53 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.body,
     color: COLORS.textMuted,
   },
-  header: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: SPACING[5],
-    paddingBottom: SPACING[4],
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-  },
+  header: { gap: SPACING[4], paddingBottom: SPACING[1] },
   title: {
+    // The scale's top step. The mockup draws 40; a screen does not get its own
+    // type size, and at 34 the two-word title still owns the top of the page.
     fontFamily: FONTS.heading,
-    fontSize: TYPE_SIZE.titleLg,
-    letterSpacing: -0.5,
-    color: '#fff',
+    fontSize: TYPE_SIZE.display,
+    lineHeight: 38,
+    letterSpacing: -1,
+    color: COLORS.textPrimary,
+    marginBottom: -SPACING[1],
   },
+  block: { gap: SPACING[2.5] },
+
+  activeRow: { gap: SPACING[3.5], paddingRight: SPACING[5] },
+  activeItem: { alignItems: 'center', gap: SPACING[1.5], width: 64 },
+  addTile: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: COLORS.inkSubtle,
+    // Not <Glass>: a dashed border needs the fill without the blur, and this
+    // is the "there could be someone here" placeholder, not a surface.
+    backgroundColor: COLORS.glassPanel,
+  },
+  activeName: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textSecondary,
+  },
+  promoted: { gap: SPACING[2.5] },
+
   segment: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: COLORS.inkFaint,
     borderRadius: RADIUS.full,
     padding: SPACING[1],
-    marginTop: SPACING[3.5],
   },
   segmentPill: {
     position: 'absolute',
     top: 4,
     left: 4,
     bottom: 4,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.full,
   },
   segmentTab: {
@@ -591,58 +740,73 @@ const styles = StyleSheet.create({
   segmentText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(255,255,255,0.6)',
+    color: COLORS.textMuted,
   },
   segmentTextActive: { color: COLORS.textPrimary },
-  separator: {
-    height: 1,
-    backgroundColor: 'rgba(15,24,44,0.06)',
-    marginLeft: 81,
-  },
-  notesBlock: { paddingHorizontal: SPACING[5], paddingTop: SPACING[0.5] },
-  notesLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.micro,
-    letterSpacing: 0.4,
-    color: 'rgba(15,24,44,0.45)',
-    marginBottom: SPACING[0.5],
-  },
+
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[3],
-    paddingHorizontal: SPACING[5],
-    paddingVertical: SPACING[3],
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[2.5],
   },
-  rowInfo: { flex: 1, minWidth: 0 },
+  rowInfo: { flex: 1, minWidth: 0, gap: SPACING[0.5] },
   rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
+  rowPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1.5],
+  },
   glyphRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1] },
   rowTitle: {
-    flexShrink: 1,
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
+    flex: 1,
+    fontFamily: FONTS.headingBold,
+    fontSize: TYPE_SIZE.bodyLg,
+    letterSpacing: -0.2,
     color: COLORS.textPrimary,
   },
   rowSub: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
-    marginTop: SPACING[0.5],
   },
+  // An unread conversation states its case in ink, not grey.
+  rowSubUnread: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
   rowTime: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.4)',
+    color: COLORS.textMuted,
   },
-  countPill: {
-    backgroundColor: COLORS.background,
-    paddingHorizontal: SPACING[2],
-    paddingVertical: SPACING[1],
+  rowTimeUnread: { color: COLORS.primary },
+  // The group marker on an event chat's tile.
+  groupBadge: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.surface,
+  },
+  unreadPill: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: SPACING[1.5],
     borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
   },
-  countPillText: {
-    fontFamily: FONTS.bold,
+  unreadText: {
+    fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.55)',
+    color: COLORS.white,
   },
 });

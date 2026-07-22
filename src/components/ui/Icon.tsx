@@ -127,6 +127,15 @@ const glyphs: Record<string, Glyph> = {
       <Path d="M4 21a8 8 0 0 1 16 0" />
     </>
   ),
+  // Two people, for "this conversation is a group" — the badge on an event
+  // chat's thumbnail in the Inbox.
+  users: (
+    <>
+      <Circle cx={9} cy={8} r={3.5} />
+      <Path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <Path d="M16 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.4A5.5 5.5 0 0 1 21.5 20" />
+    </>
+  ),
   userPlus: (
     <>
       <Circle cx={9} cy={8} r={3.5} />
