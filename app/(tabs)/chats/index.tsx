@@ -191,10 +191,29 @@ function ChatRow({
 
 // How many people are going, as a chip on a rail tile. Hidden at zero rather
 // than showing "0" — a brand-new event should read as new, not as unwanted.
-function GoingCount({ count }: { count: number }) {
+function GoingCount({ count, photoUrl }: { count: number; photoUrl?: string | null }) {
   if (count <= 0) return null;
   return (
-    <Glass tier="onPhoto" radius={12} shadow={false} style={styles.goingChip}>
+    <Glass
+      tier="onPhoto"
+      radius={12}
+      shadow={false}
+      style={styles.goingChip}
+      // Same self-frosting as the category disc — see EventThumb for why this
+      // is not a backdrop blur.
+      backdrop={
+        photoUrl ? (
+          <Image
+            source={{ uri: photoUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={28}
+          />
+        ) : (
+          <View style={styles.typeBadgeFallback} />
+        )
+      }
+    >
       <Text style={styles.goingText}>{count}</Text>
     </Glass>
   );
@@ -219,20 +238,36 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      {/* Smoked glass, and a white ring to hold it off the image — the same
-          separation AttendeeStack gives its faces.
+      {/* Smoked glass with a white ring — and it frosts *itself* rather than
+          blurring what is behind it.
 
-          `onPhoto` is the tier for exactly this, and it has to *blur*: a flat
-          translucent ink over a sharp photo is how the first version leaked
-          the picture through the disc. Blurring is what lets the fill stay
-          light enough to read as glass without the photograph coming with it.
-          (Android has no backdrop blur, so it falls back to the flat fill and
-          this one disc loses the effect — DESIGN.md §7's standing trade.) */}
+          `backdrop` exists for this (DESIGN.md §3). A backdrop blur is a
+          `UIVisualEffectView`, which does not reliably respect a parent's
+          corner mask — at this size that leaves a square corner poking out
+          from behind a round one, which is the clipping that survived two
+          attempts to fix it. Compositing our own blurred copy of the photo is
+          plain Views end to end, so it cannot fail to clip. It also renders
+          identically on Android, where there is no backdrop blur at all.
+
+          No photo means nothing to frost, so the disc falls back to flat ink —
+          still the backdrop path, still guaranteed to clip. */}
       <Glass
         tier="onPhoto"
         radius={12}
         shadow={false}
         style={styles.typeBadge}
+        backdrop={
+          event.image_url ? (
+            <Image
+              source={{ uri: event.image_url }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              blurRadius={28}
+            />
+          ) : (
+            <View style={styles.typeBadgeFallback} />
+          )
+        }
       >
         <Text style={styles.typeEmoji}>
           {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
@@ -695,6 +730,7 @@ export default function ChatsListScreen() {
                         the whole point of a stack, and the number is the thing
                         you actually want off a stranger's event. */}
                     <GoingCount
+                      photoUrl={event.image_url}
                       count={
                         previews?.[event.id]?.going_count ??
                         event.participant_count ??
@@ -981,6 +1017,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
+  // Nothing to frost when the event has no photo.
+  typeBadgeFallback: { flex: 1, backgroundColor: COLORS.accent },
   // Glyph metrics, not typography: an emoji's own box sits well inside its
   // font size, so 10 fills roughly half the disc — which is the proportion the
   // reference draws.
