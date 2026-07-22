@@ -229,6 +229,20 @@ export interface DirectMessage {
   _status?: 'sending' | 'failed';
 }
 
+// Which of the two chats a reaction hangs off. The table stores it as one of
+// two nullable columns; everything above the service says 'event' | 'dm'.
+export type ReactionTarget = 'event' | 'dm';
+
+// A tapback (migration 041). One row per person per message.
+export interface MessageReaction {
+  id: string;
+  message_id: string | null;
+  dm_id: string | null;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
 // Per-user conversation preferences (migration 030). One row per (user, chat).
 export interface ChatPref {
   user_id: string;

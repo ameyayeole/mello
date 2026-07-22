@@ -19,6 +19,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useEventChat } from '@/hooks/useEventChat';
+import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -166,6 +167,20 @@ export default function GroupChatScreen() {
     eventId,
     pref?.cleared_at ?? null
   );
+
+  // Tapbacks. Optimistic rows have client-minted ids the server has never seen,
+  // so they are kept out of the id list — a reaction on a message that might
+  // not exist yet has nothing to attach to.
+  const reactableIds = useMemo(
+    () => messages.filter((m) => !m._status).map((m) => m.id),
+    [messages]
+  );
+  const { byMessage: reactions, toggle: react } = useReactions(
+    'event',
+    eventId,
+    reactableIds
+  );
+  const [reactingTo, setReactingTo] = useState<string | null>(null);
 
   const isHost = !!user && event?.host_id === user.id;
   const locked = !!event?.chat_locked;
@@ -510,8 +525,22 @@ export default function GroupChatScreen() {
                 showName={isFirstOfRun}
                 tick={isMine ? tickStatus(item, read) : undefined}
                 mentionables={mentionables}
+                reactions={reactions.get(item.id)}
+                myUserId={user?.id}
+                reactionBarOpen={reactingTo === item.id}
+                onReact={(emoji) => {
+                  react(item.id, emoji);
+                  setReactingTo(null);
+                }}
+                onOpenReactions={
+                  item._status ? undefined : () => setReactingTo(item.id)
+                }
+                onCloseReactions={() => setReactingTo(null)}
                 onRetry={() => retry(item)}
-                onLongPress={longPress}
+                onLongPress={() => {
+                  setReactingTo(null);
+                  longPress();
+                }}
                 onAvatarPress={() => router.push(`/friends/${item.sender_id}`)}
               />
             );

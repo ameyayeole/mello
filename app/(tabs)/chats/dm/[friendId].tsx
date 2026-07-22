@@ -19,6 +19,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useDirectChat } from '@/hooks/useDirectChat';
+import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -86,6 +87,19 @@ export default function DirectChatScreen() {
     friendId,
     pref?.cleared_at ?? null
   );
+
+  // Tapbacks. Optimistic rows carry a temporary id the server has never seen,
+  // so they're left out until the insert comes back.
+  const reactableIds = useMemo(
+    () => messages.filter((m) => !m._status).map((m) => m.id),
+    [messages]
+  );
+  const { byMessage: reactions, toggle: react } = useReactions(
+    'dm',
+    friendId,
+    reactableIds
+  );
+  const [reactingTo, setReactingTo] = useState<string | null>(null);
 
   // Scam guard (#11): warn when an incoming message looks like a money
   // request, once per conversation per day.
@@ -310,7 +324,21 @@ export default function DirectChatScreen() {
                 showName={false}
                 tick={isMine ? tickStatus(item) : undefined}
                 mentionables={mentionables}
-                onLongPress={() => setMessageSheet(item)}
+                reactions={reactions.get(item.id)}
+                myUserId={user?.id}
+                reactionBarOpen={reactingTo === item.id}
+                onReact={(emoji) => {
+                  react(item.id, emoji);
+                  setReactingTo(null);
+                }}
+                onOpenReactions={
+                  item._status ? undefined : () => setReactingTo(item.id)
+                }
+                onCloseReactions={() => setReactingTo(null)}
+                onLongPress={() => {
+                  setReactingTo(null);
+                  setMessageSheet(item);
+                }}
                 onAvatarPress={() => router.push(`/friends/${friendId}`)}
               />
             );

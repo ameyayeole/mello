@@ -4,9 +4,12 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatChatTime } from '@/utils/time';
+import { MessageReaction } from '@/types/models';
 import { Avatar, PressableScale } from '@/components/ui';
 import ChatImageBubble from './ChatImageBubble';
 import MentionText from './MentionText';
+import ReactionBar from './ReactionBar';
+import ReactionPills from './ReactionPills';
 import Ticks, { TickStatus } from './Ticks';
 
 // The one bubble both threads render. Event chat and DM had a private copy
@@ -44,6 +47,15 @@ export interface MessageBubbleProps {
   // Omitted on messages that aren't yours; only your own carry ticks.
   tick?: TickStatus;
   mentionables?: Map<string, string>;
+  // Tapbacks on this message, and whose they are.
+  reactions?: MessageReaction[];
+  myUserId?: string;
+  // The tapback bar is open on this message. Only ever one at a time, so the
+  // thread owns which — the bubble just renders it.
+  reactionBarOpen?: boolean;
+  onReact?: (emoji: string) => void;
+  onOpenReactions?: () => void;
+  onCloseReactions?: () => void;
   onRetry?: () => void;
   onLongPress?: () => void;
   onAvatarPress?: () => void;
@@ -60,12 +72,27 @@ export default function MessageBubble({
   showName,
   tick,
   mentionables,
+  reactions,
+  myUserId,
+  reactionBarOpen,
+  onReact,
+  onOpenReactions,
+  onCloseReactions,
   onRetry,
   onLongPress,
   onAvatarPress,
 }: MessageBubbleProps) {
   const failed = status === 'failed';
   const sending = status === 'sending';
+  const myReaction = reactions?.find((r) => r.user_id === myUserId)?.emoji;
+
+  // A failed message's tap is "retry" and nothing else; otherwise a tap on an
+  // open bar's bubble is how you put it away without choosing anything.
+  const handlePress = failed
+    ? onRetry
+    : reactionBarOpen
+      ? onCloseReactions
+      : undefined;
 
   return (
     <Animated.View
@@ -89,11 +116,20 @@ export default function MessageBubble({
           <Text style={styles.senderName}>{sender?.name}</Text>
         ) : null}
 
+        {reactionBarOpen && onReact ? (
+          <ReactionBar
+            mine={myReaction}
+            alignRight={isMine}
+            onPick={onReact}
+            onMore={onLongPress}
+          />
+        ) : null}
+
         {type === 'image' ? (
           <PressableScale
             disabled={false}
-            onPress={failed ? onRetry : undefined}
-            onLongPress={onLongPress}
+            onPress={handlePress}
+            onLongPress={onOpenReactions ?? onLongPress}
             delayLongPress={350}
             scaleTo={0.98}
           >
@@ -112,8 +148,8 @@ export default function MessageBubble({
         ) : (
           <PressableScale
             disabled={false}
-            onPress={failed ? onRetry : undefined}
-            onLongPress={onLongPress}
+            onPress={handlePress}
+            onLongPress={onOpenReactions ?? onLongPress}
             delayLongPress={350}
             style={[
               styles.bubble,
@@ -135,6 +171,15 @@ export default function MessageBubble({
             </View>
           </PressableScale>
         )}
+
+        {reactions && reactions.length > 0 ? (
+          <ReactionPills
+            reactions={reactions}
+            myUserId={myUserId}
+            isMine={isMine}
+            onPress={onOpenReactions}
+          />
+        ) : null}
       </View>
     </Animated.View>
   );
