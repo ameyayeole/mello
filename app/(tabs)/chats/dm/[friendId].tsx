@@ -29,6 +29,7 @@ import { useDirectChat } from '@/hooks/useDirectChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { usePresence } from '@/hooks/usePresence';
+import { useChatScroll } from '@/hooks/useChatScroll';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { getDmPin, setDmPin } from '@/services/dm.service';
@@ -165,6 +166,26 @@ export default function DirectChatScreen() {
     for (const m of messages) seen.current.add(m.id);
   }, [messages]);
 
+  // Where to open: the first message from them you haven't read.
+  //
+  // Captured once and then frozen, because opening this screen marks the
+  // conversation read — useDirectChat fires markDmRead the moment an unread
+  // message is on screen — so a live computation would evaluate to "nothing
+  // unread" a fraction of a second later and the anchor would vanish before
+  // the list had laid out.
+  const unreadAnchor = useRef<number | null>(null);
+  const anchored = useRef(false);
+  useEffect(() => {
+    if (anchored.current || messages.length === 0) return;
+    anchored.current = true;
+    const i = messages.findIndex(
+      (m) => m.sender_id === friendId && !m.read_at && !m._status
+    );
+    unreadAnchor.current = i >= 0 ? i : null;
+  }, [messages, friendId]);
+
+  const chatScroll = useChatScroll(listRef, unreadAnchor);
+
   // Drag the thread left to read the times. One shared value for every bubble,
   // so the column moves as a single sheet.
   //
@@ -299,7 +320,7 @@ export default function DirectChatScreen() {
     if (!text || !user) return;
     kickSend();
     setInput('');
-    send.mutate(
+    send(
       { content: text },
       {
         onError: (e) => {
@@ -319,7 +340,7 @@ export default function DirectChatScreen() {
     if (!user) return;
     const uri = await pickChatImage();
     if (!uri) return;
-    sendImage.mutate(
+    sendImage(
       { localUri: uri },
       { onError: (e) => showError(e, 'Photo not sent') }
     );
@@ -500,9 +521,10 @@ export default function DirectChatScreen() {
           }}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
-          onContentSizeChange={() =>
-            listRef.current?.scrollToEnd({ animated: true })
-          }
+          onScroll={chatScroll.onScroll}
+          scrollEventThrottle={64}
+          onContentSizeChange={chatScroll.onContentSizeChange}
+          onScrollToIndexFailed={chatScroll.onScrollToIndexFailed}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Avatar

@@ -29,11 +29,21 @@ export async function sendDirectMessage(
   senderId: string,
   recipientId: string,
   content: string,
-  type: DirectMessage['type'] = 'text'
+  type: DirectMessage['type'] = 'text',
+  // Client-minted id, so the optimistic row and the confirmed row are the same
+  // row. Without it the insert picks its own and the list key changes under
+  // React — see useDirectChat. Falls back to the DB default when omitted.
+  id?: string
 ): Promise<DirectMessage> {
   const { data, error } = await supabase
     .from('direct_messages')
-    .insert({ sender_id: senderId, recipient_id: recipientId, content, type })
+    .insert({
+      ...(id ? { id } : {}),
+      sender_id: senderId,
+      recipient_id: recipientId,
+      content,
+      type,
+    })
     .select('*, sender:profiles!sender_id(*)')
     .single();
 

@@ -1,6 +1,14 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -13,7 +21,16 @@ import MentionText from './MentionText';
 import ReactionPills from './ReactionPills';
 import ReadRail from './ReadRail';
 import Ticks, { TickStatus } from './Ticks';
-import { receiveEnter, sendEnter } from './motion';
+import {
+  GLIDE,
+  POP,
+  POP_FROM,
+  SEND_FROM,
+  SQUASH_X,
+  STRETCH_IN_MS,
+  STRETCH_OUT_MS,
+  STRETCH_Y,
+} from './motion';
 
 // The one bubble both threads render. Event chat and DM had a private copy
 // each, near-identical and already drifting (the DM one had no avatar at all),
@@ -109,10 +126,60 @@ export default function MessageBubble({
   const failed = status === 'failed';
   const sending = status === 'sending';
 
-  // The whole row slides; the time sits in the gutter the slide opens up.
-  const slide = useAnimatedStyle(() =>
-    revealX ? { transform: [{ translateX: revealX.value }] } : {}
-  );
+  // 1 = where the message came from, 0 = where it belongs. Seeded at mount so
+  // the very first frame is already offset — the reason this is a shared value
+  // and a `useAnimatedStyle` rather than Reanimated's `entering` prop, which
+  // lays the view out at its resting place and applies its initial values a
+  // frame later. Inside a FlatList cell that frame was reliably visible: the
+  // bubble appeared where it was going, then dropped back to start its slide.
+  const enter = useSharedValue(isNew ? 1 : 0);
+  // 0 → 1 → 0: the give, which leads the travel and relaxes as it lands.
+  const stretch = useSharedValue(0);
+
+  useEffect(() => {
+    if (!isNew) return;
+    if (isMine) {
+      enter.value = withSpring(0, GLIDE);
+      stretch.value = withSequence(
+        withTiming(1, {
+          duration: STRETCH_IN_MS,
+          easing: Easing.out(Easing.quad),
+        }),
+        withTiming(0, {
+          duration: STRETCH_OUT_MS,
+          easing: Easing.inOut(Easing.quad),
+        })
+      );
+    } else {
+      enter.value = withSpring(0, POP);
+    }
+  }, [isNew, isMine, enter, stretch]);
+
+  // One style, not two. The reveal-drag and the arrival both want `transform`,
+  // and a later style in the array replaces the earlier one's transform wholesale
+  // rather than merging — so they have to be composed here or one of them
+  // silently wins.
+  const rowStyle = useAnimatedStyle(() => {
+    const dragX = revealX ? revealX.value : 0;
+    if (!isMine) {
+      return {
+        opacity: 1 - enter.value,
+        transform: [
+          { translateX: dragX },
+          { scale: 1 - enter.value * POP_FROM },
+        ],
+      };
+    }
+    return {
+      transform: [
+        { translateX: dragX },
+        { translateY: enter.value * SEND_FROM },
+        { scaleY: 1 + stretch.value * STRETCH_Y },
+        { scaleX: 1 - stretch.value * SQUASH_X },
+      ],
+    };
+  });
+
   const timeStyle = useAnimatedStyle(() =>
     revealX ? { opacity: Math.min(1, -revealX.value / TIME_GUTTER) } : {}
   );
@@ -136,14 +203,12 @@ export default function MessageBubble({
 
   return (
     <Animated.View
-      // Yours rises out of the composer; theirs settles in from below. Nothing
-      // animates unless it genuinely just arrived.
-      entering={isNew ? (isMine ? sendEnter : receiveEnter) : undefined}
       style={[
         styles.row,
+        styles.rowOrigin,
         isMine && styles.rowMine,
         isFirstOfRun ? styles.rowFirst : styles.rowTight,
-        slide,
+        rowStyle,
       ]}
     >
       {!isMine &&
@@ -249,6 +314,12 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
   },
   rowMine: { justifyContent: 'flex-end' },
+  // The send entrance stretches on Y. With the default centre origin that
+  // stretch grows in *both* directions, so the row's top edge pushed up into
+  // the message above it — which is the jump you see rather than a slide.
+  // Anchored to the bottom, the give happens in the direction it is travelling
+  // from.
+  rowOrigin: { transformOrigin: 'bottom' },
   // Inside a burst, and between two. Both deliberately tiny — the separation
   // that matters is carried by the shape of the run, not by air. Raw numbers
   // rather than the spacing scale: at 2 and 4 these are hairlines between
