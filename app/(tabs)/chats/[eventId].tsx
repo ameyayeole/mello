@@ -238,10 +238,19 @@ export default function GroupChatScreen() {
     }) as Profile[];
   }, [event, user]);
 
-  const otherMemberIds = useMemo(
-    () => otherMembers.map((p) => p.id),
-    [otherMembers]
-  );
+  // Ids, not `otherMembers.map(...)`: the host's *profile* comes from a join
+  // that can come back empty, and dropping them from this list would flip a
+  // message to ✓✓ one member early. Faces can be missing; the tick can't be
+  // wrong.
+  const otherMemberIds = useMemo(() => {
+    if (!event || !user) return [];
+    const ids = new Set<string>();
+    if (event.host_id !== user.id) ids.add(event.host_id);
+    for (const p of event.participants ?? []) {
+      if ((p as any).status === 'approved' && p.id !== user.id) ids.add(p.id);
+    }
+    return [...ids];
+  }, [event, user]);
 
   const readByAll = (m: Message) =>
     otherMemberIds.length > 0 &&
