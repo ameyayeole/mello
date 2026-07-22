@@ -597,7 +597,10 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
-  messageList: { padding: SPACING[4], gap: SPACING[2.5], flexGrow: 1 },
+  // No `gap`: the rows space themselves. A gap here is added to every row's
+  // own margin, so the 2pt inside a burst was really 12 — which is what made
+  // the tightening look like it had done nothing.
+  messageList: { padding: SPACING[4], flexGrow: 1 },
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
