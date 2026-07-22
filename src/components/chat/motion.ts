@@ -15,16 +15,16 @@ const LAND = { damping: 18, stiffness: 260, mass: 0.55 };
 const LIFT = { damping: 15, stiffness: 240, mass: 0.5 };
 
 /**
- * A message you just sent: it leaves the field and travels to its place.
+ * A message you just sent: it rises straight up out of the composer.
  *
- * It starts down and to the **left** — where the text field is, not where the
- * send button is. The words were in that box a moment ago, so that is where
- * the bubble should come from; launching it from the button made it look like
- * the button had produced it.
+ * Vertical only. An earlier version came up on a diagonal from the left, which
+ * read as the bubble sliding in from somewhere off to the side rather than as
+ * the text leaving the field directly below it. Bottom to top is the whole
+ * gesture.
  *
  * Eased in *and* out, deliberately not a spring. A spring leaves at full speed
  * and only decelerates; this gathers pace off the field and settles into its
- * place, which is what makes a short distance still read as travel. Small
+ * place, which is what lets a short distance still read as travel. Small
  * numbers on purpose — this fires on every message, and anything with a
  * flourish in it gets old by the third one.
  */
@@ -33,16 +33,12 @@ const SEND_TRAVEL = { duration: 260, easing: Easing.inOut(Easing.cubic) };
 export function sendEnter() {
   'worklet';
   return {
-    initialValues: {
-      opacity: 0,
-      transform: [{ translateX: -18 }, { translateY: 18 }, { scale: 0.96 }],
-    },
+    initialValues: { opacity: 0, transform: [{ translateY: 24 }, { scale: 0.97 }] },
     animations: {
       // Fades in well before it lands, so what you watch is the movement
       // rather than the appearing.
       opacity: withTiming(1, { duration: 110, easing: Easing.out(Easing.quad) }),
       transform: [
-        { translateX: withTiming(0, SEND_TRAVEL) },
         { translateY: withTiming(0, SEND_TRAVEL) },
         { scale: withTiming(1, SEND_TRAVEL) },
       ],
