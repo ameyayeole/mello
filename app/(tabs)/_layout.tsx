@@ -12,6 +12,7 @@ import {
   TabBarBackground,
   useTabBarBottomMargin,
   useTabBarSideMargin,
+  useTabBarSlide,
   CHIP_HEIGHT,
   CHIP_WIDTH,
   TAB_BAR_HEIGHT,
@@ -146,7 +147,18 @@ export default function TabLayout() {
   // strips the `(tabs)` group, so these are `/chats/<eventId>` and
   // `/chats/dm/<friendId>`.
   const inConversation = usePathname().startsWith('/chats/');
-  const hidden = creatingEvent || inConversation;
+
+  // The full-screen overlays — notifications, search — are *transparent*
+  // routes, so unlike every other push the bar would otherwise still be sitting
+  // there: visible but inert, since the screen above swallows the touches.
+  const overlayOpen = useUIStore((s) => s.overlayOpen);
+  const hidden = creatingEvent || inConversation || overlayOpen;
+
+  // All three reasons slide it down the same way, on the same timings the scene
+  // beneath an overlay recedes on. It used to be `display: 'none'` — one frame,
+  // no motion, in the middle of a half-second transition.
+  const slide = useTabBarSlide(hidden);
+
   return (
     <>
     {/* One instance for the whole tab navigator, not one per screen. The
@@ -183,7 +195,6 @@ export default function TabLayout() {
         // because React Navigation already pins start/end/bottom to 0, and
         // `start`/`end` beat `left`/`right` in Yoga.
         tabBarStyle: {
-          display: hidden ? 'none' : 'flex',
           position: 'absolute',
           marginHorizontal: sideMargin,
           marginBottom: bottomMargin,
@@ -198,6 +209,10 @@ export default function TabLayout() {
           // what separates the pill from the content there.
           backgroundColor: 'transparent',
           ...SHADOWS.lg,
+          // Last, so its transform wins over the bar's built-in one. Spread
+          // rather than nested: `tabBarStyle` takes one object, and the slide
+          // has to sit at the same level as the layout above it.
+          ...slide,
         },
       }}
     >

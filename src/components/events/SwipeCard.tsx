@@ -7,7 +7,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
+import { formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
 import { Avatar, CategoryPill, VerifiedBadge } from '@/components/ui';
@@ -70,7 +70,7 @@ export default function SwipeCard({
         />
       </View>
       <View style={styles.dateBadge}>
-        <Text style={styles.dateText}>{formatEventTime(event.starts_at)}</Text>
+        <Text style={styles.dateText}>{formatEventWhen(event.starts_at)}</Text>
       </View>
 
       {/* Bottom overlay */}

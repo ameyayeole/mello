@@ -422,6 +422,8 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                     name={event.host.name}
                     photoUrl={event.host.photo_url}
                     size={34}
+                    ringColor={COLORS.white}
+                    ringWidth={1.5}
                   />
                   <View style={styles.hostNameRow}>
                     <Text style={styles.hostName} numberOfLines={1}>

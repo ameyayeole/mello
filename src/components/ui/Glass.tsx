@@ -29,6 +29,20 @@ import { SHADOWS } from '@/constants/spacing';
 // blurred version. It loses the blur; it keeps the layout, the bright edge, the
 // shadow and the sense of a pane floating over the background. That is most of
 // what the design is doing. Untested on a physical Android device.
+//
+// ── `backdrop`: frosting a pane from its own image ───────────────────────────
+// A backdrop blur can only work with whatever is behind it, and that dependency
+// is the source of a whole class of bug. Where the thing behind changes — a
+// photo that stops partway down the screen, a rounded corner that lets a
+// different layer through — the blur's output changes with it, and prints the
+// boundary as a hard line across the glass.
+//
+// Pass `backdrop` and the pane composites that instead: no backdrop filter, so
+// what sits behind stops mattering entirely. It also means **iOS and Android
+// render the same thing**, because an image blur is ordinary image processing
+// and needs no platform support. The caller owns positioning the backdrop — for
+// a pane that scrolls, counter-translate it so the frost sits still like real
+// glass rather than sliding with the surface.
 export type GlassTier = 'chrome' | 'panel' | 'onPhoto';
 
 const BLUR_INTENSITY: Record<GlassTier, number> = {
@@ -71,6 +85,8 @@ export function Glass({
   children,
   tier = 'panel',
   radius,
+  edge = 'all',
+  backdrop,
   // A pane over a photo has nothing behind it worth casting a shadow onto — the
   // card it sits on already has one — so the shadow is opt-out.
   shadow = true,
@@ -79,6 +95,15 @@ export function Glass({
   children?: React.ReactNode;
   tier?: GlassTier;
   radius: number;
+  // `top` rounds the top corners only and draws the hairline across the top
+  // edge alone — for a pane that runs off the bottom of the screen, where the
+  // other three edges never meet anything and a corner down there would read
+  // as the surface stopping short.
+  edge?: 'all' | 'top';
+  // What to frost, when the pane should not depend on what happens to be
+  // behind it. Rendered inside the pane's clip, under the fill. See the note
+  // above the tiers.
+  backdrop?: React.ReactNode;
   shadow?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -93,6 +118,7 @@ export function Glass({
   //
   // With the fill absolutely positioned, `style` lands on the outer view where
   // layout belongs, and children lay out inside it normally.
+  const hairline = StyleSheet.hairlineWidth * 2;
   const pane: ViewStyle = {
     position: 'absolute',
     top: 0,
@@ -100,9 +126,16 @@ export function Glass({
     right: 0,
     bottom: 0,
     borderRadius: radius,
-    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderWidth: hairline,
     borderColor: BORDER[tier],
     overflow: 'hidden',
+    ...(edge === 'top' && {
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+      borderBottomWidth: 0,
+      borderLeftWidth: 0,
+      borderRightWidth: 0,
+    }),
   };
 
   // `onPhoto` panes sit on a card that already casts one; a second shadow there
@@ -111,7 +144,17 @@ export function Glass({
 
   return (
     <View style={[wantsShadow && SHADOWS.glass, { borderRadius: radius }, style]}>
-      {supportsBlur ? (
+      {backdrop ? (
+        // Self-frosting: the caller's already-blurred layer, then the same wash
+        // the blurred tiers get. No BlurView, so this path is identical on both
+        // platforms — Android included.
+        <View style={pane}>
+          {backdrop}
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: FILL[tier] }]}
+          />
+        </View>
+      ) : supportsBlur ? (
         <BlurView
           intensity={BLUR_INTENSITY[tier]}
           tint={TINT[tier]}

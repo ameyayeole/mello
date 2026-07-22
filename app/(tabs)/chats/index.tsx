@@ -42,7 +42,7 @@ import {
   ChatPref,
   WrapNote,
 } from '@/types/models';
-import { formatEventTime, formatChatTime } from '@/utils/time';
+import { formatEventWhen, formatChatTime } from '@/utils/time';
 import {
   Avatar,
   CategoryTile,
@@ -110,7 +110,7 @@ function EventChatRow({
             <PrefGlyphs pref={pref} />
           </View>
           <Text style={styles.rowSub} numberOfLines={1}>
-            {formatEventTime(event.starts_at)}
+            {formatEventWhen(event.starts_at)}
           </Text>
         </View>
         <View style={styles.countPill}>

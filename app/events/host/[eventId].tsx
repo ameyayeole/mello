@@ -21,7 +21,7 @@ import { useWrap } from '@/hooks/useWrap';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventTime } from '@/utils/time';
+import { formatEventWhen } from '@/utils/time';
 import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import BoostCard from '@/components/events/BoostCard';
@@ -168,7 +168,7 @@ export default function HostPanelScreen() {
               <View style={styles.metaRow}>
                 <Icon name="clock" size={13} color="rgba(15,24,44,0.6)" />
                 <Text style={styles.metaText}>
-                  {formatEventTime(event.starts_at)}
+                  {formatEventWhen(event.starts_at)}
                 </Text>
               </View>
             </View>

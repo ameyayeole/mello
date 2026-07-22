@@ -24,6 +24,14 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// Shared by every route that opens as a full-screen overlay — see the note at
+// the <Stack.Screen> declarations below.
+const OVERLAY_SCREEN_OPTIONS = {
+  presentation: 'transparentModal',
+  animation: 'none',
+  gestureEnabled: false,
+} as const;
+
 function AuthGuard() {
   const router = useRouter();
   const segments = useSegments();
@@ -81,7 +89,7 @@ function RootLayoutInner() {
         <Stack.Screen name="friends" />
         <Stack.Screen
           name="profile/settings"
-          options={{ presentation: 'modal' }}
+          options={OVERLAY_SCREEN_OPTIONS}
         />
         <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen
@@ -97,11 +105,26 @@ function RootLayoutInner() {
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen name="profile/blocked" />
+        {/* The two overlays. Full screen and transparent, not modal cards: the
+            page underneath stays mounted so it can recede as they come in, and
+            so it can hand an element over — the bell chip becomes the back
+            button, the search bar becomes the search field.
+
+            `animation: 'none'` because the whole transition is driven in JS
+            from the overlay itself (see `useOverlayScreen`) — a native one on
+            top of that would be a second, differently-timed transition over the
+            first. That also means the exit has to be played by hand before
+            router.back(); the hook does it.
+
+            `gestureEnabled: false` for the same reason: a swipe-dismiss would
+            drag the native card away while the JS transition is still holding
+            the pieces where they are. Each screen's own control is the way
+            out. */}
         <Stack.Screen
           name="notifications"
-          options={{ presentation: 'modal' }}
+          options={OVERLAY_SCREEN_OPTIONS}
         />
-        <Stack.Screen name="search" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="search" options={OVERLAY_SCREEN_OPTIONS} />
         <Stack.Screen name="map-filters" options={{ presentation: 'modal' }} />
         <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
       </Stack>

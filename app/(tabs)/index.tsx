@@ -29,6 +29,11 @@ import Animated, {
 import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
 import { useSavedEventIds, useSaveEvent } from '@/hooks/useSwipeDeck';
 import { useAuthStore } from '@/stores/authStore';
+import {
+  useHandedOver,
+  useOpenOverlay,
+  useOverlayRecede,
+} from '@/hooks/useOverlayScreen';
 import { useLocationStore } from '@/stores/locationStore';
 import {
   getExploreFeed,
@@ -44,8 +49,11 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { ExploreEvent, NearbyEvent, ParticipantStatus } from '@/types/models';
-import { formatEventTime } from '@/utils/time';
+import { formatEventWhen } from '@/utils/time';
+import { featuredHostedEvent } from '@/utils/events';
+import { hasWrapped } from '@/services/wrap.service';
 import { formatDistance } from '@/utils/distance';
+import { shareEvent } from '@/utils/shareEvent';
 import EventBottomSheet, {
   EventBottomSheetRef,
 } from '@/components/events/EventBottomSheet';
@@ -56,10 +64,13 @@ import {
   Glass,
   Icon,
   PressableScale,
+  SectionLabel,
+  Sheet,
   useTabBarInset,
   VerifiedBadge,
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
+import FeaturedPlanCard from '@/components/events/FeaturedPlanCard';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -224,7 +235,13 @@ function NearbyCard({
         </Svg>
 
         <View style={styles.nearbyHostRow}>
-          <Avatar name={event.host_name} photoUrl={event.host_photo_url} size={20} />
+          <Avatar
+            name={event.host_name}
+            photoUrl={event.host_photo_url}
+            size={20}
+            ringColor={COLORS.white}
+            ringWidth={1.5}
+          />
           <Text style={styles.nearbyHostName} numberOfLines={1}>
             {event.host_name}
           </Text>
@@ -254,7 +271,7 @@ function NearbyCard({
               stretching across whatever is left. */}
           <View style={styles.footerFill}>
             <Text style={styles.nearbyTime} numberOfLines={1}>
-              {formatEventTime(event.starts_at)}
+              {formatEventWhen(event.starts_at)}
             </Text>
           </View>
           {/* Three states, three colours: coral is an offer, green is settled,
@@ -279,6 +296,10 @@ function NearbyCard({
 // One plan, hosted or joined, as it appears in "Your plans".
 type Plan = { event: NearbyEvent; hosting: boolean };
 
+// How many attending rows sit under the featured card before "See all" takes
+// over. The hosted hero is separate and always shows.
+const ATTENDING_PREVIEW_COUNT = 2;
+
 export default function DashboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -288,6 +309,12 @@ export default function DashboardScreen() {
   const coords = useLocationStore((s) => s.coords);
   const sheetRef = useRef<EventBottomSheetRef>(null);
   useSelectedEventSheet(sheetRef);
+
+  const openOverlay = useOpenOverlay();
+  const handedOver = useHandedOver();
+  const recedeStyle = useOverlayRecede();
+  const bellRef = useRef<View>(null);
+  const searchRef = useRef<View>(null);
 
   const savedIdsQuery = useSavedEventIds();
   const saveEvent = useSaveEvent();
@@ -304,6 +331,21 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
+  const myEventsQuery = useQuery({
+    queryKey: queryKeys.myEvents.of(user?.id),
+    queryFn: () => getMyEvents(user!.id),
+    enabled: !!user,
+  });
+
+  // The event that gets the hero slot. NOT `data[0]`: getMyEvents is
+  // start-ascending and filters only on `is_active`, so the first row is the
+  // *oldest* event you ever hosted — which had this card announcing "You're
+  // hosting" over something that finished days ago. `featuredHostedEvent` takes
+  // the soonest one still to come, falling back to the most recently finished
+  // so the wrap stays reachable when you have nothing booked.
+  const featuredEvent = featuredHostedEvent(myEventsQuery.data ?? []);
+  const featuredEnded = !!featuredEvent && hasWrapped(featuredEvent);
+
   // Drives the Join / Requested / Going label. Separate from `joinedQuery`
   // because that one is approved-only — see getMyParticipation.
   const participationQuery = useQuery({
@@ -312,23 +354,20 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
-  // Who's going to the events in the nearby row. A second round trip rather
-  // than part of the feed, because the feed reads participants through RLS and
-  // therefore cannot see them — see migration 038.
-  const nearbyIds = useMemo(
-    () => (nearbyQuery.data ?? []).map((e) => e.id),
-    [nearbyQuery.data]
-  );
+  // Who's going to the events in the nearby row, plus the featured hosted event
+  // — its own participant_count includes pending requests, so we want the RPC's
+  // approved-only going_count and faces for the hero card. A second round trip
+  // rather than part of the feed, because the feed reads participants through
+  // RLS and therefore cannot see them — see migration 038.
+  const previewIds = useMemo(() => {
+    const ids = (nearbyQuery.data ?? []).map((e) => e.id);
+    if (featuredEvent) ids.push(featuredEvent.id);
+    return ids;
+  }, [nearbyQuery.data, featuredEvent]);
   const previewsQuery = useQuery({
-    queryKey: queryKeys.attendeePreviews.of(nearbyIds),
-    queryFn: () => getAttendeePreviews(nearbyIds),
-    enabled: nearbyIds.length > 0,
-  });
-
-  const myEventsQuery = useQuery({
-    queryKey: queryKeys.myEvents.of(user?.id),
-    queryFn: () => getMyEvents(user!.id),
-    enabled: !!user,
+    queryKey: queryKeys.attendeePreviews.of(previewIds),
+    queryFn: () => getAttendeePreviews(previewIds),
+    enabled: previewIds.length > 0,
   });
 
   // Kept live by useNotifications, which invalidates this key whenever a
@@ -381,7 +420,9 @@ export default function DashboardScreen() {
 
   // Hosting and attending are one list, because that is how a day works: what
   // matters is what's next, not which side of it you're on. The eyebrow on each
-  // row carries the distinction the two separate headings used to.
+  // row carries the distinction the two separate headings used to. Hosting
+  // always sorts first — it's the plan you can't bail on, so it should never
+  // be bumped down the list by something you're merely attending.
   const plans = useMemo<Plan[]>(() => {
     const hosted: Plan[] = (myEventsQuery.data ?? []).map((event) => ({
       event,
@@ -391,12 +432,24 @@ export default function DashboardScreen() {
       event,
       hosting: false,
     }));
-    return [...hosted, ...joined].sort(
-      (a, b) =>
+    return [...hosted, ...joined].sort((a, b) => {
+      if (a.hosting !== b.hosting) return a.hosting ? -1 : 1;
+      return (
         new Date(a.event.starts_at).getTime() -
         new Date(b.event.starts_at).getTime()
-    );
+      );
+    });
   }, [myEventsQuery.data, joinedQuery.data]);
+
+  // The hero (featuredEvent) is pulled out of the row list; the rows beneath it
+  // are the ones you're attending. Any extra hosted events live in "See all".
+  const attendingPreview = useMemo(
+    () => plans.filter((p) => !p.hosting).slice(0, ATTENDING_PREVIEW_COUNT),
+    [plans]
+  );
+  const shownCount = (featuredEvent ? 1 : 0) + attendingPreview.length;
+  const hasMorePlans = plans.length > shownCount;
+  const [plansSheetVisible, setPlansSheetVisible] = useState(false);
 
   const plansLoading = myEventsQuery.isLoading || joinedQuery.isLoading;
   const firstName = user?.name?.split(' ')[0] ?? 'there';
@@ -406,6 +459,7 @@ export default function DashboardScreen() {
       {/* Dark glyphs: the backdrop is light on every screen now. */}
       <StatusBar style="dark" />
 
+      <Animated.View style={[styles.fill, recedeStyle]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -441,17 +495,30 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <PressableScale
-            scaleTo={0.9}
-            onPress={() => router.push('/notifications')}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
+          {/* `collapsable={false}` so Android keeps the view around to be
+              measured — a plain wrapper with no styling is exactly what view
+              flattening removes. The ref goes here rather than on
+              PressableScale because that one is an animated component, whose
+              host ref is not something to rely on. */}
+          <View
+            ref={bellRef}
+            collapsable={false}
+            style={handedOver === 'notifications' && styles.handedOver}
           >
-            <Glass tier="panel" radius={23} style={styles.headerBtn}>
-              <Icon name="bell" size={20} color={COLORS.textPrimary} />
-              {(unreadQuery.data ?? 0) > 0 && <View style={styles.headerDot} />}
-            </Glass>
-          </PressableScale>
+            <PressableScale
+              scaleTo={0.9}
+              onPress={() => openOverlay('notifications', bellRef)}
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+            >
+              <Glass tier="panel" radius={23} style={styles.headerBtn}>
+                <Icon name="bell" size={20} color={COLORS.textPrimary} />
+                {(unreadQuery.data ?? 0) > 0 && (
+                  <View style={styles.headerDot} />
+                )}
+              </Glass>
+            </PressableScale>
+          </View>
 
           <PressableScale
             scaleTo={0.92}
@@ -461,12 +528,24 @@ export default function DashboardScreen() {
           </PressableScale>
         </View>
 
-        <PressableScale scaleTo={0.98} onPress={() => router.push('/search')}>
-          <Glass tier="panel" radius={RADIUS.lg} style={styles.searchBar}>
-            <Icon name="search" size={18} color={COLORS.textMuted} />
-            <Text style={styles.searchText}>Search events & people</Text>
-          </Glass>
-        </PressableScale>
+        {/* Handed to the search screen the same way the chip above is handed
+            to notifications — it flies up to the top and narrows to make room
+            for the close button. Same wrapper, same reason. */}
+        <View
+          ref={searchRef}
+          collapsable={false}
+          style={handedOver === 'search' && styles.handedOver}
+        >
+          <PressableScale
+            scaleTo={0.98}
+            onPress={() => openOverlay('search', searchRef)}
+          >
+            <Glass tier="panel" radius={RADIUS.lg} style={styles.searchBar}>
+              <Icon name="search" size={18} color={COLORS.textMuted} />
+              <Text style={styles.searchText}>Search events & people</Text>
+            </Glass>
+          </PressableScale>
+        </View>
 
         {cityName ? (
           <Animated.View
@@ -525,10 +604,10 @@ export default function DashboardScreen() {
         <Animated.View entering={FadeInDown.delay(60).duration(350)}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your plans</Text>
-            {plans.length > 0 && (
+            {hasMorePlans && (
               <Text
                 style={styles.seeAll}
-                onPress={() => router.push('/(tabs)/explore')}
+                onPress={() => setPlansSheetVisible(true)}
               >
                 See all
               </Text>
@@ -556,30 +635,90 @@ export default function DashboardScreen() {
             </Glass>
           ) : (
             <View style={styles.rowList}>
-              {plans.map(({ event, hosting }) => (
-                <EventRow
-                  key={event.id}
-                  event={event}
-                  glass
-                  photo
-                  eyebrow={hosting ? 'hosting' : 'attending'}
-                  cta={hosting ? 'manage' : 'details'}
-                  tone={hosting ? 'strong' : 'quiet'}
-                  onPress={() =>
-                    // Hosts land on the manage panel (attendees, requests,
-                    // edit); guests land in the event chat.
+              {/* Your hosting hero: the next one, or the last one so its wrap
+                  stays reachable. */}
+              {featuredEvent && (
+                <FeaturedPlanCard
+                  event={featuredEvent}
+                  preview={previewsQuery.data?.[featuredEvent.id]}
+                  ended={featuredEnded}
+                  onManage={() =>
                     router.push(
-                      hosting
-                        ? `/events/host/${event.id}`
-                        : `/(tabs)/chats/${event.id}`
+                      featuredEnded
+                        ? `/events/wrap/${featuredEvent.id}`
+                        : `/events/host/${featuredEvent.id}`
                     )
                   }
+                  onShare={() => shareEvent(featuredEvent)}
+                  onChat={() =>
+                    router.push(`/(tabs)/chats/${featuredEvent.id}`)
+                  }
                 />
-              ))}
+              )}
+
+              {attendingPreview.length > 0 && (
+                <>
+                  {/* Only a heading once the hero is above it — with no hero
+                      these rows are the whole section and speak for themselves. */}
+                  {featuredEvent && (
+                    <SectionLabel style={styles.alsoLabel}>
+                      Also attending
+                    </SectionLabel>
+                  )}
+                  {attendingPreview.map(({ event }) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      glass
+                      photo
+                      eyebrow="attending"
+                      cta="details"
+                      tone="quiet"
+                      onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+                    />
+                  ))}
+                </>
+              )}
             </View>
           )}
         </Animated.View>
       </ScrollView>
+      </Animated.View>
+
+      <Sheet
+        visible={plansSheetVisible}
+        onClose={() => setPlansSheetVisible(false)}
+        grabber
+        style={styles.plansSheetCard}
+      >
+        <Text style={styles.plansSheetTitle}>Your plans</Text>
+        <ScrollView
+          style={styles.plansSheetScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.rowList}>
+            {plans.map(({ event, hosting }) => (
+              <EventRow
+                key={event.id}
+                event={event}
+                glass
+                photo
+                eyebrow={hosting ? 'hosting' : 'attending'}
+                cta={hosting ? 'manage' : 'details'}
+                tone={hosting ? 'strong' : 'quiet'}
+                onPress={() => {
+                  setPlansSheetVisible(false);
+                  router.push(
+                    hosting
+                      ? `/events/host/${event.id}`
+                      : `/(tabs)/chats/${event.id}`
+                  );
+                }}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </Sheet>
 
       <EventBottomSheet ref={sheetRef} />
     </View>
@@ -590,6 +729,14 @@ const styles = StyleSheet.create({
   // No background colour: <AppBackground> is mounted behind the tab navigator
   // and this screen is a transparent sheet over it.
   root: { flex: 1 },
+  // The layer that recedes behind the notifications screen. Everything that
+  // scrolls lives inside it; the two sheets stay outside, since a sheet that
+  // shrank with the page would be a modal that isn't quite modal.
+  fill: { flex: 1 },
+  // Not animated, and not a fade — the moment an overlay exists it owns the
+  // element it took over, and the moment it is gone this one has it back.
+  // Anything in between would be visible as a second copy.
+  handedOver: { opacity: 0 },
   // paddingTop/paddingBottom are applied inline — the top comes from the safe
   // area and the bottom from the floating tab bar's clearance, both of which
   // are device-dependent.
@@ -814,6 +961,19 @@ const styles = StyleSheet.create({
   },
 
   rowList: { gap: SPACING[2.5] },
+
+  // Sits between the hero and the attending rows; rowList's gap does the rest.
+  alsoLabel: { marginTop: SPACING[1] },
+
+  plansSheetCard: { paddingHorizontal: SPACING[5] },
+  plansSheetTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.titleLg,
+    letterSpacing: -0.5,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING[3.5],
+  },
+  plansSheetScroll: { maxHeight: 420 },
 
   // Empty state
   emptyCard: {
