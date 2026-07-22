@@ -1,7 +1,9 @@
 import {
   runFlags,
   readersByMessage,
+  startsTimeBlock,
   RUN_GAP_MS,
+  TIME_BLOCK_MS,
   Groupable,
   Readable,
 } from '../messageGroups';
@@ -95,6 +97,40 @@ describe('runFlags', () => {
   it('breaks the run rather than guessing when a timestamp is unparseable', () => {
     const broken: Groupable = { sender_id: 'a', created_at: 'not a date' };
     expect(runFlags(msg('a', 0), broken, undefined).isFirstOfRun).toBe(true);
+  });
+});
+
+// The centred header is on a much longer clock than the grouping: a run is
+// about how messages look together, this is about the conversation going quiet.
+describe('startsTimeBlock', () => {
+  it('heads the first message in a thread', () => {
+    expect(startsTimeBlock(undefined, msg('a'))).toBe(true);
+  });
+
+  it('says nothing for a reply inside the hour', () => {
+    expect(startsTimeBlock(msg('a', 0), msg('b', 40 * 60 * 1000))).toBe(false);
+  });
+
+  it('heads a message sent more than an hour later', () => {
+    expect(startsTimeBlock(msg('a', 0), msg('b', TIME_BLOCK_MS + 1))).toBe(true);
+  });
+
+  // Local time on purpose: the day boundary that matters is the one the
+  // reader is standing in, not UTC's. A UTC literal here would pass or fail
+  // depending on the machine's offset.
+  it('heads the first message of a new day even minutes later', () => {
+    const local = (iso: string): Groupable => ({
+      sender_id: 'a',
+      created_at: new Date(iso).toISOString(),
+    });
+    expect(
+      startsTimeBlock(local('2026-07-22T23:58:00'), local('2026-07-23T00:02:00'))
+    ).toBe(true);
+  });
+
+  it('heads rather than hides when a timestamp is unreadable', () => {
+    const broken: Groupable = { sender_id: 'a', created_at: 'nope' };
+    expect(startsTimeBlock(broken, msg('a'))).toBe(true);
   });
 });
 

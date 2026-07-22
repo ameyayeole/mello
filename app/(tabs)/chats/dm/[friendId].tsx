@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useSharedValue, withSpring } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useDirectChat } from '@/hooks/useDirectChat';
 import { useReactions } from '@/hooks/useReactions';
@@ -31,7 +31,11 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DirectMessage, Profile } from '@/types/models';
 import { isPremium } from '@/utils/premium';
-import { readersByMessage, runFlags } from '@/utils/messageGroups';
+import {
+  readersByMessage,
+  runFlags,
+  startsTimeBlock,
+} from '@/utils/messageGroups';
 import {
   Avatar,
   Glass,
@@ -66,6 +70,12 @@ import {
   promptReportMessage,
 } from '@/utils/chatActions';
 import { showError } from '@/utils/errors';
+
+// How much of a pull past the gutter actually moves the thread, and the spring
+// that returns it. Slightly overdamped: it should settle, not wobble — this is
+// a peek at the time, not a toy.
+const RUBBER = 0.5;
+const SPRING_BACK = { damping: 20, stiffness: 220, mass: 0.5 };
 
 function tickStatus(message: DirectMessage): TickStatus {
   if (message._status === 'sending') return 'sending';
@@ -132,17 +142,23 @@ export default function DirectChatScreen() {
   const revealPan = Gesture.Pan()
     .activeOffsetX([-14, 14])
     .failOffsetY([-12, 12])
-    .onChange((e) => {
-      // Rubberbands past the gutter rather than stopping dead, and refuses to
-      // open rightward — there is nothing over there to reveal.
-      const next = revealX.value + e.changeX;
-      revealX.value = next > 0 ? 0 : Math.max(next, -TIME_GUTTER * 1.25);
+    // Driven off the gesture's own total translation rather than accumulated
+    // deltas. Accumulating and then clamping puts a kink in the motion at the
+    // moment resistance starts; computing the whole offset each frame keeps
+    // the curve continuous, which is what makes it feel like rubber rather
+    // than like something hitting a wall.
+    .onUpdate((e) => {
+      const raw = Math.min(0, e.translationX);
+      const past = -raw - TIME_GUTTER;
+      revealX.value =
+        past <= 0
+          ? raw
+          : // Asymptotic: every further pixel of pull moves it less than the
+            // last, so it never quite reaches the end and never stops dead.
+            -(TIME_GUTTER + (past * RUBBER) / (1 + past / TIME_GUTTER));
     })
     .onEnd(() => {
-      revealX.value = withTiming(0, {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-      });
+      revealX.value = withSpring(0, SPRING_BACK);
     });
 
   // The read rail. A DM has one reader, so their face parks under the newest
@@ -400,8 +416,10 @@ export default function DirectChatScreen() {
 
             return (
               <>
-              {/* Above every burst — see the event thread. */}
-              {isFirstOfRun ? <TimeDivider date={item.created_at} /> : null}
+              {/* Only across an hour or a day — see the event thread. */}
+              {startsTimeBlock(messages[index - 1], item) ? (
+                <TimeDivider date={item.created_at} />
+              ) : null}
               <MessageBubble
                 content={item.content}
                 type={item.type === 'image' ? 'image' : 'text'}

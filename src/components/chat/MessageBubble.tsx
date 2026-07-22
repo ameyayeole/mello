@@ -243,10 +243,12 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
   },
   rowMine: { justifyContent: 'flex-end' },
-  // Between bursts, and inside one. The tight value is what makes four
-  // messages in a minute read as a single block.
-  rowFirst: { marginTop: SPACING[2.5] },
-  rowTight: { marginTop: SPACING[0.5] },
+  // Inside a burst, and between two. Both deliberately tiny — the separation
+  // that matters is carried by the shape of the run, not by air. Raw numbers
+  // rather than the spacing scale: at 2 and 4 these are hairlines between
+  // adjacent shapes, not layout.
+  rowFirst: { marginTop: 4 },
+  rowTight: { marginTop: 2 },
   avatarSpacer: { width: AVATAR_SIZE },
   column: { maxWidth: '74%' },
   senderName: {

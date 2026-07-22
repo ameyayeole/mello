@@ -1,5 +1,5 @@
 import { useWindowDimensions, Modal, Pressable, View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -83,8 +83,11 @@ export default function ReactionOverlay({
           style={[StyleSheet.absoluteFill, styles.scrim]}
         />
 
+        {/* Springs up from the bubble's own centre rather than fading in from
+            nowhere: the copy is meant to read as the message you pressed
+            lifting off the thread, not as a new thing appearing over it. */}
         <Animated.View
-          entering={FadeInDown.duration(180)}
+          entering={ZoomIn.springify().damping(16).stiffness(220).mass(0.5)}
           style={[
             styles.copy,
             // The measured rect, straight through: the copy lands exactly on
@@ -103,14 +106,22 @@ export default function ReactionOverlay({
           </View>
         </Animated.View>
 
-        <View style={[styles.barSlot, { top: barTop }]} pointerEvents="box-none">
+        <Animated.View
+          entering={ZoomIn.springify()
+            .damping(15)
+            .stiffness(240)
+            .mass(0.5)
+            .delay(40)}
+          style={[styles.barSlot, { top: barTop }]}
+          pointerEvents="box-none"
+        >
           <ReactionBar
             mine={myEmoji}
             alignRight={isMine}
             onPick={onPick}
             onMore={onMore}
           />
-        </View>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

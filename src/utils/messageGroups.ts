@@ -64,6 +64,35 @@ export function runFlags(
   };
 }
 
+// How long a conversation has to go quiet before the thread says the time out
+// loud. Deliberately much longer than the grouping gap: a run is about how
+// messages *look* together, this is about a genuine break in the conversation.
+// At a minute you got a header over every burst, which is a clock stapled to
+// the thread rather than a marker in it.
+export const TIME_BLOCK_MS = 60 * 60 * 1000;
+
+/**
+ * Whether a centred timestamp belongs above `current`.
+ *
+ * True for the first message in the thread, for one that opens a new day, and
+ * for one sent more than an hour after the message before it.
+ */
+export function startsTimeBlock(
+  previous: Groupable | undefined,
+  current: Groupable
+): boolean {
+  if (!previous) return true;
+  const before = new Date(previous.created_at);
+  const now = new Date(current.created_at);
+  const beforeMs = before.getTime();
+  const nowMs = now.getTime();
+  // An unreadable timestamp gets a header rather than being silently folded
+  // into whatever came before it.
+  if (Number.isNaN(beforeMs) || Number.isNaN(nowMs)) return true;
+  if (before.toDateString() !== now.toDateString()) return true;
+  return nowMs - beforeMs > TIME_BLOCK_MS;
+}
+
 // A message with an id, for the read rail below.
 export interface Readable extends Groupable {
   id: string;

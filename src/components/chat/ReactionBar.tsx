@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { ZoomIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { Glass, Icon, PressableScale } from '@/components/ui';
@@ -31,11 +31,10 @@ export default function ReactionBar({
   // took over the long press, so it has to carry the way back to them.
   onMore?: () => void;
 }) {
+  // No entrance of its own: the overlay springs the whole bar in, and a second
+  // animation here fought it.
   return (
-    <Animated.View
-      entering={ZoomIn.duration(180)}
-      style={alignRight ? styles.wrapRight : styles.wrap}
-    >
+    <Animated.View style={alignRight ? styles.wrapRight : styles.wrap}>
       <Glass tier="chrome" radius={RADIUS.full} style={styles.bar}>
         {TAPBACKS.map((emoji) => (
           <PressableScale
