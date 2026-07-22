@@ -73,6 +73,31 @@ export async function getUnreadDmCount(userId: string): Promise<number> {
   return count ?? 0;
 }
 
+// Unread DMs per conversation, for the badges on the Inbox rows: sender id →
+// how many of their messages you haven't opened.
+//
+// One query rather than a count per row. `head: true` is deliberately NOT used
+// here — we need the sender of each unread row to bucket it, and there is no
+// GROUP BY in PostgREST. The cap keeps a runaway inbox from pulling the world;
+// past it the badges under-count, which is the safe direction.
+export async function getUnreadDmCounts(
+  userId: string
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('sender_id')
+    .eq('recipient_id', userId)
+    .is('read_at', null)
+    .limit(500);
+  if (error) return counts;
+
+  for (const row of (data ?? []) as { sender_id: string }[]) {
+    counts.set(row.sender_id, (counts.get(row.sender_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // Hard delete of your own DM (RLS in migration 030).
 export async function deleteDirectMessage(id: string): Promise<void> {
   const { error } = await supabase

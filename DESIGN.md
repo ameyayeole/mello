@@ -213,8 +213,10 @@ uppercase, often preceded by a 6px status dot.
       **The blobs are radial gradients, not blurred circles.** A blur pass over
       a hard-edged circle would be a full-screen backdrop filter every frame,
       and there is no cheap one on Android; a radial gradient with an alpha
-      falloff is the same image for free. `chats` is the one tab that stays
-      opaque — it is a white list surface by design.
+      falloff is the same image for free. **Every tab runs transparent over
+      it**, `chats` included — it used to be the one opaque white list, and the
+      messages mockup reversed that: the Inbox and both threads are frosted
+      cards over the same drifting field as everything else.
 - [x] **The glass recipe, as one component.** `<Glass tier radius>` in `ui/`
       implements all three tiers from §3. The tab bar, search bar, header
       buttons, plan rows and the on-photo pills all go through it.
@@ -261,7 +263,8 @@ uppercase, often preceded by a 6px status dot.
       coral it should be calmer than.
 
 - [x] **Full-screen overlays that hand an element over.** Notifications, search
-      and settings are transparent full-screen routes rather than modal cards,
+      (from home *and* from the Inbox) and settings are transparent full-screen
+      routes rather than modal cards,
       and each one takes an element off the page beneath and flies it into
       place. Reanimated 4 has no shared-element transitions, so it is built by
       hand.
@@ -276,8 +279,13 @@ uppercase, often preceded by a 6px status dot.
       | Content | rises and fades in behind it, staggered |
 
       **Four hooks, and a screen supplies only the shape it flies.** Everything
-      else is identical across the three, and was written twice for about an
-      hour before it wasn't.
+      else is identical across them, and was written twice for about an hour
+      before it wasn't.
+
+      Two pages fly a search field, so there are two keys — `search` and
+      `chatSearch` — landing on the same route. The key is what tells a page
+      which of *its* elements to hide while the copy is out; sharing one would
+      blank both fields.
 
       | Hook | On | Does |
       | --- | --- | --- |
@@ -290,6 +298,7 @@ uppercase, often preceded by a 6px status dot.
       | --- | --- | --- |
       | Notifications | the bell chip, 46×46 glass circle | the back button at `(20, top+12)`, bell cross-fading to chevron across the middle of the flight |
       | Search | the search bar, full-width glass panel | the search field at the same left inset, **narrowed** by a close button's width, its resting label cross-fading into a live input |
+      | Chat search | the Inbox's field, the same panel | the same place. What it *reaches* differs — the chats you're in, and people — not what it looks like |
       | Settings | profile's gear chip, 46×46 **`onPhoto`** circle | the back button at `(20, top+12)`, gear → chevron, and the pane cross-fading `onPhoto` → `panel` |
 
       **One chip size across the app: 46 with a 23 radius.** Home's header
@@ -400,6 +409,30 @@ uppercase, often preceded by a 6px status dot.
       leading edge. It replaced a pale `#FFF6F5` fill, which on a translucent
       panel over a drifting background read as a tint *on the glass* rather
       than as a state.
+
+- [x] **The messages surfaces**, from the second mockup. The Inbox is a title
+      at `display`, a glass field, "Active now", and `panel` rows at radius 20;
+      threads are a `chrome` bar top and bottom with the messages between.
+
+      | Piece | Value |
+      | --- | --- |
+      | Their bubble | `glassPanel` fill + `glassBorder`, r20, bottom-left 6 |
+      | Your bubble | **`accent`** — ink, not coral — r20, bottom-right 6 |
+      | Bubble text | `bodyMd` / 20 |
+      | Timestamp | **outside** the bubble, `nano` in `textMuted`, with the ticks |
+      | Avatar | 26, on the **last** message of a run; a spacer holds the column otherwise |
+      | Day divider | `panel` chip, `full` radius, centred |
+      | Composer | `chrome` bar; field `glassPanel` r18, send an ink r16 square |
+
+      **The bubbles are not `<Glass>`.** A blurred pane per message is a native
+      blur view per message inside a scrolling list — the "blur inside a blur"
+      cost §3 warns about — so they take the fill and the hairline without the
+      blur pass. At bubble size there is nothing legible behind them to blur
+      anyway.
+
+      **Your bubbles went coral → ink.** Coral is a screen's one real decision,
+      and a column of it down the right of every thread is the opposite of
+      that. The send button moved with them, for the same reason.
 
 **Not built — the remaining deltas:**
 

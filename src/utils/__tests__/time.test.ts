@@ -1,9 +1,11 @@
 import {
+  chatDayLabel,
   eventDayLabel,
   formatEventWhen,
   relativeWhen,
   shortRelativeTime,
   splitEventTime,
+  startsNewDay,
 } from '../time';
 
 // Every helper here branches on "is this today", so the clock is pinned.
@@ -121,5 +123,38 @@ describe('shortRelativeTime — the notification row’s timestamp', () => {
   // the future. "-1m ago" is worse than saying nothing happened yet.
   it('clamps a future timestamp rather than counting backwards', () => {
     expect(shortRelativeTime(at('2026-07-20T12:00:30'))).toBe('Just now');
+  });
+});
+
+// The chat thread's divider chip. Backwards-looking, where eventDayLabel is
+// forwards: a message from last Tuesday is "Tuesday", never "Completed".
+describe('chatDayLabel', () => {
+  it.each([
+    ['this morning', '2026-07-20T09:00:00', 'Today'],
+    ['yesterday', '2026-07-19T22:00:00', 'Yesterday'],
+    ['earlier this week', '2026-07-16T13:00:00', 'Thursday'],
+    // Past a week a weekday name could mean either of two, so it hands over
+    // to a date — the same horizon the event ladder uses.
+    ['a fortnight ago', '2026-07-06T13:00:00', 'Jul 6'],
+  ])('%s reads "%s"', (_label, iso, expected) => {
+    expect(chatDayLabel(at(iso))).toBe(expected);
+  });
+});
+
+describe('startsNewDay', () => {
+  it('divides before the first message', () => {
+    expect(startsNewDay(undefined, at('2026-07-20T09:00:00'))).toBe(true);
+  });
+
+  it('does not divide two messages on the same day', () => {
+    expect(
+      startsNewDay(at('2026-07-20T09:00:00'), at('2026-07-20T23:30:00'))
+    ).toBe(false);
+  });
+
+  it('divides across midnight', () => {
+    expect(
+      startsNewDay(at('2026-07-19T23:59:00'), at('2026-07-20T00:01:00'))
+    ).toBe(true);
   });
 });
