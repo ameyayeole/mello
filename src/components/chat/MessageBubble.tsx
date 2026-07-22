@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
@@ -6,9 +7,9 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatChatTime } from '@/utils/time';
 import { MessageReaction, Profile } from '@/types/models';
 import { Avatar, PressableScale } from '@/components/ui';
+import type { BubbleAnchor } from './ReactionOverlay';
 import ChatImageBubble from './ChatImageBubble';
 import MentionText from './MentionText';
-import ReactionBar from './ReactionBar';
 import ReactionPills from './ReactionPills';
 import ReadRail from './ReadRail';
 import Ticks, { TickStatus } from './Ticks';
@@ -43,6 +44,10 @@ export interface MessageBubbleProps {
   sender?: BubbleSender;
   // Last message of a run — where the face goes.
   showAvatar?: boolean;
+  // The time and ticks, once per run rather than once per bubble. Four
+  // messages in the same minute stamped four times is noise; the run's last
+  // message carries them for all of it.
+  showMeta?: boolean;
   // First message of a run in a group chat.
   showName?: boolean;
   // Omitted on messages that aren't yours; only your own carry ticks.
@@ -51,12 +56,10 @@ export interface MessageBubbleProps {
   // Tapbacks on this message, and whose they are.
   reactions?: MessageReaction[];
   myUserId?: string;
-  // The tapback bar is open on this message. Only ever one at a time, so the
-  // thread owns which — the bubble just renders it.
-  reactionBarOpen?: boolean;
-  onReact?: (emoji: string) => void;
-  onOpenReactions?: () => void;
-  onCloseReactions?: () => void;
+  // Long-pressed: hand the thread this bubble's rect so it can float the
+  // tapback bar over it. Measured here because this is the only component that
+  // knows where the bubble ended up.
+  onOpenReactions?: (anchor: BubbleAnchor) => void;
   // Everyone whose "read up to" has passed this message. Only your own
   // messages ever carry them.
   readers?: Profile[];
@@ -74,15 +77,13 @@ export default function MessageBubble({
   status,
   sender,
   showAvatar,
+  showMeta = true,
   showName,
   tick,
   mentionables,
   reactions,
   myUserId,
-  reactionBarOpen,
-  onReact,
   onOpenReactions,
-  onCloseReactions,
   readers,
   onReadersPress,
   onRetry,
@@ -91,15 +92,23 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const failed = status === 'failed';
   const sending = status === 'sending';
-  const myReaction = reactions?.find((r) => r.user_id === myUserId)?.emoji;
+  // The ref lives on a plain wrapping View, not on the PressableScale: its
+  // host ref is not something to rely on, and `collapsable={false}` is what
+  // stops Android's view flattening removing the wrapper — measureInWindow
+  // never fires for a detached node. Same constraint as useOpenOverlay.
+  const bubbleRef = useRef<View>(null);
 
-  // A failed message's tap is "retry" and nothing else; otherwise a tap on an
-  // open bar's bubble is how you put it away without choosing anything.
-  const handlePress = failed
-    ? onRetry
-    : reactionBarOpen
-      ? onCloseReactions
-      : undefined;
+  // measureInWindow, because the overlay that receives this is a Modal — it
+  // has its own coordinate space and knows nothing about the list's scroll.
+  // A missing ref falls through to no anchor rather than to a dead long-press.
+  const openReactions = () => {
+    if (!onOpenReactions) return;
+    const node = bubbleRef.current;
+    if (!node) return;
+    node.measureInWindow((x, y, width, height) =>
+      onOpenReactions({ x, y, width, height })
+    );
+  };
 
   return (
     <Animated.View
@@ -123,20 +132,11 @@ export default function MessageBubble({
           <Text style={styles.senderName}>{sender?.name}</Text>
         ) : null}
 
-        {reactionBarOpen && onReact ? (
-          <ReactionBar
-            mine={myReaction}
-            alignRight={isMine}
-            onPick={onReact}
-            onMore={onLongPress}
-          />
-        ) : null}
-
         {type === 'image' ? (
           <PressableScale
             disabled={false}
-            onPress={handlePress}
-            onLongPress={onOpenReactions ?? onLongPress}
+            onPress={failed ? onRetry : undefined}
+            onLongPress={onOpenReactions ? openReactions : onLongPress}
             delayLongPress={350}
             scaleTo={0.98}
           >
@@ -153,30 +153,32 @@ export default function MessageBubble({
             ) : null}
           </PressableScale>
         ) : (
-          <PressableScale
-            disabled={false}
-            onPress={handlePress}
-            onLongPress={onOpenReactions ?? onLongPress}
-            delayLongPress={350}
-            style={[
-              styles.bubble,
-              isMine && styles.bubbleMine,
-              sending && styles.bubblePending,
-            ]}
-          >
-            <MentionText
-              content={content}
-              style={[styles.bubbleText, isMine && styles.bubbleTextMine]}
-              mentionables={mentionables}
-              light={isMine}
-            />
-          </PressableScale>
+          <View ref={bubbleRef} collapsable={false}>
+            <PressableScale
+              disabled={false}
+              onPress={failed ? onRetry : undefined}
+              onLongPress={onOpenReactions ? openReactions : onLongPress}
+              delayLongPress={350}
+              style={[
+                styles.bubble,
+                isMine && styles.bubbleMine,
+                sending && styles.bubblePending,
+              ]}
+            >
+              <MentionText
+                content={content}
+                style={[styles.bubbleText, isMine && styles.bubbleTextMine]}
+                mentionables={mentionables}
+                light={isMine}
+              />
+            </PressableScale>
+          </View>
         )}
 
         {/* Outside the bubble, per the mockup: the time is about the message,
             not part of it, and inside it was competing with the last line of
             text for the same corner. */}
-        {type === 'text' ? (
+        {type === 'text' && (showMeta || failed) ? (
           <View style={[styles.metaRow, isMine && styles.metaRowMine]}>
             <Text style={styles.bubbleTime}>
               {failed ? 'Not sent · tap to retry' : formatChatTime(createdAt)}
@@ -190,7 +192,7 @@ export default function MessageBubble({
             reactions={reactions}
             myUserId={myUserId}
             isMine={isMine}
-            onPress={onOpenReactions}
+            onPress={onOpenReactions ? openReactions : undefined}
           />
         ) : null}
 

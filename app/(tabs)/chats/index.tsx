@@ -893,7 +893,8 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.primary,
+    ...SHADOWS.primary,
   },
   activeName: {
     fontFamily: FONTS.semibold,

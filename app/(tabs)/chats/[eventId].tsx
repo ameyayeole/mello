@@ -56,6 +56,8 @@ import {
   SheetOption,
   MentionText,
   MessageBubble,
+  ReactionOverlay,
+  BubbleAnchor,
   DayDivider,
   ReadReceiptSheet,
   PinnedMessageBanner,
@@ -187,7 +189,15 @@ export default function GroupChatScreen() {
     eventId,
     reactableIds
   );
-  const [reactingTo, setReactingTo] = useState<string | null>(null);
+  // The message whose tapback bar is open, and where its bubble sits on
+  // screen. Held together because the overlay needs both and they are only
+  // ever set at the same moment.
+  const [reacting, setReacting] = useState<{
+    id: string;
+    content: string;
+    isMine: boolean;
+    anchor: BubbleAnchor;
+  } | null>(null);
 
   const isHost = !!user && event?.host_id === user.id;
   const locked = !!event?.chat_locked;
@@ -599,27 +609,29 @@ export default function GroupChatScreen() {
                     : { id: item.sender_id }
                 }
                 showAvatar={isLastOfRun}
+                // One timestamp per run, on its last message — four messages
+                // in the same minute stamped four times is noise.
+                showMeta={isLastOfRun}
                 showName={isFirstOfRun}
                 tick={isMine ? tickStatus(item, read) : undefined}
                 mentionables={mentionables}
                 reactions={reactions.get(item.id)}
                 myUserId={user?.id}
-                reactionBarOpen={reactingTo === item.id}
-                onReact={(emoji) => {
-                  react(item.id, emoji);
-                  setReactingTo(null);
-                }}
                 onOpenReactions={
-                  item._status ? undefined : () => setReactingTo(item.id)
+                  item._status
+                    ? undefined
+                    : (anchor) =>
+                        setReacting({
+                          id: item.id,
+                          content: item.content,
+                          isMine,
+                          anchor,
+                        })
                 }
-                onCloseReactions={() => setReactingTo(null)}
                 readers={isMine ? readersOf(item.id) : undefined}
                 onReadersPress={() => setReceiptFor(item)}
                 onRetry={() => retry(item)}
-                onLongPress={() => {
-                  setReactingTo(null);
-                  longPress();
-                }}
+                onLongPress={longPress}
                 onAvatarPress={() => profileSheet.current?.open(item.sender_id)}
               />
               </>
@@ -751,6 +763,24 @@ export default function GroupChatScreen() {
       />
       {/* Tapping a face in the thread. A sheet rather than the profile route:
           you are checking who said this, not leaving the conversation. */}
+      <ReactionOverlay
+        visible={!!reacting}
+        anchor={reacting?.anchor ?? null}
+        content={reacting?.content ?? ''}
+        isMine={!!reacting?.isMine}
+        myEmoji={
+          reacting
+            ? reactions
+                .get(reacting.id)
+                ?.find((r) => r.user_id === user?.id)?.emoji
+            : undefined
+        }
+        onPick={(emoji) => {
+          if (reacting) react(reacting.id, emoji);
+          setReacting(null);
+        }}
+        onClose={() => setReacting(null)}
+      />
       <ProfileBottomSheet ref={profileSheet} />
     </View>
   );
@@ -885,6 +915,11 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
     paddingHorizontal: SPACING[3.5],
     paddingTop: SPACING[2.5],
+    // The bar was reading as part of the wallpaper — glass over a pale
+    // background is a pale background. The hairline is what says the thread
+    // ends here and the controls begin.
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
   },
   inputBarAnnounce: { backgroundColor: '#FFF6E9' },
   attachBtn: {
@@ -899,9 +934,12 @@ const styles = StyleSheet.create({
     // matching the DM screen.
     minHeight: 44,
     maxHeight: 120,
-    backgroundColor: COLORS.glassPanel,
+    // Solid, not glass: a translucent field inside a translucent bar is two
+    // sheets of the same thing, and the input stopped looking like somewhere
+    // you could type.
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.border,
     borderRadius: RADIUS.xl,
     paddingHorizontal: SPACING[4],
     paddingVertical: SPACING[2.5],

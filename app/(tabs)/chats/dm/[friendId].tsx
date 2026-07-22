@@ -45,6 +45,8 @@ import {
   OptionSheet,
   SheetOption,
   MessageBubble,
+  ReactionOverlay,
+  BubbleAnchor,
   DayDivider,
   ReadReceiptSheet,
   PinnedMessageBanner,
@@ -109,7 +111,15 @@ export default function DirectChatScreen() {
     friendId,
     reactableIds
   );
-  const [reactingTo, setReactingTo] = useState<string | null>(null);
+  // The message whose tapback bar is open, and where its bubble sits on
+  // screen. Held together because the overlay needs both and they are only
+  // ever set at the same moment.
+  const [reacting, setReacting] = useState<{
+    id: string;
+    content: string;
+    isMine: boolean;
+    anchor: BubbleAnchor;
+  } | null>(null);
 
   // The read rail. A DM has one reader, so their face parks under the newest
   // message of yours they've opened — the same shape as the group chat, built
@@ -383,6 +393,7 @@ export default function DirectChatScreen() {
                   photoUrl: friend?.photo_url,
                 }}
                 showAvatar={isLastOfRun}
+                showMeta={isLastOfRun}
                 // A DM has one other person in it and their name is in the
                 // header — a label over every run would be noise.
                 showName={false}
@@ -390,21 +401,20 @@ export default function DirectChatScreen() {
                 mentionables={mentionables}
                 reactions={reactions.get(item.id)}
                 myUserId={user?.id}
-                reactionBarOpen={reactingTo === item.id}
-                onReact={(emoji) => {
-                  react(item.id, emoji);
-                  setReactingTo(null);
-                }}
                 onOpenReactions={
-                  item._status ? undefined : () => setReactingTo(item.id)
+                  item._status
+                    ? undefined
+                    : (anchor) =>
+                        setReacting({
+                          id: item.id,
+                          content: item.content,
+                          isMine,
+                          anchor,
+                        })
                 }
-                onCloseReactions={() => setReactingTo(null)}
                 readers={isMine ? readers(item) : undefined}
                 onReadersPress={() => setReceiptFor(item)}
-                onLongPress={() => {
-                  setReactingTo(null);
-                  setMessageSheet(item);
-                }}
+                onLongPress={() => setMessageSheet(item)}
                 onAvatarPress={() => profileSheet.current?.open(friendId)}
               />
               </>
@@ -497,6 +507,24 @@ export default function DirectChatScreen() {
         others={receiptFor?.read_at ? [] : [friendProfile]}
         onClose={() => setReceiptFor(null)}
       />
+      <ReactionOverlay
+        visible={!!reacting}
+        anchor={reacting?.anchor ?? null}
+        content={reacting?.content ?? ''}
+        isMine={!!reacting?.isMine}
+        myEmoji={
+          reacting
+            ? reactions
+                .get(reacting.id)
+                ?.find((r) => r.user_id === user?.id)?.emoji
+            : undefined
+        }
+        onPick={(emoji) => {
+          if (reacting) react(reacting.id, emoji);
+          setReacting(null);
+        }}
+        onClose={() => setReacting(null)}
+      />
       <ProfileBottomSheet ref={profileSheet} />
     </View>
   );
@@ -552,6 +580,10 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
     paddingHorizontal: SPACING[3.5],
     paddingTop: SPACING[2.5],
+    // See the event thread: glass over a pale background is a pale
+    // background, so the bar needs an edge of its own.
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
   },
   attachBtn: {
     width: 38,
@@ -563,9 +595,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     maxHeight: 120,
-    backgroundColor: COLORS.glassPanel,
+    // Solid, not glass: a translucent field inside a translucent bar is two
+    // sheets of the same thing, and the input stopped looking like somewhere
+    // you could type.
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.border,
     borderRadius: RADIUS.xl,
     paddingHorizontal: SPACING[4],
     paddingVertical: SPACING[2.5],
