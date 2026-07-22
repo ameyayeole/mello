@@ -194,9 +194,9 @@ function ChatRow({
 function GoingCount({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <View style={styles.goingChip}>
+    <Glass tier="onPhoto" radius={12} shadow={false} style={styles.goingChip}>
       <Text style={styles.goingText}>{count}</Text>
-    </View>
+    </Glass>
   );
 }
 
@@ -219,19 +219,25 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      {/* Smoked ink and a white ring — the same separation AttendeeStack gives
-          its faces, and for the same reason: a disc sitting directly on a
-          photo has no edge of its own until you draw it one.
+      {/* Smoked glass, and a white ring to hold it off the image — the same
+          separation AttendeeStack gives its faces.
 
-          A plain View, not <Glass>. At 22pt there is nothing behind this worth
-          blurring, and a native blur layer per row is the cost DESIGN.md §3
-          warns about — but mostly it removes the clipping question entirely
-          rather than relying on it having been solved. */}
-      <View style={styles.typeBadge}>
+          `onPhoto` is the tier for exactly this, and it has to *blur*: a flat
+          translucent ink over a sharp photo is how the first version leaked
+          the picture through the disc. Blurring is what lets the fill stay
+          light enough to read as glass without the photograph coming with it.
+          (Android has no backdrop blur, so it falls back to the flat fill and
+          this one disc loses the effect — DESIGN.md §7's standing trade.) */}
+      <Glass
+        tier="onPhoto"
+        radius={12}
+        shadow={false}
+        style={styles.typeBadge}
+      >
         <Text style={styles.typeEmoji}>
           {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
         </Text>
-      </View>
+      </Glass>
     </View>
   );
 }
@@ -970,10 +976,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    // Opaque ink, not the translucent on-photo fill: at 58% the photo behind
-    // showed straight through the disc, so the emoji sat on whatever the
-    // image happened to be rather than on a surface of its own.
-    backgroundColor: COLORS.accent,
+    // No fill of its own — <Glass> paints the pane inside this box, so the
+    // border here becomes the ring around it.
     borderWidth: 2,
     borderColor: COLORS.white,
   },
@@ -997,7 +1001,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.accent,
     borderWidth: 2,
     borderColor: COLORS.white,
   },
