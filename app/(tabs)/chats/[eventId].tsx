@@ -218,17 +218,18 @@ export default function GroupChatScreen() {
     anchor: BubbleAnchor;
   } | null>(null);
 
-  // The send button's own kick. It dips and springs back as the message
-  // leaves — the physical half of the bubble rising out of the bar, so the two
-  // read as one event rather than as a button press followed by a bubble.
+  // The send button's own kick: a small dip and a spring back as the message
+  // leaves, so the button and the bubble read as one event rather than as a
+  // press followed by a bubble. 8%, not the 16% it started at — this fires on
+  // every message, and at 16 it was the loudest thing on the screen.
   const sendKick = useSharedValue(0);
   const sendStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 - sendKick.value * 0.16 }],
+    transform: [{ scale: 1 - sendKick.value * 0.08 }],
   }));
   const kickSend = () => {
     sendKick.value = withSequence(
       withTiming(1, { duration: 70 }),
-      withSpring(0, { damping: 12, stiffness: 320, mass: 0.4 })
+      withSpring(0, { damping: 14, stiffness: 300, mass: 0.4 })
     );
   };
 
