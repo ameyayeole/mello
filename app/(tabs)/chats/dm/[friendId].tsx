@@ -27,8 +27,8 @@ import { getChatPrefs, chatKey } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DirectMessage } from '@/types/models';
-import { formatChatTime } from '@/utils/time';
 import { isPremium } from '@/utils/premium';
+import { runFlags } from '@/utils/messageGroups';
 import {
   Avatar,
   Icon,
@@ -40,12 +40,10 @@ import { MoneyGuardBanner, useMoneyGuard } from '@/components/safety';
 import {
   OptionSheet,
   SheetOption,
-  MentionText,
-  ChatImageBubble,
+  MessageBubble,
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
-  Ticks,
   TickStatus,
   activeMentionQuery,
   insertMention,
@@ -60,72 +58,6 @@ import { showError } from '@/utils/errors';
 function tickStatus(message: DirectMessage): TickStatus {
   if (message._status === 'sending') return 'sending';
   return message.read_at ? 'read' : 'sent';
-}
-
-function MessageBubble({
-  message,
-  isMine,
-  mentionables,
-  onLongPress,
-}: {
-  message: DirectMessage;
-  isMine: boolean;
-  mentionables?: Map<string, string>;
-  onLongPress?: (message: DirectMessage) => void;
-}) {
-  if (message.type === 'image') {
-    return (
-      <Animated.View
-        entering={FadeInDown.duration(250)}
-        style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}
-      >
-        <PressableScale
-          scaleTo={0.98}
-          onLongPress={() => onLongPress?.(message)}
-          delayLongPress={350}
-        >
-          <ChatImageBubble
-            uri={message.content}
-            dimmed={message._status === 'sending'}
-          />
-          {isMine && (
-            <View style={styles.imageMetaRow}>
-              <Text style={styles.imageMetaTime}>
-                {formatChatTime(message.created_at)}
-              </Text>
-              <Ticks status={tickStatus(message)} />
-            </View>
-          )}
-        </PressableScale>
-      </Animated.View>
-    );
-  }
-
-  return (
-    <Animated.View
-      entering={FadeInDown.duration(250)}
-      style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}
-    >
-      <PressableScale
-        style={[styles.bubble, isMine && styles.bubbleMine]}
-        onLongPress={() => onLongPress?.(message)}
-        delayLongPress={350}
-      >
-        <MentionText
-          content={message.content}
-          style={[styles.bubbleText, isMine && styles.bubbleTextMine]}
-          mentionables={mentionables}
-          light={isMine}
-        />
-        <View style={styles.metaRow}>
-          <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
-            {formatChatTime(message.created_at)}
-          </Text>
-          {isMine && <Ticks status={tickStatus(message)} light />}
-        </View>
-      </PressableScale>
-    </Animated.View>
-  );
 }
 
 export default function DirectChatScreen() {
@@ -352,14 +284,37 @@ export default function DirectChatScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
-          renderItem={({ item }) => (
-            <MessageBubble
-              message={item}
-              isMine={item.sender_id === user?.id}
-              mentionables={mentionables}
-              onLongPress={setMessageSheet}
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const isMine = item.sender_id === user?.id;
+            const { isLastOfRun } = runFlags(
+              messages[index - 1],
+              item,
+              messages[index + 1]
+            );
+
+            return (
+              <MessageBubble
+                content={item.content}
+                type={item.type === 'image' ? 'image' : 'text'}
+                createdAt={item.created_at}
+                isMine={isMine}
+                status={item._status}
+                sender={{
+                  id: friendId,
+                  name: friend?.name,
+                  photoUrl: friend?.photo_url,
+                }}
+                showAvatar={isLastOfRun}
+                // A DM has one other person in it and their name is in the
+                // header — a label over every run would be noise.
+                showName={false}
+                tick={isMine ? tickStatus(item) : undefined}
+                mentionables={mentionables}
+                onLongPress={() => setMessageSheet(item)}
+                onAvatarPress={() => router.push(`/friends/${friendId}`)}
+              />
+            );
+          }}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
           onContentSizeChange={() =>
@@ -470,59 +425,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING[0.5],
   },
   messageList: { padding: SPACING[4], gap: SPACING[2.5], flexGrow: 1 },
-  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end' },
-  bubbleRowMine: { justifyContent: 'flex-end' },
-  bubble: {
-    maxWidth: '74%',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal: SPACING[3],
-    paddingVertical: SPACING[2],
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  bubbleMine: {
-    backgroundColor: COLORS.primary,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 4,
-    shadowOpacity: 0,
-  },
-  bubbleText: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    lineHeight: 19,
-    color: COLORS.textPrimary,
-  },
-  bubbleTextMine: { color: '#fff' },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-    alignSelf: 'flex-end',
-    marginTop: SPACING[0.5],
-  },
-  bubbleTime: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.35)',
-  },
-  bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
-  imageMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-    alignSelf: 'flex-end',
-    marginTop: SPACING[1],
-  },
-  imageMetaTime: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.4)',
-  },
   empty: {
     alignItems: 'center',
     justifyContent: 'center',

@@ -4,6 +4,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { VerifiedBadge } from './Icon';
+import { PressableScale } from './PressableScale';
 
 // Avatar per design system: photo, or initial on the brand gradient.
 // Optional online dot (green, bg-colored ring) and verified check.
@@ -15,6 +16,7 @@ export function Avatar({
   verified = false,
   ringColor,
   ringWidth = 2.5,
+  onPress,
 }: {
   name?: string | null;
   photoUrl?: string | null;
@@ -27,12 +29,16 @@ export function Avatar({
   // quarter of the diameter and the face reads as cropped — small avatars want
   // a thinner one.
   ringWidth?: number;
+  // A face that opens the person. Chat bubbles, the read-receipt rail and the
+  // active-now row all want this; without it each was wrapping its own
+  // pressable and picking its own scale.
+  onPress?: () => void;
 }) {
   const radius = size / 2;
   const initial = name?.trim()?.[0]?.toUpperCase() ?? '?';
 
-  return (
-    <View style={{ width: size, height: size }}>
+  const face = (
+    <>
       <View
         style={[
           styles.circle,
@@ -77,7 +83,23 @@ export function Avatar({
           <VerifiedBadge size={Math.max(14, size * 0.36)} />
         </View>
       )}
-    </View>
+    </>
+  );
+
+  const box = { width: size, height: size };
+
+  if (!onPress) return <View style={box}>{face}</View>;
+
+  return (
+    <PressableScale
+      style={box}
+      scaleTo={0.9}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={name ? `Open ${name}'s profile` : 'Open profile'}
+    >
+      {face}
+    </PressableScale>
   );
 }
 

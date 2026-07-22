@@ -36,8 +36,8 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Message } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
+import { runFlags } from '@/utils/messageGroups';
 import {
-  Avatar,
   CategoryTile,
   Icon,
   IconButton,
@@ -53,7 +53,7 @@ import {
   OptionSheet,
   SheetOption,
   MentionText,
-  ChatImageBubble,
+  MessageBubble,
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
@@ -74,134 +74,58 @@ function tickStatus(message: Message, read: boolean): TickStatus {
   return read ? 'read' : 'sent';
 }
 
-function MessageBubble({
+// System notices and host announcements are full-width cards rather than
+// bubbles, so they stay here — the shared <MessageBubble> renders the other
+// two types, in both this screen and the DM thread.
+function SystemRow({ content }: { content: string }) {
+  return (
+    <View style={styles.systemRow}>
+      <Text style={styles.systemText}>{content}</Text>
+    </View>
+  );
+}
+
+function AnnouncementCard({
   message,
   isMine,
   read,
   mentionables,
-  onRetry,
   onLongPress,
 }: {
   message: Message;
   isMine: boolean;
-  // ✓✓: every other chat member has read past this message.
   read: boolean;
   mentionables?: Map<string, string>;
-  onRetry?: (message: Message) => void;
   onLongPress?: (message: Message) => void;
 }) {
-  if (message.type === 'system') {
-    return (
-      <View style={styles.systemRow}>
-        <Text style={styles.systemText}>{message.content}</Text>
-      </View>
-    );
-  }
-
-  const failed = message._status === 'failed';
   const sending = message._status === 'sending';
 
-  // Host announcements render as a distinct full-width card.
-  if (message.type === 'announcement') {
-    return (
-      <Animated.View entering={FadeInDown.duration(250)}>
-        <PressableScale
-          scaleTo={0.99}
-          style={[styles.announceCard, sending && { opacity: 0.6 }]}
-          onLongPress={() => onLongPress?.(message)}
-          delayLongPress={350}
-        >
-          <View style={styles.announceHead}>
-            <Icon name="megaphone" size={15} color="#B4690E" />
-            <Text style={styles.announceLabel}>
-              Announcement · {message.sender?.name ?? 'Host'}
-            </Text>
-          </View>
-          <MentionText
-            content={message.content}
-            style={styles.announceText}
-            mentionables={mentionables}
-          />
-          <View style={styles.announceMetaRow}>
-            <Text style={styles.announceTime}>
-              {formatChatTime(message.created_at)}
-            </Text>
-            {isMine && <Ticks status={tickStatus(message, read)} />}
-          </View>
-        </PressableScale>
-      </Animated.View>
-    );
-  }
-
-  const isImage = message.type === 'image';
-
   return (
-    <Animated.View
-      entering={FadeInDown.duration(250)}
-      style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}
-    >
-      {!isMine && (
-        <Avatar
-          name={message.sender?.name}
-          photoUrl={message.sender?.photo_url}
-          size={26}
+    <Animated.View entering={FadeInDown.duration(250)}>
+      <PressableScale
+        scaleTo={0.99}
+        style={[styles.announceCard, sending && { opacity: 0.6 }]}
+        onLongPress={() => onLongPress?.(message)}
+        delayLongPress={350}
+      >
+        <View style={styles.announceHead}>
+          <Icon name="megaphone" size={15} color="#B4690E" />
+          <Text style={styles.announceLabel}>
+            Announcement · {message.sender?.name ?? 'Host'}
+          </Text>
+        </View>
+        <MentionText
+          content={message.content}
+          style={styles.announceText}
+          mentionables={mentionables}
         />
-      )}
-      <View style={{ maxWidth: '74%' }}>
-        {!isMine && (
-          <Text style={styles.senderName}>{message.sender?.name}</Text>
-        )}
-        {isImage ? (
-          <PressableScale
-            disabled={false}
-            onPress={failed ? () => onRetry?.(message) : undefined}
-            onLongPress={() => onLongPress?.(message)}
-            delayLongPress={350}
-            scaleTo={0.98}
-          >
-            <ChatImageBubble uri={message.content} dimmed={sending} />
-            {failed ? (
-              <Text style={styles.imageStatus}>Not sent · tap to retry</Text>
-            ) : isMine ? (
-              <View style={styles.imageMetaRow}>
-                <Text style={styles.imageStatus}>
-                  {formatChatTime(message.created_at)}
-                </Text>
-                <Ticks status={tickStatus(message, read)} />
-              </View>
-            ) : null}
-          </PressableScale>
-        ) : (
-          <PressableScale
-            disabled={false}
-            onPress={failed ? () => onRetry?.(message) : undefined}
-            onLongPress={() => onLongPress?.(message)}
-            delayLongPress={350}
-            style={[
-              styles.bubble,
-              isMine && styles.bubbleMine,
-              sending && styles.bubblePending,
-            ]}
-          >
-            <MentionText
-              content={message.content}
-              style={[styles.bubbleText, isMine && styles.bubbleTextMine]}
-              mentionables={mentionables}
-              light={isMine}
-            />
-            <View style={styles.metaRow}>
-              <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
-                {failed
-                  ? 'Not sent · tap to retry'
-                  : formatChatTime(message.created_at)}
-              </Text>
-              {isMine && !failed && (
-                <Ticks status={tickStatus(message, read)} light />
-              )}
-            </View>
-          </PressableScale>
-        )}
-      </View>
+        <View style={styles.announceMetaRow}>
+          <Text style={styles.announceTime}>
+            {formatChatTime(message.created_at)}
+          </Text>
+          {isMine && <Ticks status={tickStatus(message, read)} />}
+        </View>
+      </PressableScale>
     </Animated.View>
   );
 }
@@ -539,18 +463,59 @@ export default function GroupChatScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
-          renderItem={({ item }) => (
-            <MessageBubble
-              message={item}
-              isMine={item.sender_id === user?.id}
-              read={item.sender_id === user?.id && readByAll(item)}
-              mentionables={mentionables}
-              onRetry={retry}
-              onLongPress={(m) => {
-                if (!m._status) setMessageSheet(m);
-              }}
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const isMine = item.sender_id === user?.id;
+            const read = isMine && readByAll(item);
+            const longPress = () => {
+              if (!item._status) setMessageSheet(item);
+            };
+
+            if (item.type === 'system')
+              return <SystemRow content={item.content} />;
+
+            if (item.type === 'announcement')
+              return (
+                <AnnouncementCard
+                  message={item}
+                  isMine={isMine}
+                  read={read}
+                  mentionables={mentionables}
+                  onLongPress={longPress}
+                />
+              );
+
+            const { isFirstOfRun, isLastOfRun } = runFlags(
+              messages[index - 1],
+              item,
+              messages[index + 1]
+            );
+
+            return (
+              <MessageBubble
+                content={item.content}
+                type={item.type === 'image' ? 'image' : 'text'}
+                createdAt={item.created_at}
+                isMine={isMine}
+                status={item._status}
+                sender={
+                  item.sender
+                    ? {
+                        id: item.sender_id,
+                        name: item.sender.name,
+                        photoUrl: item.sender.photo_url,
+                      }
+                    : { id: item.sender_id }
+                }
+                showAvatar={isLastOfRun}
+                showName={isFirstOfRun}
+                tick={isMine ? tickStatus(item, read) : undefined}
+                mentionables={mentionables}
+                onRetry={() => retry(item)}
+                onLongPress={longPress}
+                onAvatarPress={() => router.push(`/friends/${item.sender_id}`)}
+              />
+            );
+          }}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
           onContentSizeChange={() =>
@@ -742,71 +707,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.nano,
     color: 'rgba(15,24,44,0.35)',
-  },
-  bubbleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: SPACING[2],
-  },
-  bubbleRowMine: { justifyContent: 'flex-end' },
-  senderName: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.6)',
-    marginLeft: SPACING[3],
-    marginBottom: SPACING[0.5],
-  },
-  bubble: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal: SPACING[3],
-    paddingVertical: SPACING[2],
-    shadowColor: '#0F182C',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  bubbleMine: {
-    backgroundColor: COLORS.primary,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 4,
-    shadowOpacity: 0,
-  },
-  bubblePending: { opacity: 0.6 },
-  bubbleText: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    lineHeight: 19,
-    color: COLORS.textPrimary,
-  },
-  bubbleTextMine: { color: '#fff' },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-    alignSelf: 'flex-end',
-    marginTop: SPACING[0.5],
-  },
-  bubbleTime: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.35)',
-  },
-  bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
-  imageMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-    alignSelf: 'flex-end',
-    marginTop: SPACING[1],
-  },
-  imageStatus: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.45)',
-    alignSelf: 'flex-end',
   },
   announceModeBar: {
     flexDirection: 'row',
