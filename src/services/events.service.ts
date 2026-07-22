@@ -453,14 +453,22 @@ export async function getSavedEventIds(userId: string): Promise<string[]> {
 // Supabase returns aggregated counts as `event_participants: [{ count: N }]`.
 function withParticipantCount(row: any): NearbyEvent {
   const count = row?.event_participants?.[0]?.count ?? 0;
-  const { event_participants: _ep, ...rest } = row ?? {};
-  return { ...rest, participant_count: count } as NearbyEvent;
+  const { event_participants: _ep, host: hostRow, ...rest } = row ?? {};
+  return {
+    ...rest,
+    participant_count: count,
+    // Flattened to match what the feed RPCs return since migration 017, so
+    // callers never have to care which query an event arrived from. Only
+    // present when the caller asked for the join.
+    ...(hostRow?.name ? { host_name: hostRow.name } : {}),
+  } as NearbyEvent;
 }
 
 export async function getMyEvents(userId: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    .select('*, event_participants(count)')
+    // The host join feeds the Inbox's "X is hosting this event" line.
+    .select('*, event_participants(count), host:profiles!host_id(name)')
     .eq('host_id', userId)
     .eq('is_active', true)
     .order('starts_at', { ascending: true });
@@ -543,7 +551,9 @@ export async function getMyParticipation(
 export async function getJoinedEvents(userId: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('event_participants')
-    .select('event:events(*, event_participants(count))')
+    .select(
+      'event:events(*, event_participants(count), host:profiles!host_id(name))'
+    )
     .eq('user_id', userId)
     // Only approved participants belong in chats — pending join requests
     // (awaiting host approval) must not show the event chat yet.
