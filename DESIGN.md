@@ -217,6 +217,17 @@ uppercase, often preceded by a 6px status dot.
       it**, `chats` included — it used to be the one opaque white list, and the
       messages mockup reversed that: the Inbox and both threads are frosted
       cards over the same drifting field as everything else.
+
+      **A nested stack needs the theme, not `contentStyle`.** `chats` is the one
+      tab whose routes sit under their own `<Stack>`, and a native stack hands
+      react-native-screens a container colour straight off the navigation theme
+      — `nativeContainerStyle={{ backgroundColor: colors.background }}`. That
+      container is *below* anything a screen can style, so setting
+      `contentStyle: 'transparent'` uncovered iOS's grouped-background grey
+      rather than the field, and drawing a second `<AppBackground>` inside the
+      layout did nothing because the stack paints on top of it. The fix is a
+      `<ThemeProvider>` around that stack with `colors.background:
+      'transparent'`. Any future tab that grows a nested layout will hit this.
 - [x] **The glass recipe, as one component.** `<Glass tier radius>` in `ui/`
       implements all three tiers from §3. The tab bar, search bar, header
       buttons, plan rows and the on-photo pills all go through it.
