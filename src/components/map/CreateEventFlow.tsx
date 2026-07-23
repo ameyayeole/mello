@@ -407,11 +407,15 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       );
       try {
         const create = (async () => {
-          // No cover photo? Fall back to the host's profile picture so the
-          // event never shows up blank in the feed.
-          let imageUrl: string | undefined;
-          if (photoUri) imageUrl = await uploadEventPhoto(user.id, photoUri);
-          else imageUrl = user.photo_url ?? undefined;
+          // No cover photo? The column stays null and the cards fall back to
+          // the host's face at render — see `eventImageUri`. This used to copy
+          // `user.photo_url` in here, which left `image_url` meaning either "a
+          // photo of this event" or "a photo of the host" with no way to tell,
+          // and the copy pointed at a dead file the moment that host changed
+          // their avatar.
+          const imageUrl = photoUri
+            ? await uploadEventPhoto(user.id, photoUri)
+            : undefined;
           return createEvent({
             hostId: user.id,
             activity,

@@ -7,6 +7,7 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
+import { eventImageUri } from '@/utils/events';
 import { CategoryTile, Glass, PressableScale } from '@/components/ui';
 
 // The compact event list row used by the dashboard and the profile tab:
@@ -89,14 +90,15 @@ export default function EventRow({
   // `photo` is a request, not a guarantee — an event whose image failed to
   // upload still has to render something, and the category tile is what that
   // something has always been.
-  const showPhoto = photo && !!event.image_url;
+  const imageUri = eventImageUri(event);
+  const showPhoto = photo && !!imageUri;
 
   const body = (
     <>
       <View style={styles.thumb}>
         {showPhoto ? (
           <Image
-            source={{ uri: event.image_url! }}
+            source={{ uri: imageUri! }}
             style={styles.thumbPhoto}
             contentFit="cover"
             transition={150}
