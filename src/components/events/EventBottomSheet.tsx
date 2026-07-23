@@ -19,7 +19,9 @@ import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetFooter,
+  BottomSheetBackdrop,
   type BottomSheetFooterProps,
+  type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -41,6 +43,7 @@ import { splitEventTime } from '@/utils/time';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatDistance } from '@/utils/distance';
+import { neighbourhood } from '@/utils/location';
 import { shareEvent } from '@/utils/shareEvent';
 import {
   hasSeenSafetyFlag,
@@ -54,11 +57,15 @@ import {
   AttendeeStack,
   Button,
   CategoryPill,
+  Dialog,
+  Glass,
   Icon,
   IconName,
   PremiumBadge,
   PressableScale,
   SectionLabel,
+  Sheet,
+  TextField,
   VerifiedBadge,
 } from '@/components/ui';
 import { categoryStyle } from '@/constants/categoryStyle';
@@ -82,6 +89,15 @@ export interface EventBottomSheetRef {
   open: (eventId: string) => void;
   close: () => void;
 }
+
+// The reasons offered when leaving. Stored verbatim in event_leave_feedback so a
+// host can see why guests dropped. "Something else" invites a free-text note.
+const LEAVE_REASONS = [
+  "Can't make it anymore",
+  'My plans changed',
+  'Not comfortable / feels unsafe',
+  'Something else',
+] as const;
 
 interface Props {
   onDismiss?: () => void;
@@ -167,15 +183,11 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
     useImperativeHandle(ref, () => ({
       open(id: string) {
         setEventId(id);
-        // On a cold start (opened from a deep link) the sheet isn't laid out
-        // yet when this fires, so an immediate snapToIndex is silently dropped.
-        // Retry across a few frames; snapping again once open is a no-op.
-        let tries = 0;
-        const snap = () => {
-          sheetRef.current?.snapToIndex(0);
-          if (tries++ < 5) requestAnimationFrame(snap);
-        };
-        requestAnimationFrame(snap);
+        // The sheet is always mounted now (one instance in (tabs)/_layout), so
+        // it is laid out by the time any tap or deep link calls this — a single
+        // snap on the next frame is enough. The old retry-loop that snapped ~6×
+        // per open was itself part of the expand jank.
+        requestAnimationFrame(() => sheetRef.current?.snapToIndex(0));
       },
       close() {
         sheetRef.current?.close();
@@ -212,6 +224,32 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
     // ─── Pre-join safety queue (#3 first join, #10 women-only, #5 new host,
     //     #8 party/alcohol) ────────────────────────────────────────────────────
     const [joinQueue, setJoinQueue] = useState<QueuedSafetyPopup[]>([]);
+
+    // ─── Leave flow: confirm → reason (spec: "are you sure?" then a reason) ─────
+    // Leaving is two-step and the reason is recorded (event_leave_feedback). The
+    // reason picker only opens after the confirm, so an accidental tap can't
+    // remove you.
+    const [leaveStep, setLeaveStep] = useState<'idle' | 'confirm' | 'reason'>(
+      'idle'
+    );
+    const [leaveReason, setLeaveReason] = useState<string | null>(null);
+    const [leaveDetail, setLeaveDetail] = useState('');
+
+    function resetLeaveFlow() {
+      setLeaveStep('idle');
+      setLeaveReason(null);
+      setLeaveDetail('');
+    }
+
+    function confirmLeave() {
+      if (!leaveReason) return;
+      leave.mutate({
+        reason: leaveReason,
+        detail: leaveDetail.trim() || undefined,
+      });
+      resetLeaveFlow();
+      sheetRef.current?.close();
+    }
 
     async function handleJoinPress() {
       if (!event || !user) return;
@@ -323,6 +361,21 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
     // Must be identity-stable across unrelated re-renders: a fresh function
     // makes the footer remount, and reanimated then overlaps the exiting
     // snapshot with the entering one — a doubled toast.
+    // Dims the screen behind the sheet — including the floating tab bar, which
+    // the sheet now sits above (mounted in (tabs)/_layout). Tapping the dim
+    // closes. Identity-stable so the sheet doesn't remount it each render.
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          pressBehavior="close"
+        />
+      ),
+      []
+    );
+
     const renderToast = useCallback(
       (props: BottomSheetFooterProps) =>
         toast ? (
@@ -350,9 +403,19 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
       <BottomSheet
         ref={sheetRef}
         index={-1}
-        snapPoints={['58%', '90%']}
+        // One tall snap: on first tap the primary action (Open chat / Join) is
+        // already in view on every device, no scroll needed. A shorter first
+        // stop hid it on smaller screens.
+        snapPoints={['90%']}
+        // Off: it defaults on in gorhom v5 and re-measures content against the
+        // fixed snap point on every expand — the stutter after a scroll.
+        enableDynamicSizing={false}
         enablePanDownToClose
-        onClose={onDismiss}
+        onClose={() => {
+          resetLeaveFlow();
+          onDismiss?.();
+        }}
+        backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleComponent={null}
         footerComponent={renderToast}
@@ -385,10 +448,12 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                     color={categoryStyle(event.activity).accent}
                   />
                 </View>
+                {/* Frosted on-photo chips — the same treatment the other photo
+                    cards use for their save/share buttons (see FeaturedPlanCard),
+                    white glyphs on smoked glass so they read over any image. */}
                 <View style={styles.bannerActions}>
                   <PressableScale
                     scaleTo={0.9}
-                    style={styles.shareBtn}
                     onPress={() => saveMutation.mutate(!isSaved)}
                     accessibilityLabel={
                       isSaved ? 'Remove from wishlist' : 'Add to wishlist'
@@ -396,21 +461,24 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                     accessibilityRole="button"
                     accessibilityState={{ selected: isSaved }}
                   >
-                    <Icon
-                      name={isSaved ? 'bookmarkFilled' : 'bookmark'}
-                      size={18}
-                      color={COLORS.primary}
-                      strokeWidth={2}
-                    />
+                    <Glass tier="onPhoto" radius={RADIUS.md} style={styles.chip}>
+                      <Icon
+                        name={isSaved ? 'bookmarkFilled' : 'bookmark'}
+                        size={18}
+                        color={COLORS.white}
+                        strokeWidth={2}
+                      />
+                    </Glass>
                   </PressableScale>
                   <PressableScale
                     scaleTo={0.9}
-                    style={styles.shareBtn}
                     onPress={() => shareEvent(event)}
                     accessibilityLabel="Share this event"
                     accessibilityRole="button"
                   >
-                    <Icon name="share" size={18} color={COLORS.primary} strokeWidth={2} />
+                    <Glass tier="onPhoto" radius={RADIUS.md} style={styles.chip}>
+                      <Icon name="share" size={18} color={COLORS.white} strokeWidth={2} />
+                    </Glass>
                   </PressableScale>
                 </View>
               </View>
@@ -468,7 +536,9 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   <Icon name="location" size={20} color={COLORS.primary} strokeWidth={2} />
                   <View style={styles.infoText}>
                     <Text style={styles.infoTitle} numberOfLines={1}>
-                      {event.location_name ?? 'Location'}
+                      {event.location_name
+                        ? neighbourhood(event.location_name)
+                        : 'Location'}
                     </Text>
                     <Text style={styles.infoSub}>
                       {event.distance_m != null
@@ -497,32 +567,6 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
 
               {event.description && (
                 <Text style={styles.description}>{event.description}</Text>
-              )}
-
-              {/* Approved participants stack */}
-              {approved.length > 0 && (
-                <View>
-                  <SectionLabel style={styles.sectionLabel}>
-                    Who's going
-                  </SectionLabel>
-                  <View style={styles.participantsRow}>
-                    {approved.slice(0, 6).map((p, i) => (
-                      <View
-                        key={p.id}
-                        style={[styles.stackItem, i > 0 && { marginLeft: -11 }]}
-                      >
-                        <Avatar name={p.name} photoUrl={p.photo_url} size={34} />
-                      </View>
-                    ))}
-                    {approved.length > 6 && (
-                      <View style={[styles.overflowBubble, { marginLeft: -11 }]}>
-                        <Text style={styles.overflowText}>
-                          +{approved.length - 6}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
               )}
 
               {/* Host: pending join requests to approve/reject */}
@@ -567,9 +611,15 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                 </View>
               )}
 
-              {/* Actions */}
+              {/* Actions.
+                  Order for someone who's in: Open chat → Check in → who's-going
+                  card → Leave (last, behind a confirm). The host is a participant
+                  since migration 043, so `isParticipant` is true for them too —
+                  guard the guest-only actions (Check in, Leave) with `!isHost`. */}
               <View style={styles.actions}>
-                {/* Ended event + attendee: the wrap replaces join/leave. */}
+                {/* Ended event: attendees get the wrap. Nobody gets join/leave/
+                    check-in on a finished event — those only exist below, guarded
+                    by !hasWrapped. */}
                 {hasWrapped(event) && (isParticipant || isHost) && (
                   <Button
                     label="Open the event wrap"
@@ -580,89 +630,158 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
                   />
                 )}
 
-                {!isHost && !hasWrapped(event) && (
-                  <View style={styles.footerRow}>
-                    {event.max_people != null && (
-                      <View style={styles.spotsInfo}>
-                        <Text style={styles.spotsCount}>
-                          {event.participant_count}/{event.max_people}
-                        </Text>
-                        <Text style={styles.spotsLeft}>
-                          {Math.max(event.max_people - event.participant_count, 0)}{' '}
-                          spots left
-                        </Text>
+                {/* Live event: the headline action, then check-in for guests.
+                    The host is a participant since migration 043, so
+                    `isParticipant` is true for them too — guest-only actions are
+                    guarded with `!isHost`. */}
+                {!hasWrapped(event) && (
+                  <>
+                    {isHost ? (
+                      <Button
+                        label="Manage event"
+                        onPress={() => {
+                          sheetRef.current?.close();
+                          router.push(`/events/host/${event.id}`);
+                        }}
+                      />
+                    ) : isParticipant ? (
+                      <Button
+                        label="Open chat"
+                        onPress={() => {
+                          sheetRef.current?.close();
+                          router.push(`/(tabs)/chats/${event.id}`);
+                        }}
+                      />
+                    ) : (
+                      <View style={styles.footerRow}>
+                        {event.max_people != null && (
+                          <View style={styles.spotsInfo}>
+                            <Text style={styles.spotsCount}>
+                              {event.participant_count}/{event.max_people}
+                            </Text>
+                            <Text style={styles.spotsLeft}>
+                              {Math.max(
+                                event.max_people - event.participant_count,
+                                0
+                              )}{' '}
+                              spots left
+                            </Text>
+                          </View>
+                        )}
+                        <Button
+                          style={{ flex: 1 }}
+                          label={
+                            isPending
+                              ? 'Request pending'
+                              : womenOnlyLocked
+                                ? 'Female-only event'
+                                : isFull
+                                  ? 'Event full'
+                                  : tooFar
+                                    ? 'Join with Mello+'
+                                    : event.requires_approval
+                                      ? 'Request to join'
+                                      : 'Join event'
+                          }
+                          // Joining is the headline action, so it gets coral.
+                          // A pending/closed state drops to low emphasis.
+                          variant={
+                            isPending || isFull || womenOnlyLocked
+                              ? 'tertiary'
+                              : 'primary'
+                          }
+                          // Pending cancels the request (no reason — a request
+                          // withdrawn before approval isn't "leaving").
+                          onPress={() =>
+                            isPending ? leave.mutate() : handleJoinPress()
+                          }
+                          disabled={
+                            ((isFull || womenOnlyLocked) && !isPending) ||
+                            join.isPending ||
+                            leave.isPending
+                          }
+                        />
                       </View>
                     )}
-                    <Button
-                      style={{ flex: 1 }}
-                      label={
-                        isParticipant
-                          ? 'Leave event'
-                          : isPending
-                            ? 'Request pending'
-                            : womenOnlyLocked
-                              ? 'Female-only event'
-                              : isFull
-                                ? 'Event full'
-                                : tooFar
-                                  ? 'Join with Mello+'
-                                  : event.requires_approval
-                                    ? 'Request to join'
-                                    : 'Join event'
-                      }
-                      // Joining is the sheet's headline action, so it gets
-                      // coral. Once you're in — or the event is closed to you —
-                      // it drops to the low-emphasis treatment.
-                      variant={
-                        isParticipant || isPending || isFull || womenOnlyLocked
-                          ? 'tertiary'
-                          : 'primary'
-                      }
-                      onPress={() =>
-                        isParticipant || isPending
-                          ? leave.mutate()
-                          : handleJoinPress()
-                      }
-                      disabled={
-                        ((isFull || womenOnlyLocked) &&
-                          !isParticipant &&
-                          !isPending) ||
-                        join.isPending ||
-                        leave.isPending
-                      }
-                    />
+
+                    {/* Host also gets the chat, under Manage. */}
+                    {isHost && (
+                      <Button
+                        label="Open chat"
+                        variant="tertiary"
+                        onPress={() => {
+                          sheetRef.current?.close();
+                          router.push(`/(tabs)/chats/${event.id}`);
+                        }}
+                      />
+                    )}
+
+                    {/* Approved guest scans to check in (hosts run the door). */}
+                    {isParticipant && !isHost && (
+                      <Button
+                        label="Check in"
+                        variant="tertiary"
+                        onPress={() => {
+                          sheetRef.current?.close();
+                          router.push(`/events/scan/${event.id}`);
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+
+                {/* Who's going — a frosted card, sitting between check-in and
+                    leave. Shown to everyone; only attendees get the full list. */}
+                <Glass
+                  tier="panel"
+                  radius={RADIUS.lg}
+                  shadow={false}
+                  style={styles.goingCard}
+                >
+                  <View style={styles.goingCardHead}>
+                    <SectionLabel>{"Who's going"}</SectionLabel>
+                    {event.participant_count > 0 && (
+                      <Text style={styles.goingCardCount}>
+                        {event.participant_count}
+                        {event.max_people ? `/${event.max_people}` : ''}
+                      </Text>
+                    )}
                   </View>
-                )}
+                  <View style={styles.goingCardBody}>
+                    <AttendeeStack
+                      people={approved}
+                      count={event.participant_count}
+                      max={3}
+                      size={36}
+                      emptyLabel="Be the first to join"
+                    />
+                    {isParticipant || isHost ? (
+                      event.participant_count > 0 && (
+                        <PressableScale
+                          onPress={() => {
+                            sheetRef.current?.close();
+                            router.push(`/events/attendees/${event.id}`);
+                          }}
+                        >
+                          <Text style={styles.goingCardLink}>See all</Text>
+                        </PressableScale>
+                      )
+                    ) : (
+                      <Text style={styles.goingCardHint}>
+                        Join to see the full list of attendees
+                      </Text>
+                    )}
+                  </View>
+                </Glass>
 
-                {isHost && (
+                {/* Leave — live event, guest only, and always last. Confirm
+                    first, then a reason (recorded in event_leave_feedback). */}
+                {isParticipant && !isHost && !hasWrapped(event) && (
                   <Button
-                    label="Manage event"
-                    onPress={() => {
-                      sheetRef.current?.close();
-                      router.push(`/events/host/${event.id}`);
-                    }}
-                  />
-                )}
-
-                {/* Approved guest of a live/upcoming event: scan to check in. */}
-                {isParticipant && !hasWrapped(event) && (
-                  <Button
-                    label="Check in"
-                    onPress={() => {
-                      sheetRef.current?.close();
-                      router.push(`/events/scan/${event.id}`);
-                    }}
-                  />
-                )}
-
-                {(isParticipant || isHost) && (
-                  <Button
-                    label="Open chat"
+                    label="Leave event"
                     variant="tertiary"
-                    onPress={() => {
-                      sheetRef.current?.close();
-                      router.push(`/(tabs)/chats/${event.id}`);
-                    }}
+                    onPress={() => setLeaveStep('confirm')}
+                    disabled={leave.isPending}
                   />
                 )}
               </View>
@@ -686,6 +805,81 @@ const EventBottomSheet = forwardRef<EventBottomSheetRef, Props>(
             onClose={() => setJoinQueue([])}
           />
         )}
+
+        {/* Leave flow, step 1: confirm. Backdrop-tap can't dismiss a destructive
+            action — you leave by choosing, or explicitly stay. */}
+        <Dialog
+          visible={leaveStep === 'confirm'}
+          onClose={resetLeaveFlow}
+          dismissOnBackdropPress={false}
+        >
+          <Text style={styles.leaveTitle}>Leave this event?</Text>
+          <Text style={styles.leaveBody}>
+            {"You'll lose your spot and drop out of the event chat."}
+          </Text>
+          <View style={styles.leaveDialogButtons}>
+            <Button
+              label="Stay"
+              variant="tertiary"
+              size="md"
+              style={{ flex: 1 }}
+              onPress={resetLeaveFlow}
+            />
+            <Button
+              label="Yes, leave"
+              variant="secondary"
+              size="md"
+              style={{ flex: 1 }}
+              onPress={() => setLeaveStep('reason')}
+            />
+          </View>
+        </Dialog>
+
+        {/* Leave flow, step 2: the reason, recorded in event_leave_feedback. */}
+        <Sheet
+          visible={leaveStep === 'reason'}
+          onClose={resetLeaveFlow}
+          grabber
+          keyboardAvoiding
+          animation="slide"
+        >
+          <View style={styles.reasonSheet}>
+            <Text style={styles.leaveTitle}>Why are you leaving?</Text>
+            <View style={styles.reasonChips}>
+              {LEAVE_REASONS.map((r) => {
+                const selected = leaveReason === r;
+                return (
+                  <PressableScale
+                    key={r}
+                    scaleTo={0.97}
+                    onPress={() => setLeaveReason(r)}
+                    style={[styles.reasonChip, selected && styles.reasonChipOn]}
+                  >
+                    <Text
+                      style={[
+                        styles.reasonChipText,
+                        selected && styles.reasonChipTextOn,
+                      ]}
+                    >
+                      {r}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </View>
+            <TextField
+              value={leaveDetail}
+              onChangeText={setLeaveDetail}
+              placeholder="Anything the host should know? (optional)"
+              multiline
+            />
+            <Button
+              label="Leave event"
+              onPress={confirmLeave}
+              disabled={!leaveReason || leave.isPending}
+            />
+          </View>
+        </Sheet>
       </BottomSheet>
     );
   }
@@ -815,26 +1009,35 @@ const styles = StyleSheet.create({
     marginTop: SPACING[0.5],
   },
   sectionLabel: { marginBottom: SPACING[2] },
-  participantsRow: { flexDirection: 'row', alignItems: 'center' },
-  stackItem: {
-    borderRadius: RADIUS.xl,
-    borderWidth: 2.5,
-    borderColor: COLORS.surface,
-  },
-  overflowBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.primaryTint,
-    borderWidth: 2.5,
-    borderColor: COLORS.surface,
+  // The frosted "who's going" card that sits in the action stack.
+  goingCard: { padding: SPACING[3.5], gap: SPACING[2.5] },
+  goingCardHead: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  overflowText: {
+  goingCardCount: {
     fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.textSecondary,
+  },
+  goingCardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING[2],
+  },
+  goingCardLink: {
+    fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
+  },
+  goingCardHint: {
+    flexShrink: 1,
+    textAlign: 'right',
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textSecondary,
   },
   pendingSection: { gap: SPACING[2] },
   pendingRow: {
@@ -905,20 +1108,50 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.secondary,
   },
-  headerActions: {
+  // On-photo frosted chip for the banner's wishlist/share buttons.
+  chip: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  // ── Leave flow ──────────────────────────────────────────────────────────────
+  leaveTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.title,
+    letterSpacing: -0.4,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  leaveBody: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodySm,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING[2],
+  },
+  leaveDialogButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: SPACING[2],
+    alignSelf: 'stretch',
+    gap: SPACING[2.5],
+    marginTop: SPACING[5],
   },
-  shareBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
+  reasonSheet: { padding: SPACING[5], gap: SPACING[3] },
+  reasonChips: { gap: SPACING[2] },
+  reasonChip: {
+    paddingHorizontal: SPACING[4],
+    paddingVertical: SPACING[3],
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderSoft,
+    backgroundColor: COLORS.surface,
   },
+  reasonChipOn: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.background,
+  },
+  reasonChipText: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textSecondary,
+  },
+  reasonChipTextOn: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
   // Rendered inside BottomSheetFooter, which handles positioning — the style
   // only shapes the pill itself.
   toast: {

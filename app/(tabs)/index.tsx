@@ -26,7 +26,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
+import { useUIStore } from '@/stores/uiStore';
 import { useSavedEventIds, useSaveEvent } from '@/hooks/useSwipeDeck';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -54,9 +54,6 @@ import { featuredHostedEvent } from '@/utils/events';
 import { hasWrapped } from '@/services/wrap.service';
 import { formatDistance } from '@/utils/distance';
 import { shareEvent } from '@/utils/shareEvent';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
 import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import {
   Avatar,
@@ -307,8 +304,6 @@ export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user);
   const cityName = useLocationStore((s) => s.cityName);
   const coords = useLocationStore((s) => s.coords);
-  const sheetRef = useRef<EventBottomSheetRef>(null);
-  useSelectedEventSheet(sheetRef);
 
   const openOverlay = useOpenOverlay();
   const handedOver = useHandedOver();
@@ -593,7 +588,7 @@ export default function DashboardScreen() {
                       save: !savedIds.has(event.id),
                     })
                   }
-                  onPress={() => sheetRef.current?.open(event.id)}
+                  onPress={() => useUIStore.getState().setSelectedEvent(event.id)}
                 />
               ))}
             </ScrollView>
@@ -720,7 +715,6 @@ export default function DashboardScreen() {
         </ScrollView>
       </Sheet>
 
-      <EventBottomSheet ref={sheetRef} />
     </View>
   );
 }

@@ -24,12 +24,8 @@ import { useRouter } from 'expo-router';
 import { useNearbyEvents } from '@/hooks/useNearbyEvents';
 import { useFriends } from '@/hooks/useFriends';
 import { useLocation } from '@/hooks/useLocation';
-import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
 import { useLocationStore } from '@/stores/locationStore';
 import { useUIStore } from '@/stores/uiStore';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
 import PlaceSearch, { PlaceResult } from '@/components/PlaceSearch';
 import CreateEventFab from '@/components/CreateEventFab';
 import SwipeDeckTeaser from '@/components/map/SwipeDeckTeaser';
@@ -98,11 +94,10 @@ function regionRadiusM(region: Region): number {
 export default function MapScreen() {
   const router = useRouter();
   const coords = useLocationStore((s) => s.coords);
-  const { mapFilters, creatingEvent, setCreatingEvent } = useUIStore();
+  const { mapFilters, creatingEvent, setCreatingEvent, setSelectedEvent } =
+    useUIStore();
   const { requestAndStart } = useLocation();
   const { friends } = useFriends();
-  const sheetRef = useRef<EventBottomSheetRef>(null);
-  useSelectedEventSheet(sheetRef);
   const mapRef = useRef<MapView>(null);
   const tabBarInset = useTabBarInset();
   const didCenter = useRef(false);
@@ -290,7 +285,7 @@ export default function MapScreen() {
                 anchor={{ x: 0.5, y: 0.5 }}
                 // Boosted pins draw above the rest of the field.
                 zIndex={boosted ? 10 : 1}
-                onPress={() => sheetRef.current?.open(event.id)}
+                onPress={() => setSelectedEvent(event.id)}
               >
                 {/* Outer wrap stays static so the marker anchor never moves;
                     only the inner content scales in. */}
@@ -467,11 +462,9 @@ export default function MapScreen() {
             },
             500
           );
-          sheetRef.current?.open(event.id);
+          setSelectedEvent(event.id);
         }}
       />
-
-      <EventBottomSheet ref={sheetRef} onDismiss={() => {}} />
     </View>
   );
 }
