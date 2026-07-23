@@ -60,7 +60,6 @@ import {
   PressableScale,
 } from '@/components/ui';
 import {
-  SosButton,
   MoneyGuardBanner,
   useMoneyGuard,
 } from '@/components/safety';
@@ -85,6 +84,7 @@ import {
 import ProfileBottomSheet, {
   ProfileBottomSheetRef,
 } from '@/components/profile/ProfileBottomSheet';
+import { WrapSheet } from '@/components/wrap/WrapSheet';
 import {
   messageExcerpt,
   pickChatImage,
@@ -184,6 +184,19 @@ export default function GroupChatScreen() {
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
   });
+
+  // The wrap, met from the chat. Once the event has ended, opening its chat
+  // presents the post-event sheet first — rate people, drop photos, vote the
+  // awards — with a way through to the thread. Auto-opens once per visit (the
+  // ref guards against the event query resolving twice); the banner below
+  // reopens it after you've viewed the chat.
+  const [wrapSheetOpen, setWrapSheetOpen] = useState(false);
+  const wrapAutoShown = useRef(false);
+  useEffect(() => {
+    if (wrapAutoShown.current || !event || !hasWrapped(event)) return;
+    wrapAutoShown.current = true;
+    setWrapSheetOpen(true);
+  }, [event]);
 
   const prefsQuery = useQuery({
     queryKey: queryKeys.chatPrefs.of(user?.id),
@@ -582,7 +595,18 @@ export default function GroupChatScreen() {
         style={[styles.header, { paddingTop: insets.top + 8 }]}
       >
         <NavButton
-          onPress={() => router.navigate('/(tabs)/chats')}
+          // Back should *pop* — slide this screen off to the right, the way it
+          // came in. `router.navigate('/(tabs)/chats')` re-navigated to the
+          // list as if it were a new destination, so the transition ran
+          // forwards (in from the left) — the "wrong side". `back()` pops the
+          // stack when there's something to pop; the navigate stays only as the
+          // fallback for when this chat was deep-linked from outside the tabs
+          // and has no list beneath it (see _layout's initialRouteName note).
+          onPress={() =>
+            router.canGoBack()
+              ? router.back()
+              : router.navigate('/(tabs)/chats')
+          }
           accessibilityLabel="Go back"
         />
         {event?.activity ? (
@@ -602,20 +626,17 @@ export default function GroupChatScreen() {
           onPress={() => setMenuVisible(true)}
           accessibilityLabel="Chat options"
         />
-        <SosButton
-          event={event ?? null}
-          onReport={
-            event ? () => router.push(`/friends/${event.host_id}`) : undefined
-          }
-        />
       </Glass>
 
-      {/* Post-event: nudge the wrap from the chat */}
+      {/* Post-event: reopen the wrap sheet from the chat, once it's been
+          dismissed. Opens the sheet now rather than pushing the full hub — the
+          sheet is the chat's own front door to the wrap, and carries a link on
+          through to the hub. */}
       {event && hasWrapped(event) && (
         <PressableScale
           scaleTo={0.98}
           style={styles.wrapBanner}
-          onPress={() => router.push(`/events/wrap/${event.id}`)}
+          onPress={() => setWrapSheetOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="Open the event wrap"
         >
@@ -895,6 +916,14 @@ export default function GroupChatScreen() {
         onClose={() => setReacting(null)}
       />
       <ProfileBottomSheet ref={profileSheet} />
+
+      {event && hasWrapped(event) && (
+        <WrapSheet
+          visible={wrapSheetOpen}
+          onClose={() => setWrapSheetOpen(false)}
+          event={event}
+        />
+      )}
     </View>
   );
 }

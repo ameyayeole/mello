@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RADIUS, SHADOWS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Pressable,
   ScrollView,
   Alert,
@@ -14,11 +13,12 @@ import {
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   FadeInDown,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -73,7 +73,10 @@ import { useFriends } from '@/hooks/useFriends';
 import { useExploreFeed } from '@/hooks/useExploreFeed';
 import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
-import { SealedNoteRow, NoteRevealModal } from '@/components/wrap/SealedNoteRow';
+import {
+  SealedNoteRow,
+  NoteRevealModal,
+} from '@/components/wrap/SealedNoteRow';
 import { showError } from '@/utils/errors';
 
 type Tab = 'events' | 'friends';
@@ -116,15 +119,30 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
   );
 }
 
-// A conversation row: frosted card over the drifting background. Instagram's
-// content, exactly — who it is, the latest message, when. Nothing else. It used
-// to carry the event's date and going-count as well, which meant the one line
-// you actually read was competing with two you don't.
+// A conversation row. Instagram's content, exactly — who it is, the latest
+// message, when. Nothing else. It used to carry the event's date and
+// going-count as well, which meant the one line you actually read was competing
+// with two you don't.
+//
+// The row no longer frosts itself: every row now sits on one shared glass sheet
+// (see the list body), divided by a hairline rather than by a gap between
+// separate cards. So a row is a plain pressable band with a top divider — the
+// first row on the sheet drops it, since there is nothing above it to divide
+// from.
+//
+// `layout` is what makes a re-sort *move*: when a new message lifts a chat to
+// the top, its row and the ones it passes glide to their new places instead of
+// snapping. Entering still fires once on mount (and on a tab switch, which
+// remounts the rows). Both ride the same Animated.View; that's safe because the
+// view carries no `style` of its own — Reanimated only warns about a layout
+// animation clobbering styles when they share the very component the animation
+// is attached to, and here the styles live one level down on the row `View`.
 //
 // Unread is weight, not decoration: bold ink for the message and the time,
 // regular grey once read.
 function ChatRow({
   index,
+  first,
   thumb,
   title,
   preview,
@@ -135,6 +153,7 @@ function ChatRow({
   onLongPress,
 }: {
   index: number;
+  first: boolean;
   thumb: React.ReactNode;
   title: string;
   // "Ana: see you there" in a group, just the message in a DM.
@@ -148,13 +167,19 @@ function ChatRow({
   return (
     <Animated.View
       entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}
+      layout={LinearTransition.springify().damping(20).stiffness(180).mass(0.7)}
     >
       <PressableScale
         scaleTo={0.98}
         onPress={onPress}
         onLongPress={onLongPress}
       >
-        <Glass tier="panel" radius={RADIUS['2xl']} style={styles.row}>
+        <View style={styles.row}>
+          {/* The separator, inset to start where the text does rather than
+              running the full width under the thumbnail — the edge-to-edge line
+              read as the sheet being sliced into strips. Not on the first row:
+              nothing above it to divide from. */}
+          {!first ? <View style={styles.rowDivider} /> : null}
           {thumb}
           <View style={styles.rowInfo}>
             <View style={styles.rowTitleRow}>
@@ -184,7 +209,7 @@ function ChatRow({
               ) : null}
             </View>
           </View>
-        </Glass>
+        </View>
       </PressableScale>
     </Animated.View>
   );
@@ -261,6 +286,23 @@ export default function ChatsListScreen() {
   const recedeStyle = useOverlayRecede();
   const searchRef = useRef<View>(null);
 
+  // Keep the list honest whenever it comes back into view. It orders by the
+  // most-recent message and prints each chat's latest line, but the queries
+  // behind both — last-message-per-event and the friend conversations — never
+  // refetch on their own while this tab sits mounted behind an open chat. So
+  // after you send or receive in a thread, the list kept its old order and old
+  // preview until a cold reload. Refetching on focus is what makes the chat you
+  // just spoke in actually rise to the top (and animate there, via the row
+  // layout transition) instead of staying put.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      qc.invalidateQueries({ queryKey: ['lastMessages'] });
+      qc.invalidateQueries({ queryKey: ['friendConversations', user.id] });
+      qc.invalidateQueries({ queryKey: queryKeys.unreadDmCounts.of(user.id) });
+    }, [qc, user])
+  );
+
   // Sliding pill behind the active segment. Width comes from the measured
   // track (half of it, minus the 4pt inset on each side).
   const tabIndex = tab === 'events' ? 0 : 1;
@@ -286,8 +328,11 @@ export default function ChatsListScreen() {
   const [revealedNote, setRevealedNote] = useState<WrapNote | null>(null);
 
   // Post-event notes land here, above the DM threads.
-  const { sealed: sealedNotes, opened: openedNotes, open: openNote } =
-    useWrapNotes();
+  const {
+    sealed: sealedNotes,
+    opened: openedNotes,
+    open: openNote,
+  } = useWrapNotes();
 
   function handleOpenNote(note: WrapNote) {
     if (!note.opened_at) openNote.mutate(note.id);
@@ -391,14 +436,22 @@ export default function ChatsListScreen() {
         const last = lastMessages?.get(e.id)?.created_at;
         return !!last && last > pref.cleared_at;
       });
-      list = [...list].sort((a, b) => {
-        const pa = prefs.get(chatKey('event', a.id))?.pinned_at;
-        const pb = prefs.get(chatKey('event', b.id))?.pinned_at;
-        if (!!pa !== !!pb) return pa ? -1 : 1;
-        if (pa && pb) return pb.localeCompare(pa);
-        return 0;
-      });
     }
+    // Pinned first, then most-recent-message first. This is the order the list
+    // is meant to be in and wasn't — before, equal-pin rows kept whatever order
+    // the two queries happened to concatenate in, so a chat that just got a
+    // message could sit anywhere. Empty chats (no last message) fall to the
+    // bottom. Sorting always runs, pinned or not; the pin lookup is just null
+    // when there are no prefs yet.
+    list = [...list].sort((a, b) => {
+      const pa = prefs?.get(chatKey('event', a.id))?.pinned_at;
+      const pb = prefs?.get(chatKey('event', b.id))?.pinned_at;
+      if (!!pa !== !!pb) return pa ? -1 : 1;
+      if (pa && pb) return pb.localeCompare(pa);
+      const ta = lastMessages?.get(a.id)?.created_at ?? '';
+      const tb = lastMessages?.get(b.id)?.created_at ?? '';
+      return tb.localeCompare(ta);
+    });
     return list;
   }, [allEventChats, prefs, lastMessages]);
 
@@ -408,18 +461,19 @@ export default function ChatsListScreen() {
       list = list.filter((c) => {
         const pref = prefs.get(chatKey('dm', c.friend.id));
         if (!pref?.cleared_at) return true;
-        return (
-          !!c.lastMessage && c.lastMessage.created_at > pref.cleared_at
-        );
-      });
-      list = [...list].sort((a, b) => {
-        const pa = prefs.get(chatKey('dm', a.friend.id))?.pinned_at;
-        const pb = prefs.get(chatKey('dm', b.friend.id))?.pinned_at;
-        if (!!pa !== !!pb) return pa ? -1 : 1;
-        if (pa && pb) return pb.localeCompare(pa);
-        return 0;
+        return !!c.lastMessage && c.lastMessage.created_at > pref.cleared_at;
       });
     }
+    // Pinned first, then most-recent-message first — see eventChats above.
+    list = [...list].sort((a, b) => {
+      const pa = prefs?.get(chatKey('dm', a.friend.id))?.pinned_at;
+      const pb = prefs?.get(chatKey('dm', b.friend.id))?.pinned_at;
+      if (!!pa !== !!pb) return pa ? -1 : 1;
+      if (pa && pb) return pb.localeCompare(pa);
+      const ta = a.lastMessage?.created_at ?? '';
+      const tb = b.lastMessage?.created_at ?? '';
+      return tb.localeCompare(ta);
+    });
     return list;
   }, [conversationsQuery.data, prefs]);
 
@@ -438,7 +492,12 @@ export default function ChatsListScreen() {
         sub: pinned ? undefined : 'Keep this conversation at the top',
         onPress: async () => {
           try {
-            await setChatPinned(user.id, target.chatType, target.chatId, !pinned);
+            await setChatPinned(
+              user.id,
+              target.chatType,
+              target.chatId,
+              !pinned
+            );
             refreshPrefs();
           } catch (e) {
             showError(e);
@@ -448,9 +507,7 @@ export default function ChatsListScreen() {
       {
         icon: muted ? 'bell' : 'bellOff',
         label: muted ? 'Unmute notifications' : 'Mute notifications',
-        sub: muted
-          ? undefined
-          : "You'll still get announcements and @mentions",
+        sub: muted ? undefined : "You'll still get announcements and @mentions",
         onPress: async () => {
           try {
             await setChatMuted(user.id, target.chatType, target.chatId, !muted);
@@ -496,34 +553,36 @@ export default function ChatsListScreen() {
   const renderEventRow = (event: NearbyEvent, index: number) => {
     const last = lastMessages?.get(event.id);
     return (
-    <ChatRow
-      index={index}
-      thumb={<EventThumb event={event} />}
-      title={event.title}
-      // Who said it, then what they said — a group chat's preview is useless
-      // without the name in front of it. Except for a system notice, which
-      // already names the person it is about: "Iris: Iris joined the event".
-      preview={
-        last
-          ? `${last.senderName && last.type !== 'system' ? `${last.senderName}: ` : ''}${previewText(last.content, last.type)}`
-          : // Migration 042 posts this into the chat itself, so events created
-            // from now on carry it as a real message. Derived here for every
-            // event made before that trigger existed, which would otherwise
-            // read as an empty chat forever.
-            hostingLine(event, user?.id)
-      }
-      time={last ? formatChatTime(last.created_at) : undefined}
-      pref={prefs?.get(chatKey('event', event.id))}
-      onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
-      onLongPress={() =>
-        setSheetTarget({
-          chatType: 'event',
-          chatId: event.id,
-          title: event.title,
-          pref: prefs?.get(chatKey('event', event.id)),
-        })
-      }
-    />
+      <ChatRow
+        key={`event:${event.id}`}
+        index={index}
+        first={index === 0}
+        thumb={<EventThumb event={event} />}
+        title={event.title}
+        // Who said it, then what they said — a group chat's preview is useless
+        // without the name in front of it. Except for a system notice, which
+        // already names the person it is about: "Iris: Iris joined the event".
+        preview={
+          last
+            ? `${last.senderName && last.type !== 'system' ? `${last.senderName}: ` : ''}${previewText(last.content, last.type)}`
+            : // Migration 042 posts this into the chat itself, so events created
+              // from now on carry it as a real message. Derived here for every
+              // event made before that trigger existed, which would otherwise
+              // read as an empty chat forever.
+              hostingLine(event, user?.id)
+        }
+        time={last ? formatChatTime(last.created_at) : undefined}
+        pref={prefs?.get(chatKey('event', event.id))}
+        onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+        onLongPress={() =>
+          setSheetTarget({
+            chatType: 'event',
+            chatId: event.id,
+            title: event.title,
+            pref: prefs?.get(chatKey('event', event.id)),
+          })
+        }
+      />
     );
   };
 
@@ -531,7 +590,9 @@ export default function ChatsListScreen() {
     const { friend, lastMessage } = convo;
     return (
       <ChatRow
+        key={`dm:${friend.id}`}
         index={index}
+        first={index === 0}
         thumb={
           <Avatar
             name={friend.name}
@@ -546,9 +607,7 @@ export default function ChatsListScreen() {
             ? previewText(lastMessage.content, lastMessage.type)
             : 'Tap to start chatting'
         }
-        time={
-          lastMessage ? formatChatTime(lastMessage.created_at) : undefined
-        }
+        time={lastMessage ? formatChatTime(lastMessage.created_at) : undefined}
         unread={unreadByFriend?.get(friend.id)}
         pref={prefs?.get(chatKey('dm', friend.id))}
         onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
@@ -623,9 +682,7 @@ export default function ChatsListScreen() {
                   photoUrl={friend.photo_url}
                   size={72}
                   online
-                  onPress={() =>
-                    router.push(`/(tabs)/chats/dm/${friend.id}`)
-                  }
+                  onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
                 />
                 <Text style={styles.activeName} numberOfLines={1}>
                   {friend.name.split(' ')[0]}
@@ -723,7 +780,8 @@ export default function ChatsListScreen() {
       ) : null}
 
       {/* Post-event notes, above the DM threads they belong with. */}
-      {tab === 'friends' && (sealedNotes.length > 0 || openedNotes.length > 0) ? (
+      {tab === 'friends' &&
+      (sealedNotes.length > 0 || openedNotes.length > 0) ? (
         <View style={styles.block}>
           <SectionLabel>Notes</SectionLabel>
           {sealedNotes.map((n) => (
@@ -758,7 +816,10 @@ export default function ChatsListScreen() {
             accessibilityState={{ selected: tab === t }}
           >
             <Text
-              style={[styles.segmentText, tab === t && styles.segmentTextActive]}
+              style={[
+                styles.segmentText,
+                tab === t && styles.segmentTextActive,
+              ]}
             >
               {t === 'events' ? 'Events' : 'Direct'}
             </Text>
@@ -775,21 +836,24 @@ export default function ChatsListScreen() {
       {/* Steps back while the search overlay is up. On the list rather than
           the whole screen: the option sheet must not shrink with it. */}
       <Animated.View style={[styles.flex, recedeStyle]}>
-        <FlatList
-          data={items}
-          keyExtractor={(item) =>
-            // The tab is part of the key so switching tabs remounts the rows
-            // and re-runs their entering animation — the movement the old
-            // slide-in used to carry, without animating the header with it.
-            'friend' in item ? `dm:${item.friend.id}` : `event:${item.id}`
-          }
-          renderItem={({ item, index }) =>
-            'friend' in item
-              ? renderFriendRow(item, index)
-              : renderEventRow(item, index)
-          }
-          ListHeaderComponent={header}
-          ListEmptyComponent={
+        {/* A ScrollView, not a FlatList, for two reasons that arrived together.
+            The conversations sit on one continuous frosted sheet now (divided
+            by hairlines, not gaps), which a virtualised list can't paint as a
+            single surface. And a FlatList reset scroll to the top on every tab
+            switch — because the tab is in each row's key, the whole list
+            remounted and the list snapped up mid-scroll. A ScrollView keeps its
+            offset across that remount, so switching tabs no longer yanks you to
+            the top. Chat counts here are in the dozens, not the thousands, so
+            the virtualisation we give up costs nothing. */}
+        <ScrollView
+          contentContainerStyle={[
+            styles.listBody,
+            { paddingTop: insets.top + SPACING[3], paddingBottom: tabBarInset },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {header}
+          {items.length === 0 ? (
             tab === 'events' ? (
               <EmptyState
                 icon="chat"
@@ -807,13 +871,21 @@ export default function ChatsListScreen() {
                 onAction={() => router.push('/friends')}
               />
             )
-          }
-          contentContainerStyle={[
-            styles.listBody,
-            { paddingTop: insets.top + SPACING[3], paddingBottom: tabBarInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-        />
+          ) : (
+            // One frosted sheet under all the rows, instead of a frosted card
+            // per chat. `edge` stays 'all': the sheet is a finite thing that
+            // begins and ends, unlike the header chrome that runs off-screen.
+            <Glass tier="panel" radius={RADIUS['2xl']} style={styles.sheet}>
+              {tab === 'events'
+                ? (items as NearbyEvent[]).map((item, index) =>
+                    renderEventRow(item, index)
+                  )
+                : (items as FriendConversation[]).map((item, index) =>
+                    renderFriendRow(item, index)
+                  )}
+            </Glass>
+          )}
+        </ScrollView>
       </Animated.View>
 
       <OptionSheet
@@ -823,7 +895,10 @@ export default function ChatsListScreen() {
         onClose={() => setSheetTarget(null)}
       />
 
-      <NoteRevealModal note={revealedNote} onClose={() => setRevealedNote(null)} />
+      <NoteRevealModal
+        note={revealedNote}
+        onClose={() => setRevealedNote(null)}
+      />
     </View>
   );
 }
@@ -834,7 +909,10 @@ const styles = StyleSheet.create({
   // app — see DESIGN.md §7, which this reverses.
   container: { flex: 1 },
   flex: { flex: 1 },
-  listBody: { paddingHorizontal: SPACING[5], gap: SPACING[2.5] },
+  listBody: { paddingHorizontal: SPACING[5], gap: SPACING[4] },
+  // The one frosted sheet the conversations sit on. Its own corners are all it
+  // rounds — the rows inside are square bands divided by hairlines.
+  sheet: { overflow: 'hidden' },
   // The field the overlay is flying. Hidden outright, not faded — two copies
   // of one object mid-transition is what a hand-off must never look like.
   handedOver: { opacity: 0 },
@@ -939,8 +1017,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[3],
     paddingVertical: SPACING[2.5],
   },
+  // The line between two chats on the shared sheet. Absolutely positioned along
+  // the row's top edge and inset from the left by the thumbnail column
+  // (row padding + 52pt thumb + gap), so it aligns under the text like a
+  // standard chat list — not edge-to-edge. `border` (10% black, the app's
+  // separator ink) at a firm hairline actually reads on the frosted panel,
+  // where `inkSubtle` (7%) at a single hairline had vanished.
+  rowDivider: {
+    position: 'absolute',
+    top: 0,
+    left: SPACING[3] + 52 + SPACING[3],
+    right: 0,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: COLORS.border,
+  },
   rowInfo: { flex: 1, minWidth: 0, gap: SPACING[0.5] },
-  rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
+  rowTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1.5],
+  },
   rowPreviewRow: {
     flexDirection: 'row',
     alignItems: 'center',
