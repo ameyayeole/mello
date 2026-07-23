@@ -5,6 +5,30 @@ import { hasWrapped, wrapEndAt } from '@/services/wrap.service';
 // in a test without building a whole event fixture.
 type Timed = { starts_at: string; ends_at: string | null };
 
+// Same reasoning — the two fields, not the whole event.
+type Illustrated = { image_url?: string | null; host_photo_url?: string | null };
+
+/**
+ * What to draw for an event: its own photo, or the host's face when it has
+ * none. Null means neither exists and the caller should fall back to the
+ * category glyph.
+ *
+ * Resolved at render rather than stored. The create flow used to copy
+ * `user.photo_url` into `events.image_url` when the host skipped the photo
+ * step, which meant two problems: the column held either "a photo of this
+ * event" or "a photo of the host" with nothing to tell them apart, and the copy
+ * went stale the moment that host changed their avatar — a dead storage URL
+ * with no error anywhere to catch it. Reading through is always current, costs
+ * no query (`host_photo_url` has ridden along on the feed RPCs since migration
+ * 017) and fixes rows written before any of this existed.
+ *
+ * Lives here rather than in each card because five components draw an event
+ * image, and five copies of the same `??` chain is how they drift apart.
+ */
+export function eventImageUri(event: Illustrated): string | null {
+  return event.image_url || event.host_photo_url || null;
+}
+
 /**
  * Past vs future, keyed on when an event *ends* rather than when it starts.
  *

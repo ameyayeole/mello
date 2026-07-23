@@ -1,4 +1,8 @@
-import { splitByWhen, featuredHostedEvent } from '../events';
+import {
+  splitByWhen,
+  featuredHostedEvent,
+  eventImageUri,
+} from '../events';
 
 // wrap.service is pure date maths, but it imports the Supabase client at module
 // scope. Stub the client so requiring it in a unit test doesn't open a network
@@ -83,5 +87,34 @@ describe('featuredHostedEvent', () => {
 
   it('returns null when there is nothing at all', () => {
     expect(featuredHostedEvent([])).toBeNull();
+  });
+});
+
+describe('eventImageUri', () => {
+  it('prefers the event photo', () => {
+    expect(
+      eventImageUri({ image_url: 'event.jpg', host_photo_url: 'host.jpg' })
+    ).toBe('event.jpg');
+  });
+
+  it('falls back to the host photo when the event has none', () => {
+    expect(
+      eventImageUri({ image_url: null, host_photo_url: 'host.jpg' })
+    ).toBe('host.jpg');
+    expect(eventImageUri({ host_photo_url: 'host.jpg' })).toBe('host.jpg');
+  });
+
+  it('returns null when neither exists, so callers draw the glyph', () => {
+    expect(eventImageUri({ image_url: null, host_photo_url: null })).toBeNull();
+    expect(eventImageUri({})).toBeNull();
+  });
+
+  it('treats an empty string as absent', () => {
+    // A failed upload can leave '' rather than null, and expo-image renders a
+    // broken frame for it rather than falling through — so `||`, not `??`.
+    expect(eventImageUri({ image_url: '', host_photo_url: 'host.jpg' })).toBe(
+      'host.jpg'
+    );
+    expect(eventImageUri({ image_url: '', host_photo_url: '' })).toBeNull();
   });
 });

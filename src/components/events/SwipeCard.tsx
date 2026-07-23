@@ -9,6 +9,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
+import { eventImageUri } from '@/utils/events';
 import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
 import { Avatar, CategoryPill, VerifiedBadge } from '@/components/ui';
 
@@ -24,6 +25,7 @@ export default function SwipeCard({
 }) {
   const activity = ACTIVITY_MAP[event.activity];
   const cat = categoryStyle(event.activity);
+  const imageUri = eventImageUri(event);
 
   // "8 km · 3 friends going" tail under the host name.
   const tail = [
@@ -37,9 +39,9 @@ export default function SwipeCard({
 
   return (
     <Pressable style={styles.card} onPress={onPress} disabled={!onPress}>
-      {event.image_url ? (
+      {imageUri ? (
         <Image
-          source={{ uri: event.image_url }}
+          source={{ uri: imageUri }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           transition={150}

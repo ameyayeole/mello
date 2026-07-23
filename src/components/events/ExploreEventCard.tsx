@@ -9,6 +9,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { relativeTime, formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { shortLocation } from '@/utils/location';
+import { eventImageUri } from '@/utils/events';
 import { BOOST_ACCENT, BOOST_EMOJI, BOOST_TINT, isBoosted } from '@/utils/boost';
 import { Avatar, Icon, VerifiedBadge, PressableScale } from '@/components/ui';
 
@@ -22,6 +23,7 @@ export default function ExploreEventCard({
 }) {
   const activity = ACTIVITY_MAP[event.activity];
   const cat = categoryStyle(event.activity);
+  const imageUri = eventImageUri(event);
 
   const subBits = [
     relativeTime(event.created_at),
@@ -112,9 +114,9 @@ export default function ExploreEventCard({
       </View>
 
       {/* Photo last, full width */}
-      {event.image_url ? (
+      {imageUri ? (
         <Image
-          source={{ uri: event.image_url }}
+          source={{ uri: imageUri }}
           style={styles.banner}
           contentFit="cover"
           transition={200}

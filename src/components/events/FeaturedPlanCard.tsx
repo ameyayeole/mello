@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { NearbyEvent } from '@/types/models';
 import { COLORS } from '@/constants/colors';
+import { eventImageUri } from '@/utils/events';
 import { RADIUS, SHADOWS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen, relativeWhen } from '@/utils/time';
@@ -51,15 +52,16 @@ export default function FeaturedPlanCard({
   onChat: () => void;
 }) {
   const going = preview?.going_count ?? event.participant_count;
+  const imageUri = eventImageUri(event);
   const meta = [formatEventWhen(event.starts_at), event.location_name]
     .filter(Boolean)
     .join(' · ');
 
   return (
     <PressableScale style={styles.card} onPress={onManage} scaleTo={0.98}>
-      {event.image_url && (
+      {imageUri && (
         <Image
-          source={{ uri: event.image_url }}
+          source={{ uri: imageUri }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           transition={150}
