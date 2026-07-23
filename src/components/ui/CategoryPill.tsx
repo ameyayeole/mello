@@ -4,9 +4,9 @@ import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 
 // Every accent in `categoryStyle` is a 6-digit hex, so alpha is an 8-digit
-// suffix rather than a parse. Anything else falls through to the solid
-// treatment, which is the safe direction to fail in — a pill that is too loud
-// still reads; one with an invalid colour renders black.
+// suffix rather than a parse. Anything else falls through to a solid fill, which
+// is the safe direction to fail in — a pill that is too loud still reads; one
+// with an invalid colour renders black.
 function alpha(hex: string, a: number): string | null {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
   return (
@@ -17,51 +17,43 @@ function alpha(hex: string, a: number): string | null {
   );
 }
 
-// Reusable `.cat-pill` from the locked Mello design language:
-// a pill in the category's accent color with the emoji inside a white
-// circle on the left, then a bold white label. Emoji-only mode drops the
-// label and tightens the padding. Inactive mode renders a muted gray chip.
+// The one `.cat-pill` from the locked Mello design language: a glassy chip in
+// the category's accent — the accent at 22% with a 40% edge, so it reads as
+// tinted glass sitting *in* the surface behind it (a photo, or a frosted sheet)
+// rather than a sticker pasted on top. The emoji sits in a translucent disc,
+// then a bold white label. Emoji-only mode drops the label and tightens the
+// padding.
 //
-// `tone` picks how the accent is carried:
-//
-//   solid        the accent as a fill. The default, and what every pill on a
-//                white surface uses.
-//   translucent  the accent at 22% with a 40% edge, over whatever is behind.
-//                For pills on a dark frosted surface, where a solid accent
-//                reads as a sticker pasted on the glass rather than part of it.
+// There used to be a second `solid` tone that painted the accent as an opaque
+// fill. It read as a sticker on the glass everywhere it landed, so it's gone —
+// this is now the only category pill in the app.
 export function CategoryPill({
   emoji,
   label,
   color = COLORS.primary,
-  inactive = false,
-  tone = 'solid',
   style,
 }: {
   emoji: string;
   label?: string;
   color?: string;
-  inactive?: boolean;
-  tone?: 'solid' | 'translucent';
   style?: StyleProp<ViewStyle>;
 }) {
-  const fill = tone === 'translucent' ? alpha(color, 0.22) : null;
-  const edge = tone === 'translucent' ? alpha(color, 0.4) : null;
-  const bg = inactive ? '#E2DFE4' : (fill ?? color);
-  const fg = inactive ? COLORS.textSecondary : '#fff';
+  const fill = alpha(color, 0.22) ?? color;
+  const edge = alpha(color, 0.4);
   return (
     <View
       style={[
         styles.pill,
-        { backgroundColor: bg },
+        { backgroundColor: fill },
         label ? styles.pillLabeled : styles.pillEmojiOnly,
-        edge && { borderWidth: 1, borderColor: edge },
+        edge ? { borderWidth: 1, borderColor: edge } : null,
         style,
       ]}
     >
-      <View style={[styles.emojiCircle, !!fill && styles.emojiCircleOnDark]}>
+      <View style={styles.emojiCircle}>
         <Text style={styles.emoji}>{emoji}</Text>
       </View>
-      {label ? <Text style={[styles.label, { color: fg }]}>{label}</Text> : null}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
     </View>
   );
 }
@@ -73,26 +65,25 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderRadius: RADIUS.full,
   },
-  pillLabeled: { paddingVertical: SPACING[1], paddingRight: 13, paddingLeft: 4, gap: SPACING[2] },
-  pillEmojiOnly: { padding: SPACING[1] },
-  emojiCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: RADIUS.sm,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+  pillLabeled: {
+    paddingVertical: SPACING[1],
+    paddingRight: 13,
+    paddingLeft: 4,
+    gap: SPACING[2],
   },
-  // A white chip inside a translucent pill would be the brightest thing on the
-  // sheet — brighter than the label it sits next to. It goes translucent too,
-  // and fully round, so the pill reads as one piece of tinted glass.
-  emojiCircleOnDark: {
+  pillEmojiOnly: { padding: SPACING[1] },
+  // Translucent, so a white chip doesn't become the brightest thing on the
+  // pill — brighter than the label beside it. Fully round, so the pill reads as
+  // one piece of tinted glass.
+  emojiCircle: {
     width: 26,
     height: 26,
     borderRadius: 13,
     backgroundColor: COLORS.fillOnDarkStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Glyph metric, not typography — deliberately not a type step.
   emoji: { fontSize: 13, lineHeight: 17 },
-  label: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption },
+  label: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#fff' },
 });

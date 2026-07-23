@@ -25,9 +25,9 @@ import Animated, {
 import { useSwipeDeck } from '@/hooks/useSwipeDeck';
 import SwipeCard from '@/components/events/SwipeCard';
 import WishlistButton from '@/components/events/WishlistButton';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
+import EventSheetStack, {
+  EventSheetStackRef,
+} from '@/components/events/EventSheetStack';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
@@ -58,7 +58,7 @@ const FEEDBACK_META: Record<
 export default function SwipeDeckScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const sheetRef = useRef<EventBottomSheetRef>(null);
+  const sheetRef = useRef<EventSheetStackRef>(null);
   const {
     deck,
     isLoading,
@@ -443,7 +443,7 @@ export default function SwipeDeckScreen() {
         </View>
       </View>
 
-      <EventBottomSheet ref={sheetRef} />
+      <EventSheetStack ref={sheetRef} />
     </View>
   );
 }

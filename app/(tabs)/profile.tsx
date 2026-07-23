@@ -500,7 +500,6 @@ export default function ProfileTabScreen() {
                     emoji={a.emoji}
                     label={a.label}
                     color={categoryStyle(id).accent}
-                    tone="translucent"
                   />
                 );
               })}
