@@ -41,10 +41,16 @@ function Overlay({
   dismissOnBackdropPress = true,
   anchor,
   keyboardAvoiding = false,
+  // 'fade' is the default (scrim and card cross-fade together). 'slide' drives
+  // the native bottom-up transition — the card travels in from the bottom edge
+  // and back out on close, which a fade can't do. For sheets that are meant to
+  // feel *presented* rather than to just appear.
+  animation = 'fade',
   style,
 }: BaseProps & {
   anchor: 'bottom' | 'center';
   keyboardAvoiding?: boolean;
+  animation?: 'fade' | 'slide';
 }) {
   const card = (
     // `onPress={() => {}}` is load-bearing: without a handler the press falls
@@ -64,7 +70,7 @@ function Overlay({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={animation}
       onRequestClose={onClose}
       // Without this the scrim stops at the status bar on Android.
       statusBarTranslucent
@@ -95,11 +101,21 @@ function Overlay({
 export function Sheet({
   grabber = false,
   keyboardAvoiding = false,
+  animation = 'fade',
   children,
   ...props
-}: BaseProps & { grabber?: boolean; keyboardAvoiding?: boolean }) {
+}: BaseProps & {
+  grabber?: boolean;
+  keyboardAvoiding?: boolean;
+  animation?: 'fade' | 'slide';
+}) {
   return (
-    <Overlay {...props} anchor="bottom" keyboardAvoiding={keyboardAvoiding}>
+    <Overlay
+      {...props}
+      anchor="bottom"
+      keyboardAvoiding={keyboardAvoiding}
+      animation={animation}
+    >
       {grabber ? <View style={styles.grabber} /> : null}
       {children}
     </Overlay>
