@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SHADOWS, SPACING } from '@/constants/spacing';
 import { Tabs, usePathname } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
@@ -24,6 +24,37 @@ import { useUnreadDms } from '@/hooks/useUnreadDms';
 import { SafetyPopup, SosModal, WelcomeSafetyModal } from '@/components/safety';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import { sharePlan } from '@/utils/sharePlan';
+import EventBottomSheet, {
+  EventBottomSheetRef,
+} from '@/components/events/EventBottomSheet';
+
+// The one event sheet for the whole app. It lives here — above <Tabs>, so it
+// paints over the floating tab bar and its backdrop can dim the bar too —
+// rather than one-per-screen, where it sat *under* the bar with nothing to dim
+// it. Any card, anywhere, opens it by setting uiStore.selectedEventId (the same
+// channel a tapped notification or a deep link already uses); this watches that
+// id and hands it to the always-mounted sheet, so there's no cold-start
+// ref-not-ready race to retry around.
+function GlobalEventSheet() {
+  const sheetRef = useRef<EventBottomSheetRef>(null);
+  const selectedEventId = useUIStore((s) => s.selectedEventId);
+
+  useEffect(() => {
+    if (!selectedEventId) return;
+    sheetRef.current?.open(selectedEventId);
+    useUIStore.getState().setSelectedEvent(null);
+  }, [selectedEventId]);
+
+  // Full-screen bounds so gorhom can measure its snap points against the whole
+  // window (it sizes against its container, and a bare sibling of <Tabs> has
+  // none). `box-none` lets taps fall through to the tab bar while the sheet is
+  // closed; once open, the sheet's own backdrop takes over.
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <EventBottomSheet ref={sheetRef} />
+    </View>
+  );
+}
 
 // Safety popup #1: full-screen welcome shown once ever, the first time a
 // signed-in user lands in the app after onboarding. "Read the Safety Centre"
@@ -254,6 +285,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    <GlobalEventSheet />
     </>
   );
 }

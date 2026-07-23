@@ -31,6 +31,10 @@ import { EventDetail, ParticipantStatus, Profile } from '@/types/models';
 
 type Ctx = { prev: EventDetail | undefined };
 
+// Why someone left, captured by the leave-confirmation flow and stored in
+// event_leave_feedback. Optional so leaving without a reason still works.
+export type LeaveArgs = { reason?: string; detail?: string };
+
 // The options are built separately from the hook so they can be exercised
 // against a bare QueryClient in tests — the behaviour worth pinning down here
 // is cache bookkeeping, and involving a renderer to reach it buys nothing.
@@ -133,8 +137,9 @@ export function participationMutations(
     onSettled: invalidate,
   };
 
-  const leave: UseMutationOptions<void, Error, void, Ctx> = {
-    mutationFn: () => leaveEvent(event!.id, user!.id),
+  const leave: UseMutationOptions<void, Error, LeaveArgs | void, Ctx> = {
+    mutationFn: (args) =>
+      leaveEvent(event!.id, user!.id, args?.reason, args?.detail),
     onMutate: async () => {
       const ctx = await snapshot();
       setMyParticipation(null);

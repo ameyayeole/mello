@@ -42,9 +42,7 @@ import {
   getAttendeePreviews,
 } from '@/services/events.service';
 import { shareEvent } from '@/utils/shareEvent';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
+import { useUIStore } from '@/stores/uiStore';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
@@ -184,7 +182,6 @@ export default function ProfileTabScreen() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [tab, setTab] = useState<'upcoming' | 'attended'>('upcoming');
   const queryClient = useQueryClient();
-  const sheetRef = useRef<EventBottomSheetRef>(null);
 
   // Wishlist: events saved from the swipe deck's bookmark button.
   const { data: wishlist = [] } = useQuery({
@@ -651,7 +648,7 @@ export default function ProfileTabScreen() {
                     key={e.id}
                     event={e}
                     onDark
-                    onPress={() => sheetRef.current?.open(e.id)}
+                    onPress={() => useUIStore.getState().setSelectedEvent(e.id)}
                   />
                 ))}
               </View>
@@ -682,7 +679,7 @@ export default function ProfileTabScreen() {
                       key={e.id}
                       scaleTo={0.96}
                       style={styles.wishCard}
-                      onPress={() => sheetRef.current?.open(e.id)}
+                      onPress={() => useUIStore.getState().setSelectedEvent(e.id)}
                     >
                       <View
                         style={[styles.wishMedia, { backgroundColor: cat.tint }]}
@@ -848,8 +845,6 @@ export default function ProfileTabScreen() {
           )}
         </View>
       </Modal>
-
-      <EventBottomSheet ref={sheetRef} />
     </View>
   );
 }

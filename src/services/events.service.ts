@@ -98,14 +98,32 @@ export async function getEventDetail(eventId: string): Promise<EventDetail> {
     ...p.user,
     status: p.status ?? 'approved',
   }));
-  const approvedCount = participants.filter(
+
+  // RLS (participants_select, migration 003) exposes only the viewer's own
+  // participant rows and, to a host, their event's rows — so for someone who
+  // hasn't joined, `participants` comes back nearly empty and a count derived
+  // from it reads 0, even though the host (a participant since migration 043)
+  // and others are going. That's exactly the "0/x" the person deciding to join
+  // sees. The attendee-preview RPC (SECURITY DEFINER, migration 038) returns the
+  // true faces + count past RLS — the same source the cards trust. Merge it in:
+  // preview faces fill the roster, but a directly-visible row wins on conflict
+  // because it carries the viewer's real status (a pending request must stay
+  // pending, not be flattened to approved).
+  const preview = (await getAttendeePreviews([eventId]))[eventId];
+  const byId = new Map<string, any>();
+  for (const a of preview?.attendees ?? []) byId.set(a.id, { ...a, status: 'approved' });
+  for (const p of participants) byId.set(p.id, p);
+  const mergedParticipants = [...byId.values()];
+
+  const approvedFromRows = mergedParticipants.filter(
     (p: any) => p.status === 'approved'
   ).length;
+  const participant_count = Math.max(approvedFromRows, preview?.going_count ?? 0);
 
   return {
     ...(data as any),
-    participants,
-    participant_count: approvedCount,
+    participants: mergedParticipants,
+    participant_count,
   } as EventDetail;
 }
 
@@ -275,7 +293,25 @@ export async function rejectParticipant(
 // pending request (RLS lets the host delete any participant row of their event).
 export const removeParticipant = rejectParticipant;
 
-export async function leaveEvent(eventId: string, userId: string): Promise<void> {
+// Leaving deletes the participant row. When a reason is given we record it in
+// event_leave_feedback *first* — that row must survive the delete (it can't live
+// on the participant row that's about to go), and it's what lets a host see why
+// guests dropped. A failed feedback write must not block the leave itself, so it
+// is best-effort: log and carry on to the delete.
+export async function leaveEvent(
+  eventId: string,
+  userId: string,
+  reason?: string,
+  detail?: string
+): Promise<void> {
+  if (reason) {
+    const { error: feedbackError } = await supabase
+      .from('event_leave_feedback')
+      .insert({ event_id: eventId, user_id: userId, reason, detail });
+    if (feedbackError)
+      console.warn('leave feedback not recorded:', feedbackError.message);
+  }
+
   const { error } = await supabase
     .from('event_participants')
     .delete()
@@ -563,5 +599,10 @@ export async function getJoinedEvents(userId: string): Promise<NearbyEvent[]> {
   return ((data ?? []) as any[])
     .map((r) => r.event)
     .filter(Boolean)
+    // Since migration 043 the host is an approved participant of their own
+    // event, so this query now also returns events you host. Those belong to
+    // "hosting", not "attending" — Home's Your plans concatenates the two lists
+    // without dedup, so an un-filtered host event would show up twice.
+    .filter((e) => e.host_id !== userId)
     .map(withParticipantCount);
 }

@@ -11,13 +11,10 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useExploreFeed } from '@/hooks/useExploreFeed';
 import { useExploreWraps } from '@/hooks/useExploreWraps';
-import { useSelectedEventSheet } from '@/hooks/useSelectedEventSheet';
+import { useUIStore } from '@/stores/uiStore';
 import ExploreEventCard from '@/components/events/ExploreEventCard';
 import WrapCard from '@/components/wrap/WrapCard';
 import WrapEntryCard from '@/components/wrap/WrapEntryCard';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
 import CreateEventFab from '@/components/CreateEventFab';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -57,9 +54,7 @@ function mergeFeeds(events: ExploreEvent[], wraps: ExploreWrap[]): FeedItem[] {
 }
 
 export default function ExploreScreen() {
-  const sheetRef = useRef<EventBottomSheetRef>(null);
   const tabBarInset = useTabBarInset();
-  useSelectedEventSheet(sheetRef);
 
   const explore = useExploreFeed();
   const wrapsQuery = useExploreWraps();
@@ -74,7 +69,7 @@ export default function ExploreScreen() {
   );
   const feed = useMemo(() => mergeFeeds(events, wraps), [events, wraps]);
 
-  const openEvent = (id: string) => sheetRef.current?.open(id);
+  const openEvent = (id: string) => useUIStore.getState().setSelectedEvent(id);
 
   function loadMore() {
     if (explore.hasNextPage && !explore.isFetchingNextPage) {
@@ -166,8 +161,6 @@ export default function ExploreScreen() {
       </Screen>
 
       <CreateEventFab />
-
-      <EventBottomSheet ref={sheetRef} />
     </View>
   );
 }
