@@ -56,9 +56,9 @@ import {
   PressableScale,
   VerifiedBadge,
 } from '@/components/ui';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
+import EventSheetStack, {
+  EventSheetStackRef,
+} from '@/components/events/EventSheetStack';
 import EventRow from '@/components/events/EventRow';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
@@ -116,7 +116,7 @@ export default function UserProfileScreen() {
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const sheetRef = useRef<EventBottomSheetRef>(null);
+  const sheetRef = useRef<EventSheetStackRef>(null);
 
   // Safety popup #12: intro sheet shown every time before the report reasons.
   const [reportIntroVisible, setReportIntroVisible] = useState(false);
@@ -513,7 +513,6 @@ export default function UserProfileScreen() {
                     emoji={a.emoji}
                     label={a.label}
                     color={categoryStyle(id).accent}
-                    tone="translucent"
                   />
                 );
               })}
@@ -721,7 +720,7 @@ export default function UserProfileScreen() {
         onCancel={() => setBlockConfirmVisible(false)}
       />
 
-      <EventBottomSheet ref={sheetRef} />
+      <EventSheetStack ref={sheetRef} />
     </View>
   );
 }

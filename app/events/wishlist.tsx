@@ -13,9 +13,9 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSavedEvents, unsaveEvent } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
+import EventSheetStack, {
+  EventSheetStackRef,
+} from '@/components/events/EventSheetStack';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
@@ -161,7 +161,7 @@ export default function WishlistScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
-  const sheetRef = useRef<EventBottomSheetRef>(null);
+  const sheetRef = useRef<EventSheetStackRef>(null);
 
   const { data: wishlist = [], isLoading } = useQuery({
     queryKey: queryKeys.savedEvents.of(user?.id),
@@ -237,7 +237,7 @@ export default function WishlistScreen() {
           }
         />
       )}
-      <EventBottomSheet ref={sheetRef} />
+      <EventSheetStack ref={sheetRef} />
     </Screen>
   );
 }

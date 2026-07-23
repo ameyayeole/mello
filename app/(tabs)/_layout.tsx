@@ -24,9 +24,9 @@ import { useUnreadDms } from '@/hooks/useUnreadDms';
 import { SafetyPopup, SosModal, WelcomeSafetyModal } from '@/components/safety';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import { sharePlan } from '@/utils/sharePlan';
-import EventBottomSheet, {
-  EventBottomSheetRef,
-} from '@/components/events/EventBottomSheet';
+import EventSheetStack, {
+  EventSheetStackRef,
+} from '@/components/events/EventSheetStack';
 
 // The one event sheet for the whole app. It lives here — above <Tabs>, so it
 // paints over the floating tab bar and its backdrop can dim the bar too —
@@ -36,7 +36,7 @@ import EventBottomSheet, {
 // id and hands it to the always-mounted sheet, so there's no cold-start
 // ref-not-ready race to retry around.
 function GlobalEventSheet() {
-  const sheetRef = useRef<EventBottomSheetRef>(null);
+  const sheetRef = useRef<EventSheetStackRef>(null);
   const selectedEventId = useUIStore((s) => s.selectedEventId);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ function GlobalEventSheet() {
   // closed; once open, the sheet's own backdrop takes over.
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <EventBottomSheet ref={sheetRef} />
+      <EventSheetStack ref={sheetRef} />
     </View>
   );
 }
