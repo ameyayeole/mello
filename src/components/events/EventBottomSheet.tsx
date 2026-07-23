@@ -23,14 +23,19 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   interpolate,
+  useDerivedValue,
+  useAnimatedReaction,
+  withTiming,
   Extrapolation,
   Easing,
+  type SharedValue,
 } from 'react-native-reanimated';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetFooter,
   BottomSheetBackdrop,
   useBottomSheetTimingConfigs,
+  useBottomSheetInternal,
   type BottomSheetFooterProps,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
@@ -53,6 +58,7 @@ import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { useEventParticipation } from '@/hooks/useEventParticipation';
 import { splitEventTime, formatEventWhen } from '@/utils/time';
+import { eventImageUri } from '@/utils/events';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatDistance } from '@/utils/distance';
@@ -80,9 +86,11 @@ import {
   PressableScale,
   SectionLabel,
   Sheet,
+  Tag,
   TextField,
   VerifiedBadge,
 } from '@/components/ui';
+import type { Attendee } from '@/components/ui/AttendeeStack';
 import { categoryStyle } from '@/constants/categoryStyle';
 
 // A safety popup queued to show before a join goes through (spec #3/#5/#8/#10).
@@ -142,6 +150,55 @@ const CARD_PAD_TOP = SPACING[4];
 // slides DOWN to uncover it. See the component for why (that height animation
 // was the old stutter) and for how the grow is sized to the sheet's own climb.
 
+// How far the hero is allowed to grow PAST the point where the who's-going card
+// would sit on the bottom edge. This is the one knob on the whole reveal:
+//
+//   0    the photo stops exactly where who's-going stays fully visible at the
+//        full stop — the biggest hero that still shows who's going.
+//   > 0  that many points of extra photo, clipping who's-going by the same
+//        amount. It becomes a scroll-to.
+//
+// The photo and the content share a fixed budget (see `heroGrow` below), so
+// every point given to one is taken from the other. There is no setting where
+// both get bigger.
+const HERO_OVERSHOOT = 0;
+
+// How many people the card shows before it stops and defers to "See all".
+const GOING_ROWS = 3;
+
+// ── The who's-going entrance ─────────────────────────────────────────────────
+// Each face slides out from behind the card's left border as its row arrives on
+// screen, tilted, and unwinds to level as it lands.
+//
+// It is driven by where the row actually IS on screen, not by the sheet's snap
+// progress. Snap progress was the first attempt and it was invisible: after the
+// hero's anchor moved, the card sat ~160pt further down, and all three rows
+// finished their animation below the fold — row 3 never cleared it during the
+// drag at all. Worse, that was silent. Hand-tuned windows encode an assumption
+// about the layout that nothing re-checks when the layout changes.
+//
+// Screen position is self-correcting. A row animates when it comes into view,
+// whether that view arrived by dragging the sheet up or by scrolling the content
+// once it's full screen — and those are the only two ways it can arrive.
+
+// Starting tilt in degrees, unwound to level on arrival. Negative because the
+// row travels rightwards: it leans back into where it came from. Mirrors the 9°
+// the host-row stack tilts to as it exits right, so both halves of the hand-off
+// read as one physical system.
+const ROW_TILT = -8;
+// How long a row takes to arrive once it has been triggered. A real duration is
+// only possible because the entrance is timed rather than scrubbed — with a
+// scrubber the speed was whatever the finger did, and there was no knob for
+// "slower" at all.
+const ROW_ENTER_MS = 420;
+// The who's-going card's inner padding. Named because two things depend on it:
+// the hero's anchor adds it back on to reconstruct where the card's bottom edge
+// would fall (see `recomputeSnaps`), and the entrance starts a face exactly this
+// far plus its own width to the left, which tucks it just behind the card's
+// border.
+const GOING_CARD_PAD = SPACING[3.5];
+const GOING_AVATAR = 36;
+
 // A compact card for the "happening near you" rail: photo on top with the
 // category pill on it, then title + when/distance on a white body below. A
 // pared-down cousin of the home screen's NearbyCard — no join/save affordances,
@@ -156,12 +213,15 @@ function NearbyMini({
 }) {
   const activity = ACTIVITY_MAP[event.activity];
   const cat = categoryStyle(event.activity);
+  // The event's own photo, or the host's face when it has none — see
+  // `eventImageUri`. The glyph below is now genuinely the last resort.
+  const imageUri = eventImageUri(event);
   return (
     <PressableScale style={styles.nearbyMini} onPress={onPress} scaleTo={0.97}>
       <View style={[styles.nearbyMiniImage, { backgroundColor: cat.tint }]}>
-        {event.image_url ? (
+        {imageUri ? (
           <Image
-            source={{ uri: event.image_url }}
+            source={{ uri: imageUri }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
             transition={150}
@@ -203,6 +263,240 @@ function NearbyMini({
   );
 }
 
+// A row's entrance: 0 before it arrives, 1 once it has played. Everything the
+// who's-going card animates hangs off this.
+//
+// Position decides WHEN; time drives it to COMPLETION. That split is the whole
+// design, and both halves were learned the hard way.
+//
+// Driving progress directly from position — a scrubber — puts a row straddling
+// the screen's bottom edge at partial progress and leaves it there. At rest that
+// is an avatar frozen half-slid with a half-faded name beside it, which reads as
+// a rendering fault rather than as an animation. Nothing about "the row is 60%
+// on screen" should mean "the animation is 60% done".
+//
+// Driving it from the sheet's snap progress instead — the version before that —
+// fired every row while it was still below the fold, so none of it was ever
+// seen.
+//
+// So: watch where the row actually is, using four live values on the UI thread
+// (the sheet's own top, the fixed photo band above the card, the card's reveal
+// slide, and the content's scroll offset — that last one is what lets a row
+// animate when you scroll to it at full screen). The moment any part of it
+// crosses onto the screen, run a real timed animation to completion. It fires
+// once and stays; scrolling away and back does not replay it.
+function useRowEntrance({
+  cardOffset,
+  heroGrow,
+  sheetProgress,
+  screenH,
+  y,
+  h,
+}: {
+  cardOffset: number;
+  heroGrow: number;
+  sheetProgress: SharedValue<number>;
+  screenH: number;
+  y: number | null;
+  h: number | null;
+}) {
+  const { animatedPosition, animatedScrollableState } = useBottomSheetInternal();
+  const played = useSharedValue(0);
+
+  const arrived = useDerivedValue(() => {
+    if (y == null || h == null) return false;
+    const slide = interpolate(
+      sheetProgress.value,
+      [0, 1],
+      [0, heroGrow],
+      Extrapolation.CLAMP
+    );
+    const top =
+      animatedPosition.value +
+      BANNER_H +
+      slide +
+      cardOffset +
+      y -
+      animatedScrollableState.value.contentOffsetY;
+    return top < screenH;
+  });
+
+  useAnimatedReaction(
+    () => arrived.value,
+    (isArrived) => {
+      // `=== 0` rather than `< 1` so a run already underway is never restarted
+      // mid-flight by a frame that re-reads as arrived.
+      if (isArrived && played.value === 0) {
+        played.value = withTiming(1, {
+          duration: ROW_ENTER_MS,
+          easing: Easing.out(Easing.cubic),
+        });
+      }
+    }
+  );
+
+  return played;
+}
+
+// One person in the who's-going card, sliding out from behind its left border.
+//
+// The avatar carries the travel and the tilt; the name and tag only fade.
+// Rotating text at 10–15pt goes visibly soft on both platforms, and at three
+// stacked rows the wobble reads as a rendering fault rather than momentum.
+//
+// It starts at exactly -(card padding + avatar), which tucks it just out of
+// sight behind the card's left edge and no further — so every point of its
+// travel is visible and it reads as emerging from the border rather than flying
+// in. Card-relative, so it is the same motion on a 375pt screen and a 430pt one.
+function GoingRow({
+  person,
+  isHost,
+  cardOffset,
+  heroGrow,
+  sheetProgress,
+  screenH,
+  onLayout,
+}: {
+  person: Attendee;
+  isHost: boolean;
+  cardOffset: number;
+  heroGrow: number;
+  sheetProgress: SharedValue<number>;
+  screenH: number;
+  onLayout?: (e: LayoutChangeEvent) => void;
+}) {
+  const [box, setBox] = useState<{ y: number; h: number } | null>(null);
+  const handleLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { y, height: h } = e.nativeEvent.layout;
+      setBox((prev) => (prev?.y === y && prev?.h === h ? prev : { y, h }));
+      onLayout?.(e);
+    },
+    [onLayout]
+  );
+
+  const entrance = useRowEntrance({
+    cardOffset,
+    heroGrow,
+    sheetProgress,
+    screenH,
+    y: box?.y ?? null,
+    h: box?.h ?? null,
+  });
+
+  const avatarStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: interpolate(
+          entrance.value,
+          [0, 1],
+          [-(GOING_CARD_PAD + GOING_AVATAR), 0],
+          Extrapolation.CLAMP
+        ),
+      },
+      {
+        rotateZ: `${interpolate(
+          entrance.value,
+          [0, 1],
+          [ROW_TILT, 0],
+          Extrapolation.CLAMP
+        )}deg`,
+      },
+    ],
+  }));
+  // Held back until the avatar is most of the way home, so the name reads as
+  // catching up to the face rather than travelling alongside it.
+  const textStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(entrance.value, [0.55, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  return (
+    <View style={styles.goingRow} onLayout={handleLayout}>
+      <Animated.View style={avatarStyle}>
+        <Avatar name={person.name} photoUrl={person.photo_url} size={GOING_AVATAR} />
+      </Animated.View>
+      <Animated.View style={[styles.goingRowText, textStyle]}>
+        <Text style={styles.goingRowName} numberOfLines={1}>
+          {person.name}
+        </Text>
+        {isHost && <Tag label="Host" color={COLORS.primary} />}
+      </Animated.View>
+    </View>
+  );
+}
+
+// The not-joined card: the horizontal face pile this card carried before it grew
+// rows, on the same entrance driver. Non-members can see who's there but not the
+// roster, so a stack plus the gate says everything there is to say and a list of
+// three names out of eight would only imply otherwise.
+function GoingStack({
+  people,
+  count,
+  cardOffset,
+  heroGrow,
+  sheetProgress,
+  screenH,
+  onLayout,
+}: {
+  people: Attendee[];
+  count: number;
+  cardOffset: number;
+  heroGrow: number;
+  sheetProgress: SharedValue<number>;
+  screenH: number;
+  onLayout?: (e: LayoutChangeEvent) => void;
+}) {
+  const [box, setBox] = useState<{ y: number; h: number } | null>(null);
+  const handleLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { y, height: h } = e.nativeEvent.layout;
+      setBox((prev) => (prev?.y === y && prev?.h === h ? prev : { y, h }));
+      onLayout?.(e);
+    },
+    [onLayout]
+  );
+
+  const entrance = useRowEntrance({
+    cardOffset,
+    heroGrow,
+    sheetProgress,
+    screenH,
+    y: box?.y ?? null,
+    h: box?.h ?? null,
+  });
+
+  const stackStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(entrance.value, [0, 0.5], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateX: interpolate(
+          entrance.value,
+          [0, 1],
+          [-(GOING_CARD_PAD + GOING_AVATAR), 0],
+          Extrapolation.CLAMP
+        ),
+      },
+    ],
+  }));
+
+  return (
+    <View style={styles.goingCardBody} onLayout={handleLayout}>
+      <Animated.View style={stackStyle}>
+        <AttendeeStack
+          people={people}
+          count={count}
+          max={5}
+          size={GOING_AVATAR}
+          emptyLabel="Be the first to join"
+        />
+      </Animated.View>
+      <Text style={[styles.goingCardHint, styles.goingStackHint]}>
+        Join to see the full list of attendees
+      </Text>
+    </View>
+  );
+}
+
 function EventBottomSheet({
   eventId,
   depth,
@@ -219,44 +513,85 @@ function EventBottomSheet({
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
-  // Both inner stops, measured below (null until laid out). Declared up here
-  // because the reveal geometry needs the middle stop's height.
+  // Measured below (null until laid out). `firstSnapPx` is the resting stop —
+  // the only stop that needs measuring, since the other one is the top of the
+  // screen. `goingAnchorPx` is how far the hero's anchor sits below the content
+  // card's top — see the anchor note below.
   const [firstSnapPx, setFirstSnapPx] = useState<number | null>(null);
-  const [secondSnapPx, setSecondSnapPx] = useState<number | null>(null);
+  const [goingAnchorPx, setGoingAnchorPx] = useState<number | null>(null);
+  const first = firstSnapPx ?? Math.round(height * 0.46);
 
-  // How far the sheet's top edge climbs on the LAST leg (middle stop → full
-  // screen): the middle stop sits `secondSnapPx` up from the bottom, the full
-  // stop reaches the very top (y=0). The photo grows by EXACTLY this much while
-  // the content card holds its screen position — so going full screen the image
-  // extends UP into the freed space, instead of the content sliding down to
-  // uncover a taller photo (which read as the sheet "going back down" mid-drag,
-  // because the slide-down outran the sheet's climb). Falls back to the 74%
-  // middle-stop estimate until the card is measured.
-  const revealDist = height - (secondSnapPx ?? Math.round(height * 0.74));
-  // The hero is rendered exactly tall enough to fill what the reveal uncovers.
-  const photoRenderH = BANNER_H + revealDist;
+  // The sheet's climb, resting stop → y=0. This is the whole budget for the leg,
+  // and it is shared: whatever the photo doesn't take, the content rises by.
+  const climb = height - first;
+  // Where the hero's anchor should come to rest at the full stop — clear of the
+  // home indicator, with a little breathing room, so nothing lands tucked under
+  // the indicator bar.
+  const goingRestBottom = height - insets.bottom - SPACING[3];
+  // The hero's growth, and the single place the budget is split. At the full stop
+  // the sheet's top is at y=0, so the photo runs 0 → BANNER_H + grow, the content
+  // card's top lands right underneath it, and the anchor is another
+  // `goingAnchorPx` down. Solving "the anchor sits at `goingRestBottom`" for the
+  // grow is the subtraction below.
+  //
+  // ── Why the anchor is the who's-going card's FIRST ROW, not its bottom ──────
+  // The obvious anchor is the card's bottom edge — "grow the photo until the
+  // whole card still fits". But then the hero is a function of how many people
+  // are going: a four-row card is ~160pt taller than a one-row card, and every
+  // one of those points comes straight off the photo. The same event would open
+  // with a visibly different hero the day a third person joined.
+  //
+  // Anchoring on the first row's bottom instead makes the hero depend only on
+  // what sits ABOVE who's-going — host row, title, info, description, actions —
+  // which is fixed for a given event. The card is then free to grow downward past
+  // the fold; you scroll for the rest of it. Header and the first person stay
+  // visible, which is what the card is for at a glance.
+  //
+  // Clamped at both ends, and both clamps matter:
+  //   floor 0     a dense event (long description, three actions) can measure
+  //               past the budget entirely. The photo then doesn't grow at all
+  //               and the leg is a pure content rise. Nothing looks broken.
+  //   ceiling climb  the slide can never exceed the sheet's own climb. Past that
+  //               the content would drift DOWN against the drag, which is what
+  //               read as the sheet "going back down" mid-gesture.
+  const heroGrow = Math.max(
+    0,
+    Math.min(
+      goingRestBottom -
+        (goingAnchorPx ?? Math.round(height * 0.46)) -
+        BANNER_H +
+        HERO_OVERSHOOT,
+      climb
+    )
+  );
+  // The hero is rendered exactly tall enough to fill what the reveal uncovers, so
+  // its bottom edge always meets the card's top — no seam at any snap.
+  const photoRenderH = BANNER_H + heroGrow;
 
   // Scroll room past the last row: the home-indicator inset, a comfortable gap,
-  // and the reveal distance — the card is translated down by `revealDist` at the
-  // full stop, so without this the last row would be pushed off the bottom.
-  const contentPadBottom = insets.bottom + SPACING[8] + revealDist;
+  // and the hero's grow — the card is translated down by `heroGrow` at the full
+  // stop, so without this the last row would be pushed off the bottom.
+  const contentPadBottom = insets.bottom + SPACING[8] + heroGrow;
 
-  // Three stops, so gorhom's live snap progress (`animatedIndex`) runs 0 (first
-  // stop, below Open chat/Join) → 1 (middle, below who's-going) → 2 (full
-  // screen). The photo doesn't grow by animating its height (that per-frame
-  // layout pass over the whole content tree was the stutter). Instead it's a
-  // fixed-height hero pinned behind the content, and the white card slides DOWN
-  // to uncover it — a single transform on the UI thread. The grow happens on the
-  // LAST leg only ([1,2]) and by exactly `revealDist`, so the card's downward
-  // slide matches the sheet's upward climb and the content stays put on screen.
+  // Two stops, so gorhom's live snap progress (`animatedIndex`) runs 0 (resting,
+  // below Open chat/Join) → 1 (full screen). The photo doesn't grow by animating
+  // its height (that per-frame layout pass over the whole content tree was the
+  // stutter). Instead it's a fixed-height hero pinned behind the content, and the
+  // white card slides DOWN to uncover it — a single transform on the UI thread.
+  //
+  // The slide is `heroGrow` against a climb of `climb`, both linear in the drag,
+  // so the photo grows and the content rises at the same time and at a constant
+  // rate. The content's rise is exactly `climb - heroGrow` — that rise is what
+  // carries the who's-going card up into view, and it's why the photo has to be
+  // capped rather than given the whole climb.
   const animatedIndex = useSharedValue(0);
   const cardRevealStyle = useAnimatedStyle(() => ({
     transform: [
       {
         translateY: interpolate(
           animatedIndex.value,
-          [1, 2],
-          [0, revealDist],
+          [0, 1],
+          [0, heroGrow],
           Extrapolation.CLAMP
         ),
       },
@@ -264,15 +599,15 @@ function EventBottomSheet({
   }));
 
   // The on-photo chrome (grab handle, category pill, save/share) hugs the sheet's
-  // top edge until the last leg; at the full stop the sheet reaches y=0, so it
-  // slides down by the top inset to sit clear of the status bar / dynamic island
-  // instead of underneath it. Same [1,2] leg as the photo grow.
+  // top edge at rest; at the full stop the sheet reaches y=0, so it slides down
+  // by the top inset to sit clear of the status bar / dynamic island instead of
+  // underneath it. Same 0→1 leg as the photo grow.
   const chromeInsetStyle = useAnimatedStyle(() => ({
     transform: [
       {
         translateY: interpolate(
           animatedIndex.value,
-          [1, 2],
+          [0, 1],
           [0, insets.top],
           Extrapolation.CLAMP
         ),
@@ -280,8 +615,8 @@ function EventBottomSheet({
     ],
   }));
 
-  // The attendee hand-off, played across the FIRST leg (stop 0 → 1, Open chat →
-  // who's-going). As the sheet grows the little "going" stack up in the host row
+  // The attendee hand-off, played across the one leg (stop 0 → 1, Open chat →
+  // full screen). As the sheet grows the little "going" stack up in the host row
   // leans into its own momentum and slides off to the right; the who's-going
   // card's faces answer by sweeping in from the left and settling — so the same
   // people appear to relocate from the header down into the card as it scrolls
@@ -296,54 +631,57 @@ function EventBottomSheet({
       ],
     };
   });
-  // Sweeps in over the first leg and is settled by the who's-going stop (index
-  // 1). The card is off-screen at the first stop, so there's no empty-at-rest.
-  const goingStackEnterStyle = useAnimatedStyle(() => {
-    const p = animatedIndex.value;
-    return {
-      opacity: interpolate(p, [0.35, 0.9], [0, 1], Extrapolation.CLAMP),
-      transform: [
-        {
-          translateX: interpolate(
-            p,
-            [0.35, 1],
-            [-width * 0.4, 0],
-            Extrapolation.CLAMP
-          ),
-        },
-      ],
-    };
-  });
+  // …and the answering half is `GoingRow`, one per person — see ROW_WINDOWS.
 
-  // Both inner stops are measured, not guessed, so they land exactly on any
-  // screen. `actionsY` is the action stack's offset within the content card;
-  // `primaryBottom` is the Open chat/Join button's bottom edge within the stack
-  // (the first stop), and `goingCardBottom` is the who's-going card's bottom
-  // edge (the middle stop). The card sits below the photo (marginTop BANNER_H)
-  // with its own top padding, so a sheet height = BANNER_H + actionsY + the
-  // measured position. The card's translateY is a transform, so it never shifts
-  // these layout coordinates — the measurements are stable at every snap.
+  // Every number here is measured, not guessed, so they land on any screen and
+  // any event length. `actionsY` is the action stack's offset within the content
+  // card; `primaryBottom` is the Open chat/Join button's bottom edge within that
+  // stack; `goingCardY` is the who's-going card's top and `goingRowBottom` the
+  // first person row's bottom edge within it. The content card sits below the
+  // photo (marginTop BANNER_H) with its own top padding, so the resting sheet
+  // height = BANNER_H + actionsY + primaryBottom. The card's translateY is a
+  // transform, so it never shifts these layout coordinates — the measurements are
+  // stable at every snap, which is the only reason measuring once works.
   const actionsYRef = useRef<number | null>(null);
   const primaryBottomRef = useRef<number | null>(null);
-  const goingCardBottomRef = useRef<number | null>(null);
+  const goingCardYRef = useRef<number | null>(null);
+  const goingAnchorBottomRef = useRef<number | null>(null);
+  // Where the who's-going card's top sits inside the content card. State, not a
+  // ref, because the entrance worklets read it — see `useRowEntrance`.
+  const [goingCardOffset, setGoingCardOffset] = useState(0);
   const recomputeSnaps = useCallback(() => {
     const a = actionsYRef.current;
     if (a == null) return;
-    // BANNER_H is the card's marginTop (the photo above it); the measured
-    // `actionsY` already includes the card's own paddingTop, so it isn't added
-    // again. Each stop is clamped below the full stop so the snap points can
-    // never cross (a tall event would otherwise measure past full screen).
     const p = primaryBottomRef.current;
     if (p != null) {
-      // First stop: just below Open chat/Join, one action-gap of breathing room.
-      const next = Math.round(Math.min(BANNER_H + a + p + SPACING[2.5], height * 0.82));
+      // Resting stop: just below Open chat/Join, one action-gap of breathing
+      // room. BANNER_H is the card's marginTop (the photo above it); the measured
+      // `actionsY` already includes the card's own paddingTop, so it isn't added
+      // again. Clamped below the full stop so the two stops can never cross (a
+      // tall event would otherwise measure past full screen).
+      const next = Math.round(
+        Math.min(BANNER_H + a + p + SPACING[2.5], height * 0.82)
+      );
       setFirstSnapPx((prev) => (prev === next ? prev : next));
     }
-    const g = goingCardBottomRef.current;
-    if (g != null) {
-      // Middle stop: just below the who's-going card.
-      const next = Math.round(Math.min(BANNER_H + a + g + SPACING[3], height * 0.92));
-      setSecondSnapPx((prev) => (prev === next ? prev : next));
+    const cardY = goingCardYRef.current;
+    if (cardY != null) {
+      const next = Math.round(a + cardY);
+      setGoingCardOffset((prev) => (prev === next ? prev : next));
+    }
+    const anchorBottom = goingAnchorBottomRef.current;
+    if (cardY != null && anchorBottom != null) {
+      // Everything in the content card above the hero's anchor. Measured from the
+      // content card's top, NOT the sheet's — the hero cap subtracts BANNER_H
+      // separately, and folding it in here would double-count it.
+      //
+      // The card's own bottom padding is added back on so the anchor sits where
+      // the card's edge *would* be if it held only this one row. That is what
+      // makes the hero come out the same size it did before the card grew rows —
+      // and the same size for a member and a non-member, whose card holds a face
+      // pile of the same height instead.
+      const next = Math.round(a + cardY + anchorBottom + GOING_CARD_PAD);
+      setGoingAnchorPx((prev) => (prev === next ? prev : next));
     }
   }, [height]);
   const onActionsLayout = useCallback(
@@ -361,21 +699,31 @@ function EventBottomSheet({
     },
     [recomputeSnaps]
   );
-  const onGoingCardLayout = useCallback(
+  // The first person row for a member, the face pile for a non-member — whichever
+  // this card leads with is what the hero grows down to.
+  const onGoingAnchorLayout = useCallback(
     (e: LayoutChangeEvent) => {
       const { y, height: h } = e.nativeEvent.layout;
-      goingCardBottomRef.current = y + h;
+      goingAnchorBottomRef.current = y + h;
       recomputeSnaps();
     },
     [recomputeSnaps]
   );
-  // Three stops. First: below Open chat/Join (a tap opens here). Middle: below
-  // the who's-going card (one scroll up). Full screen: keep scrolling and the
-  // photo becomes the big hero. Safe to animate to now because the reveal is a
-  // card transform, not the photo-height animation that used to stutter.
+  const onGoingCardLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      goingCardYRef.current = e.nativeEvent.layout.y;
+      recomputeSnaps();
+    },
+    [recomputeSnaps]
+  );
+  // Two stops. Resting: below Open chat/Join (a tap opens here). Full screen: one
+  // scroll up and the sheet's top edge is at y=0 with the photo filling every
+  // pixel it uncovered. `'100%'` rather than a computed number on purpose — it is
+  // the screen's own height on whatever device this is, so there is no rounding
+  // or reserved headroom that could leave a sliver of backdrop showing.
   const snapPoints = useMemo<(string | number)[]>(
-    () => [firstSnapPx ?? '46%', secondSnapPx ?? '74%', '100%'],
-    [firstSnapPx, secondSnapPx]
+    () => [firstSnapPx ?? '46%', '100%'],
+    [firstSnapPx]
   );
 
   // A single smooth curve for every snap — including the release snap-back from
@@ -496,6 +844,28 @@ function EventBottomSheet({
 
   const approved =
     event?.participants?.filter((p) => p.status === 'approved') ?? [];
+
+  // The card's person rows. Order comes from the server — `event_attendees_preview`
+  // ranks by `ep.joined_at, pr.id`, and migration 043 gives the host a
+  // participant row at creation time, so the host already sorts first and the
+  // rest follow by join time. The pin below is belt-and-braces: the RLS-visible
+  // rows are merged into that list by id, and if a merge ever reordered them the
+  // host tag would silently land on the wrong person. There is no join timestamp
+  // on the client objects to re-sort by, so this is the one thing worth pinning.
+  const goingRows = [...approved]
+    .sort(
+      (a, b) =>
+        Number(b.id === event?.host_id) - Number(a.id === event?.host_id)
+    )
+    .slice(0, GOING_ROWS);
+  // More people than rows shown — otherwise "See all 3" points at a list you are
+  // already looking at in full.
+  const hasMoreGoing = (event?.participant_count ?? 0) > goingRows.length;
+  // Invite fills the gap a thin roster leaves rather than being a permanent row,
+  // so a full card is exactly three people plus See all. Members only: sharing a
+  // link to an event you haven't joined is vouching for something you're not
+  // part of.
+  const canInvite = (isParticipant || isHost) && goingRows.length < GOING_ROWS;
   // Mello+ members' requests surface first for the host.
   const pending = (
     event?.participants?.filter((p) => p.status === 'pending') ?? []
@@ -640,6 +1010,16 @@ function EventBottomSheet({
   }
 
   const activity = event ? ACTIVITY_MAP[event.activity] : null;
+  // Same fallback the cards use, so a photoless event doesn't show the host's
+  // face in the rail and a grey placeholder in its own hero. `host_photo_url` is
+  // flattened onto the feed RPCs but `getEventDetail` selects the host nested,
+  // so it's handed over explicitly rather than read off the event.
+  const heroUri = event
+    ? eventImageUri({
+        image_url: event.image_url,
+        host_photo_url: event.host?.photo_url,
+      })
+    : null;
 
   // Wishlist toast, pinned to the bottom of the VISIBLE sheet via the
   // library's footer (a hand-positioned absolute child sits in the sheet's
@@ -694,9 +1074,9 @@ function EventBottomSheet({
       // Opens on mount (gorhom animates to this index). The stack only renders a
       // sheet when it has an entry, so mounting = opening.
       index={0}
-      // Two stops: the measured first stop (below the primary action) and a
-      // full-screen stop that grows the hero photo. gorhom writes the live snap
-      // progress into `animatedIndex`, which drives the card's reveal.
+      // The measured resting stop, then the top of the screen. gorhom writes the
+      // live snap progress into `animatedIndex`, which drives the card's reveal —
+      // so the image opens on the same drag that raises the sheet.
       snapPoints={snapPoints}
       animatedIndex={animatedIndex}
       animationConfigs={animationConfigs}
@@ -725,9 +1105,9 @@ function EventBottomSheet({
           pointerEvents="none"
           style={[styles.heroPhoto, { height: photoRenderH }]}
         >
-          {event.image_url ? (
+          {heroUri ? (
             <Image
-              source={{ uri: event.image_url }}
+              source={{ uri: heroUri }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={200}
@@ -1023,44 +1403,111 @@ function EventBottomSheet({
                 </>
               )}
 
-              {/* Who's going — a white card lifted off the white sheet by a
-                    soft shadow (a translucent-white Glass panel would vanish into
-                    it). Its bottom edge is what the first stop rises to. */}
+              {/* Who's going — a white card lifted off the white sheet by a soft
+                    shadow (a translucent-white Glass panel would vanish into it).
+                    Two nested views on purpose: the outer one carries the shadow,
+                    the inner one clips. Android's elevation shadow is clipped
+                    away by `overflow: 'hidden'`, so the two cannot live on the
+                    same element — the same split `Glass` uses, for the same
+                    reason. The clip is what makes the rows appear from the card's
+                    own border. */}
               <View style={styles.goingCard} onLayout={onGoingCardLayout}>
-                <View style={styles.goingCardHead}>
-                  <SectionLabel>{"Who's going"}</SectionLabel>
-                  {event.participant_count > 0 && (
-                    <Text style={styles.goingCardCount}>
-                      {event.participant_count}
-                      {event.max_people ? `/${event.max_people}` : ''}
-                    </Text>
-                  )}
-                </View>
-                <View style={styles.goingCardBody}>
-                  <Animated.View style={goingStackEnterStyle}>
-                    <AttendeeStack
+                <View style={styles.goingCardClip}>
+                  <View style={styles.goingCardHead}>
+                    <SectionLabel>{"Who's going"}</SectionLabel>
+                    {event.participant_count > 0 && (
+                      <Text style={styles.goingCardCount}>
+                        {event.participant_count}
+                        {event.max_people ? `/${event.max_people}` : ''}
+                      </Text>
+                    )}
+                  </View>
+
+                  {isParticipant || isHost ? (
+                    <>
+                      {goingRows.length > 0 ? (
+                        goingRows.map((person, i) => (
+                          <GoingRow
+                            key={person.id}
+                            person={person}
+                            isHost={person.id === event.host_id}
+                            cardOffset={goingCardOffset}
+                            heroGrow={heroGrow}
+                            sheetProgress={animatedIndex}
+                            screenH={height}
+                            // Row 0's bottom edge is the hero's anchor — the
+                            // photo grows until this row still lands clear of
+                            // the home indicator. Measuring the row rather than
+                            // the card is what keeps the hero the same size
+                            // whether one person is going or eight.
+                            onLayout={i === 0 ? onGoingAnchorLayout : undefined}
+                          />
+                        ))
+                      ) : (
+                        <Text style={styles.goingCardHint}>
+                          Be the first to join
+                        </Text>
+                      )}
+
+                      {/* Invite only fills the gap a thin roster leaves, so a
+                          full card is exactly three people plus See all. */}
+                      {canInvite && (
+                        <PressableScale
+                          style={styles.goingActionRow}
+                          scaleTo={0.98}
+                          onPress={() => shareEvent(event)}
+                        >
+                          <View style={styles.goingActionIcon}>
+                            <Icon
+                              name="userPlus"
+                              size={17}
+                              color={COLORS.primary}
+                              strokeWidth={2}
+                            />
+                          </View>
+                          <Text style={styles.goingActionLabel}>
+                            Invite friends
+                          </Text>
+                        </PressableScale>
+                      )}
+
+                      {hasMoreGoing && (
+                        <PressableScale
+                          style={styles.goingActionRow}
+                          scaleTo={0.98}
+                          onPress={() => {
+                            onCloseAll();
+                            router.push(`/events/attendees/${event.id}`);
+                          }}
+                        >
+                          <Text style={styles.goingCardLink}>
+                            See all {event.participant_count}
+                          </Text>
+                          <Icon
+                            name="chevronRight"
+                            size={15}
+                            color={COLORS.primary}
+                            strokeWidth={2}
+                          />
+                        </PressableScale>
+                      )}
+                    </>
+                  ) : (
+                    // Not joined: the face pile and the gate. The roster stays
+                    // behind joining, as it always has — the preview faces are
+                    // public, the list is not. This is also the hero's anchor
+                    // here, since there is no row 0 to measure; it comes out
+                    // within a point or two of the row-0 anchor, so the photo is
+                    // the same size either way.
+                    <GoingStack
                       people={approved}
                       count={event.participant_count}
-                      max={5}
-                      size={36}
-                      emptyLabel="Be the first to join"
+                      cardOffset={goingCardOffset}
+                      heroGrow={heroGrow}
+                      sheetProgress={animatedIndex}
+                      screenH={height}
+                      onLayout={onGoingAnchorLayout}
                     />
-                  </Animated.View>
-                  {isParticipant || isHost ? (
-                    event.participant_count > 0 && (
-                      <PressableScale
-                        onPress={() => {
-                          onCloseAll();
-                          router.push(`/events/attendees/${event.id}`);
-                        }}
-                      >
-                        <Text style={styles.goingCardLink}>See all</Text>
-                      </PressableScale>
-                    )
-                  ) : (
-                    <Text style={styles.goingCardHint}>
-                      Join to see the full list of attendees
-                    </Text>
                   )}
                 </View>
               </View>
@@ -1482,19 +1929,68 @@ const styles = StyleSheet.create({
   },
   sectionLabel: { marginBottom: SPACING[2] },
   // The frosted "who's going" card that sits in the action stack.
+  // The shadow half. Deliberately does NOT clip: Android's elevation shadow is
+  // clipped away by `overflow: 'hidden'`, so the shadow and the clip have to be
+  // two elements. Same split `Glass` uses, for the same reason.
   goingCard: {
-    padding: SPACING[3.5],
-    gap: SPACING[2.5],
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
     // A white card on a white sheet needs a shadow to read as a card at all.
     shadowColor: '#0F182C',
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
+  },
+  // The clip half, and what makes the rows appear from the card's own border
+  // rather than from somewhere off-screen.
+  goingCardClip: {
+    padding: GOING_CARD_PAD,
+    gap: SPACING[2.5],
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    overflow: 'hidden',
+  },
+  goingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
+  // minWidth 0 so a long name truncates instead of shoving the Host tag out of
+  // the card — the row is inside a clip now, so an overflow would be cut, not
+  // merely ugly.
+  goingRowText: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
+  },
+  goingRowName: {
+    flexShrink: 1,
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textPrimary,
+  },
+  // Invite / See all. Same height as a person row so the card reads as one
+  // stack rather than a list with a footer bolted on.
+  goingActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2.5],
+    minHeight: 36,
+  },
+  // A coral disc the size of an avatar, so the invite row lines up with the
+  // faces above it instead of starting at the text.
+  goingActionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goingActionLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.primary,
   },
   goingCardHead: {
     flexDirection: 'row',
@@ -1506,6 +2002,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
+  // The not-joined card's one row: face pile on the left, gate on the right.
   goingCardBody: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1517,13 +2014,16 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
+  // Left-aligned by default, since on the member card it is a row in a stack.
   goingCardHint: {
     flexShrink: 1,
-    textAlign: 'right',
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
+  // …but right-aligned in the not-joined card, where it is the second column
+  // beside the face pile.
+  goingStackHint: { textAlign: 'right' },
   pendingSection: { gap: SPACING[2] },
   pendingRow: {
     flexDirection: 'row',
