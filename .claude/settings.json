@@ -1,5 +1,41 @@
 {
   "enabledPlugins": {
-    "expo@claude-plugins-official": true
+    "expo@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
+  },
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ echo \"[$(date '+%H:%M:%S')] 🔐 Permission requested for: $(jq -r '.tool_name' 2>/dev/null || echo 'unknown')\"; } >> ~/.claude/claude-notifications.log 2>&1 && printf '\\a' && osascript -e \"display notification \\\"$(jq -r '.tool_name' 2>/dev/null || echo 'Tool') needs permission\\\" with title \\\"Permission Required\\\" sound name \\\"Alarm\\\"\" 2>/dev/null || true",
+            "statusMessage": "📢 Notifying permission request"
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ echo \"[$(date '+%H:%M:%S')] ❓ Claude is asking a question\"; } >> ~/.claude/claude-notifications.log 2>&1 && printf '\\a' && osascript -e \"display notification \\\"Claude is waiting for your input\\\" with title \\\"Question Asked\\\" sound name \\\"Ping\\\"\" 2>/dev/null || true",
+            "statusMessage": "📢 Notifying question"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ echo \"[$(date '+%H:%M:%S')] ✅ Claude session completed\"; } >> ~/.claude/claude-notifications.log 2>&1 && printf '\\a' && osascript -e \"display notification \\\"Work completed\\\" with title \\\"Claude Done\\\" sound name \\\"Submarine\\\"\" 2>/dev/null || true",
+            "statusMessage": "📢 Notifying completion"
+          }
+        ]
+      }
+    ]
   }
 }
