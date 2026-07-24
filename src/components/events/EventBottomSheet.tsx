@@ -23,6 +23,7 @@ import Animated, {
   FadeOut,
   useSharedValue,
   useAnimatedStyle,
+  useDerivedValue,
   interpolate,
   Extrapolation,
   Easing,
@@ -425,22 +426,20 @@ function GoingStack({
 }
 
 // The primary action rides at the bottom of the sheet while the description is
-// still revealing, then releases into the scroll once its own slot rises to
+// still being read, then releases into the scroll once its own slot rises to
 // meet the pin line. It lives in the scroll flow — right after the description,
-// before who's-going — rather than in a `BottomSheetFooter`, and that placement
-// is the whole trick: nothing ever sits behind or below it. The reserved but
-// unrevealed description lines above it are invisible (opacity 0 until they
-// cross the pin), and who's-going follows it in flow, off-screen until it
-// releases. So there's no bar and no content bleeding past its edges — the
-// button is just part of the sheet.
+// before who's-going — rather than in a `BottomSheetFooter`. The description is
+// rendered in full and scrolls out from behind it; an opaque white skirt below
+// the action covers whatever description hasn't cleared the pin yet, and
+// who's-going follows in flow, off-screen until it releases. So there's no bar
+// and no content bleeding past its edges — the action is just part of the sheet.
 //
-// translateY = min(0, pinTargetY − naturalTop): while the button's natural
+// translateY = min(0, pinTargetY − naturalTop): while the action's natural
 // (in-flow) position is below the pin line it's pulled up to sit exactly on it;
 // once enough has scrolled that its natural position rises to the pin, the pull
-// reaches 0 and it travels with the content like anything else. Same
-// screen-position math as `useEnterOnScroll` (the sheet's own top + the card's
-// reveal slide + its own y − scroll), so it stays in lockstep with the
-// description lines revealing just above it.
+// reaches 0 and it travels with the content like anything else. The skirt fades
+// out over that same last stretch, so by the time the action lets go the text
+// has all cleared it and who's-going shows through.
 function StickyPrimary({
   heroGrow,
   sheetProgress,
@@ -464,8 +463,8 @@ function StickyPrimary({
     },
     [onMeasure]
   );
-  const style = useAnimatedStyle(() => {
-    if (y == null) return {};
+  const translate = useDerivedValue(() => {
+    if (y == null) return 0;
     const slide = interpolate(
       sheetProgress.value,
       [0, 1],
@@ -478,12 +477,25 @@ function StickyPrimary({
       slide +
       y -
       animatedScrollableState.value.contentOffsetY;
-    return {
-      transform: [{ translateY: Math.min(0, pinTargetY - naturalTop) }],
-    };
+    return Math.min(0, pinTargetY - naturalTop);
   });
+  const wrapperStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translate.value }],
+  }));
+  // Visible while the action is pinned (translate well below 0), fading out over
+  // the last stretch of the release so who's-going shows through as it lets go.
+  const skirtStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translate.value, [-24, -2], [1, 0], Extrapolation.CLAMP),
+  }));
   return (
-    <Animated.View onLayout={handleLayout} style={[styles.stickyPrimary, style]}>
+    <Animated.View
+      onLayout={handleLayout}
+      style={[styles.stickyPrimary, wrapperStyle]}
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.stickySkirt, skirtStyle]}
+      />
       {children}
     </Animated.View>
   );
@@ -733,22 +745,10 @@ function EventBottomSheet({
     },
     [recomputeSnaps]
   );
-  // Screen-space y of the action's pinned top edge — where description lines
-  // reveal from behind. `height − inset − actionHeight` is a plain constant
-  // once the action's height is measured, independent of `firstSnapPx`.
+  // Screen-space y of the action's pinned top edge — the line the description
+  // scrolls out from behind. `height − inset − actionHeight` is a plain constant
+  // once the action's height is measured.
   const footerTopY = height - CTA_BOTTOM_INSET - (footerHeight ?? 0);
-  // How many description lines fit above the pinned action at the resting stop,
-  // bounded by the same RESTING_MAX_FRACTION ceiling `recomputeSnaps` uses —
-  // computed directly from constants and independently-measured quantities,
-  // never through `firstSnapPx`, so there's no circularity with the calc above.
-  const descriptionAvailableHeight = Math.max(
-    0,
-    height * RESTING_MAX_FRACTION -
-      BANNER_H -
-      descriptionOffset -
-      (footerHeight ?? 0) -
-      CTA_BOTTOM_INSET
-  );
   // Two stops. Resting: below Open chat/Join (a tap opens here). Full screen: one
   // scroll up and the sheet's top edge is at y=0 with the photo filling every
   // pixel it uncovered. `'100%'` rather than a computed number on purpose — it is
@@ -1342,12 +1342,7 @@ function EventBottomSheet({
               <RevealingText
                 text={event.description}
                 style={styles.description}
-                availableHeight={descriptionAvailableHeight}
                 maxLines={RESTING_MAX_LINES}
-                offset={BANNER_H + descriptionOffset}
-                heroGrow={heroGrow}
-                sheetProgress={animatedIndex}
-                footerBoundary={footerTopY}
                 onLayout={onDescriptionBlockLayout}
                 onVisibleHeight={onVisibleDescriptionHeight}
               />
@@ -1950,15 +1945,28 @@ const styles = StyleSheet.create({
   spotsInfo: {},
   // The headline action's in-flow wrapper (see `StickyPrimary`). Opaque white,
   // matching the sheet — NOT a distinct bar: it just reads as part of the sheet,
-  // and its fill is what keeps the reserved, not-yet-revealed description lines
-  // behind it from ever showing. `zIndex` keeps it above who's-going during the
-  // brief overlap as it releases and the rows rise from below. The top gap sits
-  // it a little off the last visible line; a transform pins it, so this padding
-  // never shifts the layout coordinates the resting stop is measured from.
+  // and its fill covers the slice of description directly behind the action.
+  // `zIndex` keeps it (and its skirt) above who's-going during the brief overlap
+  // as it releases and the rows rise from below. The top gap sits it a little
+  // off the last visible line; a transform pins it, so this padding never shifts
+  // the layout coordinates the resting stop is measured from.
   stickyPrimary: {
     backgroundColor: COLORS.white,
     paddingTop: SPACING[2.5],
     zIndex: 2,
+  },
+  // The opaque fill below the pinned action that hides the description still
+  // sitting behind / below it. Sits just under the action wrapper and runs off
+  // the bottom of the sheet; the negative side insets reach past the card's
+  // horizontal padding so nothing peeks at the edges. Fades out as the action
+  // releases (see `StickyPrimary`).
+  stickySkirt: {
+    position: 'absolute',
+    top: '100%',
+    left: -SPACING[5],
+    right: -SPACING[5],
+    height: 1200,
+    backgroundColor: COLORS.white,
   },
   spotsCount: {
     fontFamily: FONTS.heading,
