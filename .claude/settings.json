@@ -1,8 +1,4 @@
 {
-  "enabledPlugins": {
-    "expo@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
-  },
   "hooks": {
     "PermissionRequest": [
       {
@@ -37,5 +33,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "expo@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
   }
 }

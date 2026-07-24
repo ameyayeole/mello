@@ -8,10 +8,17 @@ export { IconButton } from './IconButton';
 export { NavButton, NAV_ICON_SIZE, NAV_BUTTON_SIZE } from './NavButton';
 export {
   TabBarBackground,
+  activeTabIndex,
+  useDarkTabBarProgress,
   useTabBarInset,
   useTabBarBottomMargin,
+  useTabBarItemWidth,
+  useTabBarPickup,
   useTabBarSideMargin,
   useTabBarSlide,
+  useTabBarTransform,
+  type TabBarSlide,
+  type TabBarTransform,
   CHIP_HEIGHT,
   CHIP_RADIUS,
   CHIP_WIDTH,

@@ -69,6 +69,11 @@ export const COLORS = {
   ink: '#0F182C',
   inkFaint: 'rgba(15, 24, 44, 0.04)', // locked / read-only field fill
   inkSubtle: 'rgba(15, 24, 44, 0.07)', // selected chip over a blurred backdrop
+  // The tab-bar chip while it's "picked up" (long-press scrub): a rung darker
+  // than inkSubtle so the grabbed chip lifts off the bar. `OnDark` is the same
+  // idea over the Profile bar, brighter than fillOnDarkStrong for the same lift.
+  chipGrab: 'rgba(15, 24, 44, 0.16)',
+  chipGrabOnDark: 'rgba(255, 255, 255, 0.30)',
   placeholder: 'rgba(15, 24, 44, 0.40)', // TextInput placeholderTextColor
   inkLabel: 'rgba(15, 24, 44, 0.50)', // small field labels
   scrim: 'rgba(15, 24, 44, 0.45)', // modal / sheet backdrop

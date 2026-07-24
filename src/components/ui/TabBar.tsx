@@ -8,11 +8,13 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { Glass } from './Glass';
 import { usePathname } from 'expo-router';
@@ -51,6 +53,10 @@ const STRETCH_IN_MS = 90;
 const STRETCH_OUT_MS = 170;
 const STRETCH_X = 0.34;
 const SQUASH_Y = 0.14;
+// The grabbed chip's extra swell (on top of the whole bar's), and the spring it
+// grows on — a touch bouncier than GLIDE so the "pick up" has a bit of pop.
+const GRAB_SCALE = 0.12;
+const GRAB_SPRING = { stiffness: 220, damping: 16, mass: 0.8 } as const;
 // Floor for hardware that reports no bottom inset at all (older iPhones,
 // Android with hardware keys), where the inset alone would weld the bar to the
 // screen edge.
@@ -136,6 +142,8 @@ export function useTabBarInset() {
  * The previous version was `display: 'none'`, which cannot animate at all — the
  * bar vanished in one frame in the middle of an otherwise 500ms transition.
  */
+export type TabBarSlide = ReturnType<typeof useTabBarSlide>;
+
 export function useTabBarSlide(hidden: boolean) {
   const bottomMargin = useTabBarBottomMargin();
   // Clear of the bar, the gap under it, and the soft shadow that extends past
@@ -179,9 +187,97 @@ export function useTabBarSlide(hidden: boolean) {
   );
 }
 
+// Quick, subtle cross-fade for the bar's colour scheme when the active tab
+// crosses into/out of Profile — the one screen dark enough that the bar
+// switches from `chrome` to `onPhoto`. Deliberately its own constant rather
+// than reusing OVERLAY_TRANSITION, which is tuned for a much longer, unrelated
+// handoff.
+const TAB_TINT_FADE_MS = 160;
+
+export function useDarkTabBarProgress(dark: boolean) {
+  const progress = useSharedValue(dark ? 1 : 0);
+  useEffect(() => {
+    progress.value = withTiming(dark ? 1 : 0, { duration: TAB_TINT_FADE_MS });
+  }, [dark, progress]);
+  return progress;
+}
+
+// How much the whole bar swells and lifts while long-pressed — enough to read
+// as "picked up off the surface," not so much it looks like a bug. Applied as
+// a transform on React Navigation's tab bar container (via `tabBarStyle`), so
+// glass, icons and chip all grow as one piece.
+export const PICKUP_SCALE = 1.07;
+export const PICKUP_LIFT = -6;
+
+/**
+ * The bar's "picked up" spring, as a **legacy** react-native Animated transform
+ * — same reason as `useTabBarSlide`: it composes into `tabBarStyle`, which is a
+ * legacy `Animated.View`, and a Reanimated value means nothing there. Returned
+ * as ready-to-spread transform entries so the caller can sit them next to the
+ * slide's own translate.
+ */
+export function useTabBarPickup(active: boolean) {
+  const [v] = useState(() => new RNAnimated.Value(active ? 1 : 0));
+  useEffect(() => {
+    const anim = RNAnimated.spring(v, {
+      toValue: active ? 1 : 0,
+      useNativeDriver: true,
+      // A little bounce on the way up sells the "lift"; friction/tension rather
+      // than duration so releasing mid-press settles naturally.
+      friction: 7,
+      tension: 140,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [active, v]);
+
+  // Memoised so the interpolation nodes are stable across renders — a fresh
+  // `interpolate()` every render would churn the transform array below.
+  return useMemo(
+    () => ({
+      scale: v.interpolate({ inputRange: [0, 1], outputRange: [1, PICKUP_SCALE] }),
+      lift: v.interpolate({ inputRange: [0, 1], outputRange: [0, PICKUP_LIFT] }),
+    }),
+    [v]
+  );
+}
+
+/**
+ * The full transform for the tab bar container: the hide/show slide with the
+ * long-press pickup swell+lift composed on top. One array, so it can be dropped
+ * into both `tabBarStyle` (the real bar) and the drag overlay (the touch
+ * target) and the two stay locked together. Legacy Animated throughout — see
+ * `useTabBarSlide`.
+ */
+export function useTabBarTransform(hidden: boolean, pickedUp: boolean) {
+  const slide = useTabBarSlide(hidden);
+  const pickup = useTabBarPickup(pickedUp);
+  return useMemo(
+    () => [
+      ...slide.transform,
+      { scale: pickup.scale },
+      { translateY: pickup.lift },
+    ],
+    [slide, pickup]
+  );
+}
+
+export type TabBarTransform = ReturnType<typeof useTabBarTransform>;
+
+// Item width, exported so the drag overlay (which lives outside this file,
+// in _layout.tsx) can resolve a touch x-position to a tab index using the
+// exact same math the indicator itself is positioned with — any drift
+// between the two would mean the thing you drop on isn't the thing you were
+// visually sitting over.
+export function useTabBarItemWidth(routeCount: number) {
+  const { width } = useWindowDimensions();
+  const sideMargin = useTabBarSideMargin();
+  return (width - 2 * sideMargin - 2 * TAB_BAR_PADDING_X) / routeCount;
+}
+
 // Which tab the pathname belongs to. Longest match wins, so `/chats/dm/x`
 // resolves to `/chats` rather than to `/`.
-function activeTabIndex(pathname: string, routes: readonly string[]) {
+export function activeTabIndex(pathname: string, routes: readonly string[]) {
   let best = 0;
   let bestLength = -1;
   routes.forEach((route, index) => {
@@ -215,9 +311,25 @@ function indicatorOffset(index: number, itemWidth: number) {
  * Reanimated honours the OS "reduce motion" setting on both by default, which
  * collapses this to an instant move.
  */
-function TabIndicator({ index, itemWidth }: { index: number; itemWidth: number }) {
+function TabIndicator({
+  index,
+  itemWidth,
+  tintProgress,
+  pickedUp,
+}: {
+  index: number;
+  itemWidth: number;
+  // 0 = the chip's colour over `chrome`, 1 = its colour over `onPhoto` — see
+  // `useDarkTabBarProgress`. Carried here rather than switched on `tier` so
+  // the colour itself cross-fades instead of snapping.
+  tintProgress: SharedValue<number>;
+  // True while the bar is long-press "picked up": the chip is the thing in the
+  // user's hand, so it grows a touch beyond the bar's own swell and brightens.
+  pickedUp: boolean;
+}) {
   const x = useSharedValue(indicatorOffset(index, itemWidth));
   const stretch = useSharedValue(0);
+  const grab = useSharedValue(0);
   // The first pass positions without animating, or the indicator would fly in
   // from the left edge every time the navigator mounts.
   const placed = useRef(false);
@@ -236,13 +348,33 @@ function TabIndicator({ index, itemWidth }: { index: number; itemWidth: number }
     );
   }, [index, itemWidth, x, stretch]);
 
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: x.value },
-      { scaleX: 1 + stretch.value * STRETCH_X },
-      { scaleY: 1 - stretch.value * SQUASH_Y },
-    ],
-  }));
+  useEffect(() => {
+    grab.value = withSpring(pickedUp ? 1 : 0, GRAB_SPRING);
+  }, [pickedUp, grab]);
+
+  const style = useAnimatedStyle(() => {
+    // Base chip colour cross-fades chrome↔profile; the grabbed colour does the
+    // same one rung brighter. `grab` blends between the two so brightness and
+    // tint stay independent.
+    const base = interpolateColor(
+      tintProgress.value,
+      [0, 1],
+      [COLORS.inkSubtle, COLORS.fillOnDarkStrong]
+    );
+    const grabbed = interpolateColor(
+      tintProgress.value,
+      [0, 1],
+      [COLORS.chipGrab, COLORS.chipGrabOnDark]
+    );
+    return {
+      backgroundColor: interpolateColor(grab.value, [0, 1], [base, grabbed]),
+      transform: [
+        { translateX: x.value },
+        { scaleX: (1 + stretch.value * STRETCH_X) * (1 + grab.value * GRAB_SCALE) },
+        { scaleY: (1 - stretch.value * SQUASH_Y) * (1 + grab.value * GRAB_SCALE) },
+      ],
+    };
+  });
 
   return <Animated.View style={[styles.indicator, style]} />;
 }
@@ -264,42 +396,57 @@ function TabIndicator({ index, itemWidth }: { index: number; itemWidth: number }
  * back to a semi-transparent fill, which is why the wash below matters: it is
  * the whole effect on Android and a contrast floor on iOS.
  */
-export function TabBarBackground({ routes }: { routes: readonly string[] }) {
-  const { width } = useWindowDimensions();
-  const sideMargin = useTabBarSideMargin();
+export function TabBarBackground({
+  routes,
+  dragIndex = null,
+  pickedUp = false,
+}: {
+  routes: readonly string[];
+  // Live index from TabBarDragOverlay (_layout.tsx) while a finger is down on
+  // the bar. Overrides the route-derived index so the indicator previews
+  // wherever you're dragging, without anything actually navigating yet.
+  dragIndex?: number | null;
+  // True while the bar is long-press "picked up" — hands the chip its grabbed
+  // emphasis.
+  pickedUp?: boolean;
+}) {
   const pathname = usePathname();
+  // The one screen dark enough to invert the bar: Profile paints its own photo
+  // full-bleed under a smoked `onPhoto` sheet, and the pale `chrome` bar reads
+  // as a mistake floating over it.
+  const isProfile = pathname === '/profile';
+  const tintProgress = useDarkTabBarProgress(isProfile);
+  const itemWidth = useTabBarItemWidth(routes.length);
 
-  // Computed rather than measured. The items are `flex: 1` in a bar whose width
-  // is fully determined by the screen and these two constants, so an onLayout
-  // pass would only report what we already know — after showing the indicator
-  // in the wrong place for a frame.
-  const itemWidth =
-    (width - 2 * sideMargin - 2 * TAB_BAR_PADDING_X) / routes.length;
+  const chromeStyle = useAnimatedStyle(() => ({ opacity: 1 - tintProgress.value }));
+  const onPhotoStyle = useAnimatedStyle(() => ({ opacity: tintProgress.value }));
 
   return (
-    // `chrome` — the most opaque of the three tiers, because content passes
-    // visibly underneath this one. Was a hand-rolled BlurView with its own
-    // intensity, wash and border; sharing <Glass> also gets the bar Android's
-    // solid fallback, without which it renders as a nearly invisible pane over
-    // the new gradient backdrop.
-    //
-    // No shadow here: React Navigation puts SHADOWS.lg on the tab bar's own
-    // style, and this only fills it.
-    <Glass
-      tier="chrome"
-      radius={TAB_BAR_RADIUS}
-      shadow={false}
-      style={styles.glass}
-    >
+    // Both tiers stay mounted, cross-fading by opacity, rather than swapping
+    // `tier` outright — a swap would snap between the pale `chrome` fill and
+    // the smoked `onPhoto` one with no in-between frame. No shadow on either:
+    // React Navigation puts SHADOWS.lg on the tab bar's own style, and this
+    // only fills it.
+    <View style={styles.container}>
+      <Animated.View style={[styles.layer, chromeStyle]} pointerEvents="none">
+        <Glass tier="chrome" radius={TAB_BAR_RADIUS} shadow={false} style={styles.glass} />
+      </Animated.View>
+      <Animated.View style={[styles.layer, onPhotoStyle]} pointerEvents="none">
+        <Glass tier="onPhoto" radius={TAB_BAR_RADIUS} shadow={false} style={styles.glass} />
+      </Animated.View>
       <TabIndicator
-        index={activeTabIndex(pathname, routes)}
+        index={dragIndex ?? activeTabIndex(pathname, routes)}
         itemWidth={itemWidth}
+        tintProgress={tintProgress}
+        pickedUp={pickedUp}
       />
-    </Glass>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
+  layer: StyleSheet.absoluteFill,
   // Fill and border come from <Glass>; this is only the box.
   glass: { flex: 1 },
   // `left`/`top` park it in the first slot; `translateX` does the travelling.
@@ -310,6 +457,5 @@ const styles = StyleSheet.create({
     width: CHIP_WIDTH,
     height: CHIP_HEIGHT,
     borderRadius: CHIP_RADIUS,
-    backgroundColor: COLORS.inkSubtle,
   },
 });

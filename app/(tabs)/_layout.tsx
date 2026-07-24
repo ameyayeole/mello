@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { SHADOWS, SPACING } from '@/constants/spacing';
-import { Tabs, usePathname } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { Tabs, usePathname, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, Animated as RNAnimated } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,9 +18,13 @@ import {
   TabGlyph,
   Avatar,
   TabBarBackground,
+  activeTabIndex,
+  useDarkTabBarProgress,
   useTabBarBottomMargin,
+  useTabBarItemWidth,
   useTabBarSideMargin,
-  useTabBarSlide,
+  useTabBarTransform,
+  type TabBarTransform,
   CHIP_HEIGHT,
   CHIP_WIDTH,
   TAB_BAR_HEIGHT,
@@ -128,20 +140,58 @@ function EventReminderSheet() {
 // indicator derives which slot to sit in from a route's index in this list.
 const TAB_ROUTES = ['/', '/explore', '/map', '/chats', '/profile'] as const;
 
+// The quick scale-pop an icon does as the picked-up puck arrives over it, so
+// the tab you're about to land on lifts to meet you. Springs back on release.
+const HOVER_POP = 1.16;
+const HOVER_SPRING = { stiffness: 260, damping: 18, mass: 0.7 } as const;
+
+function useHoverPop(hovered: boolean) {
+  const pop = useSharedValue(0);
+  useEffect(() => {
+    pop.value = withSpring(hovered ? 1 : 0, HOVER_SPRING);
+  }, [hovered, pop]);
+  return useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + pop.value * (HOVER_POP - 1) }],
+  }));
+}
+
 // The glyph and its badge only. Selection is drawn by the single travelling
 // indicator on the glass behind these — see TabBarBackground.
+//
+// Every icon, not just Profile's, needs to retint: when the bar itself goes
+// black over Profile, all five items are sitting on that dark glass. Two
+// copies of the glyph are cross-faded by opacity rather than swapping a color
+// prop outright — Solar's icon components aren't Reanimated-aware, so opacity
+// on two pre-tinted copies is what actually animates.
 function TabIcon({
   name,
   focused,
   badge,
+  isProfileScreen,
+  hovered = false,
 }: {
   name: 'home' | 'explore' | 'map' | 'inbox';
   focused: boolean;
   badge?: number;
+  isProfileScreen: boolean;
+  // True while the picked-up puck is over this tab — see useHoverPop.
+  hovered?: boolean;
 }) {
+  const progress = useDarkTabBarProgress(isProfileScreen);
+  const darkToneStyle = useAnimatedStyle(() => ({ opacity: 1 - progress.value }));
+  const lightToneStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const popStyle = useHoverPop(hovered);
+
   return (
     <View style={styles.iconBox}>
-      <TabGlyph name={name} active={focused} />
+      <Animated.View style={[styles.glyphLayer, popStyle]}>
+        <Animated.View style={[styles.glyphLayer, darkToneStyle]}>
+          <TabGlyph name={name} active={focused} tone="dark" />
+        </Animated.View>
+        <Animated.View style={[styles.glyphLayer, lightToneStyle]}>
+          <TabGlyph name={name} active={focused} tone="light" />
+        </Animated.View>
+      </Animated.View>
       {!!badge && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
@@ -151,17 +201,215 @@ function TabIcon({
   );
 }
 
-function InboxTabIcon({ focused }: { focused: boolean }) {
+function InboxTabIcon({
+  focused,
+  isProfileScreen,
+  hovered = false,
+}: {
+  focused: boolean;
+  isProfileScreen: boolean;
+  hovered?: boolean;
+}) {
   const unread = useUnreadDms();
-  return <TabIcon name="inbox" focused={focused} badge={unread} />;
+  return (
+    <TabIcon
+      name="inbox"
+      focused={focused}
+      badge={unread}
+      isProfileScreen={isProfileScreen}
+      hovered={hovered}
+    />
+  );
 }
 
-function ProfileTabIcon() {
+// The ring sits *inside* the same 30px footprint the plain avatar already
+// uses elsewhere in the bar, rather than adding to it — so Profile's icon
+// never reads as bigger than the other four. The photo shrinks to 24px
+// (scale 0.8) to make room: 24px photo, 1px gap, 2px ring stroke, 30px total.
+const AVATAR_SIZE = 30;
+const AVATAR_RING_SCALE = 24 / AVATAR_SIZE;
+
+function ProfileTabIcon({
+  isProfileScreen,
+  hovered = false,
+}: {
+  isProfileScreen: boolean;
+  hovered?: boolean;
+}) {
   const user = useAuthStore((s) => s.user);
+  const progress = useDarkTabBarProgress(isProfileScreen);
+  // Both driven by the same progress as the bar/icon cross-fade, so the photo
+  // shrinking and the ring fading in read as one movement, not two.
+  const avatarStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: 1 - progress.value * (1 - AVATAR_RING_SCALE) },
+    ],
+  }));
+  const ringStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const popStyle = useHoverPop(hovered);
   return (
     <View style={styles.avatarWrap}>
-      <Avatar name={user?.name} photoUrl={user?.photo_url} size={30} />
+      <Animated.View style={[styles.avatarRingBox, popStyle]}>
+        <Animated.View style={avatarStyle}>
+          <Avatar name={user?.name} photoUrl={user?.photo_url} size={AVATAR_SIZE} />
+        </Animated.View>
+        <Animated.View pointerEvents="none" style={[styles.avatarRing, ringStyle]} />
+      </Animated.View>
     </View>
+  );
+}
+
+// How long a still press must hold before the bar "wakes" into scrub mode.
+const PICKUP_HOLD_MS = 280;
+
+/**
+ * One shared drag surface over the whole bar, rendered as a sibling *above*
+ * `<Tabs>` (same trick `GlobalEventSheet` below uses to paint over it) so it
+ * physically intercepts touches before the native tab buttons underneath do.
+ *
+ * Three behaviours off the one surface:
+ *   • tap            → navigate to the tab under the finger.
+ *   • quick drag     → scrub the indicator, navigate on release. No grow.
+ *   • long-press     → the bar "wakes": grows/lifts (see `useTabBarPickup`),
+ *                      haptic thud, chip becomes a grabbed puck; scrubbing
+ *                      ticks per tab; release navigates and the bar settles.
+ *
+ * While the finger is down only `dragIndex` (state in `TabLayout`) changes —
+ * that drives the indicator preview — so crossing three tabs on the way to a
+ * fourth never mounts them; only the one you release on does.
+ */
+function TabBarDragOverlay({
+  setDragIndex,
+  setPickedUp,
+  barTransform,
+}: {
+  setDragIndex: (index: number | null) => void;
+  setPickedUp: (up: boolean) => void;
+  barTransform: TabBarTransform;
+}) {
+  const bottomMargin = useTabBarBottomMargin();
+  const sideMargin = useTabBarSideMargin();
+  const itemWidth = useTabBarItemWidth(TAB_ROUTES.length);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Picked-up state and the last-hovered tab live on the UI thread as shared
+  // values so the gesture worklets can read and compare them without hopping
+  // to JS on every frame — only the actual side effects (state, navigation,
+  // haptics) cross over via runOnJS. `routeCount` is captured as a plain number
+  // because a worklet can't reach into the module-scope array.
+  const pickedSV = useSharedValue(0);
+  const lastHoverSV = useSharedValue(-1);
+  const routeCount = TAB_ROUTES.length;
+
+  // JS-thread side effects. None of these read refs or touch the worklet
+  // scope, so they're safe to call via runOnJS.
+  function preview(index: number) {
+    setDragIndex(index);
+  }
+  function navigateTo(index: number) {
+    setDragIndex(null);
+    if (index !== activeTabIndex(pathname, TAB_ROUTES)) {
+      router.push(TAB_ROUTES[index]);
+    }
+  }
+  function clearPreview() {
+    setDragIndex(null);
+  }
+  function wake() {
+    setPickedUp(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }
+  function settle() {
+    setPickedUp(false);
+  }
+  function tick() {
+    Haptics.selectionAsync();
+  }
+
+  // Touch x → tab index, inlined as a worklet so it runs on the UI thread
+  // alongside the gesture (calling the JS helper synchronously from a worklet
+  // is what threw the earlier "non-worklet function on the UI thread" error).
+  function clampIndex(x: number) {
+    'worklet';
+    const raw = (x - TAB_BAR_PADDING_X) / itemWidth;
+    return Math.min(routeCount - 1, Math.max(0, Math.floor(raw)));
+  }
+
+  // Tap and drag are two gestures, not one. A bare Pan doesn't reliably enter
+  // its ACTIVE state on a stationary press — `onEnd` comes back
+  // `success: false` — so a plain tap navigated nowhere. The Tap handles that
+  // case; the Pan handles a real drag and previews the indicator as the finger
+  // moves.
+  const tap = Gesture.Tap()
+    // A slow, deliberate press is still a tap — don't let the default 500ms
+    // cap drop it on the floor.
+    .maxDuration(2000)
+    .onEnd((event) => {
+      runOnJS(navigateTo)(clampIndex(event.x));
+    });
+
+  const pan = Gesture.Pan()
+    .onUpdate((event) => {
+      const index = clampIndex(event.x);
+      runOnJS(preview)(index);
+      // A light tick each time the puck crosses into a new tab — but only
+      // while picked up, so a quick silent drag stays silent.
+      if (pickedSV.value === 1 && index !== lastHoverSV.value) {
+        lastHoverSV.value = index;
+        runOnJS(tick)();
+      }
+    })
+    .onEnd((event, success) => {
+      if (!success) {
+        runOnJS(clearPreview)();
+        return;
+      }
+      runOnJS(navigateTo)(clampIndex(event.x));
+    });
+
+  // Runs *alongside* tap/drag (Simultaneous) purely to drive the "picked up"
+  // visual + haptics — navigation stays owned by tap/pan, so there's no double
+  // fire. `maxDistance` gates it to a genuine still hold: move too far before
+  // the hold completes (a quick drag) and it fails, no grow. `onFinalize`
+  // fires on every end, activated or not, so the reset always runs.
+  const longPress = Gesture.LongPress()
+    .minDuration(PICKUP_HOLD_MS)
+    .maxDistance(28)
+    .onStart((event) => {
+      pickedSV.value = 1;
+      lastHoverSV.value = clampIndex(event.x);
+      runOnJS(wake)();
+    })
+    .onFinalize(() => {
+      pickedSV.value = 0;
+      runOnJS(settle)();
+    });
+
+  // Priority within the tap/drag pair: the drag wins if the finger moves,
+  // otherwise the tap fires once the pan has failed to activate. The long-press
+  // runs in parallel with both.
+  const gesture = Gesture.Simultaneous(Gesture.Exclusive(pan, tap), longPress);
+
+  return (
+    <GestureDetector gesture={gesture}>
+      {/* Legacy `Animated.View`, not Reanimated's — `barTransform` carries
+          react-native Animated interpolations (they feed `tabBarStyle`, a
+          legacy Animated.View, which a Reanimated value can't drive). Scaled
+          identically to the real bar so this touch target stays aligned as it
+          grows. */}
+      <RNAnimated.View
+        // Not itself an accessibility element — VoiceOver/TalkBack own raw
+        // touch while active anyway, and this has no content of its own; the
+        // native tab buttons underneath still carry the real labels/roles.
+        accessible={false}
+        style={[
+          styles.dragOverlay,
+          { height: TAB_BAR_HEIGHT, marginHorizontal: sideMargin, marginBottom: bottomMargin },
+          { transform: barTransform },
+        ]}
+      />
+    </GestureDetector>
   );
 }
 
@@ -177,7 +425,12 @@ export default function TabLayout() {
   // the list and keeps the bar — anything deeper is a thread. `usePathname`
   // strips the `(tabs)` group, so these are `/chats/<eventId>` and
   // `/chats/dm/<friendId>`.
-  const inConversation = usePathname().startsWith('/chats/');
+  const pathname = usePathname();
+  const inConversation = pathname.startsWith('/chats/');
+  // Read once here rather than in each tab icon, so every icon (and the ring,
+  // and the bar itself in TabBarBackground) cross-fades on the same trigger
+  // instead of five components independently watching the route.
+  const isProfileScreen = pathname === '/profile';
 
   // The full-screen overlays — notifications, search — are *transparent*
   // routes, so unlike every other push the bar would otherwise still be sitting
@@ -185,10 +438,16 @@ export default function TabLayout() {
   const overlayOpen = useUIStore((s) => s.overlayOpen);
   const hidden = creatingEvent || inConversation || overlayOpen;
 
-  // All three reasons slide it down the same way, on the same timings the scene
-  // beneath an overlay recedes on. It used to be `display: 'none'` — one frame,
-  // no motion, in the middle of a half-second transition.
-  const slide = useTabBarSlide(hidden);
+  // Live index while a finger is down on TabBarDragOverlay; null the rest of
+  // the time, when the indicator just follows the route as usual.
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  // True while the bar is long-press "picked up" (scrub mode).
+  const [pickedUp, setPickedUp] = useState(false);
+
+  // The bar's full transform: the hide/show slide with the pickup swell+lift on
+  // top. Shared between the real bar (tabBarStyle) and the invisible drag
+  // overlay so they grow and hide as one piece.
+  const barTransform = useTabBarTransform(hidden, pickedUp);
 
   return (
     <>
@@ -212,7 +471,13 @@ export default function TabLayout() {
         tabBarShowLabel: false,
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.placeholder,
-        tabBarBackground: () => <TabBarBackground routes={TAB_ROUTES} />,
+        tabBarBackground: () => (
+          <TabBarBackground
+            routes={TAB_ROUTES}
+            dragIndex={dragIndex}
+            pickedUp={pickedUp}
+          />
+        ),
         // React Navigation renders the icon into a fixed 31x28 box, inside a
         // button that is `justifyContent: 'flex-start'` with 5pt of padding —
         // room it reserves for the label even when the label is hidden. That
@@ -240,10 +505,10 @@ export default function TabLayout() {
           // what separates the pill from the content there.
           backgroundColor: 'transparent',
           ...SHADOWS.lg,
-          // Last, so its transform wins over the bar's built-in one. Spread
-          // rather than nested: `tabBarStyle` takes one object, and the slide
-          // has to sit at the same level as the layout above it.
-          ...slide,
+          // Last, so this transform wins over the bar's built-in one. Carries
+          // both the hide/show slide and the long-press pickup swell — see
+          // useTabBarTransform.
+          transform: barTransform,
         },
       }}
     >
@@ -251,7 +516,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              name="home"
+              focused={focused}
+              isProfileScreen={isProfileScreen}
+              hovered={pickedUp && dragIndex === 0}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -259,7 +531,12 @@ export default function TabLayout() {
         options={{
           title: 'Explore',
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="explore" focused={focused} />
+            <TabIcon
+              name="explore"
+              focused={focused}
+              isProfileScreen={isProfileScreen}
+              hovered={pickedUp && dragIndex === 1}
+            />
           ),
         }}
       />
@@ -267,24 +544,47 @@ export default function TabLayout() {
         name="map"
         options={{
           title: 'Map',
-          tabBarIcon: ({ focused }) => <TabIcon name="map" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              name="map"
+              focused={focused}
+              isProfileScreen={isProfileScreen}
+              hovered={pickedUp && dragIndex === 2}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="chats"
         options={{
           title: 'Inbox',
-          tabBarIcon: ({ focused }) => <InboxTabIcon focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <InboxTabIcon
+              focused={focused}
+              isProfileScreen={isProfileScreen}
+              hovered={pickedUp && dragIndex === 3}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: () => <ProfileTabIcon />,
+          tabBarIcon: () => (
+            <ProfileTabIcon
+              isProfileScreen={isProfileScreen}
+              hovered={pickedUp && dragIndex === 4}
+            />
+          ),
         }}
       />
     </Tabs>
+    <TabBarDragOverlay
+      setDragIndex={setDragIndex}
+      setPickedUp={setPickedUp}
+      barTransform={barTransform}
+    />
     <GlobalEventSheet />
     </>
   );
@@ -294,6 +594,14 @@ const styles = StyleSheet.create({
   iconBox: {
     width: CHIP_WIDTH,
     height: CHIP_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // The two tone copies of the glyph stack exactly on top of each other and
+  // cross-fade; each needs its own centering since position: absolute takes
+  // them out of iconBox's flex flow.
+  glyphLayer: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -320,5 +628,33 @@ const styles = StyleSheet.create({
   avatarWrap: {
     borderRadius: 999,
     padding: SPACING[0.5],
+  },
+  avatarRingBox: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+  },
+  // Same 30px footprint as the plain avatar elsewhere in the bar — the photo
+  // (see AVATAR_RING_SCALE) shrinks to leave room for this rather than the
+  // ring adding to the outer size.
+  avatarRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  // Invisible — the real bar underneath still does all the painting. Mirrors
+  // that bar's own position/margins exactly (React Navigation pins its
+  // start/end/bottom to 0 the same way) so the two frames line up pixel for
+  // pixel; `slide` keeps them moving together when the real bar hides.
+  dragOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: TAB_BAR_RADIUS,
   },
 });

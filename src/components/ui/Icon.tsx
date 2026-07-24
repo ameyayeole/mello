@@ -453,16 +453,28 @@ const TAB_SOLAR: Record<'home' | 'explore' | 'map' | 'inbox', string> = {
   inbox: 'ChatRound',
 };
 
+// `dark` is the tab bar's default, pale `chrome` glass. `light` is for the
+// smoked `onPhoto` bar shown over Profile — same active/inactive contrast,
+// inverted, and `inactive` reuses the muted-white token Profile's own text
+// already sits in, so the glyphs read as part of the same surface.
+const TAB_GLYPH_TONE: Record<'dark' | 'light', { active: string; inactive: string }> = {
+  dark: { active: COLORS.accent, inactive: '#BCB8C0' },
+  light: { active: COLORS.white, inactive: COLORS.textOnDarkMuted },
+};
+
 export function TabGlyph({
   name,
   active,
   size = 26,
+  tone = 'dark',
 }: {
   name: 'home' | 'explore' | 'map' | 'inbox';
   active: boolean;
   size?: number;
+  tone?: 'dark' | 'light';
 }) {
-  const color = active ? COLORS.accent : '#BCB8C0';
+  const { active: activeColor, inactive: inactiveColor } = TAB_GLYPH_TONE[tone];
+  const color = active ? activeColor : inactiveColor;
   const pack = active ? SB : SL;
   const Comp = (pack as Record<string, SolarComp>)[TAB_SOLAR[name]] as
     | SolarComp
