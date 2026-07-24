@@ -34,41 +34,70 @@ This retires the anchor-based sizing entirely:
   stop without scrolling. That's fine under this design — see §4, it's
   already a scroll-revealed section.
 
-## 2. The CTA: a persistent pinned footer
+## 2. The CTA: pinned during the description, then released
+
+> **Corrected after first implementation.** An earlier version of this spec
+> said the CTA moves to a `BottomSheetFooter` and "never releases." That was
+> wrong — it contradicted the brainstorm, where the chosen behavior was
+> explicitly "releases into normal flow once the description is fully
+> revealed." A permanent footer also let the who's-going card bleed past the
+> button's edges (the button was a bottom overlay while that content sat in
+> normal flow right behind it). This section describes the corrected model.
 
 **Today:** the primary action (Join / Open chat / Manage / Request pending)
 renders inline inside `BottomSheetScrollView`'s content, inside `styles.actions`
 — its position is a function of everything above it, and `firstSnapPx` is
 computed backwards from where it lands (`actionsY + primaryBottom`).
 
-**New:** the primary action moves to a `BottomSheetFooter`, the same
-mechanism this file already uses for the wishlist toast (`renderToast`).
-`BottomSheetFooter` docks to the bottom of the *screen*, not the sheet's
-current height, so it is pixel-identical at rest and at full-screen for free
-— matching "it's placed right at the bottom no matter the screen size," which
-is today's behavior and is not to change visually.
+**New:** the primary action rides **in the scroll flow** (a `StickyPrimary`
+wrapper), placed right after the description and before who's-going — not in a
+`BottomSheetFooter`. A reanimated transform pins it to a fixed screen line
+while the description is still revealing, then lets it go:
 
-**Moves into the footer as one unit** (unchanged from how it looks today):
+```
+translateY = min(0, pinTargetY − naturalTop)
+```
+
+While the button's natural (in-flow) position is below the pin line it's
+pulled up to sit exactly on it; once enough has scrolled that its natural
+position rises to the pin, the pull reaches 0 and it travels with the content
+like anything else — releasing, so who's-going, pending and nearby scroll up
+from below it. The screen-position math (`animatedPosition` + the card's reveal
+slide + its own `y` − scroll) is the same one `useEnterOnScroll` uses, so the
+button stays in lockstep with the description lines revealing just above it.
+
+**Why in-flow, not a footer — no bar, no overflow.** This placement is what
+keeps anything from ever sitting behind or below the button: the reserved but
+unrevealed description lines above it are `opacity: 0` until they cross the pin
+(§3), and who's-going follows it in flow, off-screen until it releases. Its
+wrapper is opaque white matching the sheet (not a distinct/frosted bar) — it
+reads as part of the sheet, and its fill is belt-and-braces against the hidden
+lines showing.
+
+**Moves into the action as one unit** (unchanged from how it looks today):
 
 - The primary `Button` (Join / Request pending / Open chat / Manage event).
 - On the not-joined path, the `spotsInfo` block (spots count + "N spots
-  left") that today sits beside the button in `styles.footerRow` — the whole
-  row becomes the footer, not just the button.
+  left") beside the button in `styles.footerRow`.
 
 **Stays in normal scroll flow, unchanged:** the secondary buttons (guest
-Check-in, host's Open chat under Manage), and everything in §4.
+Check-in, host's Open chat under Manage), and everything in §4 — now all after
+the sticky action in flow, so they're part of what scrolls up when it releases.
 
-The footer never releases or unpins — it is fixed for the sheet's entire
-lifetime. Content (the rest of the description, then who's-going, pending,
-nearby) scrolls normally underneath it in the `BottomSheetScrollView`; nothing
-about it changes once description finishes revealing. "The CTA is proper"
-(user's phrasing) just marks *when*, not a change in *how* it behaves.
+The wishlist toast keeps its `BottomSheetFooter` (a toast still wants to dock
+to the screen bottom); it's the only thing left there.
 
-`firstSnapPx` no longer derives from `actionsY`/`primaryBottom` (that layout
-no longer exists in-flow). It derives instead from where the clamped
-description block ends (§3) — tall enough at rest to show host row, title,
-info, pills, and the clamped description, with the pinned footer overlaid at
-the bottom the same as it is at every other stop.
+**Resting height is capped, not description-driven.** The first-tap height is
+`min(header + clamped-visible-description + action + insets, RESTING_MAX_FRACTION
+× screen)`. A long description can never push the resting stop taller — it
+clamps to what fits above the action and reveals the rest on scroll. A short
+description sits snug (below the cap), no forced gap. The clamp (how many lines
+show at rest, §3) and the cap both key off the same `RESTING_MAX_FRACTION`
+(0.58, tunable), so the visible lines always fit exactly above the pinned
+action. `firstSnapPx` derives from the clamped visible description (or, with no
+description, the action's own measured top), never from the action's real
+in-flow position — which sits below the full reserved description and would
+balloon the stop.
 
 ## 3. Description: dynamic clamp + reusable line-reveal
 
