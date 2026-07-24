@@ -4,6 +4,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  type ReactNode,
 } from 'react';
 import {
   View,
@@ -32,6 +33,7 @@ import BottomSheet, {
   BottomSheetFooter,
   BottomSheetBackdrop,
   useBottomSheetTimingConfigs,
+  useBottomSheetInternal,
   type BottomSheetFooterProps,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
@@ -177,10 +179,18 @@ const ROW_TILT = -8;
 const GOING_CARD_PAD = SPACING[3.5];
 const GOING_AVATAR = 36;
 
-// The pinned CTA footer's distance from the screen's bottom edge — same
-// value BottomSheetFooter's `bottomInset` prop takes, and reused by the
-// description reveal (Task 7) to compute the footer's screen-space top edge.
+// The primary action's resting distance from the screen's bottom edge, and
+// reused to compute its screen-space top edge (the line description lines
+// reveal from behind).
 const CTA_BOTTOM_INSET = SPACING[5];
+
+// The first-tap (resting) height is capped at this fraction of the screen,
+// independent of how long the description is: a long description clamps to
+// what fits above the action and reveals the rest on scroll rather than
+// pushing the resting stop taller. This is only the CEILING — a short
+// description sits snug (shorter). Tunable: the value that reads as "here" on
+// a device.
+const RESTING_MAX_FRACTION = 0.58;
 
 // A compact card for the "happening near you" rail: photo on top with the
 // category pill on it, then title + when/distance on a white body below. A
@@ -405,6 +415,71 @@ function GoingStack({
   );
 }
 
+// The primary action rides at the bottom of the sheet while the description is
+// still revealing, then releases into the scroll once its own slot rises to
+// meet the pin line. It lives in the scroll flow — right after the description,
+// before who's-going — rather than in a `BottomSheetFooter`, and that placement
+// is the whole trick: nothing ever sits behind or below it. The reserved but
+// unrevealed description lines above it are invisible (opacity 0 until they
+// cross the pin), and who's-going follows it in flow, off-screen until it
+// releases. So there's no bar and no content bleeding past its edges — the
+// button is just part of the sheet.
+//
+// translateY = min(0, pinTargetY − naturalTop): while the button's natural
+// (in-flow) position is below the pin line it's pulled up to sit exactly on it;
+// once enough has scrolled that its natural position rises to the pin, the pull
+// reaches 0 and it travels with the content like anything else. Same
+// screen-position math as `useEnterOnScroll` (the sheet's own top + the card's
+// reveal slide + its own y − scroll), so it stays in lockstep with the
+// description lines revealing just above it.
+function StickyPrimary({
+  heroGrow,
+  sheetProgress,
+  pinTargetY,
+  onMeasure,
+  children,
+}: {
+  heroGrow: number;
+  sheetProgress: SharedValue<number>;
+  pinTargetY: number;
+  onMeasure: (y: number, height: number) => void;
+  children: ReactNode;
+}) {
+  const { animatedPosition, animatedScrollableState } = useBottomSheetInternal();
+  const [y, setY] = useState<number | null>(null);
+  const handleLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { y: ly, height } = e.nativeEvent.layout;
+      setY((prev) => (prev === ly ? prev : ly));
+      onMeasure(ly, height);
+    },
+    [onMeasure]
+  );
+  const style = useAnimatedStyle(() => {
+    if (y == null) return {};
+    const slide = interpolate(
+      sheetProgress.value,
+      [0, 1],
+      [0, heroGrow],
+      Extrapolation.CLAMP
+    );
+    const naturalTop =
+      animatedPosition.value +
+      BANNER_H +
+      slide +
+      y -
+      animatedScrollableState.value.contentOffsetY;
+    return {
+      transform: [{ translateY: Math.min(0, pinTargetY - naturalTop) }],
+    };
+  });
+  return (
+    <Animated.View onLayout={handleLayout} style={[styles.stickyPrimary, style]}>
+      {children}
+    </Animated.View>
+  );
+}
+
 function EventBottomSheet({
   eventId,
   depth,
@@ -445,7 +520,9 @@ function EventBottomSheet({
 
   // Scroll room past the last row: the home-indicator inset, a comfortable gap,
   // and the hero's grow — the card is translated down by `heroGrow` at the full
-  // stop, so without this the last row would be pushed off the bottom.
+  // stop, so without this the last row would be pushed off the bottom. The
+  // action rides in the flow now, so the last rows already clear it as normal
+  // content once it releases; no extra reservation needed.
   const contentPadBottom = insets.bottom + SPACING[8] + heroGrow;
 
   // Two stops, so gorhom's live snap progress (`animatedIndex`) runs 0 (resting,
@@ -510,15 +587,13 @@ function EventBottomSheet({
 
   // Every number here is measured, not guessed, so they land on any screen and
   // any event length. `actionsY` is the action stack's offset within the content
-  // card; `footerH` is the pinned CTA footer's own measured height (it now lives
-  // in `BottomSheetFooter`, outside the content card, so it can't be measured as
-  // an offset within the stack the way the old inline button was); `goingCardY`
-  // is the who's-going card's top within the stack. The content card sits below
-  // the photo (marginTop BANNER_H) with its own top padding, so the resting
-  // sheet height = BANNER_H + actionsY + footerH + CTA_BOTTOM_INSET. The card's
-  // translateY is a transform, so it never shifts these layout coordinates — the
-  // measurements are stable at every snap, which is the only reason measuring
-  // once works.
+  // card; `footerH` is the primary action's own measured height (it rides in the
+  // scroll flow now, pinned by a transform, so it also reports its own top via
+  // `primaryBtnYRef`); `goingCardY` is the who's-going card's top within the
+  // stack. The content card sits below the photo (marginTop BANNER_H) with its
+  // own top padding. A transform (the reveal slide, and the action's own pin)
+  // never shifts these layout coordinates — the measurements are stable at
+  // every snap, which is the only reason measuring once works.
   // Fetched here (rather than further down with the rest of the query/mutation
   // hooks) because `recomputeSnaps` below needs `event?.description` in its
   // closure, and referencing a `const` declared later in the same component
@@ -533,6 +608,13 @@ function EventBottomSheet({
   const actionsYRef = useRef<number | null>(null);
   const goingCardYRef = useRef<number | null>(null);
   const footerHeightRef = useRef<number | null>(null);
+  // The primary action's own top within the content card. Used for the resting
+  // stop ONLY when there's no description (the action then sits right below the
+  // header, so its own y is exactly "everything above it"). With a description
+  // the resting stop is sized off the clamped visible text instead — see
+  // `recomputeSnaps` — because the action's real flow position is below the
+  // full reserved (mostly hidden) description.
+  const primaryBtnYRef = useRef<number | null>(null);
   // Where the who's-going card's top sits inside the content card. State, not a
   // ref, because the entrance worklets read it — see `useEnterOnScroll`.
   const [goingCardOffset, setGoingCardOffset] = useState(0);
@@ -579,25 +661,27 @@ function EventBottomSheet({
 
     const footerH = footerHeightRef.current;
     if (footerH == null) return;
-    // Resting stop: everything above the footer, plus the footer's own
-    // measured height and inset, plus a small gap so the footer doesn't sit
-    // flush against the last visible line. With a description, `actionsYRef`
-    // can't be used for "everything above" — RevealingText reserves its
-    // FULL unclamped height in flow even for hidden lines (see
-    // .superpowers/sdd/task-7-correction.md), so only the description's
-    // CLAMPED visible height is safe to use. Without one, RevealingText
-    // never mounts, so `actionsYRef` (the real, full flow above `actions`)
-    // is exactly right on its own — nothing is hidden to worry about.
+    // Resting stop: everything above the action, plus the action's own
+    // measured height and bottom inset, plus a small gap so it doesn't sit
+    // flush against the last visible line. Capped at RESTING_MAX_FRACTION so a
+    // long description can never push it taller — it clamps and reveals the
+    // rest on scroll instead. Snug (below the cap) for short descriptions.
+    //
+    // With a description, "everything above" is the header plus the CLAMPED
+    // visible text — NOT the action's real flow position, which sits below the
+    // full reserved (mostly hidden) description and would balloon the stop.
+    // Without one, the action sits right below the header, so its own measured
+    // y is exactly right.
     const above = event?.description
       ? visibleDescriptionHRef.current != null
         ? descriptionOffset + visibleDescriptionHRef.current
         : null
-      : a;
+      : primaryBtnYRef.current;
     if (above == null) return;
     const next = Math.round(
       Math.min(
         BANNER_H + above + footerH + CTA_BOTTOM_INSET + SPACING[2.5] * 2,
-        height * 0.82
+        height * RESTING_MAX_FRACTION
       )
     );
     setFirstSnapPx((prev) => (prev === next ? prev : next));
@@ -616,9 +700,12 @@ function EventBottomSheet({
     },
     [recomputeSnaps]
   );
-  const onFooterLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const h = e.nativeEvent.layout.height;
+  // The primary action measures its own top (for the no-description resting
+  // stop) and its height (the pin target and the resting stop both need it),
+  // mirroring both into refs + state the same way the footer measurement did.
+  const onPrimaryMeasure = useCallback(
+    (y: number, h: number) => {
+      primaryBtnYRef.current = y;
       footerHeightRef.current = h;
       setFooterHeight((prev) => (prev === h ? prev : h));
       recomputeSnaps();
@@ -632,18 +719,17 @@ function EventBottomSheet({
     },
     [recomputeSnaps]
   );
-  // Screen-space y of the pinned footer's top edge — BottomSheetFooter docks
-  // it `CTA_BOTTOM_INSET` above the screen's bottom edge regardless of the
-  // sheet's own snap stop, so this is a plain constant once the footer's
-  // height is known. Independent of `firstSnapPx` on purpose (see above).
+  // Screen-space y of the action's pinned top edge — where description lines
+  // reveal from behind. `height − inset − actionHeight` is a plain constant
+  // once the action's height is measured, independent of `firstSnapPx`.
   const footerTopY = height - CTA_BOTTOM_INSET - (footerHeight ?? 0);
-  // How many lines fit above the footer, bounded by the same `height * 0.82`
-  // ceiling `recomputeSnaps` uses for the resting stop — computed directly
-  // from constants and independently-measured quantities, never through
-  // `firstSnapPx`, so there's no circularity with the calc above.
+  // How many description lines fit above the pinned action at the resting stop,
+  // bounded by the same RESTING_MAX_FRACTION ceiling `recomputeSnaps` uses —
+  // computed directly from constants and independently-measured quantities,
+  // never through `firstSnapPx`, so there's no circularity with the calc above.
   const descriptionAvailableHeight = Math.max(
     0,
-    height * 0.82 -
+    height * RESTING_MAX_FRACTION -
       BANNER_H -
       descriptionOffset -
       (footerHeight ?? 0) -
@@ -978,116 +1064,100 @@ function EventBottomSheet({
     []
   );
 
-  // The pinned CTA footer. `BottomSheetFooter` docks to the bottom of the
-  // screen regardless of the sheet's current snap position, which is what
-  // makes the primary action (and the wishlist toast riding alongside it)
-  // stay put no matter how much description text is showing or how far the
-  // content has scrolled. Must be identity-stable across unrelated
-  // re-renders — same reason the old `renderToast` was: a fresh function
-  // makes the footer remount, and reanimated then overlaps the exiting
-  // snapshot with the entering one.
+  // The primary action no longer lives here — it rides in the scroll flow via
+  // `StickyPrimary` (pinned, then released once the description is done), so the
+  // footer now carries only the wishlist toast. Kept in a `BottomSheetFooter`
+  // because a toast still wants to dock to the screen bottom no matter the snap.
+  // Identity-stable so an unrelated re-render doesn't remount it (which would
+  // overlap reanimated's exiting/entering snapshots into a doubled toast).
   const renderFooter = useCallback(
     (props: BottomSheetFooterProps) =>
-      event ? (
+      toast ? (
         <BottomSheetFooter {...props} bottomInset={CTA_BOTTOM_INSET}>
-          <View style={styles.ctaFooter} onLayout={onFooterLayout}>
-            {hasWrapped(event) && (isParticipant || isHost) ? (
-              <Button
-                label="Open the event wrap"
-                onPress={() => {
-                  onCloseAll();
-                  router.push(`/events/wrap/${event.id}`);
-                }}
-              />
-            ) : !hasWrapped(event) ? (
-              isHost ? (
-                <Button
-                  label="Manage event"
-                  onPress={() => {
-                    onCloseAll();
-                    router.push(`/events/host/${event.id}`);
-                  }}
-                />
-              ) : isParticipant ? (
-                <Button
-                  label="Open chat"
-                  onPress={() => {
-                    onCloseAll();
-                    router.push(`/(tabs)/chats/${event.id}`);
-                  }}
-                />
-              ) : (
-                <View style={styles.footerRow}>
-                  {event.max_people != null && (
-                    <View style={styles.spotsInfo}>
-                      <Text style={styles.spotsCount}>
-                        {event.participant_count}/{event.max_people}
-                      </Text>
-                      <Text style={styles.spotsLeft}>
-                        {Math.max(event.max_people - event.participant_count, 0)}{' '}
-                        spots left
-                      </Text>
-                    </View>
-                  )}
-                  <Button
-                    style={{ flex: 1 }}
-                    label={
-                      isPending
-                        ? 'Request pending'
-                        : womenOnlyLocked
-                          ? 'Female-only event'
-                          : isFull
-                            ? 'Event full'
-                            : tooFar
-                              ? 'Join with Mello+'
-                              : event.requires_approval
-                                ? 'Request to join'
-                                : 'Join event'
-                    }
-                    variant={
-                      isPending || isFull || womenOnlyLocked ? 'tertiary' : 'primary'
-                    }
-                    onPress={() => (isPending ? leave.mutate() : handleJoinPress())}
-                    disabled={
-                      ((isFull || womenOnlyLocked) && !isPending) ||
-                      join.isPending ||
-                      leave.isPending
-                    }
-                  />
-                </View>
-              )
-            ) : null}
-          </View>
-          {toast && (
-            <Animated.View
-              entering={FadeInUp.duration(200)}
-              exiting={FadeOut.duration(160)}
-              style={styles.toast}
-              pointerEvents="none"
-            >
-              <Icon name="bookmarkFilled" size={15} color="#fff" strokeWidth={2} />
-              <Text style={styles.toastText}>{toast}</Text>
-            </Animated.View>
-          )}
+          <Animated.View
+            entering={FadeInUp.duration(200)}
+            exiting={FadeOut.duration(160)}
+            style={styles.toast}
+            pointerEvents="none"
+          >
+            <Icon name="bookmarkFilled" size={15} color="#fff" strokeWidth={2} />
+            <Text style={styles.toastText}>{toast}</Text>
+          </Animated.View>
         </BottomSheetFooter>
       ) : null,
-    [
-      event,
-      isParticipant,
-      isHost,
-      isPending,
-      isFull,
-      womenOnlyLocked,
-      tooFar,
-      toast,
-      onFooterLayout,
-      onCloseAll,
-      router,
-      leave,
-      join,
-      handleJoinPress,
-    ]
+    [toast]
   );
+
+  // The primary action itself — the same state-driven headline button as before
+  // (wrap / manage / open chat / join), now handed to `StickyPrimary` to pin
+  // and release in the flow rather than to a permanent footer. null when the
+  // event is ended and the viewer isn't in it (nothing to pin).
+  const primaryAction: ReactNode = !event
+    ? null
+    : hasWrapped(event) && (isParticipant || isHost) ? (
+        <Button
+          label="Open the event wrap"
+          onPress={() => {
+            onCloseAll();
+            router.push(`/events/wrap/${event.id}`);
+          }}
+        />
+      ) : hasWrapped(event) ? null : isHost ? (
+        <Button
+          label="Manage event"
+          onPress={() => {
+            onCloseAll();
+            router.push(`/events/host/${event.id}`);
+          }}
+        />
+      ) : isParticipant ? (
+        <Button
+          label="Open chat"
+          onPress={() => {
+            onCloseAll();
+            router.push(`/(tabs)/chats/${event.id}`);
+          }}
+        />
+      ) : (
+        <View style={styles.footerRow}>
+          {event.max_people != null && (
+            <View style={styles.spotsInfo}>
+              <Text style={styles.spotsCount}>
+                {event.participant_count}/{event.max_people}
+              </Text>
+              <Text style={styles.spotsLeft}>
+                {Math.max(event.max_people - event.participant_count, 0)} spots
+                left
+              </Text>
+            </View>
+          )}
+          <Button
+            style={{ flex: 1 }}
+            label={
+              isPending
+                ? 'Request pending'
+                : womenOnlyLocked
+                  ? 'Female-only event'
+                  : isFull
+                    ? 'Event full'
+                    : tooFar
+                      ? 'Join with Mello+'
+                      : event.requires_approval
+                        ? 'Request to join'
+                        : 'Join event'
+            }
+            variant={
+              isPending || isFull || womenOnlyLocked ? 'tertiary' : 'primary'
+            }
+            onPress={() => (isPending ? leave.mutate() : handleJoinPress())}
+            disabled={
+              ((isFull || womenOnlyLocked) && !isPending) ||
+              join.isPending ||
+              leave.isPending
+            }
+          />
+        </View>
+      );
 
   return (
     <BottomSheet
@@ -1269,18 +1339,28 @@ function EventBottomSheet({
               />
             )}
 
-            {/* Actions.
-                  Order for someone who's in: Open chat → Check in → who's-going
-                  card → Leave (last, behind a confirm). The host is a participant
-                  since migration 043, so `isParticipant` is true for them too —
-                  guard the guest-only actions (Check in, Leave) with `!isHost`. */}
-            <View style={styles.actions} onLayout={onActionsLayout}>
-              {/* The headline action (Open the event wrap / Manage event / Open
-                    chat / Join, depending on state) now lives in `renderFooter`,
-                    pinned to the screen bottom via `BottomSheetFooter` — see
-                    that callback above. Only the secondary, non-pinned actions
-                    (Open chat under Manage, Check in) stay here. */}
+            {/* The headline action, pinned at the bottom while the description
+                is still revealing, then released into the scroll. It sits here —
+                after the description, before everything else — so who's-going et
+                al. follow it in flow and stay off-screen until it lets go. */}
+            {primaryAction && (
+              <StickyPrimary
+                heroGrow={heroGrow}
+                sheetProgress={animatedIndex}
+                pinTargetY={footerTopY}
+                onMeasure={onPrimaryMeasure}
+              >
+                {primaryAction}
+              </StickyPrimary>
+            )}
 
+            {/* Actions.
+                  Order for someone who's in: Check in → who's-going card → Leave
+                  (last, behind a confirm). The headline action is `StickyPrimary`
+                  above; these are the secondary, non-pinned actions. The host is
+                  a participant since migration 043, so `isParticipant` is true
+                  for them too — guard the guest-only actions with `!isHost`. */}
+            <View style={styles.actions} onLayout={onActionsLayout}>
               {!hasWrapped(event) && (
                 <>
                   {/* Host also gets the chat, under Manage. */}
@@ -1854,11 +1934,17 @@ const styles = StyleSheet.create({
   },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
   spotsInfo: {},
-  // Wraps the primary action inside BottomSheetFooter. Frosted-white to
-  // match the sheet's own surface — it's the same card, just pinned.
-  ctaFooter: {
-    paddingHorizontal: SPACING[5],
-    paddingTop: SPACING[3],
+  // The headline action's in-flow wrapper (see `StickyPrimary`). Opaque white,
+  // matching the sheet — NOT a distinct bar: it just reads as part of the sheet,
+  // and its fill is what keeps the reserved, not-yet-revealed description lines
+  // behind it from ever showing. `zIndex` keeps it above who's-going during the
+  // brief overlap as it releases and the rows rise from below. The top gap sits
+  // it a little off the last visible line; a transform pins it, so this padding
+  // never shifts the layout coordinates the resting stop is measured from.
+  stickyPrimary: {
+    backgroundColor: COLORS.white,
+    paddingTop: SPACING[2.5],
+    zIndex: 2,
   },
   spotsCount: {
     fontFamily: FONTS.heading,
