@@ -23,9 +23,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   interpolate,
-  useDerivedValue,
-  useAnimatedReaction,
-  withTiming,
   Extrapolation,
   Easing,
   type SharedValue,
@@ -35,7 +32,6 @@ import BottomSheet, {
   BottomSheetFooter,
   BottomSheetBackdrop,
   useBottomSheetTimingConfigs,
-  useBottomSheetInternal,
   type BottomSheetFooterProps,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
@@ -92,6 +88,8 @@ import {
 } from '@/components/ui';
 import type { Attendee } from '@/components/ui/AttendeeStack';
 import { categoryStyle } from '@/constants/categoryStyle';
+import { useEnterOnScroll } from './useEnterOnScroll';
+import { RevealingText } from './RevealingText';
 
 // A safety popup queued to show before a join goes through (spec #3/#5/#8/#10).
 // Confirming one marks its flag seen and shows the next; the join fires only
@@ -150,19 +148,6 @@ const CARD_PAD_TOP = SPACING[4];
 // slides DOWN to uncover it. See the component for why (that height animation
 // was the old stutter) and for how the grow is sized to the sheet's own climb.
 
-// How far the hero is allowed to grow PAST the point where the who's-going card
-// would sit on the bottom edge. This is the one knob on the whole reveal:
-//
-//   0    the photo stops exactly where who's-going stays fully visible at the
-//        full stop — the biggest hero that still shows who's going.
-//   > 0  that many points of extra photo, clipping who's-going by the same
-//        amount. It becomes a scroll-to.
-//
-// The photo and the content share a fixed budget (see `heroGrow` below), so
-// every point given to one is taken from the other. There is no setting where
-// both get bigger.
-const HERO_OVERSHOOT = 0;
-
 // How many people the card shows before it stops and defers to "See all".
 const GOING_ROWS = 3;
 
@@ -186,18 +171,16 @@ const GOING_ROWS = 3;
 // the host-row stack tilts to as it exits right, so both halves of the hand-off
 // read as one physical system.
 const ROW_TILT = -8;
-// How long a row takes to arrive once it has been triggered. A real duration is
-// only possible because the entrance is timed rather than scrubbed — with a
-// scrubber the speed was whatever the finger did, and there was no knob for
-// "slower" at all.
-const ROW_ENTER_MS = 420;
-// The who's-going card's inner padding. Named because two things depend on it:
-// the hero's anchor adds it back on to reconstruct where the card's bottom edge
-// would fall (see `recomputeSnaps`), and the entrance starts a face exactly this
+// The who's-going card's inner padding. The entrance starts a face exactly this
 // far plus its own width to the left, which tucks it just behind the card's
 // border.
 const GOING_CARD_PAD = SPACING[3.5];
 const GOING_AVATAR = 36;
+
+// The pinned CTA footer's distance from the screen's bottom edge — same
+// value BottomSheetFooter's `bottomInset` prop takes, and reused by the
+// description reveal (Task 7) to compute the footer's screen-space top edge.
+const CTA_BOTTOM_INSET = SPACING[5];
 
 // A compact card for the "happening near you" rail: photo on top with the
 // category pill on it, then title + when/distance on a white body below. A
@@ -263,81 +246,6 @@ function NearbyMini({
   );
 }
 
-// A row's entrance: 0 before it arrives, 1 once it has played. Everything the
-// who's-going card animates hangs off this.
-//
-// Position decides WHEN; time drives it to COMPLETION. That split is the whole
-// design, and both halves were learned the hard way.
-//
-// Driving progress directly from position — a scrubber — puts a row straddling
-// the screen's bottom edge at partial progress and leaves it there. At rest that
-// is an avatar frozen half-slid with a half-faded name beside it, which reads as
-// a rendering fault rather than as an animation. Nothing about "the row is 60%
-// on screen" should mean "the animation is 60% done".
-//
-// Driving it from the sheet's snap progress instead — the version before that —
-// fired every row while it was still below the fold, so none of it was ever
-// seen.
-//
-// So: watch where the row actually is, using four live values on the UI thread
-// (the sheet's own top, the fixed photo band above the card, the card's reveal
-// slide, and the content's scroll offset — that last one is what lets a row
-// animate when you scroll to it at full screen). The moment any part of it
-// crosses onto the screen, run a real timed animation to completion. It fires
-// once and stays; scrolling away and back does not replay it.
-function useRowEntrance({
-  cardOffset,
-  heroGrow,
-  sheetProgress,
-  screenH,
-  y,
-  h,
-}: {
-  cardOffset: number;
-  heroGrow: number;
-  sheetProgress: SharedValue<number>;
-  screenH: number;
-  y: number | null;
-  h: number | null;
-}) {
-  const { animatedPosition, animatedScrollableState } = useBottomSheetInternal();
-  const played = useSharedValue(0);
-
-  const arrived = useDerivedValue(() => {
-    if (y == null || h == null) return false;
-    const slide = interpolate(
-      sheetProgress.value,
-      [0, 1],
-      [0, heroGrow],
-      Extrapolation.CLAMP
-    );
-    const top =
-      animatedPosition.value +
-      BANNER_H +
-      slide +
-      cardOffset +
-      y -
-      animatedScrollableState.value.contentOffsetY;
-    return top < screenH;
-  });
-
-  useAnimatedReaction(
-    () => arrived.value,
-    (isArrived) => {
-      // `=== 0` rather than `< 1` so a run already underway is never restarted
-      // mid-flight by a frame that re-reads as arrived.
-      if (isArrived && played.value === 0) {
-        played.value = withTiming(1, {
-          duration: ROW_ENTER_MS,
-          easing: Easing.out(Easing.cubic),
-        });
-      }
-    }
-  );
-
-  return played;
-}
-
 // One person in the who's-going card, sliding out from behind its left border.
 //
 // The avatar carries the travel and the tilt; the name and tag only fade.
@@ -375,11 +283,11 @@ function GoingRow({
     [onLayout]
   );
 
-  const entrance = useRowEntrance({
-    cardOffset,
-    heroGrow,
+  const entrance = useEnterOnScroll({
+    offset: BANNER_H + cardOffset,
+    slide: heroGrow,
     sheetProgress,
-    screenH,
+    boundary: screenH,
     y: box?.y ?? null,
     h: box?.h ?? null,
   });
@@ -456,11 +364,11 @@ function GoingStack({
     [onLayout]
   );
 
-  const entrance = useRowEntrance({
-    cardOffset,
-    heroGrow,
+  const entrance = useEnterOnScroll({
+    offset: BANNER_H + cardOffset,
+    slide: heroGrow,
     sheetProgress,
-    screenH,
+    boundary: screenH,
     y: box?.y ?? null,
     h: box?.h ?? null,
   });
@@ -515,55 +423,22 @@ function EventBottomSheet({
 
   // Measured below (null until laid out). `firstSnapPx` is the resting stop —
   // the only stop that needs measuring, since the other one is the top of the
-  // screen. `goingAnchorPx` is how far the hero's anchor sits below the content
-  // card's top — see the anchor note below.
+  // screen.
   const [firstSnapPx, setFirstSnapPx] = useState<number | null>(null);
-  const [goingAnchorPx, setGoingAnchorPx] = useState<number | null>(null);
   const first = firstSnapPx ?? Math.round(height * 0.46);
 
-  // The sheet's climb, resting stop → y=0. This is the whole budget for the leg,
-  // and it is shared: whatever the photo doesn't take, the content rises by.
+  // The sheet's climb, resting stop → y=0 — the whole budget for the leg.
   const climb = height - first;
-  // Where the hero's anchor should come to rest at the full stop — clear of the
-  // home indicator, with a little breathing room, so nothing lands tucked under
-  // the indicator bar.
-  const goingRestBottom = height - insets.bottom - SPACING[3];
-  // The hero's growth, and the single place the budget is split. At the full stop
-  // the sheet's top is at y=0, so the photo runs 0 → BANNER_H + grow, the content
-  // card's top lands right underneath it, and the anchor is another
-  // `goingAnchorPx` down. Solving "the anchor sits at `goingRestBottom`" for the
-  // grow is the subtraction below.
-  //
-  // ── Why the anchor is the who's-going card's FIRST ROW, not its bottom ──────
-  // The obvious anchor is the card's bottom edge — "grow the photo until the
-  // whole card still fits". But then the hero is a function of how many people
-  // are going: a four-row card is ~160pt taller than a one-row card, and every
-  // one of those points comes straight off the photo. The same event would open
-  // with a visibly different hero the day a third person joined.
-  //
-  // Anchoring on the first row's bottom instead makes the hero depend only on
-  // what sits ABOVE who's-going — host row, title, info, description, actions —
-  // which is fixed for a given event. The card is then free to grow downward past
-  // the fold; you scroll for the rest of it. Header and the first person stay
-  // visible, which is what the card is for at a glance.
-  //
-  // Clamped at both ends, and both clamps matter:
-  //   floor 0     a dense event (long description, three actions) can measure
-  //               past the budget entirely. The photo then doesn't grow at all
-  //               and the leg is a pure content rise. Nothing looks broken.
-  //   ceiling climb  the slide can never exceed the sheet's own climb. Past that
-  //               the content would drift DOWN against the drag, which is what
-  //               read as the sheet "going back down" mid-gesture.
-  const heroGrow = Math.max(
-    0,
-    Math.min(
-      goingRestBottom -
-        (goingAnchorPx ?? Math.round(height * 0.46)) -
-        BANNER_H +
-        HERO_OVERSHOOT,
-      climb
-    )
-  );
+  // The hero at the full stop: a square, `screenWidth` tall. Dynamic per device
+  // by construction (it's a function of width, nothing else) and no longer a
+  // function of title length, description length, or attendee count — an
+  // earlier version anchored the grow on the who's-going card's first row, so a
+  // long description could eat the whole growth budget and leave the photo
+  // stuck at BANNER_H regardless of device size. See
+  // docs/superpowers/specs/2026-07-24-event-sheet-description-reveal-design.md
+  // §1 for why that anchor math is gone. Clamped to the climb so the slide can
+  // never exceed the sheet's own drag distance.
+  const heroGrow = Math.max(0, Math.min(width - BANNER_H, climb));
   // The hero is rendered exactly tall enough to fill what the reveal uncovers, so
   // its bottom edge always meets the card's top — no seam at any snap.
   const photoRenderH = BANNER_H + heroGrow;
@@ -635,55 +510,105 @@ function EventBottomSheet({
 
   // Every number here is measured, not guessed, so they land on any screen and
   // any event length. `actionsY` is the action stack's offset within the content
-  // card; `primaryBottom` is the Open chat/Join button's bottom edge within that
-  // stack; `goingCardY` is the who's-going card's top and `goingRowBottom` the
-  // first person row's bottom edge within it. The content card sits below the
-  // photo (marginTop BANNER_H) with its own top padding, so the resting sheet
-  // height = BANNER_H + actionsY + primaryBottom. The card's translateY is a
-  // transform, so it never shifts these layout coordinates — the measurements are
-  // stable at every snap, which is the only reason measuring once works.
+  // card; `footerH` is the pinned CTA footer's own measured height (it now lives
+  // in `BottomSheetFooter`, outside the content card, so it can't be measured as
+  // an offset within the stack the way the old inline button was); `goingCardY`
+  // is the who's-going card's top within the stack. The content card sits below
+  // the photo (marginTop BANNER_H) with its own top padding, so the resting
+  // sheet height = BANNER_H + actionsY + footerH + CTA_BOTTOM_INSET. The card's
+  // translateY is a transform, so it never shifts these layout coordinates — the
+  // measurements are stable at every snap, which is the only reason measuring
+  // once works.
+  // Fetched here (rather than further down with the rest of the query/mutation
+  // hooks) because `recomputeSnaps` below needs `event?.description` in its
+  // closure, and referencing a `const` declared later in the same component
+  // is a TS error even though it's runtime-safe (the closure only runs once
+  // layout callbacks fire, well after this whole function body has executed).
+  const { data: event, isLoading } = useQuery({
+    queryKey: queryKeys.eventDetail.of(eventId),
+    queryFn: () => getEventDetail(eventId!),
+    enabled: !!eventId,
+  });
+
   const actionsYRef = useRef<number | null>(null);
-  const primaryBottomRef = useRef<number | null>(null);
   const goingCardYRef = useRef<number | null>(null);
-  const goingAnchorBottomRef = useRef<number | null>(null);
+  const footerHeightRef = useRef<number | null>(null);
   // Where the who's-going card's top sits inside the content card. State, not a
-  // ref, because the entrance worklets read it — see `useRowEntrance`.
+  // ref, because the entrance worklets read it — see `useEnterOnScroll`.
   const [goingCardOffset, setGoingCardOffset] = useState(0);
+  // Mirrors `footerHeightRef.current` into state, same reason as
+  // `goingCardOffset` above: `footerTopY`/`descriptionAvailableHeight` below
+  // need to read it during render (a ref's `.current` can't be read there —
+  // it isn't tracked as a render dependency), while `recomputeSnaps` keeps
+  // reading the ref directly since that's inside a callback, not render.
+  const [footerHeight, setFooterHeight] = useState<number | null>(null);
+  // The description block's own top, within the content card — everything
+  // above it (host row, title, info, pills). State, not a ref, because
+  // `recomputeSnaps` (below) and the description's own available-height calc
+  // both need to re-run when it changes, not just read it once.
+  const [descriptionOffset, setDescriptionOffset] = useState(0);
+  const onDescriptionBlockLayout = useCallback((e: LayoutChangeEvent) => {
+    const y = e.nativeEvent.layout.y;
+    setDescriptionOffset((prev) => (prev === y ? prev : y));
+  }, []);
+  // When there's a description, the resting stop is sized off its CLAMPED
+  // visible height, not `RevealingText`'s full rendered height (which always
+  // includes the hidden lines reserved below the fold — see
+  // .superpowers/sdd/task-7-correction.md). `actionsYRef` still measures the
+  // real, full document flow (needed for `goingCardOffset`'s entrance math
+  // below either way), but once `RevealingText` is mounted its
+  // `actionsYRef.current` includes the full description's height, which
+  // would balloon the resting stop and let hidden lines already read as
+  // "arrived" before any scroll — so `firstSnapPx` falls back to
+  // `actionsYRef` only when there's no description to measure instead. See
+  // `recomputeSnaps` below.
+  const visibleDescriptionHRef = useRef<number | null>(null);
   const recomputeSnaps = useCallback(() => {
+    // goingCardOffset depends only on the real, full document flow above the
+    // who's-going card — independent of whether a description is even
+    // present, so it must not share a guard with the description-only
+    // firstSnapPx calc below (an event with no description used to never
+    // reach this at all, since visibleDescH stayed null forever, silently
+    // freezing the who's-going entrance and the resting stop both).
     const a = actionsYRef.current;
-    if (a == null) return;
-    const p = primaryBottomRef.current;
-    if (p != null) {
-      // Resting stop: just below Open chat/Join, one action-gap of breathing
-      // room. BANNER_H is the card's marginTop (the photo above it); the measured
-      // `actionsY` already includes the card's own paddingTop, so it isn't added
-      // again. Clamped below the full stop so the two stops can never cross (a
-      // tall event would otherwise measure past full screen).
-      const next = Math.round(
-        Math.min(BANNER_H + a + p + SPACING[2.5], height * 0.82)
-      );
-      setFirstSnapPx((prev) => (prev === next ? prev : next));
-    }
     const cardY = goingCardYRef.current;
-    if (cardY != null) {
-      const next = Math.round(a + cardY);
-      setGoingCardOffset((prev) => (prev === next ? prev : next));
+    if (a != null && cardY != null) {
+      const nextOffset = Math.round(a + cardY);
+      setGoingCardOffset((prev) => (prev === nextOffset ? prev : nextOffset));
     }
-    const anchorBottom = goingAnchorBottomRef.current;
-    if (cardY != null && anchorBottom != null) {
-      // Everything in the content card above the hero's anchor. Measured from the
-      // content card's top, NOT the sheet's — the hero cap subtracts BANNER_H
-      // separately, and folding it in here would double-count it.
-      //
-      // The card's own bottom padding is added back on so the anchor sits where
-      // the card's edge *would* be if it held only this one row. That is what
-      // makes the hero come out the same size it did before the card grew rows —
-      // and the same size for a member and a non-member, whose card holds a face
-      // pile of the same height instead.
-      const next = Math.round(a + cardY + anchorBottom + GOING_CARD_PAD);
-      setGoingAnchorPx((prev) => (prev === next ? prev : next));
-    }
-  }, [height]);
+
+    const footerH = footerHeightRef.current;
+    if (footerH == null) return;
+    // Resting stop: everything above the footer, plus the footer's own
+    // measured height and inset, plus a small gap so the footer doesn't sit
+    // flush against the last visible line. With a description, `actionsYRef`
+    // can't be used for "everything above" — RevealingText reserves its
+    // FULL unclamped height in flow even for hidden lines (see
+    // .superpowers/sdd/task-7-correction.md), so only the description's
+    // CLAMPED visible height is safe to use. Without one, RevealingText
+    // never mounts, so `actionsYRef` (the real, full flow above `actions`)
+    // is exactly right on its own — nothing is hidden to worry about.
+    const above = event?.description
+      ? visibleDescriptionHRef.current != null
+        ? descriptionOffset + visibleDescriptionHRef.current
+        : null
+      : a;
+    if (above == null) return;
+    const next = Math.round(
+      Math.min(
+        BANNER_H + above + footerH + CTA_BOTTOM_INSET + SPACING[2.5] * 2,
+        height * 0.82
+      )
+    );
+    setFirstSnapPx((prev) => (prev === next ? prev : next));
+  }, [height, descriptionOffset, event?.description]);
+  const onVisibleDescriptionLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      visibleDescriptionHRef.current = e.nativeEvent.layout.height;
+      recomputeSnaps();
+    },
+    [recomputeSnaps]
+  );
   const onActionsLayout = useCallback(
     (e: LayoutChangeEvent) => {
       actionsYRef.current = e.nativeEvent.layout.y;
@@ -691,20 +616,11 @@ function EventBottomSheet({
     },
     [recomputeSnaps]
   );
-  const onPrimaryLayout = useCallback(
+  const onFooterLayout = useCallback(
     (e: LayoutChangeEvent) => {
-      const { y, height: h } = e.nativeEvent.layout;
-      primaryBottomRef.current = y + h;
-      recomputeSnaps();
-    },
-    [recomputeSnaps]
-  );
-  // The first person row for a member, the face pile for a non-member — whichever
-  // this card leads with is what the hero grows down to.
-  const onGoingAnchorLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const { y, height: h } = e.nativeEvent.layout;
-      goingAnchorBottomRef.current = y + h;
+      const h = e.nativeEvent.layout.height;
+      footerHeightRef.current = h;
+      setFooterHeight((prev) => (prev === h ? prev : h));
       recomputeSnaps();
     },
     [recomputeSnaps]
@@ -715,6 +631,24 @@ function EventBottomSheet({
       recomputeSnaps();
     },
     [recomputeSnaps]
+  );
+  // Screen-space y of the pinned footer's top edge — BottomSheetFooter docks
+  // it `CTA_BOTTOM_INSET` above the screen's bottom edge regardless of the
+  // sheet's own snap stop, so this is a plain constant once the footer's
+  // height is known. Independent of `firstSnapPx` on purpose (see above).
+  const footerTopY = height - CTA_BOTTOM_INSET - (footerHeight ?? 0);
+  // How many lines fit above the footer, bounded by the same `height * 0.82`
+  // ceiling `recomputeSnaps` uses for the resting stop — computed directly
+  // from constants and independently-measured quantities, never through
+  // `firstSnapPx`, so there's no circularity with the calc above.
+  const descriptionAvailableHeight = Math.max(
+    0,
+    height * 0.82 -
+      BANNER_H -
+      descriptionOffset -
+      (footerHeight ?? 0) -
+      CTA_BOTTOM_INSET -
+      SPACING[2.5] * 2
   );
   // Two stops. Resting: below Open chat/Join (a tap opens here). Full screen: one
   // scroll up and the sheet's top edge is at y=0 with the photo filling every
@@ -731,12 +665,6 @@ function EventBottomSheet({
   const animationConfigs = useBottomSheetTimingConfigs({
     duration: 300,
     easing: Easing.out(Easing.cubic),
-  });
-
-  const { data: event, isLoading } = useQuery({
-    queryKey: queryKeys.eventDetail.of(eventId),
-    queryFn: () => getEventDetail(eventId!),
-    enabled: !!eventId,
   });
 
   const when = event ? splitEventTime(event.starts_at) : null;
@@ -907,7 +835,12 @@ function EventBottomSheet({
     sheetRef.current?.close();
   }
 
-  async function handleJoinPress() {
+  // Wrapped in useCallback (rather than a plain function) so it can sit in
+  // `renderFooter`'s dependency array without recreating that callback on
+  // every render — an unstable renderFooter would remount BottomSheetFooter's
+  // children each time, which is the exact double-toast bug its own comment
+  // warns about.
+  const handleJoinPress = useCallback(async () => {
     if (!event || !user) return;
 
     // Beyond the free 10 km radius: browsing is fine, joining needs Mello+.
@@ -997,7 +930,7 @@ function EventBottomSheet({
 
     if (queue.length > 0) setJoinQueue(queue);
     else join.mutate();
-  }
+  }, [event, user, tooFar, router, join, onCloseAll, setJoinQueue]);
 
   // Confirming the current popup marks it seen; the join fires once the
   // queue is empty.
@@ -1045,27 +978,115 @@ function EventBottomSheet({
     []
   );
 
-  const renderToast = useCallback(
+  // The pinned CTA footer. `BottomSheetFooter` docks to the bottom of the
+  // screen regardless of the sheet's current snap position, which is what
+  // makes the primary action (and the wishlist toast riding alongside it)
+  // stay put no matter how much description text is showing or how far the
+  // content has scrolled. Must be identity-stable across unrelated
+  // re-renders — same reason the old `renderToast` was: a fresh function
+  // makes the footer remount, and reanimated then overlaps the exiting
+  // snapshot with the entering one.
+  const renderFooter = useCallback(
     (props: BottomSheetFooterProps) =>
-      toast ? (
-        <BottomSheetFooter {...props} bottomInset={24}>
-          <Animated.View
-            entering={FadeInUp.duration(200)}
-            exiting={FadeOut.duration(160)}
-            style={styles.toast}
-            pointerEvents="none"
-          >
-            <Icon
-              name="bookmarkFilled"
-              size={15}
-              color="#fff"
-              strokeWidth={2}
-            />
-            <Text style={styles.toastText}>{toast}</Text>
-          </Animated.View>
+      event ? (
+        <BottomSheetFooter {...props} bottomInset={CTA_BOTTOM_INSET}>
+          <View style={styles.ctaFooter} onLayout={onFooterLayout}>
+            {hasWrapped(event) && (isParticipant || isHost) ? (
+              <Button
+                label="Open the event wrap"
+                onPress={() => {
+                  onCloseAll();
+                  router.push(`/events/wrap/${event.id}`);
+                }}
+              />
+            ) : !hasWrapped(event) ? (
+              isHost ? (
+                <Button
+                  label="Manage event"
+                  onPress={() => {
+                    onCloseAll();
+                    router.push(`/events/host/${event.id}`);
+                  }}
+                />
+              ) : isParticipant ? (
+                <Button
+                  label="Open chat"
+                  onPress={() => {
+                    onCloseAll();
+                    router.push(`/(tabs)/chats/${event.id}`);
+                  }}
+                />
+              ) : (
+                <View style={styles.footerRow}>
+                  {event.max_people != null && (
+                    <View style={styles.spotsInfo}>
+                      <Text style={styles.spotsCount}>
+                        {event.participant_count}/{event.max_people}
+                      </Text>
+                      <Text style={styles.spotsLeft}>
+                        {Math.max(event.max_people - event.participant_count, 0)}{' '}
+                        spots left
+                      </Text>
+                    </View>
+                  )}
+                  <Button
+                    style={{ flex: 1 }}
+                    label={
+                      isPending
+                        ? 'Request pending'
+                        : womenOnlyLocked
+                          ? 'Female-only event'
+                          : isFull
+                            ? 'Event full'
+                            : tooFar
+                              ? 'Join with Mello+'
+                              : event.requires_approval
+                                ? 'Request to join'
+                                : 'Join event'
+                    }
+                    variant={
+                      isPending || isFull || womenOnlyLocked ? 'tertiary' : 'primary'
+                    }
+                    onPress={() => (isPending ? leave.mutate() : handleJoinPress())}
+                    disabled={
+                      ((isFull || womenOnlyLocked) && !isPending) ||
+                      join.isPending ||
+                      leave.isPending
+                    }
+                  />
+                </View>
+              )
+            ) : null}
+          </View>
+          {toast && (
+            <Animated.View
+              entering={FadeInUp.duration(200)}
+              exiting={FadeOut.duration(160)}
+              style={styles.toast}
+              pointerEvents="none"
+            >
+              <Icon name="bookmarkFilled" size={15} color="#fff" strokeWidth={2} />
+              <Text style={styles.toastText}>{toast}</Text>
+            </Animated.View>
+          )}
         </BottomSheetFooter>
       ) : null,
-    [toast]
+    [
+      event,
+      isParticipant,
+      isHost,
+      isPending,
+      isFull,
+      womenOnlyLocked,
+      tooFar,
+      toast,
+      onFooterLayout,
+      onCloseAll,
+      router,
+      leave,
+      join,
+      handleJoinPress,
+    ]
   );
 
   return (
@@ -1094,7 +1115,7 @@ function EventBottomSheet({
       backdropComponent={isTop ? renderBackdrop : undefined}
       backgroundStyle={styles.sheetBg}
       handleComponent={null}
-      footerComponent={renderToast}
+      footerComponent={renderFooter}
     >
       {/* Photo — the full-size hero pinned BEHIND the content at bigPhotoH. Only
           the top BANNER_H shows at the first stop (the white card covers the
@@ -1235,49 +1256,17 @@ function EventBottomSheet({
             )}
 
             {event.description && (
-              <Text style={styles.description}>{event.description}</Text>
-            )}
-
-            {/* Host: pending join requests to approve/reject */}
-            {isHost && pending.length > 0 && (
-              <View style={styles.pendingSection}>
-                <SectionLabel style={styles.sectionLabel}>
-                  Requests · {pending.length}
-                </SectionLabel>
-                {pending.map((p) => (
-                  <View key={p.id} style={styles.pendingRow}>
-                    <Avatar name={p.name} photoUrl={p.photo_url} size={38} />
-                    <View style={styles.pendingNameWrap}>
-                      <Text style={styles.pendingName} numberOfLines={1}>
-                        {p.name}
-                      </Text>
-                      {isPremium(p) && <PremiumBadge size={13} />}
-                    </View>
-                    <PressableScale
-                      scaleTo={0.92}
-                      style={styles.approveBtn}
-                      onPress={() => approve.mutate(p.id)}
-                      disabled={approve.isPending}
-                    >
-                      <Text style={styles.approveBtnText}>Approve</Text>
-                    </PressableScale>
-                    <PressableScale
-                      scaleTo={0.92}
-                      style={styles.rejectBtn}
-                      onPress={() => reject.mutate(p.id)}
-                      disabled={reject.isPending}
-                      accessibilityLabel="Decline request"
-                    >
-                      <Icon
-                        name="close"
-                        size={16}
-                        color="rgba(0,0,0,0.55)"
-                        strokeWidth={2}
-                      />
-                    </PressableScale>
-                  </View>
-                ))}
-              </View>
+              <RevealingText
+                text={event.description}
+                style={styles.description}
+                availableHeight={descriptionAvailableHeight}
+                offset={BANNER_H + descriptionOffset}
+                heroGrow={heroGrow}
+                sheetProgress={animatedIndex}
+                footerBoundary={footerTopY}
+                onLayout={onDescriptionBlockLayout}
+                onVisibleLayout={onVisibleDescriptionLayout}
+              />
             )}
 
             {/* Actions.
@@ -1286,94 +1275,11 @@ function EventBottomSheet({
                   since migration 043, so `isParticipant` is true for them too —
                   guard the guest-only actions (Check in, Leave) with `!isHost`. */}
             <View style={styles.actions} onLayout={onActionsLayout}>
-              {/* Ended event: attendees get the wrap. Nobody gets join/leave/
-                    check-in on a finished event — those only exist below, guarded
-                    by !hasWrapped. */}
-              {hasWrapped(event) && (isParticipant || isHost) && (
-                <Button
-                  label="Open the event wrap"
-                  onPress={() => {
-                    onCloseAll();
-                    router.push(`/events/wrap/${event.id}`);
-                  }}
-                />
-              )}
-
-              {/* Live event: the headline action, then check-in for guests.
-                    The host is a participant since migration 043, so
-                    `isParticipant` is true for them too — guest-only actions are
-                    guarded with `!isHost`. */}
-              {!hasWrapped(event) && (
-                <View onLayout={onPrimaryLayout}>
-                  {isHost ? (
-                    <Button
-                      label="Manage event"
-                      onPress={() => {
-                        onCloseAll();
-                        router.push(`/events/host/${event.id}`);
-                      }}
-                    />
-                  ) : isParticipant ? (
-                    <Button
-                      label="Open chat"
-                      onPress={() => {
-                        onCloseAll();
-                        router.push(`/(tabs)/chats/${event.id}`);
-                      }}
-                    />
-                  ) : (
-                    <View style={styles.footerRow}>
-                      {event.max_people != null && (
-                        <View style={styles.spotsInfo}>
-                          <Text style={styles.spotsCount}>
-                            {event.participant_count}/{event.max_people}
-                          </Text>
-                          <Text style={styles.spotsLeft}>
-                            {Math.max(
-                              event.max_people - event.participant_count,
-                              0
-                            )}{' '}
-                            spots left
-                          </Text>
-                        </View>
-                      )}
-                      <Button
-                        style={{ flex: 1 }}
-                        label={
-                          isPending
-                            ? 'Request pending'
-                            : womenOnlyLocked
-                              ? 'Female-only event'
-                              : isFull
-                                ? 'Event full'
-                                : tooFar
-                                  ? 'Join with Mello+'
-                                  : event.requires_approval
-                                    ? 'Request to join'
-                                    : 'Join event'
-                        }
-                        // Joining is the headline action, so it gets coral.
-                        // A pending/closed state drops to low emphasis.
-                        variant={
-                          isPending || isFull || womenOnlyLocked
-                            ? 'tertiary'
-                            : 'primary'
-                        }
-                        // Pending cancels the request (no reason — a request
-                        // withdrawn before approval isn't "leaving").
-                        onPress={() =>
-                          isPending ? leave.mutate() : handleJoinPress()
-                        }
-                        disabled={
-                          ((isFull || womenOnlyLocked) && !isPending) ||
-                          join.isPending ||
-                          leave.isPending
-                        }
-                      />
-                    </View>
-                  )}
-                </View>
-              )}
+              {/* The headline action (Open the event wrap / Manage event / Open
+                    chat / Join, depending on state) now lives in `renderFooter`,
+                    pinned to the screen bottom via `BottomSheetFooter` — see
+                    that callback above. Only the secondary, non-pinned actions
+                    (Open chat under Manage, Check in) stay here. */}
 
               {!hasWrapped(event) && (
                 <>
@@ -1403,6 +1309,48 @@ function EventBottomSheet({
                 </>
               )}
 
+              {/* Host: pending join requests to approve/reject */}
+              {isHost && pending.length > 0 && (
+                <View style={styles.pendingSection}>
+                  <SectionLabel style={styles.sectionLabel}>
+                    Requests · {pending.length}
+                  </SectionLabel>
+                  {pending.map((p) => (
+                    <View key={p.id} style={styles.pendingRow}>
+                      <Avatar name={p.name} photoUrl={p.photo_url} size={38} />
+                      <View style={styles.pendingNameWrap}>
+                        <Text style={styles.pendingName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {isPremium(p) && <PremiumBadge size={13} />}
+                      </View>
+                      <PressableScale
+                        scaleTo={0.92}
+                        style={styles.approveBtn}
+                        onPress={() => approve.mutate(p.id)}
+                        disabled={approve.isPending}
+                      >
+                        <Text style={styles.approveBtnText}>Approve</Text>
+                      </PressableScale>
+                      <PressableScale
+                        scaleTo={0.92}
+                        style={styles.rejectBtn}
+                        onPress={() => reject.mutate(p.id)}
+                        disabled={reject.isPending}
+                        accessibilityLabel="Decline request"
+                      >
+                        <Icon
+                          name="close"
+                          size={16}
+                          color="rgba(0,0,0,0.55)"
+                          strokeWidth={2}
+                        />
+                      </PressableScale>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {/* Who's going — a white card lifted off the white sheet by a soft
                     shadow (a translucent-white Glass panel would vanish into it).
                     Two nested views on purpose: the outer one carries the shadow,
@@ -1426,7 +1374,7 @@ function EventBottomSheet({
                   {isParticipant || isHost ? (
                     <>
                       {goingRows.length > 0 ? (
-                        goingRows.map((person, i) => (
+                        goingRows.map((person) => (
                           <GoingRow
                             key={person.id}
                             person={person}
@@ -1435,12 +1383,6 @@ function EventBottomSheet({
                             heroGrow={heroGrow}
                             sheetProgress={animatedIndex}
                             screenH={height}
-                            // Row 0's bottom edge is the hero's anchor — the
-                            // photo grows until this row still lands clear of
-                            // the home indicator. Measuring the row rather than
-                            // the card is what keeps the hero the same size
-                            // whether one person is going or eight.
-                            onLayout={i === 0 ? onGoingAnchorLayout : undefined}
                           />
                         ))
                       ) : (
@@ -1495,10 +1437,7 @@ function EventBottomSheet({
                   ) : (
                     // Not joined: the face pile and the gate. The roster stays
                     // behind joining, as it always has — the preview faces are
-                    // public, the list is not. This is also the hero's anchor
-                    // here, since there is no row 0 to measure; it comes out
-                    // within a point or two of the row-0 anchor, so the photo is
-                    // the same size either way.
+                    // public, the list is not.
                     <GoingStack
                       people={approved}
                       count={event.participant_count}
@@ -1506,7 +1445,6 @@ function EventBottomSheet({
                       heroGrow={heroGrow}
                       sheetProgress={animatedIndex}
                       screenH={height}
-                      onLayout={onGoingAnchorLayout}
                     />
                   )}
                 </View>
@@ -1916,6 +1854,12 @@ const styles = StyleSheet.create({
   },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
   spotsInfo: {},
+  // Wraps the primary action inside BottomSheetFooter. Frosted-white to
+  // match the sheet's own surface — it's the same card, just pinned.
+  ctaFooter: {
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3],
+  },
   spotsCount: {
     fontFamily: FONTS.heading,
     fontSize: TYPE_SIZE.title,
