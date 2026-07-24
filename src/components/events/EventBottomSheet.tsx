@@ -23,9 +23,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   interpolate,
-  useDerivedValue,
-  useAnimatedReaction,
-  withTiming,
   Extrapolation,
   Easing,
   type SharedValue,
@@ -35,7 +32,6 @@ import BottomSheet, {
   BottomSheetFooter,
   BottomSheetBackdrop,
   useBottomSheetTimingConfigs,
-  useBottomSheetInternal,
   type BottomSheetFooterProps,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
@@ -92,6 +88,7 @@ import {
 } from '@/components/ui';
 import type { Attendee } from '@/components/ui/AttendeeStack';
 import { categoryStyle } from '@/constants/categoryStyle';
+import { useEnterOnScroll } from './useEnterOnScroll';
 
 // A safety popup queued to show before a join goes through (spec #3/#5/#8/#10).
 // Confirming one marks its flag seen and shows the next; the join fires only
@@ -186,11 +183,6 @@ const GOING_ROWS = 3;
 // the host-row stack tilts to as it exits right, so both halves of the hand-off
 // read as one physical system.
 const ROW_TILT = -8;
-// How long a row takes to arrive once it has been triggered. A real duration is
-// only possible because the entrance is timed rather than scrubbed — with a
-// scrubber the speed was whatever the finger did, and there was no knob for
-// "slower" at all.
-const ROW_ENTER_MS = 420;
 // The who's-going card's inner padding. Named because two things depend on it:
 // the hero's anchor adds it back on to reconstruct where the card's bottom edge
 // would fall (see `recomputeSnaps`), and the entrance starts a face exactly this
@@ -263,81 +255,6 @@ function NearbyMini({
   );
 }
 
-// A row's entrance: 0 before it arrives, 1 once it has played. Everything the
-// who's-going card animates hangs off this.
-//
-// Position decides WHEN; time drives it to COMPLETION. That split is the whole
-// design, and both halves were learned the hard way.
-//
-// Driving progress directly from position — a scrubber — puts a row straddling
-// the screen's bottom edge at partial progress and leaves it there. At rest that
-// is an avatar frozen half-slid with a half-faded name beside it, which reads as
-// a rendering fault rather than as an animation. Nothing about "the row is 60%
-// on screen" should mean "the animation is 60% done".
-//
-// Driving it from the sheet's snap progress instead — the version before that —
-// fired every row while it was still below the fold, so none of it was ever
-// seen.
-//
-// So: watch where the row actually is, using four live values on the UI thread
-// (the sheet's own top, the fixed photo band above the card, the card's reveal
-// slide, and the content's scroll offset — that last one is what lets a row
-// animate when you scroll to it at full screen). The moment any part of it
-// crosses onto the screen, run a real timed animation to completion. It fires
-// once and stays; scrolling away and back does not replay it.
-function useRowEntrance({
-  cardOffset,
-  heroGrow,
-  sheetProgress,
-  screenH,
-  y,
-  h,
-}: {
-  cardOffset: number;
-  heroGrow: number;
-  sheetProgress: SharedValue<number>;
-  screenH: number;
-  y: number | null;
-  h: number | null;
-}) {
-  const { animatedPosition, animatedScrollableState } = useBottomSheetInternal();
-  const played = useSharedValue(0);
-
-  const arrived = useDerivedValue(() => {
-    if (y == null || h == null) return false;
-    const slide = interpolate(
-      sheetProgress.value,
-      [0, 1],
-      [0, heroGrow],
-      Extrapolation.CLAMP
-    );
-    const top =
-      animatedPosition.value +
-      BANNER_H +
-      slide +
-      cardOffset +
-      y -
-      animatedScrollableState.value.contentOffsetY;
-    return top < screenH;
-  });
-
-  useAnimatedReaction(
-    () => arrived.value,
-    (isArrived) => {
-      // `=== 0` rather than `< 1` so a run already underway is never restarted
-      // mid-flight by a frame that re-reads as arrived.
-      if (isArrived && played.value === 0) {
-        played.value = withTiming(1, {
-          duration: ROW_ENTER_MS,
-          easing: Easing.out(Easing.cubic),
-        });
-      }
-    }
-  );
-
-  return played;
-}
-
 // One person in the who's-going card, sliding out from behind its left border.
 //
 // The avatar carries the travel and the tilt; the name and tag only fade.
@@ -375,11 +292,11 @@ function GoingRow({
     [onLayout]
   );
 
-  const entrance = useRowEntrance({
-    cardOffset,
-    heroGrow,
+  const entrance = useEnterOnScroll({
+    offset: BANNER_H + cardOffset,
+    slide: heroGrow,
     sheetProgress,
-    screenH,
+    boundary: screenH,
     y: box?.y ?? null,
     h: box?.h ?? null,
   });
@@ -456,11 +373,11 @@ function GoingStack({
     [onLayout]
   );
 
-  const entrance = useRowEntrance({
-    cardOffset,
-    heroGrow,
+  const entrance = useEnterOnScroll({
+    offset: BANNER_H + cardOffset,
+    slide: heroGrow,
     sheetProgress,
-    screenH,
+    boundary: screenH,
     y: box?.y ?? null,
     h: box?.h ?? null,
   });
@@ -647,7 +564,7 @@ function EventBottomSheet({
   const goingCardYRef = useRef<number | null>(null);
   const goingAnchorBottomRef = useRef<number | null>(null);
   // Where the who's-going card's top sits inside the content card. State, not a
-  // ref, because the entrance worklets read it — see `useRowEntrance`.
+  // ref, because the entrance worklets read it — see `useEnterOnScroll`.
   const [goingCardOffset, setGoingCardOffset] = useState(0);
   const recomputeSnaps = useCallback(() => {
     const a = actionsYRef.current;
