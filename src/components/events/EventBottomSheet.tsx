@@ -184,17 +184,21 @@ const GOING_AVATAR = 36;
 // reveal from behind).
 const CTA_BOTTOM_INSET = SPACING[5];
 
-// The first-tap (resting) height is capped at this fraction of the screen,
-// independent of how long the description is: a long description clamps to
-// what fits above the action and reveals the rest on scroll rather than
-// pushing the resting stop taller. This is only the CEILING — a short
-// description sits snug (shorter). Tunable: the value that reads as "here" on
-// a device.
-const RESTING_MAX_FRACTION = 0.58;
+// A SAFETY ceiling on the resting height — only bites on very short screens,
+// so the resting stop can never swallow the whole display. It is NOT what caps
+// the description: RESTING_MAX_LINES does that (the resting stop is header + up
+// to that many lines + the action, and never grows past it no matter how long
+// the description runs). The resting stop is free to be "as tall as required"
+// for that — the fixed 232pt hero band alone means a few description lines plus
+// the header land well past half the screen, which is expected. Set high so it
+// doesn't clamp below what the header + lines + action actually need (an
+// earlier 0.58 did exactly that: it cut the resting stop below the header,
+// leaving the description negative space and breaking the scroll geometry).
+const RESTING_MAX_FRACTION = 0.85;
 
 // How many description lines show at rest, at most — a hard ceiling so the
-// resting view is the same handful of lines on every device, the rest revealed
-// on scroll. Tunable.
+// resting view is the same handful of lines on every device, and the resting
+// height never grows with the description; the rest reveal on scroll. Tunable.
 const RESTING_MAX_LINES = 3;
 
 // A compact card for the "happening near you" rail: photo on top with the
