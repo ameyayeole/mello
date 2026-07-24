@@ -519,6 +519,17 @@ function EventBottomSheet({
   // translateY is a transform, so it never shifts these layout coordinates — the
   // measurements are stable at every snap, which is the only reason measuring
   // once works.
+  // Fetched here (rather than further down with the rest of the query/mutation
+  // hooks) because `recomputeSnaps` below needs `event?.description` in its
+  // closure, and referencing a `const` declared later in the same component
+  // is a TS error even though it's runtime-safe (the closure only runs once
+  // layout callbacks fire, well after this whole function body has executed).
+  const { data: event, isLoading } = useQuery({
+    queryKey: queryKeys.eventDetail.of(eventId),
+    queryFn: () => getEventDetail(eventId!),
+    enabled: !!eventId,
+  });
+
   const actionsYRef = useRef<number | null>(null);
   const goingCardYRef = useRef<number | null>(null);
   const footerHeightRef = useRef<number | null>(null);
@@ -540,44 +551,57 @@ function EventBottomSheet({
     const y = e.nativeEvent.layout.y;
     setDescriptionOffset((prev) => (prev === y ? prev : y));
   }, []);
-  // The resting stop is sized off the description's CLAMPED visible height,
-  // not `RevealingText`'s full rendered height (which always includes the
-  // hidden lines reserved below the fold — see
-  // docs/superpowers/sdd/task-7-correction.md). `actionsYRef` still measures
-  // the real, full document flow (needed for `goingCardOffset`'s entrance
-  // math below), but it can no longer feed `firstSnapPx` — once
-  // `RevealingText` is wired in, `actionsYRef.current` includes the full
-  // description's height, which would balloon the resting stop and let
-  // hidden lines already read as "arrived" before any scroll.
+  // When there's a description, the resting stop is sized off its CLAMPED
+  // visible height, not `RevealingText`'s full rendered height (which always
+  // includes the hidden lines reserved below the fold — see
+  // .superpowers/sdd/task-7-correction.md). `actionsYRef` still measures the
+  // real, full document flow (needed for `goingCardOffset`'s entrance math
+  // below either way), but once `RevealingText` is mounted its
+  // `actionsYRef.current` includes the full description's height, which
+  // would balloon the resting stop and let hidden lines already read as
+  // "arrived" before any scroll — so `firstSnapPx` falls back to
+  // `actionsYRef` only when there's no description to measure instead. See
+  // `recomputeSnaps` below.
   const visibleDescriptionHRef = useRef<number | null>(null);
   const recomputeSnaps = useCallback(() => {
-    const footerH = footerHeightRef.current;
-    const visibleDescH = visibleDescriptionHRef.current;
-    if (footerH == null || visibleDescH == null) return;
-    // Resting stop: everything above the description (host row, title,
-    // info, pills — `descriptionOffset`), the description's CLAMPED
-    // visible height only, the footer's own measured height and inset, and
-    // a small gap so the footer doesn't sit flush against the last visible
-    // line.
-    const next = Math.round(
-      Math.min(
-        BANNER_H +
-          descriptionOffset +
-          visibleDescH +
-          footerH +
-          CTA_BOTTOM_INSET +
-          SPACING[2.5] * 2,
-        height * 0.82
-      )
-    );
-    setFirstSnapPx((prev) => (prev === next ? prev : next));
+    // goingCardOffset depends only on the real, full document flow above the
+    // who's-going card — independent of whether a description is even
+    // present, so it must not share a guard with the description-only
+    // firstSnapPx calc below (an event with no description used to never
+    // reach this at all, since visibleDescH stayed null forever, silently
+    // freezing the who's-going entrance and the resting stop both).
     const a = actionsYRef.current;
     const cardY = goingCardYRef.current;
     if (a != null && cardY != null) {
       const nextOffset = Math.round(a + cardY);
       setGoingCardOffset((prev) => (prev === nextOffset ? prev : nextOffset));
     }
-  }, [height, descriptionOffset]);
+
+    const footerH = footerHeightRef.current;
+    if (footerH == null) return;
+    // Resting stop: everything above the footer, plus the footer's own
+    // measured height and inset, plus a small gap so the footer doesn't sit
+    // flush against the last visible line. With a description, `actionsYRef`
+    // can't be used for "everything above" — RevealingText reserves its
+    // FULL unclamped height in flow even for hidden lines (see
+    // .superpowers/sdd/task-7-correction.md), so only the description's
+    // CLAMPED visible height is safe to use. Without one, RevealingText
+    // never mounts, so `actionsYRef` (the real, full flow above `actions`)
+    // is exactly right on its own — nothing is hidden to worry about.
+    const above = event?.description
+      ? visibleDescriptionHRef.current != null
+        ? descriptionOffset + visibleDescriptionHRef.current
+        : null
+      : a;
+    if (above == null) return;
+    const next = Math.round(
+      Math.min(
+        BANNER_H + above + footerH + CTA_BOTTOM_INSET + SPACING[2.5] * 2,
+        height * 0.82
+      )
+    );
+    setFirstSnapPx((prev) => (prev === next ? prev : next));
+  }, [height, descriptionOffset, event?.description]);
   const onVisibleDescriptionLayout = useCallback(
     (e: LayoutChangeEvent) => {
       visibleDescriptionHRef.current = e.nativeEvent.layout.height;
@@ -641,12 +665,6 @@ function EventBottomSheet({
   const animationConfigs = useBottomSheetTimingConfigs({
     duration: 300,
     easing: Easing.out(Easing.cubic),
-  });
-
-  const { data: event, isLoading } = useQuery({
-    queryKey: queryKeys.eventDetail.of(eventId),
-    queryFn: () => getEventDetail(eventId!),
-    enabled: !!eventId,
   });
 
   const when = event ? splitEventTime(event.starts_at) : null;
@@ -1250,6 +1268,7 @@ function EventBottomSheet({
                 onVisibleLayout={onVisibleDescriptionLayout}
               />
             )}
+
             {/* Actions.
                   Order for someone who's in: Open chat → Check in → who's-going
                   card → Leave (last, behind a confirm). The host is a participant
