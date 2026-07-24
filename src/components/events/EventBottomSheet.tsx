@@ -89,6 +89,7 @@ import {
 import type { Attendee } from '@/components/ui/AttendeeStack';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { useEnterOnScroll } from './useEnterOnScroll';
+import { RevealingText } from './RevealingText';
 
 // A safety popup queued to show before a join goes through (spec #3/#5/#8/#10).
 // Confirming one marks its flag seen and shows the next; the join fires only
@@ -524,27 +525,66 @@ function EventBottomSheet({
   // Where the who's-going card's top sits inside the content card. State, not a
   // ref, because the entrance worklets read it — see `useEnterOnScroll`.
   const [goingCardOffset, setGoingCardOffset] = useState(0);
+  // Mirrors `footerHeightRef.current` into state, same reason as
+  // `goingCardOffset` above: `footerTopY`/`descriptionAvailableHeight` below
+  // need to read it during render (a ref's `.current` can't be read there —
+  // it isn't tracked as a render dependency), while `recomputeSnaps` keeps
+  // reading the ref directly since that's inside a callback, not render.
+  const [footerHeight, setFooterHeight] = useState<number | null>(null);
+  // The description block's own top, within the content card — everything
+  // above it (host row, title, info, pills). State, not a ref, because
+  // `recomputeSnaps` (below) and the description's own available-height calc
+  // both need to re-run when it changes, not just read it once.
+  const [descriptionOffset, setDescriptionOffset] = useState(0);
+  const onDescriptionBlockLayout = useCallback((e: LayoutChangeEvent) => {
+    const y = e.nativeEvent.layout.y;
+    setDescriptionOffset((prev) => (prev === y ? prev : y));
+  }, []);
+  // The resting stop is sized off the description's CLAMPED visible height,
+  // not `RevealingText`'s full rendered height (which always includes the
+  // hidden lines reserved below the fold — see
+  // docs/superpowers/sdd/task-7-correction.md). `actionsYRef` still measures
+  // the real, full document flow (needed for `goingCardOffset`'s entrance
+  // math below), but it can no longer feed `firstSnapPx` — once
+  // `RevealingText` is wired in, `actionsYRef.current` includes the full
+  // description's height, which would balloon the resting stop and let
+  // hidden lines already read as "arrived" before any scroll.
+  const visibleDescriptionHRef = useRef<number | null>(null);
   const recomputeSnaps = useCallback(() => {
-    const a = actionsYRef.current;
     const footerH = footerHeightRef.current;
-    if (a == null || footerH == null) return;
-    // Resting stop: everything above the pinned footer (host row, title,
-    // info, pills, the clamped description), plus the footer's own height
-    // and inset, plus a small gap so the footer doesn't sit flush against
-    // the last visible line.
+    const visibleDescH = visibleDescriptionHRef.current;
+    if (footerH == null || visibleDescH == null) return;
+    // Resting stop: everything above the description (host row, title,
+    // info, pills — `descriptionOffset`), the description's CLAMPED
+    // visible height only, the footer's own measured height and inset, and
+    // a small gap so the footer doesn't sit flush against the last visible
+    // line.
     const next = Math.round(
       Math.min(
-        BANNER_H + a + footerH + CTA_BOTTOM_INSET + SPACING[2.5],
+        BANNER_H +
+          descriptionOffset +
+          visibleDescH +
+          footerH +
+          CTA_BOTTOM_INSET +
+          SPACING[2.5] * 2,
         height * 0.82
       )
     );
     setFirstSnapPx((prev) => (prev === next ? prev : next));
+    const a = actionsYRef.current;
     const cardY = goingCardYRef.current;
-    if (cardY != null) {
+    if (a != null && cardY != null) {
       const nextOffset = Math.round(a + cardY);
       setGoingCardOffset((prev) => (prev === nextOffset ? prev : nextOffset));
     }
-  }, [height]);
+  }, [height, descriptionOffset]);
+  const onVisibleDescriptionLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      visibleDescriptionHRef.current = e.nativeEvent.layout.height;
+      recomputeSnaps();
+    },
+    [recomputeSnaps]
+  );
   const onActionsLayout = useCallback(
     (e: LayoutChangeEvent) => {
       actionsYRef.current = e.nativeEvent.layout.y;
@@ -554,7 +594,9 @@ function EventBottomSheet({
   );
   const onFooterLayout = useCallback(
     (e: LayoutChangeEvent) => {
-      footerHeightRef.current = e.nativeEvent.layout.height;
+      const h = e.nativeEvent.layout.height;
+      footerHeightRef.current = h;
+      setFooterHeight((prev) => (prev === h ? prev : h));
       recomputeSnaps();
     },
     [recomputeSnaps]
@@ -565,6 +607,24 @@ function EventBottomSheet({
       recomputeSnaps();
     },
     [recomputeSnaps]
+  );
+  // Screen-space y of the pinned footer's top edge — BottomSheetFooter docks
+  // it `CTA_BOTTOM_INSET` above the screen's bottom edge regardless of the
+  // sheet's own snap stop, so this is a plain constant once the footer's
+  // height is known. Independent of `firstSnapPx` on purpose (see above).
+  const footerTopY = height - CTA_BOTTOM_INSET - (footerHeight ?? 0);
+  // How many lines fit above the footer, bounded by the same `height * 0.82`
+  // ceiling `recomputeSnaps` uses for the resting stop — computed directly
+  // from constants and independently-measured quantities, never through
+  // `firstSnapPx`, so there's no circularity with the calc above.
+  const descriptionAvailableHeight = Math.max(
+    0,
+    height * 0.82 -
+      BANNER_H -
+      descriptionOffset -
+      (footerHeight ?? 0) -
+      CTA_BOTTOM_INSET -
+      SPACING[2.5] * 2
   );
   // Two stops. Resting: below Open chat/Join (a tap opens here). Full screen: one
   // scroll up and the sheet's top edge is at y=0 with the photo filling every
@@ -1178,7 +1238,17 @@ function EventBottomSheet({
             )}
 
             {event.description && (
-              <Text style={styles.description}>{event.description}</Text>
+              <RevealingText
+                text={event.description}
+                style={styles.description}
+                availableHeight={descriptionAvailableHeight}
+                offset={BANNER_H + descriptionOffset}
+                heroGrow={heroGrow}
+                sheetProgress={animatedIndex}
+                footerBoundary={footerTopY}
+                onLayout={onDescriptionBlockLayout}
+                onVisibleLayout={onVisibleDescriptionLayout}
+              />
             )}
             {/* Actions.
                   Order for someone who's in: Open chat → Check in → who's-going

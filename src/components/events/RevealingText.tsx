@@ -42,6 +42,7 @@ export function RevealingText({
   sheetProgress,
   footerBoundary,
   onLayout,
+  onVisibleLayout,
 }: {
   text: string;
   style: TextStyle;
@@ -54,6 +55,11 @@ export function RevealingText({
   sheetProgress: SharedValue<number>;
   footerBoundary: number;
   onLayout?: (e: LayoutChangeEvent) => void;
+  // The initially-visible lines' own height — distinct from this
+  // component's overall onLayout, which reports the FULL block including
+  // hidden lines reserved below the fold. Callers sizing a resting stop
+  // around "what's visible before any scroll" need this one instead.
+  onVisibleLayout?: (e: LayoutChangeEvent) => void;
 }) {
   const [lines, setLines] = useState<string[] | null>(null);
   const [lineHeight, setLineHeight] = useState<number | null>(null);
@@ -93,14 +99,16 @@ export function RevealingText({
           of it. */}
       {lines && visibleCount != null && (
         <View>
-          {lines.slice(0, visibleCount).map((line, i) => {
-            const truncated = visibleCount < lines.length && i === visibleCount - 1;
-            return (
-              <Text key={i} style={style} numberOfLines={1} ellipsizeMode="tail">
-                {truncated ? `${line.trimEnd()}…` : line}
-              </Text>
-            );
-          })}
+          <View onLayout={onVisibleLayout}>
+            {lines.slice(0, visibleCount).map((line, i) => {
+              const truncated = visibleCount < lines.length && i === visibleCount - 1;
+              return (
+                <Text key={i} style={style} numberOfLines={1} ellipsizeMode="tail">
+                  {truncated ? `${line.trimEnd()}…` : line}
+                </Text>
+              );
+            })}
+          </View>
           {lines.slice(visibleCount).map((line, i) => (
             <RevealingLine
               key={visibleCount + i}
