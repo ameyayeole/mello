@@ -1180,49 +1180,6 @@ function EventBottomSheet({
             {event.description && (
               <Text style={styles.description}>{event.description}</Text>
             )}
-
-            {/* Host: pending join requests to approve/reject */}
-            {isHost && pending.length > 0 && (
-              <View style={styles.pendingSection}>
-                <SectionLabel style={styles.sectionLabel}>
-                  Requests · {pending.length}
-                </SectionLabel>
-                {pending.map((p) => (
-                  <View key={p.id} style={styles.pendingRow}>
-                    <Avatar name={p.name} photoUrl={p.photo_url} size={38} />
-                    <View style={styles.pendingNameWrap}>
-                      <Text style={styles.pendingName} numberOfLines={1}>
-                        {p.name}
-                      </Text>
-                      {isPremium(p) && <PremiumBadge size={13} />}
-                    </View>
-                    <PressableScale
-                      scaleTo={0.92}
-                      style={styles.approveBtn}
-                      onPress={() => approve.mutate(p.id)}
-                      disabled={approve.isPending}
-                    >
-                      <Text style={styles.approveBtnText}>Approve</Text>
-                    </PressableScale>
-                    <PressableScale
-                      scaleTo={0.92}
-                      style={styles.rejectBtn}
-                      onPress={() => reject.mutate(p.id)}
-                      disabled={reject.isPending}
-                      accessibilityLabel="Decline request"
-                    >
-                      <Icon
-                        name="close"
-                        size={16}
-                        color="rgba(0,0,0,0.55)"
-                        strokeWidth={2}
-                      />
-                    </PressableScale>
-                  </View>
-                ))}
-              </View>
-            )}
-
             {/* Actions.
                   Order for someone who's in: Open chat → Check in → who's-going
                   card → Leave (last, behind a confirm). The host is a participant
@@ -1261,6 +1218,48 @@ function EventBottomSheet({
                     />
                   )}
                 </>
+              )}
+
+              {/* Host: pending join requests to approve/reject */}
+              {isHost && pending.length > 0 && (
+                <View style={styles.pendingSection}>
+                  <SectionLabel style={styles.sectionLabel}>
+                    Requests · {pending.length}
+                  </SectionLabel>
+                  {pending.map((p) => (
+                    <View key={p.id} style={styles.pendingRow}>
+                      <Avatar name={p.name} photoUrl={p.photo_url} size={38} />
+                      <View style={styles.pendingNameWrap}>
+                        <Text style={styles.pendingName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {isPremium(p) && <PremiumBadge size={13} />}
+                      </View>
+                      <PressableScale
+                        scaleTo={0.92}
+                        style={styles.approveBtn}
+                        onPress={() => approve.mutate(p.id)}
+                        disabled={approve.isPending}
+                      >
+                        <Text style={styles.approveBtnText}>Approve</Text>
+                      </PressableScale>
+                      <PressableScale
+                        scaleTo={0.92}
+                        style={styles.rejectBtn}
+                        onPress={() => reject.mutate(p.id)}
+                        disabled={reject.isPending}
+                        accessibilityLabel="Decline request"
+                      >
+                        <Icon
+                          name="close"
+                          size={16}
+                          color="rgba(0,0,0,0.55)"
+                          strokeWidth={2}
+                        />
+                      </PressableScale>
+                    </View>
+                  ))}
+                </View>
               )}
 
               {/* Who's going — a white card lifted off the white sheet by a soft
