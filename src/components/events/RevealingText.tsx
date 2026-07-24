@@ -28,9 +28,11 @@ import { clampVisibleLineCount } from '@/utils/textLines';
 // RN lays a `Text` out as one block, so line-splitting needs a real measure:
 // a hidden copy of the FULL text (opacity 0, absolutely positioned so it
 // doesn't affect layout) is measured via `onTextLayout`, which gives both
-// the per-line substrings and the line height. The visible lines are then
-// plain, separately-laid-out `Text` elements — real in-flow content, so the
-// block's rendered height legitimately grows as more of them appear.
+// the per-line substrings and the line height. The visible lines render as
+// plain Text elements; all hidden lines mount immediately as RevealingLine
+// components (animated via opacity/translateY only). So the container's
+// height is fixed to the full text's height from the first frame, not growing
+// as lines reveal — only their visibility animates on scroll.
 export function RevealingText({
   text,
   style,
