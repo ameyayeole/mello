@@ -147,19 +147,6 @@ const CARD_PAD_TOP = SPACING[4];
 // slides DOWN to uncover it. See the component for why (that height animation
 // was the old stutter) and for how the grow is sized to the sheet's own climb.
 
-// How far the hero is allowed to grow PAST the point where the who's-going card
-// would sit on the bottom edge. This is the one knob on the whole reveal:
-//
-//   0    the photo stops exactly where who's-going stays fully visible at the
-//        full stop — the biggest hero that still shows who's going.
-//   > 0  that many points of extra photo, clipping who's-going by the same
-//        amount. It becomes a scroll-to.
-//
-// The photo and the content share a fixed budget (see `heroGrow` below), so
-// every point given to one is taken from the other. There is no setting where
-// both get bigger.
-const HERO_OVERSHOOT = 0;
-
 // How many people the card shows before it stops and defers to "See all".
 const GOING_ROWS = 3;
 
@@ -183,9 +170,7 @@ const GOING_ROWS = 3;
 // the host-row stack tilts to as it exits right, so both halves of the hand-off
 // read as one physical system.
 const ROW_TILT = -8;
-// The who's-going card's inner padding. Named because two things depend on it:
-// the hero's anchor adds it back on to reconstruct where the card's bottom edge
-// would fall (see `recomputeSnaps`), and the entrance starts a face exactly this
+// The who's-going card's inner padding. The entrance starts a face exactly this
 // far plus its own width to the left, which tucks it just behind the card's
 // border.
 const GOING_CARD_PAD = SPACING[3.5];
@@ -432,55 +417,22 @@ function EventBottomSheet({
 
   // Measured below (null until laid out). `firstSnapPx` is the resting stop —
   // the only stop that needs measuring, since the other one is the top of the
-  // screen. `goingAnchorPx` is how far the hero's anchor sits below the content
-  // card's top — see the anchor note below.
+  // screen.
   const [firstSnapPx, setFirstSnapPx] = useState<number | null>(null);
-  const [goingAnchorPx, setGoingAnchorPx] = useState<number | null>(null);
   const first = firstSnapPx ?? Math.round(height * 0.46);
 
-  // The sheet's climb, resting stop → y=0. This is the whole budget for the leg,
-  // and it is shared: whatever the photo doesn't take, the content rises by.
+  // The sheet's climb, resting stop → y=0 — the whole budget for the leg.
   const climb = height - first;
-  // Where the hero's anchor should come to rest at the full stop — clear of the
-  // home indicator, with a little breathing room, so nothing lands tucked under
-  // the indicator bar.
-  const goingRestBottom = height - insets.bottom - SPACING[3];
-  // The hero's growth, and the single place the budget is split. At the full stop
-  // the sheet's top is at y=0, so the photo runs 0 → BANNER_H + grow, the content
-  // card's top lands right underneath it, and the anchor is another
-  // `goingAnchorPx` down. Solving "the anchor sits at `goingRestBottom`" for the
-  // grow is the subtraction below.
-  //
-  // ── Why the anchor is the who's-going card's FIRST ROW, not its bottom ──────
-  // The obvious anchor is the card's bottom edge — "grow the photo until the
-  // whole card still fits". But then the hero is a function of how many people
-  // are going: a four-row card is ~160pt taller than a one-row card, and every
-  // one of those points comes straight off the photo. The same event would open
-  // with a visibly different hero the day a third person joined.
-  //
-  // Anchoring on the first row's bottom instead makes the hero depend only on
-  // what sits ABOVE who's-going — host row, title, info, description, actions —
-  // which is fixed for a given event. The card is then free to grow downward past
-  // the fold; you scroll for the rest of it. Header and the first person stay
-  // visible, which is what the card is for at a glance.
-  //
-  // Clamped at both ends, and both clamps matter:
-  //   floor 0     a dense event (long description, three actions) can measure
-  //               past the budget entirely. The photo then doesn't grow at all
-  //               and the leg is a pure content rise. Nothing looks broken.
-  //   ceiling climb  the slide can never exceed the sheet's own climb. Past that
-  //               the content would drift DOWN against the drag, which is what
-  //               read as the sheet "going back down" mid-gesture.
-  const heroGrow = Math.max(
-    0,
-    Math.min(
-      goingRestBottom -
-        (goingAnchorPx ?? Math.round(height * 0.46)) -
-        BANNER_H +
-        HERO_OVERSHOOT,
-      climb
-    )
-  );
+  // The hero at the full stop: a square, `screenWidth` tall. Dynamic per device
+  // by construction (it's a function of width, nothing else) and no longer a
+  // function of title length, description length, or attendee count — an
+  // earlier version anchored the grow on the who's-going card's first row, so a
+  // long description could eat the whole growth budget and leave the photo
+  // stuck at BANNER_H regardless of device size. See
+  // docs/superpowers/specs/2026-07-24-event-sheet-description-reveal-design.md
+  // §1 for why that anchor math is gone. Clamped to the climb so the slide can
+  // never exceed the sheet's own drag distance.
+  const heroGrow = Math.max(0, Math.min(width - BANNER_H, climb));
   // The hero is rendered exactly tall enough to fill what the reveal uncovers, so
   // its bottom edge always meets the card's top — no seam at any snap.
   const photoRenderH = BANNER_H + heroGrow;
@@ -553,16 +505,15 @@ function EventBottomSheet({
   // Every number here is measured, not guessed, so they land on any screen and
   // any event length. `actionsY` is the action stack's offset within the content
   // card; `primaryBottom` is the Open chat/Join button's bottom edge within that
-  // stack; `goingCardY` is the who's-going card's top and `goingRowBottom` the
-  // first person row's bottom edge within it. The content card sits below the
-  // photo (marginTop BANNER_H) with its own top padding, so the resting sheet
-  // height = BANNER_H + actionsY + primaryBottom. The card's translateY is a
-  // transform, so it never shifts these layout coordinates — the measurements are
-  // stable at every snap, which is the only reason measuring once works.
+  // stack; `goingCardY` is the who's-going card's top within it. The content card
+  // sits below the photo (marginTop BANNER_H) with its own top padding, so the
+  // resting sheet height = BANNER_H + actionsY + primaryBottom. The card's
+  // translateY is a transform, so it never shifts these layout coordinates — the
+  // measurements are stable at every snap, which is the only reason measuring
+  // once works.
   const actionsYRef = useRef<number | null>(null);
   const primaryBottomRef = useRef<number | null>(null);
   const goingCardYRef = useRef<number | null>(null);
-  const goingAnchorBottomRef = useRef<number | null>(null);
   // Where the who's-going card's top sits inside the content card. State, not a
   // ref, because the entrance worklets read it — see `useEnterOnScroll`.
   const [goingCardOffset, setGoingCardOffset] = useState(0);
@@ -586,20 +537,6 @@ function EventBottomSheet({
       const next = Math.round(a + cardY);
       setGoingCardOffset((prev) => (prev === next ? prev : next));
     }
-    const anchorBottom = goingAnchorBottomRef.current;
-    if (cardY != null && anchorBottom != null) {
-      // Everything in the content card above the hero's anchor. Measured from the
-      // content card's top, NOT the sheet's — the hero cap subtracts BANNER_H
-      // separately, and folding it in here would double-count it.
-      //
-      // The card's own bottom padding is added back on so the anchor sits where
-      // the card's edge *would* be if it held only this one row. That is what
-      // makes the hero come out the same size it did before the card grew rows —
-      // and the same size for a member and a non-member, whose card holds a face
-      // pile of the same height instead.
-      const next = Math.round(a + cardY + anchorBottom + GOING_CARD_PAD);
-      setGoingAnchorPx((prev) => (prev === next ? prev : next));
-    }
   }, [height]);
   const onActionsLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -612,16 +549,6 @@ function EventBottomSheet({
     (e: LayoutChangeEvent) => {
       const { y, height: h } = e.nativeEvent.layout;
       primaryBottomRef.current = y + h;
-      recomputeSnaps();
-    },
-    [recomputeSnaps]
-  );
-  // The first person row for a member, the face pile for a non-member — whichever
-  // this card leads with is what the hero grows down to.
-  const onGoingAnchorLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const { y, height: h } = e.nativeEvent.layout;
-      goingAnchorBottomRef.current = y + h;
       recomputeSnaps();
     },
     [recomputeSnaps]
@@ -1343,7 +1270,7 @@ function EventBottomSheet({
                   {isParticipant || isHost ? (
                     <>
                       {goingRows.length > 0 ? (
-                        goingRows.map((person, i) => (
+                        goingRows.map((person) => (
                           <GoingRow
                             key={person.id}
                             person={person}
@@ -1352,12 +1279,6 @@ function EventBottomSheet({
                             heroGrow={heroGrow}
                             sheetProgress={animatedIndex}
                             screenH={height}
-                            // Row 0's bottom edge is the hero's anchor — the
-                            // photo grows until this row still lands clear of
-                            // the home indicator. Measuring the row rather than
-                            // the card is what keeps the hero the same size
-                            // whether one person is going or eight.
-                            onLayout={i === 0 ? onGoingAnchorLayout : undefined}
                           />
                         ))
                       ) : (
@@ -1412,10 +1333,7 @@ function EventBottomSheet({
                   ) : (
                     // Not joined: the face pile and the gate. The roster stays
                     // behind joining, as it always has — the preview faces are
-                    // public, the list is not. This is also the hero's anchor
-                    // here, since there is no row 0 to measure; it comes out
-                    // within a point or two of the row-0 anchor, so the photo is
-                    // the same size either way.
+                    // public, the list is not.
                     <GoingStack
                       people={approved}
                       count={event.participant_count}
@@ -1423,7 +1341,6 @@ function EventBottomSheet({
                       heroGrow={heroGrow}
                       sheetProgress={animatedIndex}
                       screenH={height}
-                      onLayout={onGoingAnchorLayout}
                     />
                   )}
                 </View>
