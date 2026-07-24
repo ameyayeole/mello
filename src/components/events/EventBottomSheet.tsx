@@ -176,6 +176,11 @@ const ROW_TILT = -8;
 const GOING_CARD_PAD = SPACING[3.5];
 const GOING_AVATAR = 36;
 
+// The pinned CTA footer's distance from the screen's bottom edge — same
+// value BottomSheetFooter's `bottomInset` prop takes, and reused by the
+// description reveal (Task 7) to compute the footer's screen-space top edge.
+const CTA_BOTTOM_INSET = SPACING[5];
+
 // A compact card for the "happening near you" rail: photo on top with the
 // category pill on it, then title + when/distance on a white body below. A
 // pared-down cousin of the home screen's NearbyCard — no join/save affordances,
@@ -504,38 +509,40 @@ function EventBottomSheet({
 
   // Every number here is measured, not guessed, so they land on any screen and
   // any event length. `actionsY` is the action stack's offset within the content
-  // card; `primaryBottom` is the Open chat/Join button's bottom edge within that
-  // stack; `goingCardY` is the who's-going card's top within it. The content card
-  // sits below the photo (marginTop BANNER_H) with its own top padding, so the
-  // resting sheet height = BANNER_H + actionsY + primaryBottom. The card's
+  // card; `footerH` is the pinned CTA footer's own measured height (it now lives
+  // in `BottomSheetFooter`, outside the content card, so it can't be measured as
+  // an offset within the stack the way the old inline button was); `goingCardY`
+  // is the who's-going card's top within the stack. The content card sits below
+  // the photo (marginTop BANNER_H) with its own top padding, so the resting
+  // sheet height = BANNER_H + actionsY + footerH + CTA_BOTTOM_INSET. The card's
   // translateY is a transform, so it never shifts these layout coordinates — the
   // measurements are stable at every snap, which is the only reason measuring
   // once works.
   const actionsYRef = useRef<number | null>(null);
-  const primaryBottomRef = useRef<number | null>(null);
   const goingCardYRef = useRef<number | null>(null);
+  const footerHeightRef = useRef<number | null>(null);
   // Where the who's-going card's top sits inside the content card. State, not a
   // ref, because the entrance worklets read it — see `useEnterOnScroll`.
   const [goingCardOffset, setGoingCardOffset] = useState(0);
   const recomputeSnaps = useCallback(() => {
     const a = actionsYRef.current;
-    if (a == null) return;
-    const p = primaryBottomRef.current;
-    if (p != null) {
-      // Resting stop: just below Open chat/Join, one action-gap of breathing
-      // room. BANNER_H is the card's marginTop (the photo above it); the measured
-      // `actionsY` already includes the card's own paddingTop, so it isn't added
-      // again. Clamped below the full stop so the two stops can never cross (a
-      // tall event would otherwise measure past full screen).
-      const next = Math.round(
-        Math.min(BANNER_H + a + p + SPACING[2.5], height * 0.82)
-      );
-      setFirstSnapPx((prev) => (prev === next ? prev : next));
-    }
+    const footerH = footerHeightRef.current;
+    if (a == null || footerH == null) return;
+    // Resting stop: everything above the pinned footer (host row, title,
+    // info, pills, the clamped description), plus the footer's own height
+    // and inset, plus a small gap so the footer doesn't sit flush against
+    // the last visible line.
+    const next = Math.round(
+      Math.min(
+        BANNER_H + a + footerH + CTA_BOTTOM_INSET + SPACING[2.5],
+        height * 0.82
+      )
+    );
+    setFirstSnapPx((prev) => (prev === next ? prev : next));
     const cardY = goingCardYRef.current;
     if (cardY != null) {
-      const next = Math.round(a + cardY);
-      setGoingCardOffset((prev) => (prev === next ? prev : next));
+      const nextOffset = Math.round(a + cardY);
+      setGoingCardOffset((prev) => (prev === nextOffset ? prev : nextOffset));
     }
   }, [height]);
   const onActionsLayout = useCallback(
@@ -545,10 +552,9 @@ function EventBottomSheet({
     },
     [recomputeSnaps]
   );
-  const onPrimaryLayout = useCallback(
+  const onFooterLayout = useCallback(
     (e: LayoutChangeEvent) => {
-      const { y, height: h } = e.nativeEvent.layout;
-      primaryBottomRef.current = y + h;
+      footerHeightRef.current = e.nativeEvent.layout.height;
       recomputeSnaps();
     },
     [recomputeSnaps]
@@ -751,7 +757,12 @@ function EventBottomSheet({
     sheetRef.current?.close();
   }
 
-  async function handleJoinPress() {
+  // Wrapped in useCallback (rather than a plain function) so it can sit in
+  // `renderFooter`'s dependency array without recreating that callback on
+  // every render — an unstable renderFooter would remount BottomSheetFooter's
+  // children each time, which is the exact double-toast bug its own comment
+  // warns about.
+  const handleJoinPress = useCallback(async () => {
     if (!event || !user) return;
 
     // Beyond the free 10 km radius: browsing is fine, joining needs Mello+.
@@ -841,7 +852,7 @@ function EventBottomSheet({
 
     if (queue.length > 0) setJoinQueue(queue);
     else join.mutate();
-  }
+  }, [event, user, tooFar, router, join, onCloseAll, setJoinQueue]);
 
   // Confirming the current popup marks it seen; the join fires once the
   // queue is empty.
@@ -889,27 +900,115 @@ function EventBottomSheet({
     []
   );
 
-  const renderToast = useCallback(
+  // The pinned CTA footer. `BottomSheetFooter` docks to the bottom of the
+  // screen regardless of the sheet's current snap position, which is what
+  // makes the primary action (and the wishlist toast riding alongside it)
+  // stay put no matter how much description text is showing or how far the
+  // content has scrolled. Must be identity-stable across unrelated
+  // re-renders — same reason the old `renderToast` was: a fresh function
+  // makes the footer remount, and reanimated then overlaps the exiting
+  // snapshot with the entering one.
+  const renderFooter = useCallback(
     (props: BottomSheetFooterProps) =>
-      toast ? (
-        <BottomSheetFooter {...props} bottomInset={24}>
-          <Animated.View
-            entering={FadeInUp.duration(200)}
-            exiting={FadeOut.duration(160)}
-            style={styles.toast}
-            pointerEvents="none"
-          >
-            <Icon
-              name="bookmarkFilled"
-              size={15}
-              color="#fff"
-              strokeWidth={2}
-            />
-            <Text style={styles.toastText}>{toast}</Text>
-          </Animated.View>
+      event ? (
+        <BottomSheetFooter {...props} bottomInset={CTA_BOTTOM_INSET}>
+          <View style={styles.ctaFooter} onLayout={onFooterLayout}>
+            {hasWrapped(event) && (isParticipant || isHost) ? (
+              <Button
+                label="Open the event wrap"
+                onPress={() => {
+                  onCloseAll();
+                  router.push(`/events/wrap/${event.id}`);
+                }}
+              />
+            ) : !hasWrapped(event) ? (
+              isHost ? (
+                <Button
+                  label="Manage event"
+                  onPress={() => {
+                    onCloseAll();
+                    router.push(`/events/host/${event.id}`);
+                  }}
+                />
+              ) : isParticipant ? (
+                <Button
+                  label="Open chat"
+                  onPress={() => {
+                    onCloseAll();
+                    router.push(`/(tabs)/chats/${event.id}`);
+                  }}
+                />
+              ) : (
+                <View style={styles.footerRow}>
+                  {event.max_people != null && (
+                    <View style={styles.spotsInfo}>
+                      <Text style={styles.spotsCount}>
+                        {event.participant_count}/{event.max_people}
+                      </Text>
+                      <Text style={styles.spotsLeft}>
+                        {Math.max(event.max_people - event.participant_count, 0)}{' '}
+                        spots left
+                      </Text>
+                    </View>
+                  )}
+                  <Button
+                    style={{ flex: 1 }}
+                    label={
+                      isPending
+                        ? 'Request pending'
+                        : womenOnlyLocked
+                          ? 'Female-only event'
+                          : isFull
+                            ? 'Event full'
+                            : tooFar
+                              ? 'Join with Mello+'
+                              : event.requires_approval
+                                ? 'Request to join'
+                                : 'Join event'
+                    }
+                    variant={
+                      isPending || isFull || womenOnlyLocked ? 'tertiary' : 'primary'
+                    }
+                    onPress={() => (isPending ? leave.mutate() : handleJoinPress())}
+                    disabled={
+                      ((isFull || womenOnlyLocked) && !isPending) ||
+                      join.isPending ||
+                      leave.isPending
+                    }
+                  />
+                </View>
+              )
+            ) : null}
+          </View>
+          {toast && (
+            <Animated.View
+              entering={FadeInUp.duration(200)}
+              exiting={FadeOut.duration(160)}
+              style={styles.toast}
+              pointerEvents="none"
+            >
+              <Icon name="bookmarkFilled" size={15} color="#fff" strokeWidth={2} />
+              <Text style={styles.toastText}>{toast}</Text>
+            </Animated.View>
+          )}
         </BottomSheetFooter>
       ) : null,
-    [toast]
+    [
+      event,
+      isParticipant,
+      isHost,
+      isPending,
+      isFull,
+      womenOnlyLocked,
+      tooFar,
+      toast,
+      onFooterLayout,
+      onCloseAll,
+      router,
+      leave,
+      join,
+      handleJoinPress,
+    ]
   );
 
   return (
@@ -938,7 +1037,7 @@ function EventBottomSheet({
       backdropComponent={isTop ? renderBackdrop : undefined}
       backgroundStyle={styles.sheetBg}
       handleComponent={null}
-      footerComponent={renderToast}
+      footerComponent={renderFooter}
     >
       {/* Photo — the full-size hero pinned BEHIND the content at bigPhotoH. Only
           the top BANNER_H shows at the first stop (the white card covers the
@@ -1130,94 +1229,11 @@ function EventBottomSheet({
                   since migration 043, so `isParticipant` is true for them too —
                   guard the guest-only actions (Check in, Leave) with `!isHost`. */}
             <View style={styles.actions} onLayout={onActionsLayout}>
-              {/* Ended event: attendees get the wrap. Nobody gets join/leave/
-                    check-in on a finished event — those only exist below, guarded
-                    by !hasWrapped. */}
-              {hasWrapped(event) && (isParticipant || isHost) && (
-                <Button
-                  label="Open the event wrap"
-                  onPress={() => {
-                    onCloseAll();
-                    router.push(`/events/wrap/${event.id}`);
-                  }}
-                />
-              )}
-
-              {/* Live event: the headline action, then check-in for guests.
-                    The host is a participant since migration 043, so
-                    `isParticipant` is true for them too — guest-only actions are
-                    guarded with `!isHost`. */}
-              {!hasWrapped(event) && (
-                <View onLayout={onPrimaryLayout}>
-                  {isHost ? (
-                    <Button
-                      label="Manage event"
-                      onPress={() => {
-                        onCloseAll();
-                        router.push(`/events/host/${event.id}`);
-                      }}
-                    />
-                  ) : isParticipant ? (
-                    <Button
-                      label="Open chat"
-                      onPress={() => {
-                        onCloseAll();
-                        router.push(`/(tabs)/chats/${event.id}`);
-                      }}
-                    />
-                  ) : (
-                    <View style={styles.footerRow}>
-                      {event.max_people != null && (
-                        <View style={styles.spotsInfo}>
-                          <Text style={styles.spotsCount}>
-                            {event.participant_count}/{event.max_people}
-                          </Text>
-                          <Text style={styles.spotsLeft}>
-                            {Math.max(
-                              event.max_people - event.participant_count,
-                              0
-                            )}{' '}
-                            spots left
-                          </Text>
-                        </View>
-                      )}
-                      <Button
-                        style={{ flex: 1 }}
-                        label={
-                          isPending
-                            ? 'Request pending'
-                            : womenOnlyLocked
-                              ? 'Female-only event'
-                              : isFull
-                                ? 'Event full'
-                                : tooFar
-                                  ? 'Join with Mello+'
-                                  : event.requires_approval
-                                    ? 'Request to join'
-                                    : 'Join event'
-                        }
-                        // Joining is the headline action, so it gets coral.
-                        // A pending/closed state drops to low emphasis.
-                        variant={
-                          isPending || isFull || womenOnlyLocked
-                            ? 'tertiary'
-                            : 'primary'
-                        }
-                        // Pending cancels the request (no reason — a request
-                        // withdrawn before approval isn't "leaving").
-                        onPress={() =>
-                          isPending ? leave.mutate() : handleJoinPress()
-                        }
-                        disabled={
-                          ((isFull || womenOnlyLocked) && !isPending) ||
-                          join.isPending ||
-                          leave.isPending
-                        }
-                      />
-                    </View>
-                  )}
-                </View>
-              )}
+              {/* The headline action (Open the event wrap / Manage event / Open
+                    chat / Join, depending on state) now lives in `renderFooter`,
+                    pinned to the screen bottom via `BottomSheetFooter` — see
+                    that callback above. Only the secondary, non-pinned actions
+                    (Open chat under Manage, Check in) stay here. */}
 
               {!hasWrapped(event) && (
                 <>
@@ -1750,6 +1766,12 @@ const styles = StyleSheet.create({
   },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
   spotsInfo: {},
+  // Wraps the primary action inside BottomSheetFooter. Frosted-white to
+  // match the sheet's own surface — it's the same card, just pinned.
+  ctaFooter: {
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[3],
+  },
   spotsCount: {
     fontFamily: FONTS.heading,
     fontSize: TYPE_SIZE.title,
