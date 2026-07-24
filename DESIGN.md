@@ -255,6 +255,14 @@ uppercase, often preceded by a 6px status dot.
       The band packs four facts into three rows — host + attendee stack share a
       line, then the title, then time + Join. Every row removed is ~20pt of
       photo.
+- [ ] **The event sheet's description reveal.** Photos are the point of a
+      social app — the event sheet's hero should always show a real, dynamic
+      amount of the photo (a screen-width square at full-screen), never
+      starved by how much a host wrote. The description clamps to whatever
+      fits above the pinned Join/Open-chat CTA and reveals the rest a line at
+      a time as you scroll, the CTA never moving. Full spec:
+      [`docs/superpowers/specs/2026-07-24-event-sheet-description-reveal-design.md`](docs/superpowers/specs/2026-07-24-event-sheet-description-reveal-design.md).
+
 - [x] **Coral `Join` on the nearby cards.** Deliberately against the letter of
       the "one coral CTA per screen" rule: a row of cards shows the *same*
       action repeated, not competing ones, so they read as one offer. Nothing
