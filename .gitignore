@@ -46,3 +46,6 @@ google-service-account.json
 
 # Jest
 coverage
+
+# Git worktrees
+.worktrees/
