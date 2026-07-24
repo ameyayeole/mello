@@ -408,3 +408,24 @@ export interface PublicWrapPhoto {
   uploader_name: string;
   uploader_photo_url: string | null;
 }
+
+// ── Community feed (posts) ───────────────────────────────────────────────────
+
+export type PostType = 'text' | 'photo' | 'poll' | 'shared_wrap';
+export type PostVisibility = 'public' | 'friends';
+
+// One post as returned by the community_feed() RPC (author fields flattened).
+export interface CommunityPost {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_photo_url: string | null;
+  type: PostType;
+  visibility: PostVisibility;
+  body: string | null;
+  media: string[];
+  city: string | null;
+  like_count: number;
+  comment_count: number;
+  created_at: string;
+}

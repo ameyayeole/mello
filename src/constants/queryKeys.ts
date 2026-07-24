@@ -136,6 +136,15 @@ export const queryKeys = {
     all: ['friendships'] as const,
     of: (userId: Id) => ['friendships', userId] as const,
   },
+  // Community feed. Scoped per viewer; ordering is keyset-paginated so the key
+  // itself carries no cursor (the cursor is the pageParam).
+  community: {
+    all: ['community'] as const,
+    feed: {
+      all: ['community', 'feed'] as const,
+      of: (userId: Id) => ['community', 'feed', userId] as const,
+    },
+  },
 } as const;
 
 // Every cache that surfaces other people's events. Blocking or unblocking has
@@ -149,4 +158,5 @@ export const DISCOVERY_FEED_KEYS = [
   queryKeys.exploreFeed.all,
   queryKeys.dashboardNearby.all,
   queryKeys.swipeDeck.all,
+  queryKeys.community.feed.all,
 ] as const;
