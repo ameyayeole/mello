@@ -1,5 +1,5 @@
 // src/components/events/RevealingText.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,51 +15,61 @@ import Animated, {
   Extrapolation,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useEnterOnScroll } from './useEnterOnScroll';
+import { useBottomSheetInternal } from '@gorhom/bottom-sheet';
 import { clampVisibleLineCount } from '@/utils/textLines';
 
-// A block of text that shows only as many lines as fit above a fixed
-// boundary, then reveals the rest one line at a time — Fade + Rise, same
-// motion `GoingRow` uses — the instant each hidden line clears that boundary
-// on scroll. Built for the event sheet's description, where the boundary is
-// the pinned CTA footer's top edge, so extra lines read as emerging from
-// behind it rather than from the bottom of the screen.
+// How many points of scroll a line fades over as it clears the pinned action's
+// top edge. Kept under a line's height so lines resolve roughly one at a time,
+// which reads as a line-by-line reveal rather than the whole block fading.
+const REVEAL_BAND = 18;
+// The rise each line travels as it fades in — the "+ rise" half of fade + rise.
+const REVEAL_RISE = 6;
+
+// A block of text whose lines fade in as they clear a fixed screen line (the
+// pinned action's top edge) and fade back out as they drop below it again. The
+// reveal is driven CONTINUOUSLY by each line's live position — not a one-shot
+// timed animation — so it is fully reversible: scroll back down and the lines
+// that were behind the action are hidden again rather than left showing through
+// it. Every line reserves its full height in flow from the first frame (opacity
+// never removes it from layout), so the block's height is fixed and whatever
+// follows it stays parked below until the action releases.
 //
-// RN lays a `Text` out as one block, so line-splitting needs a real measure:
-// a hidden copy of the FULL text (opacity 0, absolutely positioned so it
-// doesn't affect layout) is measured via `onTextLayout`, which gives both
-// the per-line substrings and the line height. The visible lines render as
-// plain Text elements; all hidden lines mount immediately as RevealingLine
-// components (animated via opacity/translateY only). So the container's
-// height is fixed to the full text's height from the first frame, not growing
-// as lines reveal — only their visibility animates on scroll.
+// RN lays a `Text` out as one block, so line-splitting needs a real measure: a
+// hidden copy of the full text (opacity 0, absolutely positioned so it doesn't
+// affect layout) is measured via `onTextLayout`, which gives the per-line
+// substrings and the line height.
 export function RevealingText({
   text,
   style,
   availableHeight,
+  maxLines,
   offset,
   heroGrow,
   sheetProgress,
   footerBoundary,
   onLayout,
-  onVisibleLayout,
+  onVisibleHeight,
 }: {
   text: string;
   style: TextStyle;
-  // Vertical space above the boundary available to the initially-visible
-  // lines — the caller derives this from its own layout (see
-  // EventBottomSheet.tsx's description clamp calc in Task 7).
+  // Vertical space above the boundary at the resting stop — used only to size
+  // the resting stop (how many lines sit above the action before any scroll),
+  // reported back via `onVisibleHeight`. Not a render clamp: every line is
+  // rendered; position decides what shows.
   availableHeight: number;
+  // A hard ceiling on how many lines show at rest, independent of screen size —
+  // so the resting view is predictable on every device (a tall screen doesn't
+  // spill six lines above the action). The rest reveal on scroll.
+  maxLines: number;
   offset: number;
   heroGrow: number;
   sheetProgress: SharedValue<number>;
   footerBoundary: number;
   onLayout?: (e: LayoutChangeEvent) => void;
-  // The initially-visible lines' own height — distinct from this
-  // component's overall onLayout, which reports the FULL block including
-  // hidden lines reserved below the fold. Callers sizing a resting stop
-  // around "what's visible before any scroll" need this one instead.
-  onVisibleLayout?: (e: LayoutChangeEvent) => void;
+  // The height of the lines that sit above the action at rest
+  // (visibleCount × lineHeight) — the caller sizes the resting stop off this
+  // rather than off the block's full (mostly-below-the-fold) height.
+  onVisibleHeight?: (height: number) => void;
 }) {
   const [lines, setLines] = useState<string[] | null>(null);
   const [lineHeight, setLineHeight] = useState<number | null>(null);
@@ -74,15 +84,28 @@ export function RevealingText({
           ? prev
           : next
       );
-      setLineHeight((prev) => (prev === measured[0].height ? prev : measured[0].height));
+      setLineHeight((prev) =>
+        prev === measured[0].height ? prev : measured[0].height
+      );
     },
     []
   );
 
+  // How many lines sit above the action at the resting stop — reported up so
+  // the sheet can size its resting height to exactly that, never to the full
+  // (mostly hidden) block.
   const visibleCount =
     lines && lineHeight != null
-      ? clampVisibleLineCount(availableHeight, lineHeight, lines.length)
+      ? Math.min(
+          clampVisibleLineCount(availableHeight, lineHeight, lines.length),
+          maxLines
+        )
       : null;
+  useEffect(() => {
+    if (visibleCount != null && lineHeight != null) {
+      onVisibleHeight?.(visibleCount * lineHeight);
+    }
+  }, [visibleCount, lineHeight, onVisibleHeight]);
 
   return (
     <View onLayout={onLayout}>
@@ -94,30 +117,19 @@ export function RevealingText({
         {text}
       </Text>
 
-      {/* Nothing renders until the measure pass completes — one frame of
-          "no description" reads better than one frame of the wrong amount
-          of it. */}
-      {lines && visibleCount != null && (
+      {/* Nothing renders until the measure pass completes — one frame of "no
+          description" reads better than one frame of the wrong amount of it. */}
+      {lines && (
         <View>
-          <View onLayout={onVisibleLayout}>
-            {lines.slice(0, visibleCount).map((line, i) => {
-              const truncated = visibleCount < lines.length && i === visibleCount - 1;
-              return (
-                <Text key={i} style={style} numberOfLines={1} ellipsizeMode="tail">
-                  {truncated ? `${line.trimEnd()}…` : line}
-                </Text>
-              );
-            })}
-          </View>
-          {lines.slice(visibleCount).map((line, i) => (
+          {lines.map((line, i) => (
             <RevealingLine
-              key={visibleCount + i}
+              key={i}
               text={line}
               style={style}
               offset={offset}
               heroGrow={heroGrow}
               sheetProgress={sheetProgress}
-              footerBoundary={footerBoundary}
+              boundary={footerBoundary}
             />
           ))}
         </View>
@@ -126,45 +138,68 @@ export function RevealingText({
   );
 }
 
-// One hidden-then-revealed line. Needs its own onLayout — a position shared
-// across the whole hidden block would fire every line's entrance at once
-// instead of one at a time as the user scrolls.
+// One line, its opacity and rise tracking its live distance above the boundary.
+// Needs its own onLayout — each line's position is what decides when it shows,
+// so they resolve one at a time as the content scrolls rather than all at once.
 function RevealingLine({
   text,
   style,
   offset,
   heroGrow,
   sheetProgress,
-  footerBoundary,
+  boundary,
 }: {
   text: string;
   style: TextStyle;
   offset: number;
   heroGrow: number;
   sheetProgress: SharedValue<number>;
-  footerBoundary: number;
+  boundary: number;
 }) {
-  const [box, setBox] = useState<{ y: number; h: number } | null>(null);
+  const { animatedPosition, animatedScrollableState } = useBottomSheetInternal();
+  const [y, setY] = useState<number | null>(null);
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    const { y, height: h } = e.nativeEvent.layout;
-    setBox((prev) => (prev?.y === y && prev?.h === h ? prev : { y, h }));
+    const ly = e.nativeEvent.layout.y;
+    setY((prev) => (prev === ly ? prev : ly));
   }, []);
 
-  const entrance = useEnterOnScroll({
-    offset,
-    slide: heroGrow,
-    sheetProgress,
-    boundary: footerBoundary,
-    y: box?.y ?? null,
-    h: box?.h ?? null,
+  const lineStyle = useAnimatedStyle(() => {
+    if (y == null) return { opacity: 0 };
+    const slide = interpolate(
+      sheetProgress.value,
+      [0, 1],
+      [0, heroGrow],
+      Extrapolation.CLAMP
+    );
+    const top =
+      animatedPosition.value +
+      offset +
+      slide +
+      y -
+      animatedScrollableState.value.contentOffsetY;
+    // 1 once the line has cleared the boundary by a band, 0 while it's still at
+    // or below it (behind / under the pinned action). Reversible: scrolling
+    // back down runs it straight back to 0.
+    const progress = interpolate(
+      top,
+      [boundary - REVEAL_BAND, boundary],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    return {
+      opacity: progress,
+      transform: [
+        {
+          translateY: interpolate(
+            progress,
+            [0, 1],
+            [REVEAL_RISE, 0],
+            Extrapolation.CLAMP
+          ),
+        },
+      ],
+    };
   });
-
-  const lineStyle = useAnimatedStyle(() => ({
-    opacity: entrance.value,
-    transform: [
-      { translateY: interpolate(entrance.value, [0, 1], [8, 0], Extrapolation.CLAMP) },
-    ],
-  }));
 
   return (
     <Animated.View onLayout={handleLayout} style={lineStyle}>

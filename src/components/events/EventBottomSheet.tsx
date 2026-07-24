@@ -192,6 +192,11 @@ const CTA_BOTTOM_INSET = SPACING[5];
 // a device.
 const RESTING_MAX_FRACTION = 0.58;
 
+// How many description lines show at rest, at most — a hard ceiling so the
+// resting view is the same handful of lines on every device, the rest revealed
+// on scroll. Tunable.
+const RESTING_MAX_LINES = 3;
+
 // A compact card for the "happening near you" rail: photo on top with the
 // category pill on it, then title + when/distance on a white body below. A
 // pared-down cousin of the home screen's NearbyCard — no join/save affordances,
@@ -678,17 +683,22 @@ function EventBottomSheet({
         : null
       : primaryBtnYRef.current;
     if (above == null) return;
+    // No extra gap term: the action's top sits exactly at the last visible
+    // line's bottom, and the visual breathing room comes from the action
+    // wrapper's own top padding (already inside `footerH`). Adding a gap here
+    // would push the FIRST hidden line up into view above the action, since
+    // the lines are contiguous — an off-by-one in what shows at rest.
     const next = Math.round(
       Math.min(
-        BANNER_H + above + footerH + CTA_BOTTOM_INSET + SPACING[2.5] * 2,
+        BANNER_H + above + footerH + CTA_BOTTOM_INSET,
         height * RESTING_MAX_FRACTION
       )
     );
     setFirstSnapPx((prev) => (prev === next ? prev : next));
   }, [height, descriptionOffset, event?.description]);
-  const onVisibleDescriptionLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      visibleDescriptionHRef.current = e.nativeEvent.layout.height;
+  const onVisibleDescriptionHeight = useCallback(
+    (h: number) => {
+      visibleDescriptionHRef.current = h;
       recomputeSnaps();
     },
     [recomputeSnaps]
@@ -733,8 +743,7 @@ function EventBottomSheet({
       BANNER_H -
       descriptionOffset -
       (footerHeight ?? 0) -
-      CTA_BOTTOM_INSET -
-      SPACING[2.5] * 2
+      CTA_BOTTOM_INSET
   );
   // Two stops. Resting: below Open chat/Join (a tap opens here). Full screen: one
   // scroll up and the sheet's top edge is at y=0 with the photo filling every
@@ -1330,12 +1339,13 @@ function EventBottomSheet({
                 text={event.description}
                 style={styles.description}
                 availableHeight={descriptionAvailableHeight}
+                maxLines={RESTING_MAX_LINES}
                 offset={BANNER_H + descriptionOffset}
                 heroGrow={heroGrow}
                 sheetProgress={animatedIndex}
                 footerBoundary={footerTopY}
                 onLayout={onDescriptionBlockLayout}
-                onVisibleLayout={onVisibleDescriptionLayout}
+                onVisibleHeight={onVisibleDescriptionHeight}
               />
             )}
 
