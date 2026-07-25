@@ -167,6 +167,10 @@ export const queryKeys = {
       all: ['community', 'poll'] as const,
       of: (postId: Id) => ['community', 'poll', postId] as const,
     },
+    wrapCard: {
+      all: ['community', 'wrapCard'] as const,
+      of: (eventId: Id) => ['community', 'wrapCard', eventId] as const,
+    },
   },
 } as const;
 

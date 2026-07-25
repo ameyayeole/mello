@@ -7,6 +7,7 @@ import {
 import {
   createTextPost,
   createPhotoPost,
+  createSharedWrap,
   deletePost,
 } from '@/services/community/posts.service';
 import { createPoll } from '@/services/community/polls.service';
@@ -94,6 +95,31 @@ export function useCreatePoll() {
         question: args.question,
         options: args.options,
         durationDays: args.durationDays,
+        visibility: args.visibility,
+        city: user?.city ?? null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.community.feed.all });
+      qc.invalidateQueries({ queryKey: queryKeys.community.userPosts.all });
+    },
+  });
+}
+
+// Reshare a wrap. No media upload — just references the event; the insert RLS
+// (059) requires the author attended it. Same invalidation as a text/photo post.
+export function useCreateSharedWrap() {
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  return useMutation({
+    mutationFn: (args: {
+      eventId: string;
+      body: string;
+      visibility: PostVisibility;
+    }) =>
+      createSharedWrap({
+        authorId: user!.id,
+        eventId: args.eventId,
+        body: args.body,
         visibility: args.visibility,
         city: user?.city ?? null,
       }),
