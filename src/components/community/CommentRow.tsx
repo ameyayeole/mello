@@ -41,7 +41,13 @@ export function CommentRow({
   return (
     <View style={[styles.row, isReply && styles.replyRow]}>
       <PressableScale
-        onPress={() => router.push(`/friends/${comment.author_id}`)}
+        onPress={() =>
+          router.push(
+            comment.author_id === meId
+              ? '/(tabs)/profile'
+              : `/friends/${comment.author_id}`
+          )
+        }
         disabled={comment.deleted}
         accessibilityLabel={`View ${comment.author_name}'s profile`}
       >

@@ -4,6 +4,7 @@ import { Avatar, IconButton, PressableScale } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
+import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import { relativeTime } from '@/utils/time';
 
@@ -20,6 +21,13 @@ export function PostAuthorRow({
   onOverflow?: () => void;
 }) {
   const router = useRouter();
+  const meId = useAuthStore((s) => s.user?.id);
+  // Tapping your own author row goes to your profile tab, not the other-user
+  // /friends/[id] view.
+  const openProfile = () =>
+    router.push(
+      post.author_id === meId ? '/(tabs)/profile' : `/friends/${post.author_id}`
+    );
   const meta = [post.city, relativeTime(post.created_at)]
     .filter(Boolean)
     .join(' · ');
@@ -28,7 +36,7 @@ export function PostAuthorRow({
       <PressableScale
         style={styles.author}
         scaleTo={0.98}
-        onPress={() => router.push(`/friends/${post.author_id}`)}
+        onPress={openProfile}
         accessibilityRole="button"
         accessibilityLabel={`View ${post.author_name}'s profile`}
       >
