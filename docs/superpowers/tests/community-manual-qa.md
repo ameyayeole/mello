@@ -327,3 +327,29 @@ already existed (044/045); this is code-only. Storage reuses the public
 ### Deferred to the final polish pass
 - [ ] The **"new posts ↑"** pill (spec §6 prose) — surfaces when a refetch finds
   content newer than the top of your feed. Not built in Phase 6.
+
+---
+
+## Phase 7 — Share + deep links
+
+### DB (SQL editor) — after running migration 063
+- [ ] `get_post('<visible post>', '<viewer>')` returns one row in the feed shape.
+- [ ] `get_post('<friends-only post>', '<non-friend viewer>')` returns **no row**
+  (RLS); a **hidden** post returns no row either.
+
+### Android device
+- [ ] The **share** glyph on a post opens the native share sheet; sharing to an
+  app (or the sheet's **Copy**) yields a `mello://post/<id>` link.
+- [ ] Opening that link **cold** (app killed) and **warm** (app backgrounded) both
+  land on the **post detail screen** showing that post.
+- [ ] A link to a post you **can't see** (friends-only, not a friend) or a deleted
+  post shows **"Post unavailable"** with a working Back.
+- [ ] From the detail screen: like, comment (sheet), delete-own, report-other all
+  work; Android hardware back returns cleanly.
+- [ ] Tapping a **post_liked / post_commented / poll_closed / post_mention /
+  comment_mention** notification opens the **specific post** (not just the feed);
+  a `comment_reply` (no post_id) still falls back to the feed.
+
+### Deferred to the final polish pass
+- [ ] **Send-to-a-Mello-DM** — share a post straight into a friend's DM (needs a
+  friend-picker + chat-message insert). The native sheet covers external + copy.
