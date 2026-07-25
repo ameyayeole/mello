@@ -5,6 +5,7 @@ import { CommunityPost } from '@/types/models';
 import { PostAuthorRow } from './PostAuthorRow';
 import { TextPostBody } from './TextPostBody';
 import { PhotoCarousel } from './PhotoCarousel';
+import { PollCard } from './PollCard';
 import { PostActionBar } from './PostActionBar';
 
 // One post in the feed. Text (Phase 1) and photo (Phase 3a) render here; poll /
@@ -39,6 +40,11 @@ export function PostCard({
           {post.body ? (
             <TextPostBody body={post.body} mentionables={mentionables} />
           ) : null}
+        </View>
+      ) : null}
+      {post.type === 'poll' ? (
+        <View style={styles.media}>
+          <PollCard postId={post.id} question={post.body ?? ''} />
         </View>
       ) : null}
       <PostActionBar post={post} onComment={onComment} />
