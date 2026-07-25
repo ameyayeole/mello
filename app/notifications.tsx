@@ -282,6 +282,9 @@ function notifText(notif: Notification, links: RowLinks): React.ReactNode {
       return <>{who} mentioned you in a comment</>;
     case 'post_mention':
       return <>{who} mentioned you in a post</>;
+    case 'poll_closed':
+      // System-sent (no actor) — the winner detail lives on the poll card.
+      return <>Your poll has closed — see the results</>;
     case 'encore_requested':
       return <>🔁 People want you to run {what('your event')} back</>;
     default:
@@ -651,6 +654,7 @@ export default function NotificationsScreen() {
         case 'comment_liked':
         case 'comment_mention':
         case 'post_mention':
+        case 'poll_closed':
           // A dedicated post-detail screen lands in Phase 7; until then, send
           // them to the Community feed (best available landing for the post).
           return dismiss(() => router.push('/(tabs)/community'));

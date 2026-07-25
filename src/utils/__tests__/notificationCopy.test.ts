@@ -15,6 +15,12 @@ describe('notificationCopy — community', () => {
     });
   });
 
+  it('poll_closed reads "your poll closed"', () => {
+    expect(notificationCopy('poll_closed', { senderName: 'Mello' }).body).toBe(
+      'Your poll has closed — see the results'
+    );
+  });
+
   it('post_liked coalesces the count into the body', () => {
     expect(notificationCopy('post_liked', { senderName: 'Sri', count: 3 }).body).toBe(
       'Sri and 2 others liked your post'

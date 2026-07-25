@@ -78,7 +78,8 @@ export type NotificationType =
   | 'comment_reply'
   | 'comment_liked'
   | 'comment_mention'
-  | 'post_mention';
+  | 'post_mention'
+  | 'poll_closed';
 
 export type ParticipantStatus = 'pending' | 'approved';
 
@@ -437,6 +438,25 @@ export interface CommunityPost {
   liked_by_me: boolean;
   comments_enabled: boolean;
   created_at: string;
+}
+
+// One poll option with its aggregate (anonymous) tally. `vote_count` is the
+// trigger-maintained count; who voted for what is never exposed.
+export interface PollOption {
+  id: string;
+  idx: number;
+  label: string;
+  vote_count: number;
+}
+
+// A poll's render data, loaded per-post by usePoll (not folded into the feed).
+// `my_option_id` is read from the viewer's own vote row — the only one RLS lets
+// them see — and is null until they vote. A cast is locked (no changing it).
+export interface Poll {
+  post_id: string;
+  closes_at: string;
+  options: PollOption[];
+  my_option_id: string | null;
 }
 
 // One comment as returned by post_comments_ranked / post_comment_replies.

@@ -134,6 +134,9 @@ export function notificationCopy(
     case 'post_mention':
       // Not coalesced (one row per post) — body mirrors the chat `mention` shape.
       return { title: 'Mention', body: 'mentioned you in a post' };
+    case 'poll_closed':
+      // System-sent (sender_id NULL) — no actor prefix; the row shows the app.
+      return { title: 'Poll closed', body: 'Your poll has closed — see the results' };
     default:
       return { title: 'Mello', body: 'You have a new notification' };
   }

@@ -149,6 +149,11 @@ function composeCopy(
         title: 'Mention',
         body: `${senderName} mentioned you in a post`,
       };
+    case 'poll_closed':
+      return {
+        title: 'Poll closed',
+        body: 'Your poll has closed — see the results',
+      };
     default:
       return { title: 'Mello', body: `${senderName} sent you a notification` };
   }
