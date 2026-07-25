@@ -69,9 +69,8 @@ Reuse A/B (+ a third user C) and `postA` by A.
 
 ## Phase 2b — Comments (core)
 
-### DB (SQL editor) — after running migrations 048, 049, 050, 051, 052
-Reuse A/B/C and `postA` by A. (052 adds `post_comments` to the realtime
-publication — required for the live-update check below.)
+### DB (SQL editor) — after running migrations 048, 049, 050, 051
+Reuse A/B/C and `postA` by A.
 
 - [ ] **One-level guard:** insert a top-level comment `c1`, a reply to `c1` → OK; replying to that reply → **ERROR** "comments are one level deep".
 - [ ] **Reply post match:** a reply whose `post_id` ≠ its parent's post is rejected.
@@ -88,8 +87,7 @@ publication — required for the live-update check below.)
 - [ ] Tap a post's **comment** glyph → Light haptic, sheet opens; loading → list (or "No comments yet" empty state).
 - [ ] Post a comment → appears in the thread, the **card's comment count increments**, composer clears, success haptic.
 - [ ] **Reply:** tap Reply → "Replying to X" banner + placeholder switches; send → nested under the parent; **View N replies** expands/collapses (lazy-loads).
-- [ ] **Realtime:** with the sheet open, a comment posted from another account appears **live** (no manual refresh).
-- [ ] **Delete own:** overflow (dots) on your comment → confirm Dialog → gone (or "comment removed" if it had replies, with replies still shown).
+- [ ] **Delete own:** overflow (dots) on your comment → Alert confirm → gone (or "comment removed" if it had replies, with replies still shown).
 - [ ] **Post-author moderation:** as the post author, the overflow shows on **anyone's** comment and deletes it; the **Turn off / Turn on** header control flips comments — when off, the composer is replaced by "Comments are turned off" (and others can't comment).
 - [ ] **Profile tap:** a commenter's avatar/name opens their profile (`/friends/[id]`).
 - [ ] **Keyboard:** the composer stays above the keyboard (Android adjusts; iOS via `keyboardAvoiding`); list scrolls within its cap; tapping a row while typing doesn't dismiss mid-send (`keyboardShouldPersistTaps`).

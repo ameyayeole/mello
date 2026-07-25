@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import {
   useQuery,
   useMutation,
@@ -6,7 +5,6 @@ import {
   QueryClient,
   UseMutationOptions,
 } from '@tanstack/react-query';
-import { supabase } from '@/services/supabase';
 import {
   getComments,
   getReplies,
@@ -63,42 +61,14 @@ export function commentMutations(
 }
 
 export function useComments(postId: string) {
-  const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
-
-  const query = useQuery({
+  // No realtime: the thread refetches on mount and after the optimistic add's
+  // invalidate. Other people's comments surface on reopen / refetch, not live.
+  return useQuery({
     queryKey: queryKeys.community.comments.of(postId),
     queryFn: () => getComments({ postId, viewerId: user!.id }),
     enabled: !!user && !!postId,
   });
-
-  // Live while the sheet is mounted: any change to this post's comments refetches
-  // the thread (the reconciler behind the optimistic add). Mirrors useReactions'
-  // channel pattern.
-  useEffect(() => {
-    if (!postId) return;
-    const channel = supabase
-      .channel(`post_comments:${postId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'post_comments',
-          filter: `post_id=eq.${postId}`,
-        },
-        () =>
-          qc.invalidateQueries({
-            queryKey: queryKeys.community.comments.of(postId),
-          })
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [postId, qc]);
-
-  return query;
 }
 
 export function useCommentReplies(parentId: string, enabled: boolean) {
