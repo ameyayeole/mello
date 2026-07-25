@@ -290,3 +290,40 @@ already existed (044/045); this is code-only. Storage reuses the public
   and the profile Posts tab.
 - [ ] Friends/Public visibility respected; **Android flat-glass:** the card grid +
   "View wrap" row stay legible.
+
+---
+
+## Phase 6 — Virality + events rail
+
+> **Ranking is not fully verifiable without real content** (spec: "needs real
+> content to tune"). These are the checks that don't need a tuned corpus.
+
+### DB (SQL editor) — after running migrations 061 + 062
+- [ ] `SELECT jobname FROM cron.job WHERE jobname = 'refresh-post-scores';` returns
+  the row; after `SELECT refresh_post_scores();`, recent posts have a non-zero
+  `score` (posts with windowed engagement rank higher).
+- [ ] Three **distinct** users reporting the same post flips `posts.hidden = TRUE`
+  (`hidden_reason = 'auto_reports'`); the same user reporting 3× does **not**.
+- [ ] A hidden post no longer appears in `community_feed`.
+- [ ] A cross-city public post from a **non-KYC** author never appears in another
+  city's feed; once the author is `kyc_status='approved'` AND the post is >30 min
+  old with ≥3 distinct engagers, it becomes eligible.
+- [ ] A **friends-only** post never appears in the cross-city pool (only its
+  friends/author see it at all).
+- [ ] `community_feed` returns a `score` column; a same-city or friend post outranks
+  an equal-score cross-city one (the +50 / +100 boosts).
+
+### Android device
+- [ ] The feed paginates on scroll with **no dupes or gaps** (keyset on
+  `(score, created_at, id)`).
+- [ ] The **"Happening in {city}"** rail appears roughly every ~9 posts and taps
+  through to the event sheet; with no nearby events the rail is simply **absent**
+  (feed closes up, no empty shelf).
+- [ ] Overflow on **your own** post shows **Delete**; on **someone else's** shows
+  **Report**; reporting invokes the confirm and (with 3 distinct reporters) the
+  post disappears from the feed.
+- [ ] **Android flat-glass:** the rail cards + headings stay legible.
+
+### Deferred to the final polish pass
+- [ ] The **"new posts ↑"** pill (spec §6 prose) — surfaces when a refetch finds
+  content newer than the top of your feed. Not built in Phase 6.
