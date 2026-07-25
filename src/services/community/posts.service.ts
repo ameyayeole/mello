@@ -84,6 +84,33 @@ export async function createPhotoPost(params: {
   return (data as { id: string }).id;
 }
 
+// Reshare an event's wrap as a post. No media is copied — the card resolves the
+// preview from ref_wrap_event_id at render. The shared_wrap insert RLS (059)
+// enforces that the author attended the event; a null caption is stored as null.
+export async function createSharedWrap(params: {
+  authorId: string;
+  eventId: string;
+  body: string; // optional caption; '' ⇒ null
+  visibility: PostVisibility;
+  city: string | null;
+}): Promise<string> {
+  const caption = params.body.trim();
+  const { data, error } = await supabase
+    .from('posts')
+    .insert({
+      author_id: params.authorId,
+      type: 'shared_wrap',
+      body: caption.length > 0 ? caption : null,
+      ref_wrap_event_id: params.eventId,
+      visibility: params.visibility,
+      city: params.city,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
 export async function deletePost(postId: string): Promise<void> {
   const { error } = await supabase.from('posts').delete().eq('id', postId);
   if (error) throw error;
