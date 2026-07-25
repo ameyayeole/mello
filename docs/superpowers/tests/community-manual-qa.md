@@ -140,8 +140,10 @@ B=`bravo`, C=`charlie`).
 ### Android device
 - [ ] Typing `@` in the composer opens the people strip. It **live-searches all
   users** (not just friends — works even between non-friend test accounts A/B/C);
-  a bare `@` lists people, and it narrows as you type. Tapping a chip inserts the
-  **lowercase** `@handle `.
+  a bare `@` lists people, and it narrows as you type. **Prefix match, not
+  substring:** typing `a` shows only handles/names *starting* with `a` (not every
+  name containing an `a`); username-prefix hits rank above name-only. Tapping a
+  chip inserts the **lowercase** `@handle `.
 - [ ] A sent comment shows the `@handle` **highlighted + tappable** → opens that
   person's profile; the highlight survives closing/reopening the sheet (the map
   resolves from the thread, not a session cache); an unknown `@handle` is plain text.

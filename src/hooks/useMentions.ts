@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { searchUsers } from '@/services/friends.service';
-import { getProfilesByUsernames } from '@/services/community/mentions.service';
+import {
+  searchMentionables,
+  getProfilesByUsernames,
+} from '@/services/community/mentions.service';
 import { extractMentionUsernames } from '@/components/community/commentMentions';
 import { useAuthStore } from '@/stores/authStore';
 import { PostComment } from '@/types/models';
@@ -10,9 +12,10 @@ import { Mentionable } from '@/components/chat/MentionAutocomplete';
 const DEBOUNCE_MS = 150;
 
 // Live people-search for the composer's @-autocomplete. `query` is the active
-// mention token (null when the user isn't mid-@). Debounced, hides self/blocked
-// (searchUsers does), maps to the Mentionable shape the strip renders. A bare
-// "@" (query "") lists people so the strip is never empty just for lack of typing.
+// mention token (null when the user isn't mid-@). Debounced; searchMentionables
+// prefix-matches, hides self/blocked, and ranks; here we map to the Mentionable
+// shape the strip renders. A bare "@" (query "") lists people so the strip is
+// never empty just for lack of typing.
 export function useMentionSearch(query: string | null): Mentionable[] {
   const meId = useAuthStore((s) => s.user?.id);
   const [debounced, setDebounced] = useState<string | null>(query);
@@ -24,7 +27,7 @@ export function useMentionSearch(query: string | null): Mentionable[] {
 
   const q = useQuery({
     queryKey: ['mentionSearch', debounced, meId],
-    queryFn: () => searchUsers(debounced ?? '', meId),
+    queryFn: () => searchMentionables(debounced ?? '', meId),
     enabled: debounced !== null,
     staleTime: 30_000,
   });

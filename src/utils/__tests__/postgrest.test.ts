@@ -1,4 +1,4 @@
-import { ilikePattern } from '../postgrest';
+import { ilikePattern, prefixIlikePattern } from '../postgrest';
 
 // These exist because interpolating a raw search box into PostgREST's `.or()`
 // filter grammar produced a live HTTP 400 on any query containing a comma.
@@ -35,5 +35,19 @@ describe('ilikePattern', () => {
 
   it('handles an empty term without producing a malformed pattern', () => {
     expect(ilikePattern('')).toBe('"%%"');
+  });
+});
+
+describe('prefixIlikePattern', () => {
+  it('anchors the wildcard at the end only (starts-with match)', () => {
+    expect(prefixIlikePattern('al')).toBe('"al%"');
+  });
+
+  it('escapes quotes and backslashes like ilikePattern', () => {
+    expect(prefixIlikePattern('a\\"b')).toBe('"a\\\\\\"b%"');
+  });
+
+  it('survives filter-grammar characters as a literal', () => {
+    expect(prefixIlikePattern('name.eq.admin')).toBe('"name.eq.admin%"');
   });
 });
