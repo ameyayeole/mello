@@ -6,8 +6,10 @@ import {
   FlatList,
   useWindowDimensions,
   Alert,
+  AlertButton,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useMutation } from '@tanstack/react-query';
 import {
   Sheet,
   NavButton,
@@ -15,6 +17,7 @@ import {
   EmptyState,
   PressableScale,
 } from '@/components/ui';
+import { reportComment, ReportReason } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
@@ -71,9 +74,23 @@ export function CommentSheet({
     );
   }
 
-  // Native Alert, not a Dialog: a Dialog is a Modal, and nesting it inside the
-  // Sheet's Modal fails to render on Android. Alert layers above modals reliably.
-  function requestDelete(comment: PostComment) {
+  const report = useMutation({
+    mutationFn: (args: { comment: PostComment; reason: ReportReason }) =>
+      reportComment({
+        reporterId: meId!,
+        reportedId: args.comment.author_id,
+        commentId: args.comment.id,
+        reason: args.reason,
+      }),
+    onSuccess: () =>
+      Alert.alert('Report sent', 'Thanks — our team will review this.'),
+    onError: () =>
+      Alert.alert("Couldn't send report", 'Please try again.'),
+  });
+
+  // All confirms are native Alerts, not Dialogs: a Dialog is a Modal, and nesting
+  // it inside the Sheet's Modal fails to render on Android. Alerts layer reliably.
+  function confirmDelete(comment: PostComment) {
     Alert.alert('Delete comment?', "This can't be undone.", [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -98,6 +115,41 @@ export function CommentSheet({
           ),
       },
     ]);
+  }
+
+  function showReportReasons(comment: PostComment) {
+    Alert.alert('Report comment', 'Why are you reporting it?', [
+      { text: 'Spam', onPress: () => report.mutate({ comment, reason: 'spam' }) },
+      {
+        text: 'Harassment',
+        onPress: () => report.mutate({ comment, reason: 'harassment' }),
+      },
+      {
+        text: 'Inappropriate',
+        onPress: () => report.mutate({ comment, reason: 'inappropriate' }),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  // Contextual menu: Delete for the comment's author or the post author; Report
+  // for anyone else's comment. The row shows the dots for any non-deleted comment.
+  function onOverflow(comment: PostComment) {
+    const canModerate = comment.author_id === meId || isPostAuthor;
+    const isOwn = comment.author_id === meId;
+    const buttons: AlertButton[] = [];
+    if (canModerate) {
+      buttons.push({
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => confirmDelete(comment),
+      });
+    }
+    if (!isOwn) {
+      buttons.push({ text: 'Report', onPress: () => showReportReasons(comment) });
+    }
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Comment', undefined, buttons);
   }
 
   function flipComments() {
@@ -144,7 +196,7 @@ export function CommentSheet({
               meId={meId}
               isPostAuthor={isPostAuthor}
               onReply={setReplyingTo}
-              onRequestDelete={requestDelete}
+              onOverflow={onOverflow}
             />
           )}
           ListEmptyComponent={
