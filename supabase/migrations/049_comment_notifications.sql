@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- COMMENT NOTIFICATIONS: a top-level comment notifies the post author
+-- NOTIFICATIONS: a top-level comment notifies the post author
 -- ('post_commented', coalesced per post); a reply notifies the parent comment's
 -- author ('comment_reply', coalesced per parent comment). Same coalescing shape
 -- as on_post_like (046), extracted here into a reusable helper. Never notify your

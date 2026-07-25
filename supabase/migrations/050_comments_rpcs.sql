@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- COMMENT READS: top-level comments relevancy-ranked (replies + author/friend
+-- READ RPCS: top-level comments relevancy-ranked (replies + author/friend
 -- boosts, recency tiebreak); replies chronological. SECURITY INVOKER so
 -- post_comments RLS scopes visibility. Tombstoned rows are returned with
 -- deleted=true and a null body so the client renders "comment removed" and keeps
