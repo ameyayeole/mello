@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { PressableScale, Icon } from '@/components/ui';
@@ -36,9 +37,11 @@ export function PostActionBar({
 
   useEffect(() => {
     if (pulse === 0) return; // no pop on mount
+    // A clean, subtle pop: a small scale-up then settle, pure timing so there is
+    // no spring overshoot/bounce. ~1.12 is a nudge, not a bounce.
     pop.value = withSequence(
-      withSpring(1.25, { damping: 8, stiffness: 300 }),
-      withSpring(1, { damping: 12, stiffness: 260 })
+      withTiming(1.12, { duration: 110, easing: Easing.out(Easing.quad) }),
+      withTiming(1, { duration: 140, easing: Easing.out(Easing.quad) })
     );
   }, [pulse, pop]);
 
