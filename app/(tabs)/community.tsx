@@ -31,6 +31,7 @@ import {
 } from '@/components/ui';
 import { PostCard } from '@/components/community/PostCard';
 import { CommunityNudgeCard } from '@/components/community/CommunityNudgeCard';
+import { EventsRail } from '@/components/community/EventsRail';
 import { ComposePostSheet } from '@/components/community/ComposePostSheet';
 import { CommentSheet } from '@/components/community/CommentSheet';
 import { errorMessage } from '@/utils/errors';
@@ -151,16 +152,21 @@ export default function CommunityScreen() {
               ) : null
             }
             renderItem={({ item, index }) => (
-              <Animated.View
-                entering={FadeInDown.delay(Math.min(index, 6) * 60).duration(350)}
-              >
-                <PostCard
-                  post={item}
-                  onOverflow={onOverflow}
-                  onComment={onComment}
-                  mentionables={mentionables}
-                />
-              </Animated.View>
+              <>
+                <Animated.View
+                  entering={FadeInDown.delay(Math.min(index, 6) * 60).duration(350)}
+                >
+                  <PostCard
+                    post={item}
+                    onOverflow={onOverflow}
+                    onComment={onComment}
+                    mentionables={mentionables}
+                  />
+                </Animated.View>
+                {/* City events rail woven in every ~9 posts (spec §8); it
+                    self-hides when nothing is nearby. */}
+                {(index + 1) % 9 === 0 ? <EventsRail /> : null}
+              </>
             )}
             refreshControl={
               <RefreshControl
