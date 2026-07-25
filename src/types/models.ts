@@ -441,6 +441,9 @@ export interface CommunityPost {
   liked_by_me: boolean;
   comments_enabled: boolean;
   created_at: string;
+  // Hybrid ranking score (materialized base + viewer boosts, migration 062).
+  // The feed keyset cursor reads it; cards ignore it.
+  score: number;
 }
 
 // One poll option with its aggregate (anonymous) tally. `vote_count` is the

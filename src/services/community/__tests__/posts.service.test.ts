@@ -13,6 +13,7 @@ describe('getCommunityFeed', () => {
     await getCommunityFeed({ userId: 'u1', cursor: null, limit: 10 });
     expect(supabase.rpc).toHaveBeenCalledWith('community_feed', {
       p_user_id: 'u1',
+      p_cursor_score: null,
       p_cursor_created_at: null,
       p_cursor_id: null,
       p_limit: 10,
@@ -23,11 +24,12 @@ describe('getCommunityFeed', () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: [], error: null });
     await getCommunityFeed({
       userId: 'u1',
-      cursor: { createdAt: '2026-07-25T00:00:00Z', id: 'p9' },
+      cursor: { score: 42, createdAt: '2026-07-25T00:00:00Z', id: 'p9' },
       limit: 10,
     });
     expect(supabase.rpc).toHaveBeenCalledWith('community_feed', {
       p_user_id: 'u1',
+      p_cursor_score: 42,
       p_cursor_created_at: '2026-07-25T00:00:00Z',
       p_cursor_id: 'p9',
       p_limit: 10,

@@ -14,7 +14,7 @@ export function nextCommunityCursor(
 ): FeedCursor | undefined {
   if (lastPage.length < pageSize) return undefined;
   const last = lastPage[lastPage.length - 1];
-  return { createdAt: last.created_at, id: last.id };
+  return { score: last.score, createdAt: last.created_at, id: last.id };
 }
 
 export function useCommunityFeed(enabled = true) {

@@ -1,7 +1,7 @@
 import { nextCommunityCursor } from '../useCommunityFeed';
 import { CommunityPost } from '@/types/models';
 
-const post = (id: string, createdAt: string): CommunityPost => ({
+const post = (id: string, createdAt: string, score = 0): CommunityPost => ({
   id,
   author_id: 'a',
   author_name: 'A',
@@ -17,6 +17,7 @@ const post = (id: string, createdAt: string): CommunityPost => ({
   liked_by_me: false,
   comments_enabled: true,
   created_at: createdAt,
+  score,
 });
 
 describe('nextCommunityCursor', () => {
@@ -25,8 +26,12 @@ describe('nextCommunityCursor', () => {
   });
 
   it('returns the last row as the cursor when the page is full', () => {
-    const page = [post('1', 't1'), post('2', 't2')];
-    expect(nextCommunityCursor(page, 2)).toEqual({ createdAt: 't2', id: '2' });
+    const page = [post('1', 't1', 9), post('2', 't2', 5)];
+    expect(nextCommunityCursor(page, 2)).toEqual({
+      score: 5,
+      createdAt: 't2',
+      id: '2',
+    });
   });
 
   it('returns undefined for an empty page', () => {

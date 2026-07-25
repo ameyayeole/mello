@@ -2,8 +2,9 @@ import { supabase } from '@/services/supabase';
 import { CommunityPost, PostVisibility } from '@/types/models';
 
 // The keyset cursor: the last row of the page you just read. Passing it back
-// asks community_feed() for rows strictly older than this (created_at, id).
-export type FeedCursor = { createdAt: string; id: string };
+// asks community_feed() for rows ranked strictly after this (score, created_at,
+// id) — the ranked-feed keyset (migration 062). Never an offset.
+export type FeedCursor = { score: number; createdAt: string; id: string };
 
 export async function getCommunityFeed(params: {
   userId: string;
@@ -12,6 +13,7 @@ export async function getCommunityFeed(params: {
 }): Promise<CommunityPost[]> {
   const { data, error } = await supabase.rpc('community_feed', {
     p_user_id: params.userId,
+    p_cursor_score: params.cursor?.score ?? null,
     p_cursor_created_at: params.cursor?.createdAt ?? null,
     p_cursor_id: params.cursor?.id ?? null,
     p_limit: params.limit ?? 10,
