@@ -3,6 +3,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Sheet, Button, TextField, PressableScale, NavButton } from '@/components/ui';
 import { PhotoGridPicker } from '@/components/PhotoGridPicker';
+import MentionAutocomplete, {
+  activeMentionQuery,
+  insertMention,
+} from '@/components/chat/MentionAutocomplete';
+import { useMentionSearch } from '@/hooks/useMentions';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
@@ -31,6 +36,10 @@ export function ComposePostSheet({
 
   const trimmed = body.trim();
   const hasPhotos = photos.length > 0;
+  // Non-null while mid-"@…" → live people search. Not friend-limited (you can
+  // @ anyone the resolver finds); searchMentionables hides self/blocked.
+  const mentionQuery = activeMentionQuery(body);
+  const people = useMentionSearch(mentionQuery);
   // Valid with a caption OR at least one photo; the caption is optional once
   // there's a photo (it becomes the photo's caption).
   const canPost =
@@ -82,6 +91,16 @@ export function ComposePostSheet({
       />
 
       <PhotoGridPicker photos={photos} onChange={setPhotos} max={6} />
+
+      {mentionQuery !== null ? (
+        // `people` is already server-filtered for the active token; pass query=""
+        // so the strip's own prefix filter doesn't drop legit substring matches.
+        <MentionAutocomplete
+          query=""
+          people={people}
+          onPick={(u) => setBody((t) => insertMention(t, u))}
+        />
+      ) : null}
 
       <View style={styles.visRow}>
         {(['friends', 'public'] as PostVisibility[]).map((v) => {
