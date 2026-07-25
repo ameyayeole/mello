@@ -144,6 +144,12 @@ export const queryKeys = {
       all: ['community', 'feed'] as const,
       of: (userId: Id) => ['community', 'feed', userId] as const,
     },
+    // One author's posts (the Profile "Posts" tab). Shows other people's posts,
+    // so it lives in DISCOVERY_FEED_KEYS below (blocking must clear it).
+    userPosts: {
+      all: ['community', 'userPosts'] as const,
+      of: (userId: Id) => ['community', 'userPosts', userId] as const,
+    },
     // Per-post scope: like state + (Phase 2b) comments hang off this.
     post: {
       all: ['community', 'post'] as const,
@@ -172,4 +178,5 @@ export const DISCOVERY_FEED_KEYS = [
   queryKeys.dashboardNearby.all,
   queryKeys.swipeDeck.all,
   queryKeys.community.feed.all,
+  queryKeys.community.userPosts.all,
 ] as const;

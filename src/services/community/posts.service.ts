@@ -20,6 +20,25 @@ export async function getCommunityFeed(params: {
   return (data ?? []) as CommunityPost[];
 }
 
+// One author's posts for the Profile "Posts" tab. Viewer-scoped by the
+// user_posts RPC (SECURITY INVOKER → posts RLS); same keyset shape as the feed.
+export async function getUserPosts(params: {
+  targetId: string;
+  viewerId: string;
+  cursor?: FeedCursor | null;
+  limit?: number;
+}): Promise<CommunityPost[]> {
+  const { data, error } = await supabase.rpc('user_posts', {
+    p_target_id: params.targetId,
+    p_viewer_id: params.viewerId,
+    p_cursor_created_at: params.cursor?.createdAt ?? null,
+    p_cursor_id: params.cursor?.id ?? null,
+    p_limit: params.limit ?? 12,
+  });
+  if (error) throw error;
+  return (data ?? []) as CommunityPost[];
+}
+
 export async function createTextPost(params: {
   authorId: string;
   body: string;
