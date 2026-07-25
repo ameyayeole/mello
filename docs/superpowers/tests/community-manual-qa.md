@@ -262,3 +262,31 @@ already existed (044/045); this is code-only. Storage reuses the public
 - [ ] **Android flat-glass:** the option pills and result bars stay legible on the
   panel card without the blur.
 
+---
+
+## Phase 5 — Shared wraps
+
+### DB (SQL editor) — after running migrations 059 + 060
+- [ ] A user who is **not** the host / an approved attendee of an event **cannot**
+  insert a `shared_wrap` for it (posts_insert RLS `is_event_attendee`).
+- [ ] A `shared_wrap` with **null** `ref_wrap_event_id` is rejected by the
+  `posts_shared_wrap_has_ref` CHECK.
+- [ ] `SELECT * FROM get_wrap_card('<event>')` returns one row: title, activity,
+  location, ended_at, photo_count, and up to 6 `top_photos`.
+- [ ] `community_feed` and `user_posts` now include a `ref_wrap_event_id` column.
+
+### Android device
+- [ ] From a **wrapped event you attended**, the wrap hub shows a **Share** button
+  in the header (host + approved attendees only — the screen already guards
+  non-attendees out).
+- [ ] Tapping it opens **Share to Community** (optional caption + Friends/Public);
+  sharing posts a `shared_wrap` and it appears at the top of the feed.
+- [ ] The feed card shows the wrap **title + meta + top-photos grid** (+ caption if
+  given) and **taps through to the full wrap**.
+- [ ] A viewer who can see the post but did **not** attend sees the card fine but
+  has no Share button on that wrap.
+- [ ] Deleting the underlying **event** leaves a graceful "This wrap is no longer
+  available" card (no crash); **delete-own** removes the shared_wrap from the feed
+  and the profile Posts tab.
+- [ ] Friends/Public visibility respected; **Android flat-glass:** the card grid +
+  "View wrap" row stay legible.
