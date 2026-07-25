@@ -1,43 +1,20 @@
-import { buildMentionables } from '@/components/community/commentMentions';
-import { Profile, PostComment } from '@/types/models';
+import { extractMentionUsernames } from '@/components/community/commentMentions';
 
-const friend = (over: Partial<Profile>): Profile =>
-  ({ id: 'x', name: 'X', username: 'x', photo_url: null, ...over } as Profile);
+const c = (body: string | null) => ({ body });
 
-const comment = (over: Partial<PostComment>): PostComment =>
-  ({
-    id: 'c',
-    author_id: 'ca',
-    author_name: 'C',
-    author_username: 'c',
-    author_photo_url: null,
-    body: 'x',
-    mentions: [],
-    like_count: 0,
-    deleted: false,
-    liked_by_me: false,
-    created_at: 't',
-    ...over,
-  } as PostComment);
-
-describe('buildMentionables', () => {
-  it('maps lowercase username → id from friends, thread authors, and self', () => {
-    const map = buildMentionables(
-      [friend({ id: 'f1', username: 'Alex' })],
-      [comment({ author_id: 'c1', author_username: 'Bea' })],
-      { id: 'me', username: 'Me' } as Profile
-    );
-    expect(map.get('alex')).toBe('f1');
-    expect(map.get('bea')).toBe('c1');
-    expect(map.get('me')).toBe('me');
+describe('extractMentionUsernames', () => {
+  it('collects unique lowercase handles across bodies, sorted', () => {
+    expect(
+      extractMentionUsernames([c('hi @Bea and @alpha'), c('@bea again'), c(null)])
+    ).toEqual(['alpha', 'bea']);
   });
 
-  it('skips entries without a username', () => {
-    const map = buildMentionables(
-      [friend({ id: 'f1', username: undefined })],
-      [comment({ author_id: 'c1', author_username: '' })],
-      null
-    );
-    expect(map.size).toBe(0);
+  it('returns [] for no bodies or no mentions', () => {
+    expect(extractMentionUsernames(undefined)).toEqual([]);
+    expect(extractMentionUsernames([c('no handles here')])).toEqual([]);
+  });
+
+  it('ignores a bare @ with no handle', () => {
+    expect(extractMentionUsernames([c('email me @ home')])).toEqual([]);
   });
 });

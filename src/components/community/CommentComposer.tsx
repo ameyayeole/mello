@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { TextField, PressableScale, Icon } from '@/components/ui';
 import MentionAutocomplete, {
-  Mentionable,
   activeMentionQuery,
   insertMention,
 } from '@/components/chat/MentionAutocomplete';
+import { useMentionSearch } from '@/hooks/useMentions';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
@@ -20,14 +20,12 @@ const MAX = 500;
 export function CommentComposer({
   replyToName,
   prefill,
-  people,
   onSubmit,
   onCancelReply,
   pending,
 }: {
   replyToName: string | null;
   prefill: string;
-  people: Mentionable[];
   onSubmit: (body: string) => void;
   onCancelReply: () => void;
   pending: boolean;
@@ -37,8 +35,10 @@ export function CommentComposer({
   const [text, setText] = useState(prefill);
   const trimmed = text.trim();
   const canSend = trimmed.length > 0 && trimmed.length <= MAX && !pending;
-  // Non-null while the user is mid-"@…" token → show the people strip.
+  // Non-null while the user is mid-"@…" token → live-search people to tag. Not
+  // limited to friends (you comment on public posts too); searchUsers hides self.
   const mentionQuery = activeMentionQuery(text);
+  const people = useMentionSearch(mentionQuery);
 
   function send() {
     if (!canSend) return;
@@ -49,8 +49,11 @@ export function CommentComposer({
   return (
     <View style={styles.wrap}>
       {mentionQuery !== null ? (
+        // `people` is already server-filtered for the active token, so pass an
+        // empty query — the strip's own startsWith filter is prefix-only and
+        // would drop legitimate substring matches searchUsers returned.
         <MentionAutocomplete
-          query={mentionQuery}
+          query=""
           people={people}
           onPick={(u) => setText((t) => insertMention(t, u))}
         />

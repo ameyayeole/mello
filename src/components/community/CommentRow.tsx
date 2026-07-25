@@ -155,13 +155,12 @@ export function CommentRow({
               <PressableScale
                 onPress={() =>
                   // Reply attaches to the top-level ancestor (parentId ?? own id).
-                  // Replying to a reply seeds "@author " so the target is clear in
-                  // the flat reply list.
+                  // Every reply — to a top-level comment or to a reply — seeds the
+                  // lowercase @handle (not the display name, which capitalises) so
+                  // it resolves to a real mention; the banner still shows the name.
                   onReply(
                     parentId ?? comment.id,
-                    // Prefill the lowercase @handle (not the display name) so it
-                    // resolves to a real mention; the banner still shows the name.
-                    isReply ? `@${comment.author_username} ` : '',
+                    `@${comment.author_username} `,
                     comment.author_name
                   )
                 }

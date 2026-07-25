@@ -1,22 +1,18 @@
-import { Profile, PostComment } from '@/types/models';
+// Pull the unique @handles out of a set of comment bodies so the thread can
+// resolve them to profile ids (→ which handles render tappable). Lowercased and
+// sorted so the resulting query key is stable regardless of encounter order.
+// Same token grammar as chat's MentionText / the server-side resolver.
+const MENTION_RE = /@([a-zA-Z0-9._]+)/g;
 
-// Builds the lowercase-username → user-id map that MentionText uses to decide
-// which @handles in a comment body are tappable. The pool is everyone we can
-// name: the viewer's friends, the authors already in this thread, and the
-// viewer themselves (so your own @handle renders highlighted too). Entries
-// without a username are skipped. Later sources win on a key collision, but the
-// id is the same person either way.
-export function buildMentionables(
-  friends: Profile[],
-  comments: PostComment[] | undefined,
-  self?: Pick<Profile, 'id' | 'username'> | null
-): Map<string, string> {
-  const map = new Map<string, string>();
-  const add = (username: string | undefined | null, id: string) => {
-    if (username) map.set(username.toLowerCase(), id);
-  };
-  for (const f of friends) add(f.username, f.id);
-  for (const c of comments ?? []) add(c.author_username, c.author_id);
-  if (self) add(self.username, self.id);
-  return map;
+export function extractMentionUsernames(
+  comments: { body: string | null }[] | undefined
+): string[] {
+  const set = new Set<string>();
+  for (const c of comments ?? []) {
+    if (!c.body) continue;
+    MENTION_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = MENTION_RE.exec(c.body))) set.add(m[1].toLowerCase());
+  }
+  return [...set].sort();
 }

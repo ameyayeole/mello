@@ -138,12 +138,16 @@ B=`bravo`, C=`charlie`).
   `post_comment_replies(c1, A)` both return `author_username`.
 
 ### Android device
-- [ ] Typing `@` in the composer opens the people strip (friends + everyone in the
-  thread); it filters as you type; tapping a chip inserts the **lowercase** `@handle `.
+- [ ] Typing `@` in the composer opens the people strip. It **live-searches all
+  users** (not just friends — works even between non-friend test accounts A/B/C);
+  a bare `@` lists people, and it narrows as you type. Tapping a chip inserts the
+  **lowercase** `@handle `.
 - [ ] A sent comment shows the `@handle` **highlighted + tappable** → opens that
-  person's profile; an unknown `@handle` renders as plain text.
-- [ ] **Reply prefill is lowercase:** tapping Reply on a reply seeds `@handle ` (the
-  lowercase username), not the capitalised display name; the banner still shows the name.
+  person's profile; the highlight survives closing/reopening the sheet (the map
+  resolves from the thread, not a session cache); an unknown `@handle` is plain text.
+- [ ] **Reply prefill is lowercase — on every Reply:** tapping Reply on a **top-level
+  comment** *and* on a **reply** both seed `@handle ` (lowercase username), not the
+  capitalised display name; the banner still shows the name.
 - [ ] The mentioned person gets a **"[name] mentioned you in a comment"** notification
   (first push delivers; not coalesced); it appears under the **Mentions** filter and
   taps through to the Community feed.
