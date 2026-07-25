@@ -654,10 +654,15 @@ export default function NotificationsScreen() {
         case 'comment_liked':
         case 'comment_mention':
         case 'post_mention':
-        case 'poll_closed':
-          // A dedicated post-detail screen lands in Phase 7; until then, send
-          // them to the Community feed (best available landing for the post).
-          return dismiss(() => router.push('/(tabs)/community'));
+        case 'poll_closed': {
+          // Deep-link the specific post when the payload carries its id (Phase 7
+          // detail screen); fall back to the feed for payloads without post_id
+          // (e.g. comment_reply carries only parent_id).
+          const postId = payload?.post_id as string | undefined;
+          return dismiss(() =>
+            router.push(postId ? `/post/${postId}` : '/(tabs)/community')
+          );
+        }
         case 'note_received':
           return dismiss(() => router.push('/(tabs)/chats'));
         case 'encore_requested':

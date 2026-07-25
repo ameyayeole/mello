@@ -15,8 +15,8 @@ export function redirectSystemPath({
   try {
     const post = path.match(/(?:^|\/)post\/([^/?#]+)/);
     if (post?.[1]) {
-      // Post detail route lands in Phase 7; for now, send to the feed.
-      return '/(tabs)/community';
+      // The post detail screen (Phase 7) has a real file route.
+      return `/post/${decodeURIComponent(post[1])}`;
     }
 
     const match = path.match(/(?:^|\/)event\/([^/?#]+)/);
