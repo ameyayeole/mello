@@ -117,6 +117,18 @@ function composeCopy(
             : `${senderName} liked your post`,
       };
     }
+    case 'post_commented': {
+      const others = ((record.payload?.count as number) ?? 1) - 1;
+      return {
+        title: 'New comment',
+        body:
+          others > 0
+            ? `${senderName} and ${others} other${others > 1 ? 's' : ''} commented on your post`
+            : `${senderName} commented on your post`,
+      };
+    }
+    case 'comment_reply':
+      return { title: 'New reply', body: `${senderName} replied to your comment` };
     default:
       return { title: 'Mello', body: `${senderName} sent you a notification` };
   }

@@ -73,7 +73,9 @@ export type NotificationType =
   | 'photo_commented'
   | 'encore_requested'
   // Community posts (migration 046+)
-  | 'post_liked';
+  | 'post_liked'
+  | 'post_commented'
+  | 'comment_reply';
 
 export type ParticipantStatus = 'pending' | 'approved';
 
@@ -430,5 +432,22 @@ export interface CommunityPost {
   like_count: number;
   comment_count: number;
   liked_by_me: boolean;
+  created_at: string;
+}
+
+// One comment as returned by post_comments_ranked / post_comment_replies.
+// `body` is null when the comment is a tombstone (deleted parent kept for its
+// replies → rendered as "comment removed"). `reply_count` is present on
+// top-level rows only.
+export interface PostComment {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_photo_url: string | null;
+  body: string | null;
+  mentions: string[];
+  like_count: number;
+  reply_count?: number;
+  deleted: boolean;
   created_at: string;
 }

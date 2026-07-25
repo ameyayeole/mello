@@ -105,6 +105,18 @@ export function notificationCopy(
             : `${senderName} liked your post`,
       };
     }
+    case 'post_commented': {
+      const others = (opts.count ?? 1) - 1;
+      return {
+        title: 'New comment',
+        body:
+          others > 0
+            ? `${senderName} and ${others} other${others > 1 ? 's' : ''} commented on your post`
+            : `${senderName} commented on your post`,
+      };
+    }
+    case 'comment_reply':
+      return { title: 'New reply', body: `${senderName} replied to your comment` };
     default:
       return { title: 'Mello', body: 'You have a new notification' };
   }

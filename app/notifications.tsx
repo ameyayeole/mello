@@ -254,6 +254,18 @@ function notifText(notif: Notification, links: RowLinks): React.ReactNode {
         <>{who} liked your post</>
       );
     }
+    case 'post_commented': {
+      const others = ((payload?.count as number) ?? 1) - 1;
+      return others > 0 ? (
+        <>
+          {who} and {others} other{others > 1 ? 's' : ''} commented on your post
+        </>
+      ) : (
+        <>{who} commented on your post</>
+      );
+    }
+    case 'comment_reply':
+      return <>{who} replied to your comment</>;
     case 'encore_requested':
       return <>🔁 People want you to run {what('your event')} back</>;
     default:
@@ -618,6 +630,8 @@ export default function NotificationsScreen() {
           }
           break;
         case 'post_liked':
+        case 'post_commented':
+        case 'comment_reply':
           // A dedicated post-detail screen lands in Phase 7; until then, send
           // them to the Community feed (best available landing for the post).
           return dismiss(() => router.push('/(tabs)/community'));
