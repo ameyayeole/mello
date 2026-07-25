@@ -243,6 +243,17 @@ function notifText(notif: Notification, links: RowLinks): React.ReactNode {
       return <>{who} liked your photo</>;
     case 'photo_commented':
       return <>{who} commented on your photo</>;
+    case 'post_liked': {
+      // Coalesced: payload.count is the total likers in the window.
+      const others = ((payload?.count as number) ?? 1) - 1;
+      return others > 0 ? (
+        <>
+          {who} and {others} other{others > 1 ? 's' : ''} liked your post
+        </>
+      ) : (
+        <>{who} liked your post</>
+      );
+    }
     case 'encore_requested':
       return <>🔁 People want you to run {what('your event')} back</>;
     default:
@@ -606,6 +617,10 @@ export default function NotificationsScreen() {
             return router.push(`/events/wrap/gallery/${notif.event_id}`);
           }
           break;
+        case 'post_liked':
+          // A dedicated post-detail screen lands in Phase 7; until then, send
+          // them to the Community feed (best available landing for the post).
+          return dismiss(() => router.push('/(tabs)/community'));
         case 'note_received':
           return dismiss(() => router.push('/(tabs)/chats'));
         case 'encore_requested':
