@@ -16,11 +16,13 @@ export function PostCard({
   isOwn,
   onOverflow,
   onComment,
+  mentionables,
 }: {
   post: CommunityPost;
   isOwn: boolean;
   onOverflow: (post: CommunityPost) => void;
   onComment: (post: CommunityPost) => void;
+  mentionables?: Map<string, string>;
 }) {
   return (
     <Glass tier="panel" radius={RADIUS['2xl']} style={styles.card}>
@@ -29,12 +31,14 @@ export function PostCard({
         onOverflow={isOwn ? () => onOverflow(post) : undefined}
       />
       {post.type === 'text' && post.body ? (
-        <TextPostBody body={post.body} />
+        <TextPostBody body={post.body} mentionables={mentionables} />
       ) : null}
       {post.type === 'photo' && post.media.length > 0 ? (
         <View style={styles.media}>
           <PhotoCarousel media={post.media} />
-          {post.body ? <TextPostBody body={post.body} /> : null}
+          {post.body ? (
+            <TextPostBody body={post.body} mentionables={mentionables} />
+          ) : null}
         </View>
       ) : null}
       <PostActionBar post={post} onComment={onComment} />

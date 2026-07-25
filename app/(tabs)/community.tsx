@@ -14,6 +14,7 @@ import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { useCommunityFeed } from '@/hooks/useCommunityFeed';
+import { useThreadMentionables } from '@/hooks/useMentions';
 import { useDeletePost } from '@/hooks/usePostMutations';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
@@ -47,6 +48,11 @@ export default function CommunityScreen() {
     () => feed.data?.pages.flat() ?? [],
     [feed.data]
   );
+
+  // Resolves every @handle across all loaded feed pages (one keyed query) plus
+  // the viewer → which caption handles render tappable. Same map CommentSheet
+  // builds for a thread; useThreadMentionables is structural on `{ body }[]`.
+  const mentionables = useThreadMentionables(posts);
 
   const openCompose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -124,6 +130,7 @@ export default function CommunityScreen() {
                   isOwn={item.author_id === meId}
                   onOverflow={onOverflow}
                   onComment={onComment}
+                  mentionables={mentionables}
                 />
               </Animated.View>
             )}

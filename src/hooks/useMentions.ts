@@ -6,7 +6,6 @@ import {
 } from '@/services/community/mentions.service';
 import { extractMentionUsernames } from '@/components/community/commentMentions';
 import { useAuthStore } from '@/stores/authStore';
-import { PostComment } from '@/types/models';
 import { Mentionable } from '@/components/chat/MentionAutocomplete';
 
 const DEBOUNCE_MS = 150;
@@ -46,16 +45,18 @@ export function useMentionSearch(query: string | null): Mentionable[] {
   );
 }
 
-// The lowercase-username → id map that decides which @handles in the rendered
-// thread are tappable. Resolves every handle actually present in the loaded
-// comments (one keyed query), plus the viewer (so your own @handle highlights).
-// Robust across sheet reopens — unlike a per-session "people I picked" cache.
+// The lowercase-username → id map that decides which @handles in a rendered set
+// of bodies are tappable. Resolves every handle actually present in the loaded
+// rows (one keyed query), plus the viewer (so your own @handle highlights).
+// Structurally typed on `{ body }[]` so both comment threads (CommentSheet) and
+// post captions (the feed / profile) share it. Robust across reopens — unlike a
+// per-session "people I picked" cache.
 export function useThreadMentionables(
-  comments: PostComment[] | undefined
+  rows: { body: string | null }[] | undefined
 ): Map<string, string> {
   const meId = useAuthStore((s) => s.user?.id);
   const meUsername = useAuthStore((s) => s.user?.username);
-  const usernames = useMemo(() => extractMentionUsernames(comments), [comments]);
+  const usernames = useMemo(() => extractMentionUsernames(rows), [rows]);
 
   const q = useQuery({
     queryKey: ['threadMentionables', usernames],
