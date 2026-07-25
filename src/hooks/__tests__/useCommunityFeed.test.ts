@@ -10,6 +10,7 @@ const post = (id: string, createdAt: string): CommunityPost => ({
   visibility: 'public',
   body: 'x',
   media: [],
+  ref_wrap_event_id: null,
   city: 'Mumbai',
   like_count: 0,
   comment_count: 0,

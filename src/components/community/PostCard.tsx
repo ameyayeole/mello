@@ -6,6 +6,7 @@ import { PostAuthorRow } from './PostAuthorRow';
 import { TextPostBody } from './TextPostBody';
 import { PhotoCarousel } from './PhotoCarousel';
 import { PollCard } from './PollCard';
+import { SharedWrapCard } from './SharedWrapCard';
 import { PostActionBar } from './PostActionBar';
 
 // One post in the feed. Text (Phase 1) and photo (Phase 3a) render here; poll /
@@ -46,6 +47,12 @@ export function PostCard({
         <View style={styles.media}>
           <PollCard postId={post.id} question={post.body ?? ''} />
         </View>
+      ) : null}
+      {post.type === 'shared_wrap' && post.ref_wrap_event_id ? (
+        <SharedWrapCard
+          eventId={post.ref_wrap_event_id}
+          caption={post.body ?? ''}
+        />
       ) : null}
       <PostActionBar post={post} onComment={onComment} />
     </Glass>

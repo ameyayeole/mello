@@ -432,6 +432,9 @@ export interface CommunityPost {
   visibility: PostVisibility;
   body: string | null;
   media: string[];
+  // Set only on shared_wrap posts → the referenced event's wrap (migration 060
+  // returns it from the feed / user_posts RPCs).
+  ref_wrap_event_id: string | null;
   city: string | null;
   like_count: number;
   comment_count: number;
