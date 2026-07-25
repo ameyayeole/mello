@@ -163,6 +163,10 @@ export const queryKeys = {
       all: ['community', 'replies'] as const,
       of: (parentId: Id) => ['community', 'replies', parentId] as const,
     },
+    poll: {
+      all: ['community', 'poll'] as const,
+      of: (postId: Id) => ['community', 'poll', postId] as const,
+    },
   },
 } as const;
 
