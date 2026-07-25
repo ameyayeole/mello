@@ -77,7 +77,8 @@ export type NotificationType =
   | 'post_commented'
   | 'comment_reply'
   | 'comment_liked'
-  | 'comment_mention';
+  | 'comment_mention'
+  | 'post_mention';
 
 export type ParticipantStatus = 'pending' | 'approved';
 

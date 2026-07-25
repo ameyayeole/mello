@@ -131,6 +131,9 @@ export function notificationCopy(
       // Not coalesced (one row per comment) — the body mirrors the chat `mention`
       // banner shape (no sender prefix; the row draws the avatar + name).
       return { title: 'Mention', body: 'mentioned you in a comment' };
+    case 'post_mention':
+      // Not coalesced (one row per post) — body mirrors the chat `mention` shape.
+      return { title: 'Mention', body: 'mentioned you in a post' };
     default:
       return { title: 'Mello', body: 'You have a new notification' };
   }

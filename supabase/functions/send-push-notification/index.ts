@@ -144,6 +144,11 @@ function composeCopy(
         title: 'Mention',
         body: `${senderName} mentioned you in a comment`,
       };
+    case 'post_mention':
+      return {
+        title: 'Mention',
+        body: `${senderName} mentioned you in a post`,
+      };
     default:
       return { title: 'Mello', body: `${senderName} sent you a notification` };
   }

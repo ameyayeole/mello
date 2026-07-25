@@ -8,6 +8,13 @@ describe('notificationCopy — community', () => {
     });
   });
 
+  it('post_mention reads "mentioned you in a post"', () => {
+    expect(notificationCopy('post_mention', { senderName: 'Sri' })).toEqual({
+      title: 'Mention',
+      body: 'mentioned you in a post',
+    });
+  });
+
   it('post_liked coalesces the count into the body', () => {
     expect(notificationCopy('post_liked', { senderName: 'Sri', count: 3 }).body).toBe(
       'Sri and 2 others liked your post'
