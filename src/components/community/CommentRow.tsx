@@ -39,7 +39,9 @@ export function CommentRow({
   meId: string | undefined;
   isPostAuthor: boolean;
   isReply?: boolean;
-  onReply: (c: PostComment) => void;
+  // parentId = the top-level comment to attach the new reply to (stays one level
+  // deep); prefill seeds the composer ("@user " when replying to a reply).
+  onReply: (parentId: string, prefill: string, toName: string) => void;
   onOverflow: (c: PostComment) => void;
 }) {
   const router = useRouter();
@@ -140,8 +142,19 @@ export function CommentRow({
                 ) : null}
               </PressableScale>
             ) : null}
-            {!comment.deleted && !isReply ? (
-              <PressableScale onPress={() => onReply(comment)}>
+            {!comment.deleted ? (
+              <PressableScale
+                onPress={() =>
+                  // Reply attaches to the top-level ancestor (parentId ?? own id).
+                  // Replying to a reply seeds "@author " so the target is clear in
+                  // the flat reply list.
+                  onReply(
+                    parentId ?? comment.id,
+                    isReply ? `@${comment.author_name} ` : '',
+                    comment.author_name
+                  )
+                }
+              >
                 <Text style={styles.action}>Reply</Text>
               </PressableScale>
             ) : null}

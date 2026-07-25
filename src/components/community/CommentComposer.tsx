@@ -4,26 +4,30 @@ import { TextField, PressableScale, Icon } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
-import { PostComment } from '@/types/models';
 
 const MAX = 500;
 
 // The comment/reply input pinned to the bottom of the comment sheet. When
-// `replyingTo` is set it shows a "Replying to X" banner + switches the
-// placeholder. Send is a bare glyph (muted when empty, coral when ready) rather
-// than an IconButton — IconButton has no disabled state and this needs one.
+// `replyToName` is set it shows a "Replying to X" banner + switches the
+// placeholder, and `prefill` seeds the field (e.g. "@user " when replying to a
+// reply). Send is a bare glyph (muted when empty, coral when ready) rather than
+// an IconButton — IconButton has no disabled state and this needs one.
 export function CommentComposer({
-  replyingTo,
+  replyToName,
+  prefill,
   onSubmit,
   onCancelReply,
   pending,
 }: {
-  replyingTo: PostComment | null;
+  replyToName: string | null;
+  prefill: string;
   onSubmit: (body: string) => void;
   onCancelReply: () => void;
   pending: boolean;
 }) {
-  const [text, setText] = useState('');
+  // Seeded from `prefill`; the parent remounts this (via a key) when the reply
+  // target changes, so a fresh "@user " prefix appears without a setState effect.
+  const [text, setText] = useState(prefill);
   const trimmed = text.trim();
   const canSend = trimmed.length > 0 && trimmed.length <= MAX && !pending;
 
@@ -35,10 +39,10 @@ export function CommentComposer({
 
   return (
     <View style={styles.wrap}>
-      {replyingTo ? (
+      {replyToName ? (
         <View style={styles.banner}>
           <Text style={styles.bannerText} numberOfLines={1}>
-            Replying to {replyingTo.author_name}
+            Replying to {replyToName}
           </Text>
           <PressableScale onPress={onCancelReply} accessibilityLabel="Cancel reply">
             <Icon name="close" size={16} color={COLORS.textMuted} />
@@ -50,7 +54,7 @@ export function CommentComposer({
           <TextField
             value={text}
             onChangeText={(t) => setText(t.slice(0, MAX))}
-            placeholder={replyingTo ? 'Add a reply…' : 'Add a comment…'}
+            placeholder={replyToName ? 'Add a reply…' : 'Add a comment…'}
             multiline
             maxLength={MAX}
           />

@@ -55,18 +55,27 @@ export function CommentSheet({
   const del = useDeleteComment(post.id);
   const toggle = useSetCommentsEnabled(post.id);
 
-  const [replyingTo, setReplyingTo] = useState<PostComment | null>(null);
+  // parentId = the top-level comment a new reply attaches to; toName = who the
+  // banner names; prefill = seed text ("@user " when replying to a reply).
+  const [replyTarget, setReplyTarget] = useState<{
+    parentId: string;
+    toName: string;
+    prefill: string;
+  } | null>(null);
   const [commentsOn, setCommentsOn] = useState(post.comments_enabled);
+
+  const onReply = (parentId: string, prefill: string, toName: string) =>
+    setReplyTarget({ parentId, toName, prefill });
 
   const listMax = height * 0.52;
 
   function submit(body: string) {
     add.mutate(
-      { body, parentId: replyingTo?.id ?? null },
+      { body, parentId: replyTarget?.parentId ?? null },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setReplyingTo(null);
+          setReplyTarget(null);
         },
         onError: () =>
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
@@ -195,7 +204,7 @@ export function CommentSheet({
               postId={post.id}
               meId={meId}
               isPostAuthor={isPostAuthor}
-              onReply={setReplyingTo}
+              onReply={onReply}
               onOverflow={onOverflow}
             />
           )}
@@ -211,9 +220,13 @@ export function CommentSheet({
 
       {commentsOn ? (
         <CommentComposer
-          replyingTo={replyingTo}
+          // Remount when the reply target changes so the field reseeds from
+          // `prefill` (a key change is the setState-free way to reset state).
+          key={replyTarget ? `${replyTarget.parentId}:${replyTarget.prefill}` : 'root'}
+          replyToName={replyTarget?.toName ?? null}
+          prefill={replyTarget?.prefill ?? ''}
           onSubmit={submit}
-          onCancelReply={() => setReplyingTo(null)}
+          onCancelReply={() => setReplyTarget(null)}
           pending={add.isPending}
         />
       ) : (
