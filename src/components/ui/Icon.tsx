@@ -448,7 +448,11 @@ export function PremiumBadge({ size = 14 }: { size?: number }) {
 // competing signals, and coral is reserved for one CTA per screen.
 const TAB_SOLAR: Record<'home' | 'community' | 'map' | 'inbox', string> = {
   home: 'Home2',
-  community: 'UsersGroupRounded',
+  // PeopleNearby, not UsersGroupRounded: the latter's Solar glyph draws heads
+  // with <Ellipse>, and this project's react-native-svg build doesn't provide
+  // that primitive ("Property 'Ellipse' doesn't exist") — every working tab
+  // glyph uses only <Path>. PeopleNearby is Path-only and reads as a community.
+  community: 'PeopleNearby',
   map: 'Map',
   inbox: 'ChatRound',
 };
