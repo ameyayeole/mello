@@ -6,6 +6,10 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 DROP FUNCTION IF EXISTS community_feed(UUID, TIMESTAMPTZ, UUID, INT);
 CREATE OR REPLACE FUNCTION community_feed(
+  -- Unused so far: scoping is entirely via RLS auth.uid() (SECURITY INVOKER
+  -- below). Reserved for Phase 6's hybrid-score signal (e.g. affinity to
+  -- p_user_id's friends/city). Kept in the signature now to avoid another
+  -- breaking DROP FUNCTION once that lands.
   p_user_id           UUID,
   p_cursor_created_at TIMESTAMPTZ DEFAULT NULL,
   p_cursor_id         UUID        DEFAULT NULL,

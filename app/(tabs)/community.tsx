@@ -10,16 +10,20 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { SPACING } from '@/constants/spacing';
+import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { useCommunityFeed } from '@/hooks/useCommunityFeed';
+import { useDeletePost } from '@/hooks/usePostMutations';
+import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import {
   EmptyState,
   Loader,
   Screen,
   IconButton,
+  Dialog,
+  PressableScale,
   useTabBarInset,
 } from '@/components/ui';
 import { PostCard } from '@/components/community/PostCard';
@@ -31,8 +35,11 @@ export default function CommunityScreen() {
   const tabBarInset = useTabBarInset();
   const router = useRouter();
   const feed = useCommunityFeed();
+  const meId = useAuthStore((s) => s.user?.id);
+  const del = useDeletePost();
   const [composeOpen, setComposeOpen] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
 
   const posts = useMemo(
     () => feed.data?.pages.flat() ?? [],
@@ -45,11 +52,26 @@ export default function CommunityScreen() {
   }, []);
 
   // Nudge shows when the feed is genuinely thin and not dismissed this session.
-  const showNudge = !nudgeDismissed && !feed.isLoading && posts.length < 3;
+  // Suppressed on error so it doesn't stack over the retry state.
+  const showNudge =
+    !nudgeDismissed && !feed.isLoading && !feed.isError && posts.length < 3;
 
-  function onOverflow(_post: CommunityPost) {
-    // Delete/report menu — wired to useDeletePost + report in Phase 2's action
-    // work. Phase 1 leaves the entry point in place.
+  // Own-post overflow only: report arrives in a later phase.
+  function onOverflow(post: CommunityPost) {
+    setPendingDelete(post);
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    del.mutate(pendingDelete.id, {
+      onSuccess: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setPendingDelete(null);
+      },
+      onError: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      },
+    });
   }
 
   function loadMore() {
@@ -90,7 +112,11 @@ export default function CommunityScreen() {
               <Animated.View
                 entering={FadeInDown.delay(Math.min(index, 6) * 60).duration(350)}
               >
-                <PostCard post={item} onOverflow={onOverflow} />
+                <PostCard
+                  post={item}
+                  isOwn={item.author_id === meId}
+                  onOverflow={onOverflow}
+                />
               </Animated.View>
             )}
             refreshControl={
@@ -137,6 +163,32 @@ export default function CommunityScreen() {
         visible={composeOpen}
         onClose={() => setComposeOpen(false)}
       />
+
+      <Dialog visible={!!pendingDelete} onClose={() => setPendingDelete(null)}>
+        <Text style={styles.dialogTitle}>Delete post?</Text>
+        <Text style={styles.dialogBody}>This can&apos;t be undone.</Text>
+        <View style={styles.dialogButtonRow}>
+          <PressableScale
+            scaleTo={0.96}
+            style={[styles.dialogBtn, styles.dialogCancelBtn]}
+            onPress={() => setPendingDelete(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
+            <Text style={styles.dialogCancelLabel}>Cancel</Text>
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.96}
+            style={[styles.dialogBtn, styles.dialogDeleteBtn]}
+            onPress={confirmDelete}
+            disabled={del.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Delete"
+          >
+            <Text style={styles.dialogDeleteLabel}>Delete</Text>
+          </PressableScale>
+        </View>
+      </Dialog>
     </View>
   );
 }
@@ -158,4 +210,42 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   list: { padding: SPACING[4], paddingTop: SPACING[1], gap: SPACING[3] },
+  dialogTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.section,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  dialogBody: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: 'rgba(15,24,44,0.6)',
+    textAlign: 'center',
+    marginTop: SPACING[2],
+  },
+  dialogButtonRow: {
+    flexDirection: 'row',
+    gap: SPACING[2],
+    alignSelf: 'stretch',
+    marginTop: SPACING[4],
+  },
+  dialogBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogCancelBtn: { backgroundColor: '#F0F1F3' },
+  dialogCancelLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textPrimary,
+  },
+  dialogDeleteBtn: { backgroundColor: COLORS.error },
+  dialogDeleteLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: '#fff',
+  },
 });

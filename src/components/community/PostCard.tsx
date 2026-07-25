@@ -13,14 +13,19 @@ import { TextPostBody } from './TextPostBody';
 // footer geometry is settled before interactions land on it.
 export function PostCard({
   post,
+  isOwn,
   onOverflow,
 }: {
   post: CommunityPost;
+  isOwn: boolean;
   onOverflow: (post: CommunityPost) => void;
 }) {
   return (
     <Glass tier="panel" radius={RADIUS['2xl']} style={styles.card}>
-      <PostAuthorRow post={post} onOverflow={() => onOverflow(post)} />
+      <PostAuthorRow
+        post={post}
+        onOverflow={isOwn ? () => onOverflow(post) : undefined}
+      />
       {post.type === 'text' && post.body ? (
         <TextPostBody body={post.body} />
       ) : null}

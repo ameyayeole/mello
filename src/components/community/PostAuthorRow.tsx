@@ -7,13 +7,15 @@ import { CommunityPost } from '@/types/models';
 import { relativeTime } from '@/utils/time';
 
 // Avatar + name + city · time, with an overflow button on the right. The
-// overflow's menu (delete / report) is wired by the parent card.
+// overflow's menu (delete / report) is wired by the parent card. `onOverflow`
+// is only passed for the current user's own posts (delete); other authors'
+// posts render no trailing control this phase — report arrives later.
 export function PostAuthorRow({
   post,
   onOverflow,
 }: {
   post: CommunityPost;
-  onOverflow: () => void;
+  onOverflow?: () => void;
 }) {
   const meta = [post.city, relativeTime(post.created_at)]
     .filter(Boolean)
@@ -29,14 +31,16 @@ export function PostAuthorRow({
           {meta}
         </Text>
       </View>
-      <IconButton
-        icon="dots"
-        variant="ghost"
-        size={32}
-        iconSize={18}
-        onPress={onOverflow}
-        accessibilityLabel="Post options"
-      />
+      {onOverflow ? (
+        <IconButton
+          icon="dots"
+          variant="ghost"
+          size={32}
+          iconSize={18}
+          onPress={onOverflow}
+          accessibilityLabel="Post options"
+        />
+      ) : null}
     </View>
   );
 }
