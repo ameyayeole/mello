@@ -15,23 +15,20 @@ import { PostActionBar } from './PostActionBar';
 // optimistic, comment opens the Phase 2b sheet via onComment.
 export function PostCard({
   post,
-  isOwn,
   onOverflow,
   onComment,
   mentionables,
 }: {
   post: CommunityPost;
-  isOwn: boolean;
   onOverflow: (post: CommunityPost) => void;
   onComment: (post: CommunityPost) => void;
   mentionables?: Map<string, string>;
 }) {
   return (
     <Glass tier="panel" radius={RADIUS['2xl']} style={styles.card}>
-      <PostAuthorRow
-        post={post}
-        onOverflow={isOwn ? () => onOverflow(post) : undefined}
-      />
+      {/* Overflow is now on every post — the screen's handler branches on
+          ownership (Delete for your own, Report for others'). */}
+      <PostAuthorRow post={post} onOverflow={() => onOverflow(post)} />
       {post.type === 'text' && post.body ? (
         <TextPostBody body={post.body} mentionables={mentionables} />
       ) : null}

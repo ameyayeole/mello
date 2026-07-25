@@ -7,8 +7,10 @@ import { PressableScale, Dialog, Button, NavButton } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
+import { useMutation } from '@tanstack/react-query';
 import { useUserPosts } from '@/hooks/useUserPosts';
 import { useDeletePost } from '@/hooks/usePostMutations';
+import { reportPost } from '@/services/moderation.service';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import { PostCard } from './PostCard';
@@ -38,7 +40,38 @@ export function ProfilePosts({
   const [mode, setMode] = useState<Mode>('grid');
   const [commentPost, setCommentPost] = useState<CommunityPost | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
+  const [reportTarget, setReportTarget] = useState<CommunityPost | null>(null);
   const [viewerPost, setViewerPost] = useState<CommunityPost | null>(null);
+
+  const report = useMutation({
+    mutationFn: (post: CommunityPost) =>
+      reportPost({
+        reporterId: meId!,
+        reportedId: post.author_id,
+        postId: post.id,
+        reason: 'inappropriate',
+      }),
+  });
+
+  // Overflow branches on ownership: Delete your own, Report someone else's.
+  function onOverflow(post: CommunityPost) {
+    if (post.author_id === meId) setPendingDelete(post);
+    else setReportTarget(post);
+  }
+
+  function confirmReport() {
+    if (!reportTarget) return;
+    report.mutate(reportTarget, {
+      onSuccess: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setReportTarget(null);
+      },
+      onError: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setReportTarget(null);
+      },
+    });
+  }
   // Measured from onLayout so tiles divide the width the profile gives us,
   // rather than guessing the sheet's padding. Tiles render once it's known.
   const [gridWidth, setGridWidth] = useState(0);
@@ -94,8 +127,7 @@ export function ProfilePosts({
             <PostCard
               key={p.id}
               post={p}
-              isOwn={p.author_id === meId}
-              onOverflow={setPendingDelete}
+              onOverflow={onOverflow}
               onComment={setCommentPost}
             />
           ))}
@@ -195,6 +227,31 @@ export function ProfilePosts({
             accessibilityLabel="Delete"
           >
             <Text style={styles.dialogDeleteLabel}>Delete</Text>
+          </PressableScale>
+        </View>
+      </Dialog>
+
+      <Dialog visible={!!reportTarget} onClose={() => setReportTarget(null)}>
+        <Text style={styles.dialogTitle}>Report post?</Text>
+        <Text style={styles.dialogBody}>
+          Our team will review it. Posts reported by several people are hidden
+          automatically.
+        </Text>
+        <View style={styles.dialogButtonRow}>
+          <PressableScale
+            scaleTo={0.96}
+            style={[styles.dialogBtn, styles.dialogCancelBtn]}
+            onPress={() => setReportTarget(null)}
+          >
+            <Text style={styles.dialogCancelLabel}>Cancel</Text>
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.96}
+            style={[styles.dialogBtn, styles.dialogDeleteBtn]}
+            onPress={confirmReport}
+            disabled={report.isPending}
+          >
+            <Text style={styles.dialogDeleteLabel}>Report</Text>
           </PressableScale>
         </View>
       </Dialog>

@@ -9,7 +9,9 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { reportPost } from '@/services/moderation.service';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -42,7 +44,19 @@ export default function CommunityScreen() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
+  const [reportTarget, setReportTarget] = useState<CommunityPost | null>(null);
   const [commentPost, setCommentPost] = useState<CommunityPost | null>(null);
+
+  const report = useMutation({
+    mutationFn: (post: CommunityPost) =>
+      reportPost({
+        reporterId: meId!,
+        reportedId: post.author_id,
+        postId: post.id,
+        // MVP: a single generic reason; a reason picker can come in polish.
+        reason: 'inappropriate',
+      }),
+  });
 
   const posts = useMemo(
     () => feed.data?.pages.flat() ?? [],
@@ -69,9 +83,24 @@ export default function CommunityScreen() {
   const showNudge =
     !nudgeDismissed && !feed.isLoading && !feed.isError && posts.length < 3;
 
-  // Own-post overflow only: report arrives in a later phase.
+  // Overflow branches on ownership: Delete your own, Report someone else's.
   function onOverflow(post: CommunityPost) {
-    setPendingDelete(post);
+    if (post.author_id === meId) setPendingDelete(post);
+    else setReportTarget(post);
+  }
+
+  function confirmReport() {
+    if (!reportTarget) return;
+    report.mutate(reportTarget, {
+      onSuccess: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setReportTarget(null);
+      },
+      onError: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setReportTarget(null);
+      },
+    });
   }
 
   function confirmDelete() {
@@ -127,7 +156,6 @@ export default function CommunityScreen() {
               >
                 <PostCard
                   post={item}
-                  isOwn={item.author_id === meId}
                   onOverflow={onOverflow}
                   onComment={onComment}
                   mentionables={mentionables}
@@ -209,6 +237,35 @@ export default function CommunityScreen() {
             accessibilityLabel="Delete"
           >
             <Text style={styles.dialogDeleteLabel}>Delete</Text>
+          </PressableScale>
+        </View>
+      </Dialog>
+
+      <Dialog visible={!!reportTarget} onClose={() => setReportTarget(null)}>
+        <Text style={styles.dialogTitle}>Report post?</Text>
+        <Text style={styles.dialogBody}>
+          Our team will review it. Posts reported by several people are hidden
+          automatically.
+        </Text>
+        <View style={styles.dialogButtonRow}>
+          <PressableScale
+            scaleTo={0.96}
+            style={[styles.dialogBtn, styles.dialogCancelBtn]}
+            onPress={() => setReportTarget(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
+            <Text style={styles.dialogCancelLabel}>Cancel</Text>
+          </PressableScale>
+          <PressableScale
+            scaleTo={0.96}
+            style={[styles.dialogBtn, styles.dialogDeleteBtn]}
+            onPress={confirmReport}
+            disabled={report.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Report"
+          >
+            <Text style={styles.dialogDeleteLabel}>Report</Text>
           </PressableScale>
         </View>
       </Dialog>
