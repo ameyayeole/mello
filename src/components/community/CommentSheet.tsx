@@ -5,6 +5,7 @@ import {
   StyleSheet,
   FlatList,
   useWindowDimensions,
+  Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -13,11 +14,10 @@ import {
   Loader,
   EmptyState,
   PressableScale,
-  Dialog,
 } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { SPACING, RADIUS } from '@/constants/spacing';
+import { SPACING } from '@/constants/spacing';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost, PostComment } from '@/types/models';
 import {
@@ -53,7 +53,6 @@ export function CommentSheet({
   const toggle = useSetCommentsEnabled(post.id);
 
   const [replyingTo, setReplyingTo] = useState<PostComment | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<PostComment | null>(null);
   const [commentsOn, setCommentsOn] = useState(post.comments_enabled);
 
   const listMax = height * 0.52;
@@ -72,22 +71,33 @@ export function CommentSheet({
     );
   }
 
-  function confirmDelete() {
-    if (!pendingDelete) return;
-    del.mutate(
+  // Native Alert, not a Dialog: a Dialog is a Modal, and nesting it inside the
+  // Sheet's Modal fails to render on Android. Alert layers above modals reliably.
+  function requestDelete(comment: PostComment) {
+    Alert.alert('Delete comment?', "This can't be undone.", [
+      { text: 'Cancel', style: 'cancel' },
       {
-        commentId: pendingDelete.id,
-        hasReplies: (pendingDelete.reply_count ?? 0) > 0,
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          del.mutate(
+            {
+              commentId: comment.id,
+              hasReplies: (comment.reply_count ?? 0) > 0,
+            },
+            {
+              onSuccess: () =>
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success
+                ),
+              onError: () =>
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Error
+                ),
+            }
+          ),
       },
-      {
-        onSuccess: () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setPendingDelete(null);
-        },
-        onError: () =>
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
-      }
-    );
+    ]);
   }
 
   function flipComments() {
@@ -134,7 +144,7 @@ export function CommentSheet({
               meId={meId}
               isPostAuthor={isPostAuthor}
               onReply={setReplyingTo}
-              onRequestDelete={setPendingDelete}
+              onRequestDelete={requestDelete}
             />
           )}
           ListEmptyComponent={
@@ -157,32 +167,6 @@ export function CommentSheet({
       ) : (
         <Text style={styles.off}>Comments are turned off</Text>
       )}
-
-      <Dialog visible={!!pendingDelete} onClose={() => setPendingDelete(null)}>
-        <Text style={styles.dialogTitle}>Delete comment?</Text>
-        <Text style={styles.dialogBody}>This can&apos;t be undone.</Text>
-        <View style={styles.dialogRow}>
-          <PressableScale
-            scaleTo={0.96}
-            style={[styles.dialogBtn, styles.cancelBtn]}
-            onPress={() => setPendingDelete(null)}
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-          >
-            <Text style={styles.cancelLabel}>Cancel</Text>
-          </PressableScale>
-          <PressableScale
-            scaleTo={0.96}
-            style={[styles.dialogBtn, styles.deleteBtn]}
-            onPress={confirmDelete}
-            disabled={del.isPending}
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-          >
-            <Text style={styles.deleteLabel}>Delete</Text>
-          </PressableScale>
-        </View>
-      </Dialog>
     </Sheet>
   );
 }
@@ -213,43 +197,5 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: SPACING[3],
-  },
-  dialogTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.section,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
-  dialogBody: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginTop: SPACING[2],
-  },
-  dialogRow: {
-    flexDirection: 'row',
-    gap: SPACING[2],
-    alignSelf: 'stretch',
-    marginTop: SPACING[4],
-  },
-  dialogBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtn: { backgroundColor: COLORS.inkSubtle },
-  cancelLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
-  deleteBtn: { backgroundColor: COLORS.error },
-  deleteLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.white,
   },
 });
