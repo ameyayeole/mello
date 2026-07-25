@@ -732,7 +732,7 @@ export default function ChatsListScreen() {
                 scaleTo={0.92}
                 onPress={() => {
                   useUIStore.getState().setSelectedEvent(event.id);
-                  router.push('/(tabs)/explore');
+                  router.push('/(tabs)/map');
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${event.title}`}

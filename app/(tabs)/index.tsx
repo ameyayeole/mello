@@ -562,7 +562,7 @@ export default function DashboardScreen() {
               <Text style={styles.sectionTitle}>Tonight near you</Text>
               <Text
                 style={styles.seeAll}
-                onPress={() => router.push('/(tabs)/explore')}
+                onPress={() => router.push('/(tabs)/map')}
               >
                 See all
               </Text>
@@ -623,7 +623,7 @@ export default function DashboardScreen() {
               <PressableScale
                 scaleTo={0.97}
                 style={styles.exploreBtn}
-                onPress={() => router.push('/(tabs)/explore')}
+                onPress={() => router.push('/(tabs)/map')}
               >
                 <Text style={styles.exploreBtnText}>Explore events</Text>
               </PressableScale>
