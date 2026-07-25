@@ -93,5 +93,27 @@ Reuse A/B/C and `postA` by A.
 - [ ] **Keyboard:** the composer stays above the keyboard (Android adjusts; iOS via `keyboardAvoiding`); list scrolls within its cap; tapping a row while typing doesn't dismiss mid-send (`keyboardShouldPersistTaps`).
 - [ ] **Notifications:** `post_commented`/`comment_reply` rows read "commented on your post" / "replied to your comment" (coalesced forms too) and tap through to the feed.
 
-<!-- Phase 2c (comment likes + reports + mentions) checks appended here when that phase lands. -->
+## Phase 2c — Comment likes + reporting
+
+### DB (SQL editor) — after running migrations 052, 053, 054
+Reuse A/B/C, `postA` by A, and a comment `c1` by B.
+
+- [ ] **Comment like count:** like `c1` as A → `post_comments.like_count` = 1; unlike → 0 (floors, never negative).
+- [ ] **Coalesced `comment_liked`:** A then C like B's comment → **one** `comment_liked` row for **B**, `count` 2.
+- [ ] **Self-like:** B likes own comment → no `comment_liked` row to B.
+- [ ] **RLS:** liking a comment on a post you can't see is rejected by the WITH CHECK.
+- [ ] **`liked_by_me`:** `post_comments_ranked(postA, A, 100)` → `liked_by_me` true for a comment A liked, false otherwise; same in `post_comment_replies`.
+- [ ] **Ranking:** a comment with more **likes** now floats up (like_count folded into the score alongside replies + author/friend boosts).
+- [ ] **Report row:** as an authenticated user, `INSERT INTO reports (reporter_id, reported_id, comment_id, reason) VALUES (auth.uid(), '<author>', '<c1>', 'spam')` succeeds; `reports.comment_id` / `post_id` columns exist.
+
+### Android device
+- [ ] Tap the **heart** on a comment (top-level or reply) → fills coral instantly + Light haptic + subtle pop + count moves, before network.
+- [ ] Tap again → unfills, count decrements (never below 0); state persists on reopen.
+- [ ] **Report someone else's comment:** overflow (dots) → menu shows **Report** (no Delete) → reason picker (Spam / Harassment / Inappropriate) → "Report sent".
+- [ ] **Own comment:** overflow shows **Delete** only (no Report).
+- [ ] **Post author on someone else's comment:** overflow shows **both** Delete and Report.
+- [ ] The comment's author gets a coalesced **"liked your comment"** notification (first pushes, bumps silent); never on a self-like; tapping it lands on the feed.
+
+<!-- Phase 2d (@mentions) checks appended here when that phase lands. -->
+
 
