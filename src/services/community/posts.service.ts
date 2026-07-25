@@ -41,6 +41,21 @@ export async function getUserPosts(params: {
   return (data ?? []) as CommunityPost[];
 }
 
+// One post for the detail screen (deep link / notification tap). Returns null
+// when the viewer can't see it (RLS) or it's hidden — same community_feed shape.
+export async function getPost(
+  postId: string,
+  viewerId: string
+): Promise<CommunityPost | null> {
+  const { data, error } = await supabase.rpc('get_post', {
+    p_post_id: postId,
+    p_user_id: viewerId,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as CommunityPost[];
+  return rows[0] ?? null;
+}
+
 export async function createTextPost(params: {
   authorId: string;
   body: string;
