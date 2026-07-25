@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,13 +22,16 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
 import { useAuthStore } from '@/stores/authStore';
-import { CommunityPost, PostComment } from '@/types/models';
+import { useFriends } from '@/hooks/useFriends';
+import { CommunityPost, PostComment, Profile } from '@/types/models';
+import { Mentionable } from '@/components/chat/MentionAutocomplete';
 import {
   useComments,
   useAddComment,
   useDeleteComment,
   useSetCommentsEnabled,
 } from '@/hooks/useComments';
+import { buildMentionables } from './commentMentions';
 import { CommentRow } from './CommentRow';
 import { CommentComposer } from './CommentComposer';
 
@@ -47,10 +50,42 @@ export function CommentSheet({
   onClose: () => void;
 }) {
   const { height } = useWindowDimensions();
-  const meId = useAuthStore((s) => s.user?.id);
+  const me = useAuthStore((s) => s.user);
+  const meId = me?.id;
   const isPostAuthor = post.author_id === meId;
 
   const comments = useComments(post.id);
+
+  // Mention pool: your friends + everyone already in this thread. Used both for
+  // the composer's @-autocomplete (mentionPeople) and to decide which @handles
+  // in a rendered body are tappable (mentionables map).
+  const { friends } = useFriends();
+  const friendProfiles = useMemo(
+    () => friends.map((f) => f.friend).filter((p): p is Profile => !!p),
+    [friends]
+  );
+  const mentionables = useMemo(
+    () => buildMentionables(friendProfiles, comments.data, me),
+    [friendProfiles, comments.data, me]
+  );
+  const mentionPeople = useMemo<Mentionable[]>(() => {
+    const seen = new Set<string>();
+    const out: Mentionable[] = [];
+    const push = (
+      id: string,
+      username: string | undefined | null,
+      name: string,
+      photo_url: string | null
+    ) => {
+      if (!username || id === meId || seen.has(id)) return;
+      seen.add(id);
+      out.push({ id, username, name, photo_url });
+    };
+    for (const p of friendProfiles) push(p.id, p.username, p.name, p.photo_url);
+    for (const c of comments.data ?? [])
+      push(c.author_id, c.author_username, c.author_name, c.author_photo_url);
+    return out;
+  }, [friendProfiles, comments.data, meId]);
   const add = useAddComment(post.id);
   const del = useDeleteComment(post.id);
   const toggle = useSetCommentsEnabled(post.id);
@@ -204,6 +239,7 @@ export function CommentSheet({
               postId={post.id}
               meId={meId}
               isPostAuthor={isPostAuthor}
+              mentionables={mentionables}
               onReply={onReply}
               onOverflow={onOverflow}
             />
@@ -225,6 +261,7 @@ export function CommentSheet({
           key={replyTarget ? `${replyTarget.parentId}:${replyTarget.prefill}` : 'root'}
           replyToName={replyTarget?.toName ?? null}
           prefill={replyTarget?.prefill ?? ''}
+          people={mentionPeople}
           onSubmit={submit}
           onCancelReply={() => setReplyTarget(null)}
           pending={add.isPending}

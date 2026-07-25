@@ -76,7 +76,8 @@ export type NotificationType =
   | 'post_liked'
   | 'post_commented'
   | 'comment_reply'
-  | 'comment_liked';
+  | 'comment_liked'
+  | 'comment_mention';
 
 export type ParticipantStatus = 'pending' | 'approved';
 
@@ -445,6 +446,7 @@ export interface PostComment {
   id: string;
   author_id: string;
   author_name: string;
+  author_username: string;
   author_photo_url: string | null;
   body: string | null;
   mentions: string[];

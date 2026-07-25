@@ -127,6 +127,10 @@ export function notificationCopy(
             : `${senderName} liked your comment`,
       };
     }
+    case 'comment_mention':
+      // Not coalesced (one row per comment) — the body mirrors the chat `mention`
+      // banner shape (no sender prefix; the row draws the avatar + name).
+      return { title: 'Mention', body: 'mentioned you in a comment' };
     default:
       return { title: 'Mello', body: 'You have a new notification' };
   }

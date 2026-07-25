@@ -20,6 +20,7 @@ const comment = (id: string, over: Partial<PostComment> = {}): PostComment => ({
   id,
   author_id: 'a',
   author_name: 'A',
+  author_username: 'a',
   author_photo_url: null,
   body: 'x',
   mentions: [],

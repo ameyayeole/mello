@@ -114,6 +114,40 @@ Reuse A/B/C, `postA` by A, and a comment `c1` by B.
 - [ ] **Post author on someone else's comment:** overflow shows **both** Delete and Report.
 - [ ] The comment's author gets a coalesced **"liked your comment"** notification (first pushes, bumps silent); never on a self-like; tapping it lands on the feed.
 
-<!-- Phase 2d (@mentions) checks appended here when that phase lands. -->
+## Phase 2d — @mentions
+
+### DB (SQL editor) — after running migration 055
+Reuse A/B/C, `postA` by A, comment `c1` by B. Give each a username (A=`alpha`,
+B=`bravo`, C=`charlie`).
+
+- [ ] **Resolve on write:** insert a comment by C with body `hey @bravo @alpha` →
+  `post_comments.mentions` contains **B and A**, not C (self excluded), deduped.
+- [ ] **Case-insensitive:** body `@BRAVO` still resolves to B; unknown `@nobody`
+  resolves to nothing (no row added).
+- [ ] **Mention notif:** that comment yields a **`comment_mention`** row for B and
+  one for A, payload `{ post_id, comment_id }`, **not** coalesced (one per comment).
+- [ ] **Precedence — reply:** C replies to B's comment `c1` with `@bravo` in the
+  body → B gets **only** `comment_mention` (no `comment_reply`).
+- [ ] **Precedence — top-level:** C comments on A's post with `@alpha` → A gets
+  **only** `comment_mention` (no `post_commented`).
+- [ ] **No mention, normal path intact:** C comments with no `@` → A still gets the
+  usual `post_commented`; C replies with no `@` → B still gets `comment_reply`.
+- [ ] **Self-mention silent:** A comments `@alpha` on their own post → no row to A.
+- [ ] **Tombstone clears:** deleting a comment (body blanked) leaves `mentions = {}`.
+- [ ] **RPC username:** `post_comments_ranked(postA, A, 100)` and
+  `post_comment_replies(c1, A)` both return `author_username`.
+
+### Android device
+- [ ] Typing `@` in the composer opens the people strip (friends + everyone in the
+  thread); it filters as you type; tapping a chip inserts the **lowercase** `@handle `.
+- [ ] A sent comment shows the `@handle` **highlighted + tappable** → opens that
+  person's profile; an unknown `@handle` renders as plain text.
+- [ ] **Reply prefill is lowercase:** tapping Reply on a reply seeds `@handle ` (the
+  lowercase username), not the capitalised display name; the banner still shows the name.
+- [ ] The mentioned person gets a **"[name] mentioned you in a comment"** notification
+  (first push delivers; not coalesced); it appears under the **Mentions** filter and
+  taps through to the Community feed.
+- [ ] Mentioning the parent-comment author in a reply gives them the **mention**
+  notification, not a duplicate reply notification.
 
 

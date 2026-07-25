@@ -139,6 +139,11 @@ function composeCopy(
             : `${senderName} liked your comment`,
       };
     }
+    case 'comment_mention':
+      return {
+        title: 'Mention',
+        body: `${senderName} mentioned you in a comment`,
+      };
     default:
       return { title: 'Mello', body: `${senderName} sent you a notification` };
   }

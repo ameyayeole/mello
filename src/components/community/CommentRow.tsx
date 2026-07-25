@@ -16,6 +16,8 @@ import { SPACING } from '@/constants/spacing';
 import { PostComment } from '@/types/models';
 import { relativeTime } from '@/utils/time';
 import { useCommentReplies, useToggleCommentLike } from '@/hooks/useComments';
+// Reuse the chat mention renderer — @handles in the pool tap through to profiles.
+import MentionText from '@/components/chat/MentionText';
 
 // One comment. Top-level rows carry a Reply link + an expandable "View N replies"
 // that lazy-loads its chronological replies (rendered as reply-variant rows, one
@@ -30,6 +32,7 @@ export function CommentRow({
   meId,
   isPostAuthor,
   isReply,
+  mentionables,
   onReply,
   onOverflow,
 }: {
@@ -39,6 +42,8 @@ export function CommentRow({
   meId: string | undefined;
   isPostAuthor: boolean;
   isReply?: boolean;
+  // lowercase username → user id; @handles found here render tappable.
+  mentionables?: Map<string, string>;
   // parentId = the top-level comment to attach the new reply to (stays one level
   // deep); prefill seeds the composer ("@user " when replying to a reply).
   onReply: (parentId: string, prefill: string, toName: string) => void;
@@ -117,7 +122,11 @@ export function CommentRow({
         {comment.deleted ? (
           <Text style={styles.removed}>comment removed</Text>
         ) : (
-          <Text style={styles.text}>{comment.body}</Text>
+          <MentionText
+            content={comment.body ?? ''}
+            style={styles.text}
+            mentionables={mentionables}
+          />
         )}
 
         {showActions ? (
@@ -150,7 +159,9 @@ export function CommentRow({
                   // the flat reply list.
                   onReply(
                     parentId ?? comment.id,
-                    isReply ? `@${comment.author_name} ` : '',
+                    // Prefill the lowercase @handle (not the display name) so it
+                    // resolves to a real mention; the banner still shows the name.
+                    isReply ? `@${comment.author_username} ` : '',
                     comment.author_name
                   )
                 }
@@ -180,6 +191,7 @@ export function CommentRow({
                 meId={meId}
                 isPostAuthor={isPostAuthor}
                 isReply
+                mentionables={mentionables}
                 onReply={onReply}
                 onOverflow={onOverflow}
               />

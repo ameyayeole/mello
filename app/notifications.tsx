@@ -100,6 +100,7 @@ const RSVP_TYPES = new Set([
 // Someone talking to you or about you.
 const MENTION_TYPES = new Set([
   'mention',
+  'comment_mention',
   'new_message',
   'host_announcement',
   'note_received',
@@ -276,6 +277,8 @@ function notifText(notif: Notification, links: RowLinks): React.ReactNode {
         <>{who} liked your comment</>
       );
     }
+    case 'comment_mention':
+      return <>{who} mentioned you in a comment</>;
     case 'encore_requested':
       return <>🔁 People want you to run {what('your event')} back</>;
     default:
@@ -643,6 +646,7 @@ export default function NotificationsScreen() {
         case 'post_commented':
         case 'comment_reply':
         case 'comment_liked':
+        case 'comment_mention':
           // A dedicated post-detail screen lands in Phase 7; until then, send
           // them to the Community feed (best available landing for the post).
           return dismiss(() => router.push('/(tabs)/community'));
