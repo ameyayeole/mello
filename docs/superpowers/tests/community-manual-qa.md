@@ -225,4 +225,40 @@ already existed (044/045); this is code-only. Storage reuses the public
   posts shows **"No photo posts yet."**
 - [ ] **Android flat-glass:** the Grid/List toggle labels and tiles stay legible.
 
+---
+
+## Phase 4 — Polls
+
+### DB (SQL editor) — after running migration 058
+- [ ] `SELECT jobname FROM cron.job WHERE jobname = 'close-expired-polls';` returns
+  the row (cron registered).
+- [ ] A second vote by the **same user** on a poll is rejected by
+  `UNIQUE(poll_id, user_id)` / PK `(poll_id, user_id)` (integrity, not just UI).
+- [ ] There is **no** UPDATE or DELETE policy on `poll_votes` — a cast cannot be
+  changed or withdrawn (`\dp poll_votes` shows SELECT + INSERT only).
+- [ ] As a user who **cannot see** a friends-only poll's post, inserting a
+  `poll_votes` row is **rejected** by RLS (visibility respected).
+- [ ] `SELECT * FROM poll_votes` as a normal user returns **only your own** rows
+  (anonymity); aggregate `poll_options.vote_count` still reflects everyone.
+- [ ] Voting after `closes_at` is rejected (RLS `closes_at > now()`).
+- [ ] Manually setting a poll's `closes_at` to the past and running
+  `SELECT notify_closed_polls();` inserts **one** `poll_closed` for the author
+  with the top option (ties → lowest `idx`) and flips `closed_notified`.
+
+### Android device
+- [ ] Compose → **Poll** toggle → question + 2 options; **Add option** up to 4,
+  remove back to 2; **1/3/7-day** duration; `selectionAsync` on the toggles and on
+  option-field focus. **Post** disabled until question + ≥2 options filled.
+- [ ] Published poll shows the question + options with **no counts before voting**.
+- [ ] Tapping an option fires a **Light** haptic, locks the vote, and **animates
+  result bars from 0**; your pick is marked with a check + coral bar.
+- [ ] Re-opening the feed still shows results (the vote is **locked** — no way
+  back to the buttons).
+- [ ] An **expired** poll is read-only and shows results with a **Final** footer.
+- [ ] The poll author receives "Your poll has closed — see the results" (after the
+  cron runs) and tapping it lands on the Community feed.
+- [ ] Friends/Public visibility is respected — a non-friend can't see or vote on a
+  friends-only poll.
+- [ ] **Android flat-glass:** the option pills and result bars stay legible on the
+  panel card without the blur.
 
