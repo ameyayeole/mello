@@ -48,6 +48,7 @@ export function postMutations(qc: QueryClient, user: Profile | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.community.feed.all });
+      qc.invalidateQueries({ queryKey: queryKeys.community.userPosts.all });
     },
   };
 
@@ -55,6 +56,7 @@ export function postMutations(qc: QueryClient, user: Profile | null) {
     mutationFn: (postId) => deletePost(postId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.community.feed.all });
+      qc.invalidateQueries({ queryKey: queryKeys.community.userPosts.all });
     },
   };
 
