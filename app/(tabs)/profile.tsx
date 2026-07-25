@@ -71,6 +71,7 @@ import {
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
 import FeaturedPlanCard from '@/components/events/FeaturedPlanCard';
+import { ProfilePosts } from '@/components/community/ProfilePosts';
 
 // The photo is a 4:5 portrait, shown whole — cropping the user's own picture to
 // a band is the one place in the app where that reads as a slight.
@@ -658,6 +659,12 @@ export default function ProfileTabScreen() {
                   : 'Events you have been to will show up here.'}
               </Text>
             )}
+          </Animated.View>
+
+          {/* Community posts — Grid|List, viewer-scoped (own profile → all). */}
+          <Animated.View entering={FadeInDown.delay(215).duration(400)}>
+            <Text style={styles.sectionTitle}>Posts</Text>
+            <ProfilePosts userId={user.id} onDark />
           </Animated.View>
 
           {/* Wishlist: events bookmarked on the swipe deck */}

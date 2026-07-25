@@ -60,6 +60,7 @@ import EventSheetStack, {
   EventSheetStackRef,
 } from '@/components/events/EventSheetStack';
 import EventRow from '@/components/events/EventRow';
+import { ProfilePosts } from '@/components/community/ProfilePosts';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
 import { showError } from '@/utils/errors';
@@ -565,6 +566,13 @@ export default function UserProfileScreen() {
               </View>
             </Animated.View>
           )}
+
+          {/* Their community posts — viewer-scoped by RLS (stranger → public
+              only, friend → public + friends). Same tab as own profile. */}
+          <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+            <Text style={styles.sectionTitle}>Posts</Text>
+            <ProfilePosts userId={userId} onDark />
+          </Animated.View>
 
           {!isSelf && blocked && (
             <View style={styles.blockedBanner}>
