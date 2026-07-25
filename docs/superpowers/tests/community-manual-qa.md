@@ -69,8 +69,9 @@ Reuse A/B (+ a third user C) and `postA` by A.
 
 ## Phase 2b — Comments (core)
 
-### DB (SQL editor) — after running migrations 048, 049, 050, 051
-Reuse A/B/C and `postA` by A.
+### DB (SQL editor) — after running migrations 048, 049, 050, 051, 052
+Reuse A/B/C and `postA` by A. (052 adds `post_comments` to the realtime
+publication — required for the live-update check below.)
 
 - [ ] **One-level guard:** insert a top-level comment `c1`, a reply to `c1` → OK; replying to that reply → **ERROR** "comments are one level deep".
 - [ ] **Reply post match:** a reply whose `post_id` ≠ its parent's post is rejected.
