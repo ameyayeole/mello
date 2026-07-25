@@ -144,6 +144,11 @@ export const queryKeys = {
       all: ['community', 'feed'] as const,
       of: (userId: Id) => ['community', 'feed', userId] as const,
     },
+    // Per-post scope: like state + (Phase 2b) comments hang off this.
+    post: {
+      all: ['community', 'post'] as const,
+      of: (postId: Id) => ['community', 'post', postId] as const,
+    },
   },
 } as const;
 

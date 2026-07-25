@@ -12,6 +12,7 @@ export function notificationCopy(
     pending?: boolean;
     kind?: string;
     preview?: string;
+    count?: number;
   }
 ): { title: string; body: string } {
   const senderName = opts.senderName ?? 'Someone';
@@ -93,6 +94,17 @@ export function notificationCopy(
         title: 'Round two? 🔁',
         body: `People want you to run ${eventTitle} back`,
       };
+    case 'post_liked': {
+      // Coalesced: payload.count is the total likers on this post in the window.
+      const others = (opts.count ?? 1) - 1;
+      return {
+        title: 'New like',
+        body:
+          others > 0
+            ? `${senderName} and ${others} other${others > 1 ? 's' : ''} liked your post`
+            : `${senderName} liked your post`,
+      };
+    }
     default:
       return { title: 'Mello', body: 'You have a new notification' };
   }

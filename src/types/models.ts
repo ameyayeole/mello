@@ -71,7 +71,9 @@ export type NotificationType =
   | 'note_received'
   | 'photo_liked'
   | 'photo_commented'
-  | 'encore_requested';
+  | 'encore_requested'
+  // Community posts (migration 046+)
+  | 'post_liked';
 
 export type ParticipantStatus = 'pending' | 'approved';
 
@@ -427,5 +429,6 @@ export interface CommunityPost {
   city: string | null;
   like_count: number;
   comment_count: number;
+  liked_by_me: boolean;
   created_at: string;
 }

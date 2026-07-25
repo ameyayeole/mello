@@ -106,6 +106,17 @@ function composeCopy(
         title: 'Round two? 🔁',
         body: `People want you to run ${eventTitle} back`,
       };
+    case 'post_liked': {
+      // Coalesced: payload.count is the total likers on this post in the window.
+      const others = ((record.payload?.count as number) ?? 1) - 1;
+      return {
+        title: 'New like',
+        body:
+          others > 0
+            ? `${senderName} and ${others} other${others > 1 ? 's' : ''} liked your post`
+            : `${senderName} liked your post`,
+      };
+    }
     default:
       return { title: 'Mello', body: `${senderName} sent you a notification` };
   }

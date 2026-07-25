@@ -13,6 +13,7 @@ const post = (id: string, createdAt: string): CommunityPost => ({
   city: 'Mumbai',
   like_count: 0,
   comment_count: 0,
+  liked_by_me: false,
   created_at: createdAt,
 });
 
