@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   dialogBody: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
-    color: 'rgba(15,24,44,0.6)',
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginTop: SPACING[2],
   },
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dialogCancelBtn: { backgroundColor: '#F0F1F3' },
+  dialogCancelBtn: { backgroundColor: COLORS.inkSubtle },
   dialogCancelLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodyMd,
@@ -246,6 +246,6 @@ const styles = StyleSheet.create({
   dialogDeleteLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodyMd,
-    color: '#fff',
+    color: COLORS.white,
   },
 });
