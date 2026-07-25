@@ -81,3 +81,23 @@ export async function reportUser(
 
   if (error) throw error;
 }
+
+// Report a specific comment. reported_id still carries the content's author;
+// comment_id points at the offending row (migration 054).
+export async function reportComment(params: {
+  reporterId: string;
+  reportedId: string;
+  commentId: string;
+  reason: ReportReason;
+  details?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_id: params.reporterId,
+    reported_id: params.reportedId,
+    comment_id: params.commentId,
+    reason: params.reason,
+    details: params.details ?? null,
+  });
+
+  if (error) throw error;
+}
