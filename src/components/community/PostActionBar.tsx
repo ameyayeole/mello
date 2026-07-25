@@ -14,13 +14,14 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
 import { CommunityPost } from '@/types/models';
 import { useToggleLike } from '@/hooks/usePostInteractions';
+import { sharePost } from '@/utils/sharePost';
 
 // Inline glyph controls, not Buttons — these are icon affordances, so a Button
 // (which owns a label + the three-variant weight system) would be the wrong
 // primitive here (AGENTS.md sanctions the bespoke case). Like is optimistic: the
 // heart fills (bold Solar glyph) and the count moves on tap, before the network
-// resolves. Comment opens the Phase 2b sheet via onComment; share is a disabled
-// placeholder holding the footer geometry until Phase 7.
+// resolves. Comment opens the Phase 2b sheet via onComment; share opens the
+// native sheet with a mello://post/<id> deep link (Phase 7).
 export function PostActionBar({
   post,
   onComment,
@@ -86,10 +87,14 @@ export function PostActionBar({
         ) : null}
       </PressableScale>
 
-      {/* Share lands in Phase 7 — placeholder keeps the footer geometry settled. */}
-      <View style={[styles.action, styles.disabled]}>
-        <Icon name="share" size={20} color={COLORS.inkFaint} />
-      </View>
+      <PressableScale
+        onPress={() => sharePost(post)}
+        style={styles.action}
+        accessibilityRole="button"
+        accessibilityLabel="Share"
+      >
+        <Icon name="share" size={20} color={COLORS.textMuted} />
+      </PressableScale>
     </View>
   );
 }
@@ -97,7 +102,6 @@ export function PostActionBar({
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', gap: SPACING[5], marginTop: SPACING[3] },
   action: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
-  disabled: { opacity: 0.5 },
   count: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
