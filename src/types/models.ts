@@ -75,7 +75,8 @@ export type NotificationType =
   // Community posts (migration 046+)
   | 'post_liked'
   | 'post_commented'
-  | 'comment_reply';
+  | 'comment_reply'
+  | 'comment_liked';
 
 export type ParticipantStatus = 'pending' | 'approved';
 
@@ -450,5 +451,6 @@ export interface PostComment {
   like_count: number;
   reply_count?: number;
   deleted: boolean;
+  liked_by_me: boolean;
   created_at: string;
 }
