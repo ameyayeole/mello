@@ -208,9 +208,10 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING[2],
   },
   title: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.title,
-    letterSpacing: -0.44,
+    // Match the Notifications header scale so the tabs read consistently.
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.display,
+    letterSpacing: -1,
     color: COLORS.textPrimary,
   },
   list: { padding: SPACING[4], paddingTop: SPACING[1], gap: SPACING[3] },
