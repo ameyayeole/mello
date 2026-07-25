@@ -178,4 +178,51 @@ already existed (044/045); this is code-only. Storage reuses the public
 - [ ] Large camera-roll photos upload without the iOS "Message too long" error
   (shared encoder compresses to ≤1280px); order picked = carousel order.
 
+---
+
+## Phase 3b — Caption @mentions
+
+### DB (SQL editor) — after running migration 056
+- [ ] Posting a caption containing `@handle` (a real username) populates
+  `posts.mentions` with that user's id (`select mentions from posts order by
+  created_at desc limit 1;`).
+- [ ] A `post_mention` notification row lands for the mentioned user
+  (`select * from notifications where type = 'post_mention' order by created_at
+  desc limit 1;`), payload carries `{ post_id }`.
+- [ ] Mentioning **yourself** is silent (no row; excluded by `p.id <> author_id`).
+- [ ] A **pure-photo** post (null body) resolves `mentions` to `{}` with no error.
+
+### Android device
+- [ ] Typing `@` in the composer shows the autocomplete strip; picking inserts the
+  **lowercase** handle. Works in a text post and a photo-post caption.
+- [ ] The published post shows the handle **highlighted** and **tappable** →
+  routes to that profile.
+- [ ] The mentioned user gets "mentioned you in a post", it appears under the
+  **Mentions** filter, and tapping it lands on the Community feed.
+- [ ] **Android flat-glass:** the autocomplete strip stays legible.
+
+---
+
+## Phase 3c — Profile "Posts" tab
+
+### DB (SQL editor) — after running migration 057
+- [ ] As a **stranger** (no friendship), `select * from user_posts('<target>',
+  '<me>')` returns only the target's **public** posts.
+- [ ] As an **accepted friend**, it returns **public + friends** posts.
+- [ ] As **self** (`target = me`), it returns **all** posts including friends-only.
+- [ ] A **blocked** pair sees none of each other's posts (posts RLS block check).
+
+### Android device
+- [ ] Own profile shows a **Posts** section; **Grid** is the default tab.
+- [ ] Toggling **Grid ⇄ List** fires a `selectionAsync` haptic.
+- [ ] **Grid** = photo posts only, 3-column, 2px gutters; tapping a tile opens the
+  **fullscreen carousel** (close via the X); no delete affordance in Grid.
+- [ ] **List** = all post types as `PostCard`; **like** and **comment** work from
+  List; **overflow → Delete** on your own post removes it from List, Grid **and**
+  the main feed (shared invalidation).
+- [ ] Other-user profile shows the same tab with **no** delete affordance on their
+  posts; a profile with no posts shows **"No posts yet."**; Grid with no photo
+  posts shows **"No photo posts yet."**
+- [ ] **Android flat-glass:** the Grid/List toggle labels and tiles stay legible.
+
 
