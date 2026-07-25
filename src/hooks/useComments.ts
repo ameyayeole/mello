@@ -12,6 +12,7 @@ import {
   getReplies,
   addComment,
   deleteComment,
+  setCommentsEnabled,
 } from '@/services/community/comments.service';
 import { queryKeys, DISCOVERY_FEED_KEYS } from '@/constants/queryKeys';
 import { useAuthStore } from '@/stores/authStore';
@@ -119,4 +120,15 @@ export function useDeleteComment(postId: string) {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   return useMutation(commentMutations(qc, postId, user).remove);
+}
+
+// Post author only: flip comments on/off. Invalidates the feeds so every card's
+// comments_enabled (from community_feed) reflects the change.
+export function useSetCommentsEnabled(postId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => setCommentsEnabled({ postId, enabled }),
+    onSuccess: () =>
+      DISCOVERY_FEED_KEYS.forEach((queryKey) => qc.invalidateQueries({ queryKey })),
+  });
 }

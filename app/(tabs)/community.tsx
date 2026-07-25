@@ -29,6 +29,7 @@ import {
 import { PostCard } from '@/components/community/PostCard';
 import { CommunityNudgeCard } from '@/components/community/CommunityNudgeCard';
 import { ComposePostSheet } from '@/components/community/ComposePostSheet';
+import { CommentSheet } from '@/components/community/CommentSheet';
 import { errorMessage } from '@/utils/errors';
 
 export default function CommunityScreen() {
@@ -40,6 +41,7 @@ export default function CommunityScreen() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
+  const [commentPost, setCommentPost] = useState<CommunityPost | null>(null);
 
   const posts = useMemo(
     () => feed.data?.pages.flat() ?? [],
@@ -51,8 +53,10 @@ export default function CommunityScreen() {
     setComposeOpen(true);
   }, []);
 
-  // Comment sheet lands in Phase 2b; the action-bar entry point is wired now.
-  const onComment = useCallback((_post: CommunityPost) => {}, []);
+  const onComment = useCallback((p: CommunityPost) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCommentPost(p);
+  }, []);
 
   // Nudge shows when the feed is genuinely thin and not dismissed this session.
   // Suppressed on error so it doesn't stack over the retry state.
@@ -167,6 +171,14 @@ export default function CommunityScreen() {
         visible={composeOpen}
         onClose={() => setComposeOpen(false)}
       />
+
+      {commentPost && (
+        <CommentSheet
+          post={commentPost}
+          visible={!!commentPost}
+          onClose={() => setCommentPost(null)}
+        />
+      )}
 
       <Dialog visible={!!pendingDelete} onClose={() => setPendingDelete(null)}>
         <Text style={styles.dialogTitle}>Delete post?</Text>

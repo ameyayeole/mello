@@ -14,6 +14,7 @@ const post = (id: string, createdAt: string): CommunityPost => ({
   like_count: 0,
   comment_count: 0,
   liked_by_me: false,
+  comments_enabled: true,
   created_at: createdAt,
 });
 

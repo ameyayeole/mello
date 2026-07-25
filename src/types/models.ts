@@ -432,6 +432,7 @@ export interface CommunityPost {
   like_count: number;
   comment_count: number;
   liked_by_me: boolean;
+  comments_enabled: boolean;
   created_at: string;
 }
 
