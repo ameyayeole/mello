@@ -13,6 +13,12 @@ export function redirectSystemPath({
   initial: boolean;
 }): string {
   try {
+    const post = path.match(/(?:^|\/)post\/([^/?#]+)/);
+    if (post?.[1]) {
+      // Post detail route lands in Phase 7; for now, send to the feed.
+      return '/(tabs)/community';
+    }
+
     const match = path.match(/(?:^|\/)event\/([^/?#]+)/);
     if (match?.[1]) {
       useUIStore.getState().setSelectedEvent(decodeURIComponent(match[1]));

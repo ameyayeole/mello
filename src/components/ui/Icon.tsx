@@ -446,9 +446,9 @@ export function PremiumBadge({ size = 14 }: { size?: number }) {
 // The active glyph is ink rather than coral because the floating tab bar marks
 // selection with a chip behind the icon — coral on top of that reads as two
 // competing signals, and coral is reserved for one CTA per screen.
-const TAB_SOLAR: Record<'home' | 'explore' | 'map' | 'inbox', string> = {
+const TAB_SOLAR: Record<'home' | 'community' | 'map' | 'inbox', string> = {
   home: 'Home2',
-  explore: 'Compass',
+  community: 'UsersGroupRounded',
   map: 'Map',
   inbox: 'ChatRound',
 };
@@ -468,7 +468,7 @@ export function TabGlyph({
   size = 26,
   tone = 'dark',
 }: {
-  name: 'home' | 'explore' | 'map' | 'inbox';
+  name: 'home' | 'community' | 'map' | 'inbox';
   active: boolean;
   size?: number;
   tone?: 'dark' | 'light';
