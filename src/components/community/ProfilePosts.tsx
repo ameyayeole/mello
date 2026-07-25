@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Modal } from 'react-native';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { PressableScale, Dialog, Button } from '@/components/ui';
+import { PressableScale, Dialog, Button, NavButton } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
@@ -10,9 +12,13 @@ import { useDeletePost } from '@/hooks/usePostMutations';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import { PostCard } from './PostCard';
+import { PhotoCarousel } from './PhotoCarousel';
 import { CommentSheet } from './CommentSheet';
 
 type Mode = 'grid' | 'list';
+
+// 3-column grid, 2px gutters (Instagram look).
+const GUTTER = 2;
 
 // The Profile "Posts" tab, dropped into either profile screen. Self-contained:
 // it owns the Grid/List toggle, the comment sheet, and the delete dialog, so the
@@ -26,13 +32,23 @@ export function ProfilePosts({
   onDark?: boolean;
 }) {
   const meId = useAuthStore((s) => s.user?.id);
+  const insets = useSafeAreaInsets();
   const q = useUserPosts(userId);
   const del = useDeletePost();
   const [mode, setMode] = useState<Mode>('grid');
   const [commentPost, setCommentPost] = useState<CommunityPost | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
+  const [viewerPost, setViewerPost] = useState<CommunityPost | null>(null);
+  // Measured from onLayout so tiles divide the width the profile gives us,
+  // rather than guessing the sheet's padding. Tiles render once it's known.
+  const [gridWidth, setGridWidth] = useState(0);
 
   const posts = useMemo(() => q.data?.pages.flat() ?? [], [q.data]);
+  // Grid is photo posts only (spec §11).
+  const photoPosts = useMemo(
+    () => posts.filter((p) => p.type === 'photo' && p.media.length > 0),
+    [posts]
+  );
 
   function confirmDelete() {
     if (!pendingDelete) return;
@@ -93,10 +109,59 @@ export function ProfilePosts({
             />
           )}
         </View>
+      ) : photoPosts.length === 0 ? (
+        <Text style={[styles.empty, onDark && styles.emptyOnDark]}>
+          No photo posts yet.
+        </Text>
       ) : (
-        /* Grid — filled in Task 5. */
-        null
+        <View
+          style={styles.grid}
+          onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
+        >
+          {gridWidth > 0 &&
+            photoPosts.map((p) => {
+              const tile = (gridWidth - GUTTER * 2) / 3;
+              return (
+                <PressableScale
+                  key={p.id}
+                  scaleTo={0.97}
+                  style={{ width: tile, height: tile }}
+                  onPress={() => setViewerPost(p)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View post"
+                >
+                  <Image
+                    source={{ uri: p.media[0] }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                    transition={150}
+                  />
+                </PressableScale>
+              );
+            })}
+        </View>
       )}
+
+      {/* Read-only fullscreen viewer for a tapped grid tile — reuses the 3a
+          carousel. Delete/edit stays in List (spec: overflow menu, one path). */}
+      <Modal
+        visible={!!viewerPost}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setViewerPost(null)}
+      >
+        <View style={styles.viewer}>
+          {viewerPost && <PhotoCarousel media={viewerPost.media} />}
+          <NavButton
+            icon="close"
+            color={COLORS.white}
+            onPress={() => setViewerPost(null)}
+            accessibilityLabel="Close"
+            style={[styles.viewerClose, { top: insets.top + SPACING[2] }]}
+          />
+        </View>
+      </Modal>
 
       {commentPost && (
         <CommentSheet
@@ -158,6 +223,14 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[2.5],
   },
   emptyOnDark: { color: COLORS.textOnDarkMuted },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GUTTER },
+  viewer: {
+    flex: 1,
+    backgroundColor: COLORS.lightbox,
+    justifyContent: 'center',
+  },
+  viewerClose: { position: 'absolute', right: SPACING[4] },
 
   // Delete dialog — token-for-token with the feed's confirm (community.tsx).
   dialogTitle: {
