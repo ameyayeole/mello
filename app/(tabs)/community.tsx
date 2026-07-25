@@ -51,6 +51,9 @@ export default function CommunityScreen() {
     setComposeOpen(true);
   }, []);
 
+  // Comment sheet lands in Phase 2b; the action-bar entry point is wired now.
+  const onComment = useCallback((_post: CommunityPost) => {}, []);
+
   // Nudge shows when the feed is genuinely thin and not dismissed this session.
   // Suppressed on error so it doesn't stack over the retry state.
   const showNudge =
@@ -116,6 +119,7 @@ export default function CommunityScreen() {
                   post={item}
                   isOwn={item.author_id === meId}
                   onOverflow={onOverflow}
+                  onComment={onComment}
                 />
               </Animated.View>
             )}
