@@ -156,4 +156,26 @@ B=`bravo`, C=`charlie`).
 - [ ] Mentioning the parent-comment author in a reply gives them the **mention**
   notification, not a duplicate reply notification.
 
+## Phase 3a — Photo posts
+
+**No DB migration** — `posts.media`/`type='photo'` and `community_feed.media`
+already existed (044/045); this is code-only. Storage reuses the public
+`event-photos` bucket (016 policies).
+
+### Android device
+- [ ] Compose → attach **1** photo, no caption → **Post** enabled; publish shows
+  the button **loading during upload**, then the photo post appears at the top.
+- [ ] Compose → attach **multiple** photos **+ caption** → carousel swipes paged,
+  **Light haptic** on page change, **`i/N` counter** (onPhoto glass) top-right and
+  **dots** track the page; caption shows under the photo.
+- [ ] **Single** photo shows **no** counter/dots.
+- [ ] Caption-less photo post renders with no empty caption line; a text-only post
+  (no photos) still posts as before (Post disabled only when both empty).
+- [ ] **Android flat-glass:** the counter pill + dots stay legible over the image
+  without the blur; no horizontal page scroll of the card itself.
+- [ ] Visibility (Friends/Public) still respected for photo posts; **delete-own**
+  removes it; a non-friend sees only Public photo posts.
+- [ ] Large camera-roll photos upload without the iOS "Message too long" error
+  (shared encoder compresses to ≤1280px); order picked = carousel order.
+
 

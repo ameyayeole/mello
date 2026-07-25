@@ -41,6 +41,30 @@ export async function createTextPost(params: {
   return (data as { id: string }).id;
 }
 
+export async function createPhotoPost(params: {
+  authorId: string;
+  body: string; // caption; may be empty for a pure-photo post
+  media: string[]; // public URLs, ordered (carousel order)
+  visibility: PostVisibility;
+  city: string | null;
+}): Promise<string> {
+  const caption = params.body.trim();
+  const { data, error } = await supabase
+    .from('posts')
+    .insert({
+      author_id: params.authorId,
+      type: 'photo',
+      body: caption.length > 0 ? caption : null,
+      media: params.media,
+      visibility: params.visibility,
+      city: params.city,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
 export async function deletePost(postId: string): Promise<void> {
   const { error } = await supabase.from('posts').delete().eq('id', postId);
   if (error) throw error;

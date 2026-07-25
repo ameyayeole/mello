@@ -1,13 +1,14 @@
-import { StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Glass } from '@/components/ui';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { CommunityPost } from '@/types/models';
 import { PostAuthorRow } from './PostAuthorRow';
 import { TextPostBody } from './TextPostBody';
+import { PhotoCarousel } from './PhotoCarousel';
 import { PostActionBar } from './PostActionBar';
 
-// One post in the feed. Phase 1 renders text posts only; photo/poll/shared_wrap
-// arrive in Phases 3–5, each as another branch here. The like/comment/share
+// One post in the feed. Text (Phase 1) and photo (Phase 3a) render here; poll /
+// shared_wrap arrive in Phases 4–5 as more branches. The like/comment/share
 // action bar (Phase 2a) replaces the old read-only counts row — like is
 // optimistic, comment opens the Phase 2b sheet via onComment.
 export function PostCard({
@@ -30,6 +31,12 @@ export function PostCard({
       {post.type === 'text' && post.body ? (
         <TextPostBody body={post.body} />
       ) : null}
+      {post.type === 'photo' && post.media.length > 0 ? (
+        <View style={styles.media}>
+          <PhotoCarousel media={post.media} />
+          {post.body ? <TextPostBody body={post.body} /> : null}
+        </View>
+      ) : null}
       <PostActionBar post={post} onComment={onComment} />
     </Glass>
   );
@@ -37,4 +44,8 @@ export function PostCard({
 
 const styles = StyleSheet.create({
   card: { padding: SPACING[4], gap: SPACING[1] },
+  // Carousel + caption stack, with a little air above the caption. The photo is
+  // inset within the card padding (rounded), not bled to the edge — the flat
+  // Android glass fallback reads cleaner without an edge-touching image.
+  media: { gap: SPACING[2], marginTop: SPACING[1] },
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Sheet, Button, TextField, PressableScale, NavButton } from '@/components/ui';
+import { PhotoGridPicker } from '@/components/PhotoGridPicker';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
@@ -10,8 +11,9 @@ import { PostVisibility } from '@/types/models';
 
 const MAX = 280;
 
-// Text composer for the Community feed: a body field capped at MAX chars and
-// a friends/public visibility toggle. The toggle is a bespoke segmented pair
+// Composer for the Community feed: a caption field (capped at MAX chars), an
+// optional photo grid (attach ≥1 → it posts as a photo post, caption optional),
+// and a friends/public visibility toggle. The toggle is a bespoke segmented pair
 // of chips rather than `Button` — it's a single-select group, not two
 // standalone actions, so neither of the three button variants fits (per
 // AGENTS.md's "only then write something bespoke" rule).
@@ -23,14 +25,20 @@ export function ComposePostSheet({
   onClose: () => void;
 }) {
   const [body, setBody] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<PostVisibility>('friends');
   const create = useCreatePost();
 
   const trimmed = body.trim();
-  const canPost = trimmed.length > 0 && trimmed.length <= MAX && !create.isPending;
+  const hasPhotos = photos.length > 0;
+  // Valid with a caption OR at least one photo; the caption is optional once
+  // there's a photo (it becomes the photo's caption).
+  const canPost =
+    (trimmed.length > 0 || hasPhotos) && trimmed.length <= MAX && !create.isPending;
 
   function reset() {
     setBody('');
+    setPhotos([]);
     setVisibility('friends');
   }
 
@@ -42,7 +50,7 @@ export function ComposePostSheet({
   function submit() {
     if (!canPost) return;
     create.mutate(
-      { body: trimmed, visibility },
+      { body: trimmed, visibility, media: photos },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -66,12 +74,14 @@ export function ComposePostSheet({
       <TextField
         value={body}
         onChangeText={(t) => setBody(t.slice(0, MAX))}
-        placeholder="What's happening in your city?"
+        placeholder={hasPhotos ? 'Add a caption…' : "What's happening in your city?"}
         multiline
         maxLength={MAX}
         showCount
         autoFocus
       />
+
+      <PhotoGridPicker photos={photos} onChange={setPhotos} max={6} />
 
       <View style={styles.visRow}>
         {(['friends', 'public'] as PostVisibility[]).map((v) => {
