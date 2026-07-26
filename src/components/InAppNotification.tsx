@@ -70,7 +70,7 @@ function BannerCard({ banner }: { banner: InAppBanner }) {
   }, [clear, translateY]);
 
   useEffect(() => {
-    translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
+    translateY.value = withSpring(0, { damping: 26, stiffness: 220 });
     const timer = setTimeout(hide, AUTO_HIDE_MS);
     return () => clearTimeout(timer);
   }, [hide, translateY]);
@@ -90,7 +90,7 @@ function BannerCard({ banner }: { banner: InAppBanner }) {
       if (e.translationY < -16 || e.velocityY < -400) {
         runOnJS(hide)();
       } else {
-        translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
+        translateY.value = withSpring(0, { damping: 26, stiffness: 220 });
       }
     });
 
