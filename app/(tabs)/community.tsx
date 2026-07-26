@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useMutation } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { reportPost } from '@/services/moderation.service';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
@@ -38,6 +39,7 @@ import { errorMessage } from '@/utils/errors';
 
 export default function CommunityScreen() {
   const tabBarInset = useTabBarInset();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const feed = useCommunityFeed();
   const meId = useAuthStore((s) => s.user?.id);
@@ -68,6 +70,43 @@ export default function CommunityScreen() {
   // the viewer → which caption handles render tappable. Same map CommentSheet
   // builds for a thread; useThreadMentionables is structural on `{ body }[]`.
   const mentionables = useThreadMentionables(posts);
+
+  // "New posts ↑" pill. On a focus refetch the feed's top can change; if the
+  // user is scrolled down we surface a pill rather than yanking them up. The
+  // score is frozen within a session (materialized, 10-min refresh), so a
+  // changed top id means genuinely new content, not a live re-rank.
+  const listRef = useRef<FlatList<CommunityPost>>(null);
+  const scrollY = useRef(0);
+  const knownTopId = useRef<string | null>(null);
+  const [showNewPill, setShowNewPill] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      feed.refetch();
+    }, [feed])
+  );
+
+  useEffect(() => {
+    const topId = posts[0]?.id;
+    if (!topId) return;
+    if (knownTopId.current === null) {
+      knownTopId.current = topId; // first load — nothing is "new"
+      return;
+    }
+    if (topId !== knownTopId.current) {
+      // New content at the top. Scrolled down → surface the pill; near the top
+      // → adopt it silently (the user is already seeing it).
+      if (scrollY.current > 400) setShowNewPill(true);
+      else knownTopId.current = topId;
+    }
+  }, [posts]);
+
+  const jumpToTop = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    knownTopId.current = posts[0]?.id ?? null;
+    setShowNewPill(false);
+    Haptics.selectionAsync();
+  }, [posts]);
 
   const openCompose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -138,10 +177,15 @@ export default function CommunityScreen() {
           <Loader />
         ) : (
           <FlatList
+            ref={listRef}
             data={posts}
             keyExtractor={(item) => item.id}
             contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={(e) => {
+              scrollY.current = e.nativeEvent.contentOffset.y;
+            }}
             ListHeaderComponent={
               showNudge ? (
                 <CommunityNudgeCard
@@ -171,7 +215,13 @@ export default function CommunityScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={feed.isRefetching && !feed.isFetchingNextPage}
-                onRefresh={() => feed.refetch()}
+                onRefresh={() => {
+                  // A manual refresh means the user is looking at the top — adopt
+                  // whatever comes back and clear any pending pill.
+                  knownTopId.current = posts[0]?.id ?? null;
+                  setShowNewPill(false);
+                  feed.refetch();
+                }}
                 tintColor={COLORS.primary}
               />
             }
@@ -207,6 +257,17 @@ export default function CommunityScreen() {
           />
         )}
       </Screen>
+
+      {showNewPill ? (
+        <PressableScale
+          style={[styles.newPill, { top: insets.top + 52 }]}
+          onPress={jumpToTop}
+          accessibilityRole="button"
+          accessibilityLabel="Scroll to new posts"
+        >
+          <Text style={styles.newPillText}>New posts ↑</Text>
+        </PressableScale>
+      ) : null}
 
       <ComposePostSheet
         visible={composeOpen}
@@ -281,6 +342,22 @@ export default function CommunityScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  // Floating coral pill, centred under the header. `top` is set inline from the
+  // safe-area inset so it clears the notch + header on every device.
+  newPill: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 10,
+    paddingVertical: SPACING[2],
+    paddingHorizontal: SPACING[4],
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary,
+  },
+  newPillText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.white,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
