@@ -618,7 +618,7 @@ export default function DashboardScreen() {
               </View>
               <Text style={styles.emptyTitle}>No plans yet</Text>
               <Text style={styles.emptyText}>
-                Explore what's happening and join something nearby.
+                Explore what&apos;s happening and join something nearby.
               </Text>
               <PressableScale
                 scaleTo={0.97}

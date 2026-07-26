@@ -32,7 +32,7 @@ export default function WrapPhotoTile({
       </View>
       {mentioned && (
         <View style={styles.mentionChip}>
-          <Text style={styles.mentionText}>You're in this</Text>
+          <Text style={styles.mentionText}>You&apos;re in this</Text>
         </View>
       )}
     </PressableScale>

@@ -53,10 +53,10 @@ export default function EventCreatedScreen() {
         </Animated.View>
 
         <Animated.Text entering={FadeInDown.delay(120).duration(400)} style={styles.title}>
-          You're live! 🎉
+          You&apos;re live! 🎉
         </Animated.Text>
         <Animated.Text entering={FadeInDown.delay(180).duration(400)} style={styles.subtitle}>
-          Your event is now on the map. We'll ping you the moment someone joins.
+          Your event is now on the map. We&apos;ll ping you the moment someone joins.
         </Animated.Text>
 
         {event && (

@@ -138,7 +138,7 @@ export function NoteRevealModal({
               />
             )}
             <Text style={styles.hint}>
-              Notes are one-way. Once you're friends you can chat.
+              Notes are one-way. Once you&apos;re friends you can chat.
             </Text>
           </View>
         </Animated.View>

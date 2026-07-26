@@ -80,7 +80,7 @@ export default function SosModal({ visible, onClose, event, onReport }: SosModal
           </View>
           <Text style={styles.title}>Need help right now?</Text>
           <Text style={styles.subtitle}>
-            If you're in danger, contact the authorities first. These are free,
+            If you&apos;re in danger, contact the authorities first. These are free,
             24/7.
           </Text>
 
@@ -102,7 +102,7 @@ export default function SosModal({ visible, onClose, event, onReport }: SosModal
               accessibilityRole="button"
               accessibilityLabel="Call women's helpline 181"
             >
-              <Text style={styles.helplineLabel}>Women's helpline</Text>
+              <Text style={styles.helplineLabel}>Women&apos;s helpline</Text>
               <Text style={styles.helplineNumber}>181 · 1091</Text>
             </PressableScale>
             <PressableScale

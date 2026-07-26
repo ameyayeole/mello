@@ -323,7 +323,7 @@ export default function WrapGalleryScreen() {
                     </View>
                   ) : (
                     <Text style={styles.commentedNote}>
-                      You've used your one comment on this photo.
+                      You&apos;ve used your one comment on this photo.
                     </Text>
                   )}
                 </Animated.View>

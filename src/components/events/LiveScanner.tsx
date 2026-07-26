@@ -41,7 +41,7 @@ export default function LiveScanner({
           <View style={styles.center}>
             <Text style={styles.permTitle}>Camera access needed</Text>
             <Text style={styles.permBody}>
-              Allow camera access to scan attendees' QR codes at the door.
+              Allow camera access to scan attendees&apos; QR codes at the door.
             </Text>
             <Button label="Allow camera" onPress={requestPermission} />
           </View>
@@ -56,7 +56,7 @@ export default function LiveScanner({
             <View style={styles.overlay} pointerEvents="none">
               <View style={styles.reticle} />
               <Text style={styles.hint}>
-                Point at a guest's Mello ticket QR
+                Point at a guest&apos;s Mello ticket QR
               </Text>
             </View>
           </>

@@ -91,7 +91,7 @@ export default function GuidelinesScreen() {
             {agreed && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}
           </View>
           <Text style={styles.agreeText}>
-            I've read and agree to the guidelines
+            I&apos;ve read and agree to the guidelines
           </Text>
         </TouchableOpacity>
         <Button

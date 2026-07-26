@@ -642,7 +642,7 @@ export default function GroupChatScreen() {
         >
           <Text style={styles.wrapBannerEmoji}>📸</Text>
           <Text style={styles.wrapBannerText}>
-            This one's a wrap. Rate people, drop photos, vote awards.
+            This one&apos;s a wrap. Rate people, drop photos, vote awards.
           </Text>
           <Icon name="chevronRight" size={16} color={COLORS.primary} />
         </PressableScale>

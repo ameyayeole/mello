@@ -27,7 +27,7 @@ RETURNS TABLE (
 LANGUAGE sql STABLE
 AS $$
   SELECT
-    p.id, p.author_id, pr.name, pr.photo_url, p.type, p.visibility,
+    p.id, p.author_id, pr.name, pr.p     hoto_url, p.type, p.visibility,
     p.body, p.media, p.city, p.like_count, p.comment_count, p.created_at,
     EXISTS (SELECT 1 FROM post_likes pl
             WHERE pl.post_id = p.id AND pl.user_id = p_user_id) AS liked_by_me,

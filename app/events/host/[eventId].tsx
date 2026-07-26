@@ -142,9 +142,9 @@ export default function HostPanelScreen() {
           >
             <Text style={styles.congratsEmoji}>🎉</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.congratsTitle}>You're hosting!</Text>
+              <Text style={styles.congratsTitle}>You&apos;re hosting!</Text>
               <Text style={styles.congratsSub}>
-                Your event is live on the map. We'll let you know as people
+                Your event is live on the map. We&apos;ll let you know as people
                 join — this is your event HQ.
               </Text>
             </View>

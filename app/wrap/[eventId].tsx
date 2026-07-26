@@ -64,7 +64,7 @@ export default function PublicWrapScreen() {
         </View>
       ) : photos.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.emptyTitle}>This wrap isn't public</Text>
+          <Text style={styles.emptyTitle}>This wrap isn&apos;t public</Text>
           <Text style={styles.emptyText}>
             It may have expired or not have enough photos yet.
           </Text>

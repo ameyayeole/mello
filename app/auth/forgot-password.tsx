@@ -70,7 +70,7 @@ export default function ForgotPasswordScreen() {
               />
               <TouchableOpacity onPress={handleSend} hitSlop={10} disabled={loading}>
                 <Text style={styles.resendText}>
-                  Didn't get it? <Text style={styles.resendLink}>Resend</Text>
+                  Didn&apos;t get it? <Text style={styles.resendLink}>Resend</Text>
                 </Text>
               </TouchableOpacity>
             </>

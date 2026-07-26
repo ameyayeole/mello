@@ -178,7 +178,7 @@ export default function AttendeeScanScreen() {
             <Animated.View entering={ZoomIn.duration(320)} style={styles.doneBadge}>
               <Icon name="check" size={44} color="#fff" strokeWidth={2.6} />
             </Animated.View>
-            <Text style={styles.doneTitle}>You're checked in!</Text>
+            <Text style={styles.doneTitle}>You&apos;re checked in!</Text>
             <Text style={styles.doneSub} numberOfLines={2}>{event.title}</Text>
             <Text style={styles.doneTime}>
               Checked in at {formatEventTime(checkedIn)}
@@ -216,7 +216,7 @@ export default function AttendeeScanScreen() {
               <View style={styles.scanIcon}>
                 <Icon name="scan" size={34} color={COLORS.primary} strokeWidth={1.8} />
               </View>
-              <Text style={styles.scanTitle}>Scan the host's QR</Text>
+              <Text style={styles.scanTitle}>Scan the host&apos;s QR</Text>
               <Text style={styles.scanBody}>
                 {ended
                   ? 'This event has ended.'
