@@ -1,10 +1,11 @@
 # Community — Manual QA (Android device + Supabase DB)
 
-> The single running checklist for everything that can't be unit-tested:
+> **The single testing doc for Community** — device + DB/RLS checks for every
+> phase (1 → 7 + final pass). Everything that can't be unit-tested:
 > **Android device checks** (Reanimated / glass / `SafeAreaView` no-op / haptics)
-> and **Supabase SQL/RLS checks** (run in the SQL editor as real roles). Grows one
-> section per phase. Automated coverage (typecheck / jest / lint) lives in each
-> phase's `*-test-plan.md` and is not repeated here.
+> and **Supabase SQL/RLS checks** (run in the SQL editor as real roles).
+> **Automated coverage** (typecheck / jest / lint) lives in the jest suites under
+> `src/**/__tests__` and the `npm run typecheck`/`lint` gates — not repeated here.
 >
 > **Android first** on every device pass — glass falls back to a flat fill and
 > `react-native`'s `SafeAreaView` is a no-op there; iOS is a spot-check after.
