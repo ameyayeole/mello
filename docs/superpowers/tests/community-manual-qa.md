@@ -354,3 +354,27 @@ already existed (044/045); this is code-only. Storage reuses the public
 ### Deferred to the final polish pass
 - [ ] **Send-to-a-Mello-DM** — share a post straight into a friend's DM (needs a
   friend-picker + chat-message insert). The native sheet covers external + copy.
+
+---
+
+## Final pass — polish
+
+### Device
+- [ ] **"New posts ↑" pill:** scroll down the feed, then leave and return to the
+  tab (forces a focus refetch). If new content arrived at the top, a coral
+  **"New posts ↑"** pill appears under the header; tapping it scrolls to top +
+  clears (selection haptic). Near the top, new content is adopted silently (no
+  pill). Pull-to-refresh never leaves a stale pill.
+- [ ] **Send-to-DM:** the post share glyph opens the **Share post** sheet. Tapping
+  a friend sends `"<preview>\n<mello://post/…>"` into their DM and lands you in
+  that DM thread (success haptic). **Share to other apps** opens the native sheet
+  (external + OS Copy). A friendless account shows "Add friends to send posts
+  directly." The shared link opens the post detail screen on the recipient's side.
+- [ ] **Cleanup:** app builds/runs with no reference to the removed
+  ExploreEventCard / useExploreWraps (already deleted in an earlier commit).
+
+### Notes
+- **Copy** was reviewed and is already consistent (ellipsis glyph, dialog copy
+  identical across feed/profile/detail, title vs sentence punctuation) — no
+  changes made.
+- **Ranking still needs real-content tuning** (Phase 6 caveat stands).
