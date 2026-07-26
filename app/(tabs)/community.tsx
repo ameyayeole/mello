@@ -80,10 +80,15 @@ export default function CommunityScreen() {
   const knownTopId = useRef<string | null>(null);
   const [showNewPill, setShowNewPill] = useState(false);
 
+  // Refetch when the tab regains focus. Depend on the STABLE `feed.refetch`
+  // reference, not the whole `feed` object — `feed` is a new object every render,
+  // so `[feed]` made this callback change every render and useFocusEffect re-ran
+  // it on every render → an infinite refetch loop (the feed jittering up/down).
+  const refetch = feed.refetch;
   useFocusEffect(
     useCallback(() => {
-      feed.refetch();
-    }, [feed])
+      refetch();
+    }, [refetch])
   );
 
   useEffect(() => {

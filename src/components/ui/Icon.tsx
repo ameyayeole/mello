@@ -448,9 +448,12 @@ export function PremiumBadge({ size = 14 }: { size?: number }) {
 // competing signals, and coral is reserved for one CTA per screen.
 const TAB_SOLAR: Record<'home' | 'community' | 'map' | 'inbox', string> = {
   home: 'Home2',
-  // ChatDots: represents community discussion. Avoids icons that use <Ellipse>
-  // (UsersGroupRounded, PeopleNearby), which react-native-svg doesn't provide.
-  community: 'ChatDots',
+  // PeopleNearby, not UsersGroupRounded: the latter's Solar glyph draws heads
+  // with <Ellipse>, and this project's react-native-svg build doesn't provide
+  // that primitive ("Property 'Ellipse' doesn't exist") — every working tab
+  // glyph uses only <Path>. PeopleNearby is Path-only and reads as a community
+  // (and stays distinct from the Inbox tab's chat glyph).
+  community: 'PeopleNearby',
   map: 'Map',
   inbox: 'ChatRound',
 };
