@@ -14,7 +14,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
 import { CommunityPost } from '@/types/models';
 import { useToggleLike } from '@/hooks/usePostInteractions';
-import { sharePost } from '@/utils/sharePost';
+import { SharePostSheet } from './SharePostSheet';
 
 // Inline glyph controls, not Buttons — these are icon affordances, so a Button
 // (which owns a label + the three-variant weight system) would be the wrong
@@ -30,6 +30,7 @@ export function PostActionBar({
   onComment: (post: CommunityPost) => void;
 }) {
   const toggle = useToggleLike();
+  const [shareOpen, setShareOpen] = useState(false);
   const pop = useSharedValue(1);
   // Tap counter drives the heart pop from an effect — the repo's accepted place
   // to write a shared value (TabBar/MessageBubble do the same). Writing it inside
@@ -51,6 +52,7 @@ export function PostActionBar({
   }));
 
   return (
+    <>
     <View style={styles.bar}>
       <PressableScale
         onPress={() => {
@@ -88,7 +90,7 @@ export function PostActionBar({
       </PressableScale>
 
       <PressableScale
-        onPress={() => sharePost(post)}
+        onPress={() => setShareOpen(true)}
         style={styles.action}
         accessibilityRole="button"
         accessibilityLabel="Share"
@@ -96,6 +98,13 @@ export function PostActionBar({
         <Icon name="share" size={20} color={COLORS.textMuted} />
       </PressableScale>
     </View>
+
+    <SharePostSheet
+      post={post}
+      visible={shareOpen}
+      onClose={() => setShareOpen(false)}
+    />
+    </>
   );
 }
 
