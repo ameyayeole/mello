@@ -284,16 +284,27 @@ export default function CommunityScreen() {
                   color={COLORS.primary}
                   style={{ marginVertical: SPACING[4] }}
                 />
-              ) : !feed.hasNextPage && posts.length > 0 ? (
+              ) : !feed.hasNextPage && posts.length > 0 && !showNudge ? (
                 /* The end of the tail. Every tier is exhausted and no seen post
                    is ever re-served, so this is a real stopping point rather
-                   than a spinner that never resolves. */
+                   than a spinner that never resolves.
+                   `!showNudge` (reused, not re-derived) covers the thin-feed
+                   case the `posts.length > 0` guard alone misses: with 1-2
+                   posts and every tier exhausted, the nudge is already telling
+                   the user their feed needs help — "all caught up" would
+                   contradict it right below, and the nudge is the more useful,
+                   actionable message here. */
                 <View style={styles.caughtUp}>
                   <Text style={styles.caughtUpTitle}>You&apos;re all caught up</Text>
                   <Text style={styles.caughtUpBody}>
                     Check back later, or find something to do nearby.
                   </Text>
-                  <EventsRail />
+                  {/* Skip the rail if the inline weave (every 9th post, in
+                      renderItem above) already placed one right before this —
+                      posts.length % 9 === 0 means the last post rendered its
+                      own EventsRail, so two would land back to back with
+                      nothing between them. */}
+                  {posts.length % 9 !== 0 ? <EventsRail /> : null}
                 </View>
               ) : null
             }
