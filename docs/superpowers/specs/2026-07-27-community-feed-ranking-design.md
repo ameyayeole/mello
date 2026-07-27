@@ -230,9 +230,13 @@ wider pool. Seen posts are never re-served.
 
 | Tier | Pool |
 | --- | --- |
-| **1** | Own + friends' + same-city posts, unseen |
-| **2** | Tier 1 **plus** public cross-city posts with the KYC / age / engager gates dropped |
+| **1** | Own + friends' + same-city posts, **plus** gated cross-city posts (public + KYC-approved author + ≥30 min old + ≥3 engagers) — i.e. today's pool, minus seen |
+| **2** | Tier 1 **with the cross-city gates dropped** — any public post, anywhere |
 | **3** | Nothing new to rank — the client shows the events rail and a caught-up marker |
+
+Tier 1 keeps the gated cross-city rung deliberately: cross-city virality is a
+designed feature of the original Community spec (§7 there), not an overflow
+behaviour. Tier 2 widens it rather than introducing it.
 
 Within every tier:
 
@@ -389,13 +393,21 @@ real data the day it turns on, instead of filtering nothing for a week.
 
 | Phase | Migration | Contents | Observable effect |
 | --- | --- | --- | --- |
-| **1** | 064 | `refresh_post_scores` v2 — engagement-only base, poll votes counted, commenters weighted 2× | Polls stop scoring as dead |
+| **1** | 064 | `refresh_post_scores` v2 — poll votes counted, commenters weighted 2×, **written to a new `posts.engagement` column** as well as the existing `score` | Polls stop scoring as dead |
 | **2** | 065 | `post_impressions` + RLS + `record_impressions` + cron prune, **plus** client tracking | None — data accumulates silently |
 | **3** | 066 | `feed_sessions`, `build_feed_session`, `community_feed_page`, tier 1 only, weights, diversity, pin, seen filter, city/gate/`hot_since` fixes; client pagination swap | **The ranking change.** Stop here and check on a device |
 | **4** | 067 | Tiers 2 and 3, caught-up marker | The endless tail |
 
 `community_feed` (062) stays in place through phase 3 for rollback, and is
 dropped in phase 4.
+
+**Phase 1 adds a column rather than repurposing `score`.** The new engagement
+sub-score is on a 0–1 scale; the live `community_feed` (062) adds `+100`/`+50`
+to `posts.score` and would collapse into pure tier ordering if that column
+suddenly ranged 0–1. So `refresh_post_scores` v2 writes **both** — the old
+composite into `score` (keeping 062 working, now with polls counted) and the new
+normalised value into `engagement`, which phase 3 reads. `score` and `hot_since`
+are dropped in phase 4.
 
 Phase 3 is the large one and the only one that touches ranking and pagination
 together — they cannot be separated, because the snapshot *is* the pagination.
@@ -407,10 +419,17 @@ together — they cannot be separated, because the snapshot *is* the pagination.
 Per AGENTS.md there is no component-test coverage (Reanimated 4 throws under
 Jest), so `tsc` passing says nothing about whether this is right. Coverage is:
 
-- **SQL fixture tests are the real coverage.** Seed a matrix — friend/stranger ×
-  each post type × fresh/stale × engaged/dead × seen/unseen — and assert the
-  resulting **order**, not the scores. Order is the contract; weights will be
-  retuned.
+- **SQL verification scripts are the real coverage.** There is no local Supabase,
+  no CLI and no SQL test runner in this repo — migrations are pasted into the
+  Supabase SQL editor by hand. So these follow the existing house pattern of
+  `supabase/check3_attendee_preview_behaviour.sql`: a `pg_temp.checkN()`
+  function that seeds fixtures, asserts, and ends in `RAISE EXCEPTION` so every
+  write rolls back while the collected results survive in local variables. Safe
+  to run against production, returns a `verdict` column that must read PASS.
+
+  Seed a matrix — friend/stranger × each post type × fresh/stale × engaged/dead
+  × seen/unseen — and assert the resulting **order**, not the scores. Order is
+  the contract; weights will be retuned.
 - **Diversity assertions:** no two consecutive posts share an author; no two
   consecutive share a type where the pool allows it; a photo-only pool still
   returns every post.
