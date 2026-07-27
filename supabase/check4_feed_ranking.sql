@@ -17,6 +17,16 @@
 -- nobody can bisect. This asserts ORDER, not scores — order is the contract,
 -- the weights will be retuned.
 --
+-- NINE assertions: media weight, author/type diversity, the seen threshold in
+-- both directions, the pin in both states and against the re-rank, and
+-- friendship (including the "does not trump everything" case that guards the
+-- whole redesign). Locality and tier-2 pool-widening are deliberately NOT
+-- covered here — `build_feed_session` writes `p_tier` to `feed_sessions.tier`
+-- but does not yet read it in its WHERE clause; the cross-city gate it would
+-- drop is migration 067, not yet written. That coverage belongs in this file
+-- once 067 ships, not before — asserting it now would test a feature that
+-- doesn't exist yet and fail on a correct ranker.
+--
 -- It borrows the two oldest profiles as the cast and reads only their ids.
 -- ─────────────────────────────────────────────────────────────────────────────
 
@@ -31,8 +41,6 @@ DECLARE
   v_third  UUID;
   v_sess   UUID;
   v_ids    UUID[];
-  v_n1     INT;
-  v_n2     INT;
   p_photo  UUID;
   p_text   UUID;
   p_photo2 UUID;
@@ -41,8 +49,6 @@ DECLARE
   p_pin2   UUID;
   p_friend UUID;
   p_hot    UUID;
-  p_far    UUID;
-  p_near   UUID;
   v_act    TEXT;
 BEGIN
   SELECT id INTO v_me    FROM profiles ORDER BY created_at LIMIT 1;
@@ -138,8 +144,17 @@ BEGIN
   v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
   SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
 
-  v_act := CASE WHEN array_position(v_ids, p_pin) = 1
-                THEN 'pinned' ELSE 'not pinned' END;
+  -- array_position returns NULL when p_pin is absent from the session
+  -- entirely; a bare `= 1` comparison would make that NULL fall through to
+  -- the ELSE branch and read as the PASS-worthy "not pinned" — silently
+  -- treating "vanished from the feed" as "correctly not pinned". Absence
+  -- gets its own explicit, failing branch instead.
+  v_act := CASE
+    WHEN array_position(v_ids, p_pin) IS NOT NULL AND array_position(v_ids, p_pin) = 1
+      THEN 'pinned'
+    WHEN array_position(v_ids, p_pin) IS NULL
+      THEN 'absent'
+    ELSE 'not pinned' END;
   results := results || ARRAY[ARRAY['6 pin off', 'not pinned', v_act,
     CASE WHEN v_act = 'not pinned' THEN 'PASS' ELSE 'FAIL' END]];
 
@@ -171,10 +186,23 @@ BEGIN
   IF v_third IS NULL THEN
     results := results || ARRAY[ARRAY['8 friendship', 'friend first',
       'SKIPPED — needs a third profile', 'SKIP']];
+    -- Assertion 9 depends on the same v_third fixture as 8 and cannot run
+    -- without it. Emitting nothing here would leave it silently absent from
+    -- the output — indistinguishable from a truncated paste — for the one
+    -- assertion the file itself calls the guard for the whole redesign.
+    results := results || ARRAY[ARRAY['9 friendship does not trump',
+      'local photo first', 'SKIPPED — needs a third profile', 'SKIP']];
   ELSE
     UPDATE profiles SET city = 'CheckCity' WHERE id = v_third;
+    -- ON CONFLICT targets friendships' actual UNIQUE (requester_id,
+    -- addressee_id) constraint (002_tables.sql) by column list rather than
+    -- guessing Postgres's auto-generated constraint name. Without this, a
+    -- pre-existing friendship between these two profiles in a real database
+    -- raises here — which, combined with the rollback sentinel below, would
+    -- otherwise truncate the run silently right before assertion 9.
     INSERT INTO friendships (requester_id, addressee_id, status)
-      VALUES (v_me, v_third, 'accepted');
+      VALUES (v_me, v_third, 'accepted')
+      ON CONFLICT (requester_id, addressee_id) DO NOTHING;
 
     INSERT INTO posts (author_id, type, visibility, body, city, created_at)
       VALUES (v_third, 'text', 'public', 'friend text', 'CheckCity', NOW())
@@ -220,52 +248,30 @@ BEGIN
       CASE WHEN v_act = 'local photo first' THEN 'PASS' ELSE 'FAIL' END]];
   END IF;
 
-  ---------------------------------------------------------------------------
-  -- 10. Locality: a same-city post outranks an identical cross-city one.
-  --     The cross-city post is given the gate-clearing shape (public, old
-  --     enough) so it is in the pool at all — this tests ranking, not scoping.
-  ---------------------------------------------------------------------------
-  INSERT INTO posts (author_id, type, visibility, body, city, created_at,
-                     engagement)
-    VALUES (v_other, 'text', 'public', 'far away', 'OtherCity',
-            NOW() - INTERVAL '1 hour', 0.5)
-    RETURNING id INTO p_far;
-  INSERT INTO posts (author_id, type, visibility, body, city, created_at,
-                     engagement)
-    VALUES (v_other, 'text', 'public', 'near by', 'CheckCity',
-            NOW() - INTERVAL '1 hour', 0.5)
-    RETURNING id INTO p_near;
+  -- Locality (same-city outranks cross-city) and tier-2 pool-widening were
+  -- removed from this check. `build_feed_session` writes `p_tier` to
+  -- `feed_sessions.tier` but does not yet read it in its WHERE clause —
+  -- tier-2 gate-dropping is migration 067, not yet written. A cross-city
+  -- fixture with no engagers can never clear the gated rung under any tier
+  -- today, so a locality assertion here would FAIL on a correct ranker, and a
+  -- widening assertion would pass vacuously (tier 1 and tier 2 select
+  -- identically, so `wider or equal` is trivially true). Add both back once
+  -- 067 makes `p_tier` do something.
 
-  -- Tier 2 so the cross-city post is in the pool regardless of KYC.
-  v_sess := build_feed_session(v_me, 2::SMALLINT, FALSE);
-  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
-
-  v_act := CASE
-    WHEN array_position(v_ids, p_near) < array_position(v_ids, p_far)
-    THEN 'near first' ELSE 'far first' END;
-  results := results || ARRAY[ARRAY['10 locality', 'near first', v_act,
-    CASE WHEN v_act = 'near first' THEN 'PASS' ELSE 'FAIL' END]];
-
-  ---------------------------------------------------------------------------
-  -- 11. Tier 2 widens the pool rather than replacing it — every tier-1 post
-  --     must still be present.
-  ---------------------------------------------------------------------------
-  v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
-  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
-  v_n1 := COALESCE(array_length(v_ids, 1), 0);
-
-  v_sess := build_feed_session(v_me, 2::SMALLINT, FALSE);
-  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
-  v_n2 := COALESCE(array_length(v_ids, 1), 0);
-
-  v_act := CASE WHEN v_n2 >= v_n1 THEN 'wider or equal' ELSE 'narrower' END;
-  results := results || ARRAY[ARRAY['11 tier 2 widens',
-    'wider or equal', v_act || ' (' || v_n1 || '→' || v_n2 || ')',
-    CASE WHEN v_n2 >= v_n1 THEN 'PASS' ELSE 'FAIL' END]];
-
-  RAISE EXCEPTION 'rollback';
+  RAISE EXCEPTION 'check4-rollback';
 
 EXCEPTION WHEN OTHERS THEN
+  -- A genuine mid-script error (a typo'd column, a schema drift) raises
+  -- something OTHER than our own sentinel. Left unguarded, that would return
+  -- whatever assertions happened to accumulate before the error — every one
+  -- a real PASS — and a short "all PASS" table reads as a clean run instead
+  -- of a script that never finished. Same guard as check3's `SQLERRM <>
+  -- 'check3-rollback'` check.
+  IF SQLERRM <> 'check4-rollback' THEN
+    results := results || ARRAY[ARRAY['SCRIPT ERROR',
+      'all nine assertions to complete', SQLERRM, 'CANNOT RUN']];
+  END IF;
+
   FOR i IN 1 .. COALESCE(array_length(results, 1), 0) LOOP
     step    := results[i][1];
     expected := results[i][2];
