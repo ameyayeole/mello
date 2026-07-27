@@ -235,10 +235,10 @@ BEGIN
   WHERE
     pool.is_own OR pool.is_friend OR pool.in_local_pool
     -- Cross-city rung. Tier 1 keeps the gates (cross-city virality is a
-    -- designed feature, not an overflow behaviour); 067 adds tier 2, which
-    -- drops them. The engager floor uses the SAME 48h window as the score —
-    -- 062 counted lifetime engagers here and 48h there, one word meaning two
-    -- different things.
+    -- designed feature, not an overflow behaviour); this migration adds
+    -- tier 2, which drops them — see below. The engager floor uses the SAME
+    -- 48h window as the score — 062 counted lifetime engagers here and 48h
+    -- there, one word meaning two different things.
     OR (
       pool.visibility = 'public'
       AND (
