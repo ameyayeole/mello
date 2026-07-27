@@ -313,3 +313,86 @@ BEGIN
   RETURN v_session;
 END;
 $$;
+
+-- ─── community_feed_page ─────────────────────────────────────────────────────
+-- Hydrates one slice of a session. p_session_id NULL builds a session first, so
+-- a cold start is ONE round trip rather than two.
+--
+-- session_total is returned on every row because a short page here does NOT
+-- mean the end of the feed: this is SECURITY INVOKER, so a post hidden,
+-- deleted or blocked since the snapshot was taken silently drops out of its
+-- slice. Paging must be driven by offset against session_total — the old
+-- `lastPage.length < PAGE_SIZE` heuristic would truncate the feed at the first
+-- moderated post.
+CREATE OR REPLACE FUNCTION community_feed_page(
+  p_user_id    UUID,
+  p_session_id UUID     DEFAULT NULL,
+  p_tier       SMALLINT DEFAULT 1,
+  p_pin_own    BOOLEAN  DEFAULT TRUE,
+  p_offset     INT      DEFAULT 0,
+  p_limit      INT      DEFAULT 10
+)
+RETURNS TABLE (
+  id                UUID,
+  author_id         UUID,
+  author_name       TEXT,
+  author_photo_url  TEXT,
+  type              post_type,
+  visibility        post_visibility,
+  body              TEXT,
+  media             TEXT[],
+  city              TEXT,
+  like_count        INT,
+  comment_count     INT,
+  created_at        TIMESTAMPTZ,
+  liked_by_me       BOOLEAN,
+  comments_enabled  BOOLEAN,
+  ref_wrap_event_id UUID,
+  score             FLOAT,
+  session_id        UUID,
+  session_total     INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_session UUID := p_session_id;
+  v_ids     UUID[];
+  v_scores  FLOAT[];
+  v_total   INT;
+BEGIN
+  IF v_session IS NULL THEN
+    v_session := build_feed_session(p_user_id, p_tier, p_pin_own);
+  END IF;
+
+  SELECT fs.post_ids, fs.post_scores
+    INTO v_ids, v_scores
+    FROM feed_sessions fs
+   WHERE fs.id = v_session AND fs.user_id = p_user_id;
+
+  IF v_ids IS NULL THEN
+    RAISE EXCEPTION 'feed session % not found or expired', v_session
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  v_total := COALESCE(array_length(v_ids, 1), 0);
+
+  RETURN QUERY
+  SELECT
+    p.id, p.author_id, pr.name, pr.photo_url, p.type, p.visibility,
+    p.body, p.media, p.city, p.like_count, p.comment_count, p.created_at,
+    EXISTS (SELECT 1 FROM post_likes pl
+             WHERE pl.post_id = p.id AND pl.user_id = p_user_id) AS liked_by_me,
+    p.comments_enabled,
+    p.ref_wrap_event_id,
+    slice.sc,
+    v_session,
+    v_total
+  FROM unnest(
+         v_ids[p_offset + 1 : p_offset + p_limit],
+         v_scores[p_offset + 1 : p_offset + p_limit]
+       ) WITH ORDINALITY AS slice(pid, sc, ord)
+  JOIN posts    p  ON p.id = slice.pid AND p.hidden = FALSE
+  JOIN profiles pr ON pr.id = p.author_id
+  ORDER BY slice.ord;
+END;
+$$;
