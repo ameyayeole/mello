@@ -9,10 +9,11 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, InfiniteData } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { reportPost } from '@/services/moderation.service';
+import { FeedPageParam } from '@/services/community/posts.service';
 import { queryKeys } from '@/constants/queryKeys';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
@@ -81,6 +82,36 @@ export default function CommunityScreen() {
         // MVP: a single generic reason; a reason picker can come in polish.
         reason: 'inappropriate',
       }),
+    // Surgical cache edit, not `invalidateQueries`. Invalidating re-runs page 1
+    // with `sessionId: null`, which builds a brand-new ranked session — the
+    // whole feed reorders under the user's thumb. That is acceptable right
+    // after deleting your own post (useDeletePost does invalidate), but
+    // reporting happens mid-scroll on someone else's card and a reshuffled
+    // feed there reads as a bug, not a confirmation. Migration 068's RLS
+    // already excludes a reported post from `posts_select`, so dropping it
+    // from the cached pages here is just applying on screen what the next
+    // natural session rebuild would apply anyway — there is nothing left to
+    // reconcile, which is what makes doing it locally safe.
+    //
+    // Runs in onSuccess only: a failed report leaves the post in the cache
+    // and on screen, matching the DB state (nothing was hidden).
+    onSuccess: (_data, post) => {
+      queryClient.setQueryData<InfiniteData<CommunityPost[], FeedPageParam>>(
+        queryKeys.community.feed.of(meId),
+        (old) => {
+          // No cache entry to edit (e.g. query never ran) — leave it be
+          // rather than inventing an empty `InfiniteData` shape.
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => page.filter((p) => p.id !== post.id)),
+          };
+        }
+      );
+      // A page shortened by one is safe: pagination advances on `offset`
+      // against `session_total` (nextFeedPage, useCommunityFeed.ts), never on
+      // page length, so this can't trick the pager into ending the feed early.
+    },
   });
 
   // Deduped by id, not just flattened. A tier advance rebuilds the pool, so a
