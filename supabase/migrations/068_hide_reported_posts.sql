@@ -12,6 +12,14 @@
 -- author's own profile Posts tab and through a deep link to get_post; RLS is
 -- the only place that closes all of those at once.
 --
+-- IMMEDIATE AND RETROACTIVE: the moment this is applied, every existing
+-- `reports` row that already has a `post_id` — including old, forgotten
+-- reports filed long before this migration existed — will hide that post
+-- from that reporter. This is intended, not a migration artefact: a report
+-- is a standing request not to see something, and scoping the fix to only
+-- future reports would leave old flagged posts still staring back at the
+-- people who reported them.
+--
 -- Re-creates posts_select (044) unchanged except for one added clause. Run
 -- this whole file in the Supabase SQL editor.
 -- ─────────────────────────────────────────────────────────────────────────────
