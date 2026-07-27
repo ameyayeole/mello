@@ -35,9 +35,13 @@ type ComposeMode = 'post' | 'poll';
 export function ComposePostSheet({
   visible,
   onClose,
+  onPosted,
 }: {
   visible: boolean;
   onClose: () => void;
+  // Fired only on a successful post — `onClose` also fires on dismiss, so it
+  // cannot stand in for "the user actually published something".
+  onPosted?: () => void;
 }) {
   const [mode, setMode] = useState<ComposeMode>('post');
   const [body, setBody] = useState('');
@@ -84,6 +88,7 @@ export function ComposePostSheet({
     const done = {
       onSuccess: () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onPosted?.();
         reset();
         onClose();
       },

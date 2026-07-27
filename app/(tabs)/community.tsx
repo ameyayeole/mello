@@ -9,10 +9,11 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { reportPost } from '@/services/moderation.service';
+import { queryKeys } from '@/constants/queryKeys';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -43,7 +44,17 @@ export default function CommunityScreen() {
   const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const feed = useCommunityFeed();
+  // Whether the next session build should float your own fresh post to the top.
+  //
+  // A ref, not state, because the two things that flip it both need it read on
+  // the very next query — pull-to-refresh sets it false and rebuilds in the
+  // same tick, and a state update would not have landed in time.
+  //
+  // Posting turns it on; asking for a refresh turns it off. That is the whole
+  // rule: refreshing repeatedly inside the 5-minute window should not keep
+  // parking your own post at the top.
+  const pinOwnRef = useRef(true);
+  const feed = useCommunityFeed(pinOwnRef);
   // Records what the viewer actually sees, so the ranker can stop re-serving
   // posts they have already scrolled past (migration 065/066).
   const impressions = useImpressionTracker();
@@ -66,10 +77,16 @@ export default function CommunityScreen() {
       }),
   });
 
-  const posts = useMemo(
-    () => feed.data?.pages.flat() ?? [],
-    [feed.data]
-  );
+  // Deduped by id, not just flattened. A tier advance rebuilds the pool, so a
+  // post that entered it between builds can legitimately be served twice. One
+  // line here is robust against every cross-tier case and cannot drift out of
+  // sync with the ranking, which a SQL-side fix would.
+  const posts = useMemo(() => {
+    const seen = new Set<string>();
+    return (feed.data?.pages.flat() ?? []).filter((p) =>
+      seen.has(p.id) ? false : (seen.add(p.id), true)
+    );
+  }, [feed.data]);
 
   // Resolves every @handle across all loaded feed pages (one keyed query) plus
   // the viewer → which caption handles render tappable. Same map CommentSheet
@@ -104,12 +121,24 @@ export default function CommunityScreen() {
     }, [refetch])
   );
 
+  const queryClient = useQueryClient();
+
   const { refreshing, onRefresh } = usePullToRefresh(async () => {
     // A manual refresh means the user is looking at the top — adopt whatever
     // comes back and clear any pending pill.
     knownTopId.current = posts[0]?.id ?? null;
     setShowNewPill(false);
-    await refetch();
+    // The gesture half of the pin release. Set BEFORE the rebuild: the ref is
+    // read inside queryFn, so the very next request already carries it.
+    pinOwnRef.current = false;
+    // resetQueries, not refetch. An infinite query's refetch re-runs every
+    // LOADED page against its stored pageParam — i.e. against the OLD session
+    // id — so the ranking would never change and the pin would never drop.
+    // resetQueries discards the pages, returns the query to initialPageParam
+    // (a fresh tier-1 session) and refetches it.
+    await queryClient.resetQueries({
+      queryKey: queryKeys.community.feed.of(meId),
+    });
   });
 
   useEffect(() => {
@@ -294,6 +323,11 @@ export default function CommunityScreen() {
       <ComposePostSheet
         visible={composeOpen}
         onClose={() => setComposeOpen(false)}
+        // Posting is the one thing that earns the pin back after a refresh
+        // turned it off.
+        onPosted={() => {
+          pinOwnRef.current = true;
+        }}
       />
 
       {commentPost && (
