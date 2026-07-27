@@ -11,6 +11,10 @@
 -- because community_feed (062) is still live and adds +100/+50 to it. Swapping
 -- that column to a 0–1 scale would collapse the current feed into pure tier
 -- order. 067 drops posts.score once nothing reads it.
+--
+-- Note: This version drops the hot_since write from 061. hot_since is dead code
+-- (written by every version but read by nothing) and will be removed entirely in
+-- 067; we stop maintaining it here to simplify the rollout.
 -- Run this whole file in the Supabase SQL editor.
 -- ─────────────────────────────────────────────────────────────────────────────
 
