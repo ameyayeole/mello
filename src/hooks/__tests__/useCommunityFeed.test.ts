@@ -85,7 +85,7 @@ describe('nextFeedPage', () => {
     });
   });
 
-  it('advances to the next tier when the session is exhausted', () => {
+  it('advances from tier 1 to tier 2 when the session is exhausted', () => {
     const last = page({ offset: 20 });
     expect(nextFeedPage([post('1', 's1', 30)], last, 10)).toEqual({
       sessionId: null,
@@ -104,14 +104,19 @@ describe('nextFeedPage', () => {
     });
   });
 
-  it('ends the feed after the last tier', () => {
-    const last = page({ tier: 3, offset: 20 });
+  // LAST_TIER = 2: 069_feed_tiers.sql's pool predicate is `p_tier >= 2`, so
+  // there is no distinct tier-3 pool to query — tier 2 and a hypothetical
+  // tier 3 would select identically. Terminating here (rather than issuing a
+  // wasted duplicate request) is what lets the client render the caught-up
+  // marker as a client-side state instead of another fetch.
+  it('ends the feed after tier 2 is exhausted', () => {
+    const last = page({ tier: 2, offset: 20 });
     expect(nextFeedPage([post('1', 's1', 30)], last, 10)).toBeUndefined();
   });
 
-  it('ends the feed when the last tier returns nothing', () => {
+  it('ends the feed when tier 2 returns nothing', () => {
     expect(
-      nextFeedPage([], page({ tier: 3, sessionId: null }), 10)
+      nextFeedPage([], page({ tier: 2, sessionId: null }), 10)
     ).toBeUndefined();
   });
 });

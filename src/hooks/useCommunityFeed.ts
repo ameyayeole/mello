@@ -9,8 +9,13 @@ const PAGE_SIZE = 10;
 
 // Tier 1: own + friends + same city + gated cross-city.
 // Tier 2: the cross-city gates dropped — any public post, anywhere.
-// Tier 3: nothing left to rank; the screen shows the caught-up marker.
-export const LAST_TIER = 3;
+//
+// These are the only two SERVER tiers (069_feed_tiers.sql's pool predicate is
+// `p_tier >= 2`, so there is no distinct rung above 2 to query). "Caught up"
+// is a CLIENT state, not a third tier: once tier 2 is exhausted there is
+// nothing left to rank, and the screen shows the events rail plus the
+// caught-up marker instead of issuing another request.
+export const LAST_TIER = 2;
 
 /**
  * Where to read next. Pagination is an offset into a frozen ranked snapshot
