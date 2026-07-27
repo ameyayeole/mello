@@ -20,6 +20,7 @@ import { useCommunityFeed } from '@/hooks/useCommunityFeed';
 import { useThreadMentionables } from '@/hooks/useMentions';
 import { useDeletePost } from '@/hooks/usePostMutations';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useImpressionTracker } from '@/hooks/useImpressionTracker';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import {
@@ -43,6 +44,9 @@ export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const feed = useCommunityFeed();
+  // Records what the viewer actually sees, so the ranker can stop re-serving
+  // posts they have already scrolled past (migration 065/066).
+  const impressions = useImpressionTracker();
   const meId = useAuthStore((s) => s.user?.id);
   const del = useDeletePost();
   const [composeOpen, setComposeOpen] = useState(false);
@@ -208,6 +212,8 @@ export default function CommunityScreen() {
             onScroll={(e) => {
               scrollY.current = e.nativeEvent.contentOffset.y;
             }}
+            onViewableItemsChanged={impressions.onViewableItemsChanged}
+            viewabilityConfig={impressions.viewabilityConfig}
             ListHeaderComponent={
               showNudge ? (
                 <CommunityNudgeCard
