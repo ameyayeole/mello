@@ -441,9 +441,14 @@ export interface CommunityPost {
   liked_by_me: boolean;
   comments_enabled: boolean;
   created_at: string;
-  // Hybrid ranking score (materialized base + viewer boosts, migration 062).
-  // The feed keyset cursor reads it; cards ignore it.
+  // Ranking score from the frozen session snapshot (migration 066). Cards
+  // ignore it; it is here for debugging "why is this post fourth?".
   score: number;
+  // Present only on rows from community_feed_page. Pagination is driven by
+  // `offset < session_total`, never by page length — a post moderated
+  // mid-session drops out of its slice and shortens the page.
+  session_id?: string;
+  session_total?: number;
 }
 
 // One poll option with its aggregate (anonymous) tally. `vote_count` is the
