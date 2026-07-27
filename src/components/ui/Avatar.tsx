@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { COLORS } from '@/constants/colors';
@@ -17,6 +18,7 @@ export function Avatar({
   ringColor,
   ringWidth = 2.5,
   onPress,
+  style,
 }: {
   name?: string | null;
   photoUrl?: string | null;
@@ -33,6 +35,11 @@ export function Avatar({
   // active-now row all want this; without it each was wrapping its own
   // pressable and picking its own scale.
   onPress?: () => void;
+  // Placement only — where the avatar sits, not what it looks like. Callers
+  // that need it pinned to a corner (the Inbox thumbnail's sender disc) were
+  // otherwise wrapping it in a positioned View, which put a second box around
+  // something that already knows its own size.
+  style?: StyleProp<ViewStyle>;
 }) {
   const radius = size / 2;
   const initial = name?.trim()?.[0]?.toUpperCase() ?? '?';
@@ -88,11 +95,11 @@ export function Avatar({
 
   const box = { width: size, height: size };
 
-  if (!onPress) return <View style={box}>{face}</View>;
+  if (!onPress) return <View style={[box, style]}>{face}</View>;
 
   return (
     <PressableScale
-      style={box}
+      style={[box, style]}
       scaleTo={0.9}
       onPress={onPress}
       accessibilityRole="button"

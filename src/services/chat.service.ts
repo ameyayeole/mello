@@ -118,6 +118,9 @@ export interface LastMessage {
   content: string;
   type: Message['type'];
   senderName?: string;
+  // Drawn on the corner of the event's thumbnail in the Inbox, so the row shows
+  // who spoke last rather than what kind of event it is.
+  senderPhotoUrl?: string;
 }
 
 // One query for every chat at once, newest first — the first row seen for an
@@ -131,7 +134,9 @@ export async function getLastMessages(
   if (eventIds.length === 0) return map;
   const { data, error } = await supabase
     .from('messages')
-    .select('event_id, created_at, content, type, sender:profiles!sender_id(name)')
+    .select(
+      'event_id, created_at, content, type, sender:profiles!sender_id(name, photo_url)'
+    )
     .in('event_id', eventIds)
     .order('created_at', { ascending: false })
     .limit(400);
@@ -144,6 +149,7 @@ export async function getLastMessages(
       content: row.content,
       type: row.type,
       senderName: row.sender?.name ?? undefined,
+      senderPhotoUrl: row.sender?.photo_url ?? undefined,
     });
   }
   return map;
