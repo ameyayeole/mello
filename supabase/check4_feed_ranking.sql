@@ -200,9 +200,17 @@ BEGIN
     -- pre-existing friendship between these two profiles in a real database
     -- raises here — which, combined with the rollback sentinel below, would
     -- otherwise truncate the run silently right before assertion 9.
+    --
+    -- DO UPDATE, not DO NOTHING: the fixture must guarantee an ACCEPTED
+    -- friendship, not merely the presence of a row. A pre-existing 'pending'
+    -- or 'blocked' row on this exact (requester_id, addressee_id) pair would
+    -- otherwise survive untouched, and assertions 8/9 would silently score a
+    -- stranger while claiming to test friendship — a false FAIL with nothing
+    -- to do with the ranker, on the one assertion that guards the redesign.
     INSERT INTO friendships (requester_id, addressee_id, status)
       VALUES (v_me, v_third, 'accepted')
-      ON CONFLICT (requester_id, addressee_id) DO NOTHING;
+      ON CONFLICT (requester_id, addressee_id)
+      DO UPDATE SET status = 'accepted';
 
     INSERT INTO posts (author_id, type, visibility, body, city, created_at)
       VALUES (v_third, 'text', 'public', 'friend text', 'CheckCity', NOW())
