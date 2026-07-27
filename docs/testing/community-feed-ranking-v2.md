@@ -95,7 +95,7 @@ The main event.
 | D18 | Scroll to the bottom of tier 1 | Stops after one empty tier advance — correct until Phase 4 | ☐ | ☐ |
 | D19 | Watch for a phantom "New posts ↑" pill | It only appears for genuinely new content | ☐ | ☐ |
 
-## E · Phase 4 — the endless tail (migration 067)
+## E · Phase 4 — the endless tail (migration 069)
 
 | # | Step | Expect | iOS | Android |
 | --- | --- | --- | :-: | :-: |

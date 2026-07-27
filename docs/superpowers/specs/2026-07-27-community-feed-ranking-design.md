@@ -373,8 +373,13 @@ Phase 4 adds one more: `community.tsx` renders the caught-up marker and a final
 events rail when `nextFeedPage` reports tier 3 exhausted, in place of today's
 silent dead-end.
 
-`user_posts` (057) and `get_post` (063) are untouched — they keep their own
-keyset and their own `score` column, and `CommunityPost` does not change shape.
+`user_posts` (057) is untouched — it keeps its own keyset and its own `score`
+column. `get_post` (063) is **not** untouched: 069 drops `posts.score` (see
+§11) and had to re-create `get_post` verbatim with `p.score` replaced by
+`0::FLOAT`, since it selected that column and declared it in `RETURNS TABLE`.
+`CommunityPost` does not change shape either way — `score` stays in the type
+and in `get_post`'s return row; nothing on that deep-link path reads its
+value.
 
 `queryKeys.community.feed` already sits in `DISCOVERY_FEED_KEYS`, so blocking
 still scrubs the feed. No change there.
@@ -396,7 +401,13 @@ real data the day it turns on, instead of filtering nothing for a week.
 | **1** | 064 | `refresh_post_scores` v2 — poll votes counted, commenters weighted 2×, **written to a new `posts.engagement` column** as well as the existing `score` | Polls stop scoring as dead |
 | **2** | 065 | `post_impressions` + RLS + `record_impressions` + cron prune, **plus** client tracking | None — data accumulates silently |
 | **3** | 066 | `feed_sessions`, `build_feed_session`, `community_feed_page`, tier 1 only, weights, diversity, pin, seen filter, city/gate/`hot_since` fixes; client pagination swap | **The ranking change.** Stop here and check on a device |
-| **4** | 067 | Tiers 2 and 3, caught-up marker | The endless tail |
+| **4** | 069 | Tier 2 (gate-dropping) + caught-up marker (client state) + v1 ranking retirement | The endless tail |
+
+Migration numbers past phase 3 shifted from this table's original plan: 067
+shipped first as an unplanned production-regression patch (profiles.city was
+never written, so the same-city pool rung silently admitted no one — see
+067's own header), and 068 shipped as reported-post hiding — neither planned
+here. Phase 4 landed in 069, not 067.
 
 `community_feed` (062) stays in place through phase 3 for rollback, and is
 dropped in phase 4.
