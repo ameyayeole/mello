@@ -4,7 +4,9 @@
 -- HOW TO RUN: paste this whole file into the Supabase SQL editor and hit run.
 -- Read the `verdict` column — every row must say PASS.
 --
--- LAST RUN: (not yet run — fill in date and result after first run)
+-- LAST RUN: 2026-07-28 against production — 11/11 PASS.
+-- Re-run it after any change to build_feed_session, to the weights, to the
+-- diversity re-rank, or to the candidate pool's rungs.
 --
 -- IT WRITES NOTHING. All test data is created inside a PL/pgSQL block that ends
 -- in `RAISE EXCEPTION`; a caught exception rolls back every change made inside
