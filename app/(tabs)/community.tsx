@@ -40,6 +40,12 @@ import { ComposePostSheet } from '@/components/community/ComposePostSheet';
 import { CommentSheet } from '@/components/community/CommentSheet';
 import { errorMessage } from '@/utils/errors';
 
+// How often the events rail is woven into the feed (spec §8). Consumed by
+// both the inline weave in `renderItem` and the footer's duplicate-rail
+// guard below — they must agree, or the rail either doubles up or vanishes
+// at the seam between the list and its footer.
+const EVENTS_RAIL_CADENCE = 9;
+
 export default function CommunityScreen() {
   const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
@@ -266,7 +272,7 @@ export default function CommunityScreen() {
                 </Animated.View>
                 {/* City events rail woven in every ~9 posts (spec §8); it
                     self-hides when nothing is nearby. */}
-                {(index + 1) % 9 === 0 ? <EventsRail /> : null}
+                {(index + 1) % EVENTS_RAIL_CADENCE === 0 ? <EventsRail /> : null}
               </>
             )}
             refreshControl={
@@ -299,12 +305,12 @@ export default function CommunityScreen() {
                   <Text style={styles.caughtUpBody}>
                     Check back later, or find something to do nearby.
                   </Text>
-                  {/* Skip the rail if the inline weave (every 9th post, in
-                      renderItem above) already placed one right before this —
-                      posts.length % 9 === 0 means the last post rendered its
-                      own EventsRail, so two would land back to back with
-                      nothing between them. */}
-                  {posts.length % 9 !== 0 ? <EventsRail /> : null}
+                  {/* Skip the rail if the inline weave (every EVENTS_RAIL_CADENCE-th
+                      post, in renderItem above) already placed one right before
+                      this — posts.length % EVENTS_RAIL_CADENCE === 0 means the
+                      last post rendered its own EventsRail, so two would land
+                      back to back with nothing between them. */}
+                  {posts.length % EVENTS_RAIL_CADENCE !== 0 ? <EventsRail /> : null}
                 </View>
               ) : null
             }
