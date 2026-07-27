@@ -35,13 +35,20 @@ type ComposeMode = 'post' | 'poll';
 export function ComposePostSheet({
   visible,
   onClose,
-  onPosted,
+  onWillPost,
 }: {
   visible: boolean;
   onClose: () => void;
-  // Fired only on a successful post — `onClose` also fires on dismiss, so it
-  // cannot stand in for "the user actually published something".
-  onPosted?: () => void;
+  // Fired at submit time, before the mutation is even sent — NOT on success.
+  // Reason: in TanStack Query v5, a mutation's hook-level `onSuccess` (the one
+  // declared inside useMutation, in usePostMutations.ts) runs BEFORE the
+  // `onSuccess` passed to `mutate()` here. That hook-level callback invalidates
+  // the feed query synchronously, which re-reads the feed's "pin my post to
+  // position 1" ref immediately — before this component's own onSuccess could
+  // ever set it. Arming at submit sidesteps the ordering entirely: nothing the
+  // mutation does can happen before submit does. See the call site in
+  // community.tsx for why arming this early is still safe.
+  onWillPost?: () => void;
 }) {
   const [mode, setMode] = useState<ComposeMode>('post');
   const [body, setBody] = useState('');
@@ -85,10 +92,14 @@ export function ComposePostSheet({
 
   function submit() {
     if (!canPost) return;
+    // Arm the pin before the request is even sent (see the prop comment for
+    // why success-time was wrong). A post that goes on to fail leaves the pin
+    // armed with nothing new to pin — harmless, since build_feed_session also
+    // requires an own post created in the last 5 minutes to set is_pinned.
+    onWillPost?.();
     const done = {
       onSuccess: () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onPosted?.();
         reset();
         onClose();
       },

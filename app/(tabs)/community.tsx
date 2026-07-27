@@ -323,9 +323,15 @@ export default function CommunityScreen() {
       <ComposePostSheet
         visible={composeOpen}
         onClose={() => setComposeOpen(false)}
-        // Posting is the one thing that earns the pin back after a refresh
-        // turned it off.
-        onPosted={() => {
+        // Armed optimistically at submit, not on mutation success: the
+        // mutation's hook-level onSuccess (usePostMutations.ts) invalidates
+        // the feed and triggers a refetch before ComposePostSheet's own
+        // onSuccess could run, so setting this on success arrived one refetch
+        // too late and the pin was silently lost. Arming here, before the
+        // network call, cannot lose that race. If the post ends up failing,
+        // this flag alone pins nothing — build_feed_session's is_pinned also
+        // requires an own post created in the last 5 minutes.
+        onWillPost={() => {
           pinOwnRef.current = true;
         }}
       />
