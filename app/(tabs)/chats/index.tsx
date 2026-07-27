@@ -7,13 +7,14 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  RefreshControl,
   Alert,
   LayoutChangeEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
@@ -24,17 +25,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
-import { useUIStore } from '@/stores/uiStore';
-import {
-  getAttendeePreviews,
-  getJoinedEvents,
-  getMyEvents,
-} from '@/services/events.service';
+import { getJoinedEvents, getMyEvents } from '@/services/events.service';
 import {
   getFriendConversations,
   getUnreadDmCounts,
 } from '@/services/dm.service';
 import { getLastMessages } from '@/services/chat.service';
+import type { LastMessage } from '@/services/chat.service';
 import {
   getChatPrefs,
   setChatPinned,
@@ -58,7 +55,6 @@ import {
   EmptyState,
   Glass,
   Icon,
-  OverflowCount,
   PressableScale,
   SectionLabel,
   useTabBarInset,
@@ -70,7 +66,7 @@ import {
 } from '@/hooks/useOverlayScreen';
 import { usePresence } from '@/hooks/usePresence';
 import { useFriends } from '@/hooks/useFriends';
-import { useExploreFeed } from '@/hooks/useExploreFeed';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { OptionSheet, SheetOption } from '@/components/chat';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
 import {
@@ -105,6 +101,37 @@ function hostingLine(event: NearbyEvent, myUserId?: string): string {
   return `${event.host_name ?? 'The host'} is hosting this event`;
 }
 
+/**
+ * True only while this screen is being *arrived at* from another main tab.
+ *
+ * The row stagger is an arrival animation — it introduces the screen. It was
+ * replaying on two things that are not arrivals: the Events/Direct switcher
+ * (each row's key is prefixed with its tab, so flipping the segment unmounts
+ * every row and mounts a new set) and popping back out of a chat. A list that
+ * re-staggers under your thumb reads as a flicker, not as motion.
+ *
+ * Keyed on the pathname rather than on focus, because `useFocusEffect` fires
+ * for the stack pop too — which is the case being excluded. A previous path
+ * already under `/chats` means we never left this tab, so it is not an arrival.
+ * The first render counts as one: that is the app opening onto this screen.
+ *
+ * State rather than a ref, and adjusted during render rather than in an effect
+ * — React's documented pattern for deriving from a changed input. A ref read at
+ * render time is unsafe under concurrent rendering, and the effect version
+ * cascades a second render *after* the rows have already mounted, which is one
+ * frame too late to gate their entering animation.
+ */
+function useArrivalAnimation(): boolean {
+  const pathname = usePathname();
+  const [seen, setSeen] = useState<string | null>(null);
+  const [arriving, setArriving] = useState(true);
+  if (seen !== pathname) {
+    setSeen(pathname);
+    setArriving(seen === null || !seen.startsWith('/chats'));
+  }
+  return arriving;
+}
+
 function PrefGlyphs({ pref }: { pref?: ChatPref }) {
   if (!pref) return null;
   return (
@@ -132,9 +159,9 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
 //
 // `layout` is what makes a re-sort *move*: when a new message lifts a chat to
 // the top, its row and the ones it passes glide to their new places instead of
-// snapping. Entering still fires once on mount (and on a tab switch, which
-// remounts the rows). Both ride the same Animated.View; that's safe because the
-// view carries no `style` of its own — Reanimated only warns about a layout
+// snapping. `entering` is the arrival stagger and is gated separately — see
+// `animate`. Both ride the same Animated.View; that's safe because the view
+// carries no `style` of its own — Reanimated only warns about a layout
 // animation clobbering styles when they share the very component the animation
 // is attached to, and here the styles live one level down on the row `View`.
 //
@@ -143,6 +170,7 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
 function ChatRow({
   index,
   first,
+  animate,
   thumb,
   title,
   preview,
@@ -154,6 +182,9 @@ function ChatRow({
 }: {
   index: number;
   first: boolean;
+  // See useArrivalAnimation: the stagger introduces the screen, so it plays on
+  // arrival and not on the in-place remounts that happen while you are here.
+  animate: boolean;
   thumb: React.ReactNode;
   title: string;
   // "Ana: see you there" in a group, just the message in a DM.
@@ -166,7 +197,11 @@ function ChatRow({
 }) {
   return (
     <Animated.View
-      entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}
+      entering={
+        animate
+          ? FadeInDown.delay(Math.min(index, 8) * 45).duration(320)
+          : undefined
+      }
       layout={LinearTransition.springify().damping(20).stiffness(180).mass(0.7)}
     >
       <PressableScale
@@ -215,13 +250,24 @@ function ChatRow({
   );
 }
 
-// An event's thumbnail: its own photo, with the category in the little disc on
-// the corner. The photo says *which* event, the disc says what kind — the tile
-// alone said only the kind, and three house parties looked identical.
+// An event's thumbnail: its own photo, with who spoke last in the little disc
+// on the corner. The photo says *which* event, the disc says *who* — the row's
+// preview line already leads with that person's name, so the face and the name
+// carry the same signal instead of the disc repeating the category the photo
+// and the preview line both already imply.
+//
+// The category emoji is still the fallback: a chat nobody has spoken in has no
+// face to show, and an empty disc would read as a broken avatar.
 //
 // No photo falls back to the category tile, same as EventRow: `photo` is a
 // request, not a guarantee.
-function EventThumb({ event }: { event: NearbyEvent }) {
+function EventThumb({
+  event,
+  last,
+}: {
+  event: NearbyEvent;
+  last?: LastMessage;
+}) {
   return (
     <View>
       {event.image_url ? (
@@ -234,41 +280,56 @@ function EventThumb({ event }: { event: NearbyEvent }) {
       ) : (
         <CategoryTile activity={event.activity} size={52} radius={16} />
       )}
-      {/* Smoked glass with a white ring — and it frosts *itself* rather than
-          blurring what is behind it.
 
-          `backdrop` exists for this (DESIGN.md §3). A backdrop blur is a
-          `UIVisualEffectView`, which does not reliably respect a parent's
-          corner mask — at this size that leaves a square corner poking out
-          from behind a round one, which is the clipping that survived two
-          attempts to fix it. Compositing our own blurred copy of the photo is
-          plain Views end to end, so it cannot fail to clip. It also renders
-          identically on Android, where there is no backdrop blur at all.
-
-          No photo means nothing to frost, so the disc falls back to flat ink —
-          still the backdrop path, still guaranteed to clip. */}
-      <Glass
-        tier="onPhoto"
-        radius={12}
-        shadow={false}
-        style={styles.typeBadge}
-        backdrop={
-          event.image_url ? (
-            <Image
-              source={{ uri: event.image_url }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              blurRadius={28}
-            />
-          ) : (
-            <View style={styles.typeBadgeFallback} />
-          )
-        }
-      >
-        <Text style={styles.typeEmoji}>
-          {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
-        </Text>
-      </Glass>
+      {/* Avatar owns its own ring, so it needs position only — where the
+          emoji disc needed the ring drawn on the wrapper to hold it off the
+          photo behind it. Same 24pt footprint either way. */}
+      {last?.senderName ? (
+        <Avatar
+          name={last.senderName}
+          photoUrl={last.senderPhotoUrl}
+          size={24}
+          ringColor={COLORS.white}
+          ringWidth={2}
+          style={styles.senderBadge}
+        />
+      ) : (
+        // Smoked glass with a white ring — and it frosts *itself* rather than
+        // blurring what is behind it.
+        //
+        // `backdrop` exists for this (DESIGN.md §3). A backdrop blur is a
+        // `UIVisualEffectView`, which does not reliably respect a parent's
+        // corner mask — at this size that leaves a square corner poking out
+        // from behind a round one, which is the clipping that survived two
+        // attempts to fix it. Compositing our own blurred copy of the photo is
+        // plain Views end to end, so it cannot fail to clip. It also renders
+        // identically on Android, where there is no backdrop blur at all.
+        //
+        // No photo means nothing to frost, so the disc falls back to flat ink —
+        // still the backdrop path, still guaranteed to clip.
+        <Glass
+          tier="onPhoto"
+          radius={12}
+          shadow={false}
+          style={styles.typeBadge}
+          backdrop={
+            event.image_url ? (
+              <Image
+                source={{ uri: event.image_url }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                blurRadius={28}
+              />
+            ) : (
+              <View style={styles.typeBadgeFallback} />
+            )
+          }
+        >
+          <Text style={styles.typeEmoji}>
+            {ACTIVITY_MAP[event.activity]?.emoji ?? '📍'}
+          </Text>
+        </Glass>
+      )}
     </View>
   );
 }
@@ -280,6 +341,7 @@ export default function ChatsListScreen() {
   const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset();
   const [tab, setTab] = useState<Tab>('events');
+  const rowsAnimate = useArrivalAnimation();
 
   const openOverlay = useOpenOverlay();
   const handedOver = useHandedOver();
@@ -294,6 +356,12 @@ export default function ChatsListScreen() {
   // preview until a cold reload. Refetching on focus is what makes the chat you
   // just spoke in actually rise to the top (and animate there, via the row
   // layout transition) instead of staying put.
+  //
+  // Silent by construction: the rows keep showing cached data while these are in
+  // flight and simply re-sort when the new data lands. Nothing here touches the
+  // pull-to-refresh spinner, which belongs to the gesture alone — wiring it to
+  // `isRefetching` is what made this background pass visible as a refresh
+  // control opening and closing by itself on every tab switch.
   useFocusEffect(
     useCallback(() => {
       if (!user) return;
@@ -375,9 +443,10 @@ export default function ChatsListScreen() {
   const unreadByFriend = unreadQuery.data;
 
   // "Active now": friends with the app open, off the presence channel the
-  // Friends screen already runs. Nobody there is the common case in a young
-  // app, so the row falls back to events worth opening instead — boosted
-  // first, then whatever is nearby.
+  // Friends screen already runs. When nobody is around the rail simply isn't
+  // drawn — it used to fall back to a "Happening near you" strip of events,
+  // which put discovery on the one screen that is meant to be your own
+  // conversations. Explore and the map already do that job.
   const { isOnline } = usePresence();
   const { friends } = useFriends();
   const activeFriends = useMemo(
@@ -387,25 +456,6 @@ export default function ChatsListScreen() {
         .filter((p): p is NonNullable<typeof p> => !!p && isOnline(p.id)),
     [friends, isOnline]
   );
-
-  const boostedFeed = useExploreFeed(true, activeFriends.length === 0);
-  const nearbyFeed = useExploreFeed(false, activeFriends.length === 0);
-  const promoted = useMemo(() => {
-    const boosted = boostedFeed.data?.pages.flat() ?? [];
-    const nearby = nearbyFeed.data?.pages.flat() ?? [];
-    return (boosted.length > 0 ? boosted : nearby).slice(0, 3);
-  }, [boostedFeed.data, nearbyFeed.data]);
-
-  // Faces for the promoted tiles. The feed's own participant_count includes
-  // pending requests; this RPC is approved-only and carries the people, which
-  // is what a stack needs — see migration 038.
-  const promotedIds = useMemo(() => promoted.map((e) => e.id), [promoted]);
-  const previewsQuery = useQuery({
-    queryKey: queryKeys.attendeePreviews.of(promotedIds),
-    queryFn: () => getAttendeePreviews(promotedIds),
-    enabled: promotedIds.length > 0,
-  });
-  const previews = previewsQuery.data;
 
   const allEventChats = useMemo(
     () => [
@@ -480,6 +530,22 @@ export default function ChatsListScreen() {
   function refreshPrefs() {
     qc.invalidateQueries({ queryKey: queryKeys.chatPrefs.of(user?.id) });
   }
+
+  // Pull to refresh. The focus effect above already re-reads what goes stale
+  // fastest, but it only fires on a navigation — a list left open while messages
+  // arrive has no other way back to the server, and realtime does not reach this
+  // screen. Unlike that background pass, this one is allowed to show a spinner:
+  // the user asked for it.
+  const { refreshing, onRefresh } = usePullToRefresh(() =>
+    Promise.all([
+      lastMsgQuery.refetch(),
+      conversationsQuery.refetch(),
+      myEventsQuery.refetch(),
+      joinedQuery.refetch(),
+      unreadQuery.refetch(),
+      prefsQuery.refetch(),
+    ])
+  );
 
   function sheetOptions(target: SheetTarget): SheetOption[] {
     if (!user) return [];
@@ -557,7 +623,8 @@ export default function ChatsListScreen() {
         key={`event:${event.id}`}
         index={index}
         first={index === 0}
-        thumb={<EventThumb event={event} />}
+        animate={rowsAnimate}
+        thumb={<EventThumb event={event} last={last} />}
         title={event.title}
         // Who said it, then what they said — a group chat's preview is useless
         // without the name in front of it. Except for a system notice, which
@@ -593,6 +660,7 @@ export default function ChatsListScreen() {
         key={`dm:${friend.id}`}
         index={index}
         first={index === 0}
+        animate={rowsAnimate}
         thumb={
           <Avatar
             name={friend.name}
@@ -691,92 +759,6 @@ export default function ChatsListScreen() {
             ))}
           </ScrollView>
         </View>
-      ) : promoted.length > 0 ? (
-        // Nobody's around. The rail keeps its shape and fills with what there
-        // is to turn up to instead — boosted first, then nearby. Same tiles,
-        // same rhythm; swapping in full-width rows here made the top of the
-        // page lurch every time a friend went offline.
-        <View style={styles.block}>
-          <SectionLabel>Happening near you</SectionLabel>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.activeScroll}
-            contentContainerStyle={styles.activeRow}
-          >
-            {/* Always first, whatever is in the rail: the way to put your own
-                event in it. Creation lives on the map — there is no standalone
-                form — so this arms the flow and hops there, the same as the
-                FAB does from explore. */}
-            <PressableScale
-              scaleTo={0.92}
-              onPress={() => {
-                useUIStore.getState().setCreatingEvent(true);
-                router.push('/(tabs)/map');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Host your own event"
-            >
-              <View style={styles.activeItem}>
-                <View style={styles.hostTile}>
-                  <Icon name="plus" size={26} color={COLORS.white} />
-                </View>
-                <Text style={styles.activeName} numberOfLines={1}>
-                  Host
-                </Text>
-              </View>
-            </PressableScale>
-            {promoted.map((event) => (
-              <PressableScale
-                key={event.id}
-                scaleTo={0.92}
-                onPress={() => {
-                  useUIStore.getState().setSelectedEvent(event.id);
-                  router.push('/(tabs)/map');
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${event.title}`}
-              >
-                <View style={styles.activeItem}>
-                  <View>
-                    {event.image_url ? (
-                      <Image
-                        source={{ uri: event.image_url }}
-                        style={styles.promotedPhoto}
-                        contentFit="cover"
-                        transition={150}
-                      />
-                    ) : (
-                      <CategoryTile
-                        activity={event.activity}
-                        size={72}
-                        radius={36}
-                      />
-                    )}
-                    {/* How many are going, on the corner. A count, not faces —
-                        at this size the faces were unrecognisable, which is
-                        the whole point of a stack, and the number is the thing
-                        you actually want off a stranger's event. */}
-                    <OverflowCount
-                      count={
-                        previews?.[event.id]?.going_count ??
-                        event.participant_count ??
-                        0
-                      }
-                      size={26}
-                      ringColor={COLORS.white}
-                      ringWidth={2}
-                      style={styles.goingChip}
-                    />
-                  </View>
-                  <Text style={styles.activeName} numberOfLines={1}>
-                    {event.title}
-                  </Text>
-                </View>
-              </PressableScale>
-            ))}
-          </ScrollView>
-        </View>
       ) : null}
 
       {/* Post-event notes, above the DM threads they belong with. */}
@@ -851,6 +833,13 @@ export default function ChatsListScreen() {
             { paddingTop: insets.top + SPACING[3], paddingBottom: tabBarInset },
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.primary}
+            />
+          }
         >
           {header}
           {items.length === 0 ? (
@@ -963,23 +952,11 @@ const styles = StyleSheet.create({
     // is the "there could be someone here" placeholder, not a surface.
     backgroundColor: COLORS.glassPanel,
   },
-  // The one solid tile in the rail. Ink, because it is an action among a row
-  // of things that merely exist — and the app's coral is spoken for.
-  hostTile: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    ...SHADOWS.primary,
-  },
   activeName: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
-  promoted: { gap: SPACING[2.5] },
 
   // Frosted like everything else on this page — it used to be a flat ink wash,
   // which was the one surface here not on the glass system.
@@ -1088,20 +1065,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
+  // Position only — Avatar owns the disc's shape and its ring.
+  senderBadge: { position: 'absolute', right: -5, bottom: -5 },
   // Nothing to frost when the event has no photo.
   typeBadgeFallback: { flex: 1, backgroundColor: COLORS.accent },
   // Glyph metrics, not typography: an emoji's own box sits well inside its
   // font size, so 10 fills roughly half the disc — which is the proportion the
   // reference draws.
   typeEmoji: { fontSize: 10, lineHeight: 13 },
-  promotedPhoto: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.inkFaint,
-  },
-  // Position only — OverflowCount owns the disc's colour, shape and type.
-  goingChip: { position: 'absolute', top: -2, right: -4 },
   unreadPill: {
     minWidth: 20,
     height: 20,

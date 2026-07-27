@@ -19,6 +19,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { useCommunityFeed } from '@/hooks/useCommunityFeed';
 import { useThreadMentionables } from '@/hooks/useMentions';
 import { useDeletePost } from '@/hooks/usePostMutations';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import {
@@ -84,12 +85,28 @@ export default function CommunityScreen() {
   // reference, not the whole `feed` object — `feed` is a new object every render,
   // so `[feed]` made this callback change every render and useFocusEffect re-ran
   // it on every render → an infinite refetch loop (the feed jittering up/down).
+  //
+  // Deliberately silent and deliberately unconditional. You see the cached feed
+  // the instant the tab opens and the fresh one replaces it when it lands, with
+  // nothing on screen to say so: `isLoading` is false while there is cached
+  // data, and the pull-to-refresh spinner belongs to the gesture alone now (see
+  // usePullToRefresh). It used to be wired to `isRefetching`, which is how this
+  // background pass ended up yanking the refresh control half open and shut on
+  // every visit to the tab.
   const refetch = feed.refetch;
   useFocusEffect(
     useCallback(() => {
       refetch();
     }, [refetch])
   );
+
+  const { refreshing, onRefresh } = usePullToRefresh(async () => {
+    // A manual refresh means the user is looking at the top — adopt whatever
+    // comes back and clear any pending pill.
+    knownTopId.current = posts[0]?.id ?? null;
+    setShowNewPill(false);
+    await refetch();
+  });
 
   useEffect(() => {
     const topId = posts[0]?.id;
@@ -219,14 +236,8 @@ export default function CommunityScreen() {
             )}
             refreshControl={
               <RefreshControl
-                refreshing={feed.isRefetching && !feed.isFetchingNextPage}
-                onRefresh={() => {
-                  // A manual refresh means the user is looking at the top — adopt
-                  // whatever comes back and clear any pending pill.
-                  knownTopId.current = posts[0]?.id ?? null;
-                  setShowNewPill(false);
-                  feed.refetch();
-                }}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
                 tintColor={COLORS.primary}
               />
             }

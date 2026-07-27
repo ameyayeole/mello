@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
@@ -14,7 +14,7 @@ import {
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, {
   Easing,
   FadeInDown,
@@ -185,7 +185,7 @@ export default function ProfileTabScreen() {
   const queryClient = useQueryClient();
 
   // Wishlist: events saved from the swipe deck's bookmark button.
-  const { data: wishlist = [] } = useQuery({
+  const savedQuery = useQuery({
     queryKey: queryKeys.savedEvents.of(user?.id),
     queryFn: () => getSavedEvents(user!.id),
     enabled: !!user,
@@ -193,7 +193,7 @@ export default function ProfileTabScreen() {
     retry: 1,
   });
 
-  const { data: joined = NO_EVENTS } = useQuery({
+  const joinedQuery = useQuery({
     queryKey: queryKeys.joinedEvents.of(user?.id),
     queryFn: () => getJoinedEvents(user!.id),
     enabled: !!user,
@@ -203,12 +203,38 @@ export default function ProfileTabScreen() {
   // The hosting hero, same card and same selector the home screen leads with:
   // the soonest event still to come, or the one that finished most recently so
   // the wrap stays reachable.
-  const { data: hosting = null } = useQuery({
+  const hostingQuery = useQuery({
     queryKey: queryKeys.myEvents.of(user?.id),
     queryFn: () => getMyEvents(user!.id),
     enabled: !!user,
     select: featuredHostedEvent,
   });
+
+  const { data: wishlist = [] } = savedQuery;
+  const { data: joined = NO_EVENTS } = joinedQuery;
+  const { data: hosting = null } = hostingQuery;
+
+  // No pull-to-refresh here, unlike the other tabs. This screen is your own
+  // record rather than a feed of other people's activity, and the things that
+  // change it are writes you made: posting invalidates
+  // `community.userPosts.all` (postMutations), saving and unsaving invalidate
+  // the wishlist. A gesture would be asking you to fetch what your own action
+  // already fetched.
+  //
+  // The rest — a host approving your request, an event being taken down — is
+  // someone else's write with nothing local to invalidate on, so it refreshes
+  // silently whenever the tab regains focus. Cached content stays on screen
+  // throughout; there is deliberately no indicator.
+  const refetchOwn = savedQuery.refetch;
+  const refetchJoined = joinedQuery.refetch;
+  const refetchHosting = hostingQuery.refetch;
+  useFocusEffect(
+    useCallback(() => {
+      refetchOwn();
+      refetchJoined();
+      refetchHosting();
+    }, [refetchOwn, refetchJoined, refetchHosting])
+  );
 
   // Faces and the approved-only count. A second round trip rather than part of
   // the event row, because `participant_count` on a hosted event counts pending
