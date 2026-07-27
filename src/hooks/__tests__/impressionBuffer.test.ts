@@ -1,7 +1,4 @@
-jest.mock('expo-router');
-jest.mock('@/services/community/impressions.service');
-
-import { createImpressionBuffer } from '../useImpressionTracker';
+import { createImpressionBuffer } from '../impressionBuffer';
 
 describe('createImpressionBuffer', () => {
   it('collects ids and hands them to flush on drain', () => {

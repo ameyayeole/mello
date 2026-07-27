@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { ViewToken } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { recordImpressions } from '@/services/community/impressions.service';
+import { createImpressionBuffer } from './impressionBuffer';
 
 const FLUSH_MS = 5000;
 
@@ -11,30 +12,6 @@ export const IMPRESSION_VIEWABILITY_CONFIG = {
   itemVisiblePercentThreshold: 60,
   minimumViewTime: 1000,
 } as const;
-
-/**
- * The buffering half of impression tracking, as a plain factory so it can be
- * driven in a test without a renderer (Reanimated 4 throws on import under
- * Jest, so there are no component tests — see AGENTS.md).
- */
-export function createImpressionBuffer(flush: (ids: string[]) => void) {
-  let pending = new Set<string>();
-
-  return {
-    add(id: string) {
-      pending.add(id);
-    },
-    drain() {
-      if (pending.size === 0) return;
-      const ids = Array.from(pending);
-      pending = new Set();
-      flush(ids);
-    },
-    size() {
-      return pending.size;
-    },
-  };
-}
 
 /**
  * Feeds the community FlatList's viewability events into `post_impressions`.
