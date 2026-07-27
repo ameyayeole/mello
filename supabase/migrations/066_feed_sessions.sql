@@ -183,6 +183,11 @@ BEGIN
     pool.author_id,
     pool.type,
     pool.created_at,
+    -- COALESCE, not decoration: an explicitly-passed NULL p_pin_own (Postgres
+    -- does not substitute the DEFAULT for an explicit NULL argument) makes
+    -- this whole conjunct NULL. A NULL is_pinned satisfies neither
+    -- WHERE s.is_pinned nor WHERE NOT s.is_pinned below, so the post would
+    -- vanish from the session entirely instead of merely losing its pin.
     COALESCE(p_pin_own AND pool.is_own
        AND pool.created_at > NOW() - INTERVAL '5 minutes', FALSE) AS is_pinned,
     (
