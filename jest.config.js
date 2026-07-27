@@ -13,10 +13,12 @@ module.exports = {
   // through Babel. This is the list from the Expo docs, trimmed to the
   // ecosystems this app actually depends on and extended with the ones it adds
   // (reanimated, gesture-handler, bottom-sheet, supabase, lucide).
+  // standard-navigation is a transitive dependency of expo-router that ships
+  // untranspiled ESM and must be transformed for Jest.
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)' +
       '|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*' +
-      '|expo-router|standard-navigation' +
+      '|standard-navigation' +
       '|react-navigation|@react-navigation/.*' +
       '|react-native-svg|react-native-reanimated|react-native-gesture-handler' +
       '|react-native-safe-area-context|@gorhom/.*' +

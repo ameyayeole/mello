@@ -76,11 +76,10 @@ export function useImpressionTracker() {
   }, []);
 
   // Leaving the tab is the strongest "this scroll session is over" signal.
-  const buffer = bufferRef;
   useFocusEffect(
     useCallback(() => {
-      return () => buffer.current.drain();
-    }, [buffer])
+      return () => bufferRef.current.drain();
+    }, [bufferRef])
   );
 
   // onViewableItemsChanged and viewabilityConfig are stable refs created above;
