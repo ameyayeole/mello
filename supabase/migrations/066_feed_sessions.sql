@@ -165,13 +165,17 @@ BEGIN
     JOIN profiles pr ON pr.id = p.author_id
     WHERE p.hidden = FALSE
       AND p.created_at > NOW() - INTERVAL '30 days'
-      -- Seen filter. No grace window is needed: the snapshot is frozen, so
-      -- nothing can vanish from under the user mid-scroll.
-      AND NOT EXISTS (
-        SELECT 1 FROM post_impressions pi
-         WHERE pi.user_id = p_user_id
-           AND pi.post_id = p.id
-           AND pi.views >= SEEN_LIMIT
+      -- Your own posts are never suppressed, only un-pinned. Without this
+      -- exemption, glancing at your own post three times deletes it from your
+      -- own feed.
+      AND (
+        p.author_id = p_user_id
+        OR NOT EXISTS (
+          SELECT 1 FROM post_impressions pi
+           WHERE pi.user_id = p_user_id
+             AND pi.post_id = p.id
+             AND pi.views >= SEEN_LIMIT
+        )
       )
   )
   SELECT
@@ -179,15 +183,21 @@ BEGIN
     pool.author_id,
     pool.type,
     pool.created_at,
-    (p_pin_own AND pool.is_own
-       AND pool.created_at > NOW() - INTERVAL '5 minutes') AS is_pinned,
+    COALESCE(p_pin_own AND pool.is_own
+       AND pool.created_at > NOW() - INTERVAL '5 minutes', FALSE) AS is_pinned,
     (
         W_FRIEND  * CASE WHEN pool.is_friend THEN 1.0 ELSE 0.0 END
       -- Recency quantised to the hour: successive session builds a few minutes
       -- apart then produce near-identical order instead of micro-reshuffling.
-      + W_RECENCY * exp(GREATEST(
+      -- LEAST(..., 0.0) is the overflow guard and is not decoration. A post
+      -- with a future created_at makes this exponent positive, and exp()
+      -- raises "value out of range: overflow", aborting the whole session
+      -- build for every viewer who would have seen that post. Clamping at 0
+      -- caps recency at its natural maximum of 1.0. GREATEST(..., -700.0)
+      -- guards the far end, where exp() underflows below roughly -745.
+      + W_RECENCY * exp(LEAST(GREATEST(
           -floor(EXTRACT(EPOCH FROM (NOW() - pool.created_at)) / 3600.0) / 24.0,
-          -700.0))
+          -700.0), 0.0))
       + W_ENGAGE  * pool.engagement
       + W_MEDIA   * CASE pool.type
                       WHEN 'photo'       THEN M_PHOTO
