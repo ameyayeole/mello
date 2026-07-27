@@ -40,6 +40,7 @@
 | `src/services/community/__tests__/impressions.service.test.ts` | Its tests |
 | `src/hooks/useImpressionTracker.ts` | Viewability buffer + flush. Exports a pure `createImpressionBuffer` factory so the logic is testable without a renderer |
 | `src/hooks/__tests__/useImpressionTracker.test.ts` | Buffer/flush tests |
+| `docs/testing/community-feed-ranking-v2.md` | Device test sheet — the only coverage for the visual and silent failure modes |
 
 **Modified:**
 
@@ -52,6 +53,7 @@
 | `src/types/models.ts` | `CommunityPost` gains `session_id` / `session_total` |
 | `app/(tabs)/community.tsx` | Dedupe by id, viewability wiring, pull-to-refresh reset, caught-up marker |
 | `src/hooks/useUserPosts.ts` | Import fix — it currently imports `nextCommunityCursor` from `useCommunityFeed` |
+| `src/components/community/ComposePostSheet.tsx` | Add an `onPosted` prop — `onClose` fires on dismiss too, so it cannot signal "published" |
 
 ---
 
@@ -679,17 +681,7 @@ Expected: typecheck 0 errors, tests green.
 
 - [ ] **Step 5: Verify on a device**
 
-Run the app, open Community, scroll slowly through several posts, then switch tabs. In the Supabase SQL editor:
-
-```sql
-SELECT post_id, views, last_seen_at
-FROM post_impressions
-WHERE user_id = '<your uid>'
-ORDER BY last_seen_at DESC
-LIMIT 20;
-```
-
-Expected: rows for the posts you dwelled on, `views = 1`. Scroll the same posts again immediately and re-check — `views` must still be 1 (the 5-minute guard). Posts that flew past during a fast flick should be absent.
+Work through **section C — Phase 2** of `docs/testing/community-feed-ranking-v2.md` (Task 15) on iOS and Android. Seven rows, covering dwell time, the 5-minute guard, the blur flush, and — importantly — that ranking is unchanged, since 065 must be invisible to the user.
 
 - [ ] **Step 6: Commit**
 
@@ -1246,13 +1238,21 @@ DECLARE
   results  TEXT[][] := ARRAY[]::TEXT[][];
   v_me     UUID;
   v_other  UUID;
+  v_third  UUID;
   v_sess   UUID;
   v_ids    UUID[];
+  v_n1     INT;
+  v_n2     INT;
   p_photo  UUID;
   p_text   UUID;
   p_photo2 UUID;
   p_seen   UUID;
   p_pin    UUID;
+  p_pin2   UUID;
+  p_friend UUID;
+  p_hot    UUID;
+  p_far    UUID;
+  p_near   UUID;
   v_act    TEXT;
 BEGIN
   SELECT id INTO v_me    FROM profiles ORDER BY created_at LIMIT 1;
@@ -1353,6 +1353,126 @@ BEGIN
   results := results || ARRAY[ARRAY['6 pin off', 'not pinned', v_act,
     CASE WHEN v_act = 'not pinned' THEN 'PASS' ELSE 'FAIL' END]];
 
+  ---------------------------------------------------------------------------
+  -- 7. A pinned post is not displaced by the diversity re-rank. Two own posts
+  --    seconds apart, same author and same type — exactly the pair the
+  --    author-separation rule would normally split up.
+  ---------------------------------------------------------------------------
+  INSERT INTO posts (author_id, type, visibility, body, city, created_at)
+    VALUES (v_me, 'text', 'public', 'mine 2', 'CheckCity', NOW())
+    RETURNING id INTO p_pin2;
+
+  v_sess := build_feed_session(v_me, 1::SMALLINT, TRUE);
+  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+
+  v_act := CASE
+    WHEN array_position(v_ids, p_pin2) <= 2 AND array_position(v_ids, p_pin) <= 2
+    THEN 'both pinned' ELSE 'displaced' END;
+  results := results || ARRAY[ARRAY['7 pin beats diversity', 'both pinned', v_act,
+    CASE WHEN v_act = 'both pinned' THEN 'PASS' ELSE 'FAIL' END]];
+
+  DELETE FROM posts WHERE id IN (p_pin, p_pin2);
+
+  ---------------------------------------------------------------------------
+  -- 8. Friendship outranks a stranger, all else equal. The baseline the next
+  --    assertion is measured against.
+  ---------------------------------------------------------------------------
+  SELECT id INTO v_third FROM profiles ORDER BY created_at OFFSET 2 LIMIT 1;
+  IF v_third IS NULL THEN
+    results := results || ARRAY[ARRAY['8 friendship', 'friend first',
+      'SKIPPED — needs a third profile', 'SKIP']];
+  ELSE
+    UPDATE profiles SET city = 'CheckCity' WHERE id = v_third;
+    INSERT INTO friendships (requester_id, addressee_id, status)
+      VALUES (v_me, v_third, 'accepted');
+
+    INSERT INTO posts (author_id, type, visibility, body, city, created_at)
+      VALUES (v_third, 'text', 'public', 'friend text', 'CheckCity', NOW())
+      RETURNING id INTO p_friend;
+
+    v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
+    SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+
+    v_act := CASE
+      WHEN array_position(v_ids, p_friend) < array_position(v_ids, p_text)
+      THEN 'friend first' ELSE 'stranger first' END;
+    results := results || ARRAY[ARRAY['8 friendship', 'friend first', v_act,
+      CASE WHEN v_act = 'friend first' THEN 'PASS' ELSE 'FAIL' END]];
+
+    -----------------------------------------------------------------------
+    -- 9. THE CORE REQUIREMENT: friendship is the biggest single factor but
+    --    does NOT trump everything. A stale, dead text post from a friend
+    --    must lose to a fresh, engaged photo from a same-city stranger.
+    --
+    --    Friend, 3 days old, no engagement, text:
+    --      40 + 25·exp(-3) + 0 + 6.75 + 10  ≈ 58.0
+    --    Stranger, fresh, engaged (engagement 0.75), photo:
+    --      0  + 25         + 15 + 15    + 10 = 65.0
+    --
+    --    If this FAILs, the weights have drifted back into a hard tier and
+    --    the whole redesign has regressed to what 062 did.
+    -----------------------------------------------------------------------
+    UPDATE posts SET created_at = NOW() - INTERVAL '3 days' WHERE id = p_friend;
+
+    INSERT INTO posts (author_id, type, visibility, body, city, created_at,
+                       engagement)
+      VALUES (v_other, 'photo', 'public', 'hot local', 'CheckCity', NOW(), 0.75)
+      RETURNING id INTO p_hot;
+
+    v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
+    SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+
+    v_act := CASE
+      WHEN array_position(v_ids, p_hot) < array_position(v_ids, p_friend)
+      THEN 'local photo first' ELSE 'stale friend first' END;
+    results := results || ARRAY[ARRAY['9 friendship does not trump',
+      'local photo first', v_act,
+      CASE WHEN v_act = 'local photo first' THEN 'PASS' ELSE 'FAIL' END]];
+  END IF;
+
+  ---------------------------------------------------------------------------
+  -- 10. Locality: a same-city post outranks an identical cross-city one.
+  --     The cross-city post is given the gate-clearing shape (public, old
+  --     enough) so it is in the pool at all — this tests ranking, not scoping.
+  ---------------------------------------------------------------------------
+  INSERT INTO posts (author_id, type, visibility, body, city, created_at,
+                     engagement)
+    VALUES (v_other, 'text', 'public', 'far away', 'OtherCity',
+            NOW() - INTERVAL '1 hour', 0.5)
+    RETURNING id INTO p_far;
+  INSERT INTO posts (author_id, type, visibility, body, city, created_at,
+                     engagement)
+    VALUES (v_other, 'text', 'public', 'near by', 'CheckCity',
+            NOW() - INTERVAL '1 hour', 0.5)
+    RETURNING id INTO p_near;
+
+  -- Tier 2 so the cross-city post is in the pool regardless of KYC.
+  v_sess := build_feed_session(v_me, 2::SMALLINT, FALSE);
+  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+
+  v_act := CASE
+    WHEN array_position(v_ids, p_near) < array_position(v_ids, p_far)
+    THEN 'near first' ELSE 'far first' END;
+  results := results || ARRAY[ARRAY['10 locality', 'near first', v_act,
+    CASE WHEN v_act = 'near first' THEN 'PASS' ELSE 'FAIL' END]];
+
+  ---------------------------------------------------------------------------
+  -- 11. Tier 2 widens the pool rather than replacing it — every tier-1 post
+  --     must still be present.
+  ---------------------------------------------------------------------------
+  v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
+  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+  v_n1 := COALESCE(array_length(v_ids, 1), 0);
+
+  v_sess := build_feed_session(v_me, 2::SMALLINT, FALSE);
+  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+  v_n2 := COALESCE(array_length(v_ids, 1), 0);
+
+  v_act := CASE WHEN v_n2 >= v_n1 THEN 'wider or equal' ELSE 'narrower' END;
+  results := results || ARRAY[ARRAY['11 tier 2 widens',
+    'wider or equal', v_act || ' (' || v_n1 || '→' || v_n2 || ')',
+    CASE WHEN v_n2 >= v_n1 THEN 'PASS' ELSE 'FAIL' END]];
+
   RAISE EXCEPTION 'rollback';
 
 EXCEPTION WHEN OTHERS THEN
@@ -1372,7 +1492,21 @@ SELECT * FROM pg_temp.check4();
 - [ ] **Step 2: Run it**
 
 Paste the whole file into the Supabase SQL editor.
-Expected: six rows, every `verdict` reading `PASS`.
+Expected: eleven rows, every `verdict` reading `PASS`. Row 8 and 9 read `SKIP` if the database has fewer than three profiles — seed a third and re-run rather than accepting the skip, because **row 9 is the assertion that guards the entire redesign**: it is what fails if the weights ever drift back into a hard tier.
+
+| # | Asserts |
+| --- | --- |
+| 1 | A photo outranks an equally fresh text post |
+| 2 | Two photos from one author are not adjacent |
+| 3 | A post seen 3× is filtered out |
+| 4 | A post seen 2× is still served |
+| 5 | An own post <5 min old pins to position 1 |
+| 6 | …and does not pin when `p_pin_own` is false |
+| 7 | The pin survives the diversity re-rank |
+| 8 | A friend outranks a stranger, all else equal |
+| 9 | **A stale friend post loses to a fresh engaged local one** |
+| 10 | Same-city outranks cross-city |
+| 11 | Tier 2 widens the pool rather than replacing it |
 
 If any row FAILs, fix `build_feed_session` (Task 7) before continuing — the client work in Tasks 10-12 assumes this ranking is correct.
 
@@ -1381,7 +1515,7 @@ If any row FAILs, fix `build_feed_session` (Task 7) before continuing — the cl
 Update the header comment with the date and result, matching check3's convention:
 
 ```sql
--- LAST RUN: 2026-07-27 against production — 6/6 PASS.
+-- LAST RUN: 2026-07-27 against production — 11/11 PASS.
 ```
 
 - [ ] **Step 4: Commit**
@@ -1390,8 +1524,12 @@ Update the header comment with the date and result, matching check3's convention
 git add supabase/check4_feed_ranking.sql
 git commit -m "test(community): add check4 for feed ranking order
 
-Asserts media weight, author/type diversity, the seen threshold in both
-directions, and the pin in both states. Order is the contract, not scores.
+Eleven assertions over media weight, author/type diversity, the seen
+threshold in both directions, the pin in both states and against the
+re-rank, friendship, locality and tier widening. Row 9 is the one that
+guards the redesign: a stale friend post must lose to a fresh engaged
+local one, which is what fails if the weights drift back into a hard tier.
+Order is the contract, not scores.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -1407,7 +1545,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `community_feed_page` (Task 8).
-- Produces: `export type FeedPageParam = { sessionId: string | null; tier: number; offset: number; pinOwn: boolean }`, and `getCommunityFeed({ userId, page, limit })`. Used by Task 11.
+- Produces: `export type FeedPageParam = { sessionId: string | null; tier: number; offset: number }`, and `getCommunityFeed({ userId, page, pinOwn, limit })`. Used by Task 11.
+
+**Why `pinOwn` is a sibling of `page`, not a field inside it.** The pin is a property of *this request*, not of the reader's position — it answers "did the viewer just post, or did they just ask for a refresh?". Keeping it out of the page param means `nextFeedPage` never has to carry it, and the hook can read it at call time from a ref (Task 11), which is what makes the pull-to-refresh release work at all.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1415,13 +1555,11 @@ Replace the `getCommunityFeed` describe block in `src/services/community/__tests
 
 ```ts
 describe('getCommunityFeed', () => {
-  it('builds a new session on the first page (null session id)', async () => {
+  const page = (o = {}) => ({ sessionId: null, tier: 1, offset: 0, ...o });
+
+  it('builds a new session and pins on the first page', async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: [], error: null });
-    await getCommunityFeed({
-      userId: 'u1',
-      page: { sessionId: null, tier: 1, offset: 0, pinOwn: true },
-      limit: 10,
-    });
+    await getCommunityFeed({ userId: 'u1', page: page(), pinOwn: true, limit: 10 });
     expect(supabase.rpc).toHaveBeenCalledWith('community_feed_page', {
       p_user_id: 'u1',
       p_session_id: null,
@@ -1432,21 +1570,50 @@ describe('getCommunityFeed', () => {
     });
   });
 
+  // The pull-to-refresh release: same build, pinning explicitly off.
+  it('does not pin when pinOwn is false', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: [], error: null });
+    await getCommunityFeed({ userId: 'u1', page: page(), pinOwn: false, limit: 10 });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      'community_feed_page',
+      expect.objectContaining({ p_pin_own: false })
+    );
+  });
+
   it('reuses the session and advances the offset on later pages', async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: [], error: null });
     await getCommunityFeed({
       userId: 'u1',
-      page: { sessionId: 's1', tier: 1, offset: 10, pinOwn: true },
+      page: page({ sessionId: 's1', offset: 10 }),
+      pinOwn: true,
       limit: 10,
     });
     expect(supabase.rpc).toHaveBeenCalledWith('community_feed_page', {
       p_user_id: 'u1',
       p_session_id: 's1',
       p_tier: 1,
+      // Pinning is decided when the session is BUILT. A continuation page has
+      // nothing to pin, so forwarding true here would be misleading noise.
       p_pin_own: false,
       p_offset: 10,
       p_limit: 10,
     });
+  });
+
+  // A tier advance builds a fresh session, so sessionId is null — but the tail
+  // of the feed is never the right place for your own post to reappear on top.
+  it('does not pin when building a session for tier 2', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: [], error: null });
+    await getCommunityFeed({
+      userId: 'u1',
+      page: page({ tier: 2 }),
+      pinOwn: true,
+      limit: 10,
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      'community_feed_page',
+      expect.objectContaining({ p_tier: 2, p_pin_own: false })
+    );
   });
 
   it('throws on rpc error', async () => {
@@ -1455,16 +1622,11 @@ describe('getCommunityFeed', () => {
       error: { message: 'boom' },
     });
     await expect(
-      getCommunityFeed({
-        userId: 'u1',
-        page: { sessionId: null, tier: 1, offset: 0, pinOwn: true },
-      })
+      getCommunityFeed({ userId: 'u1', page: page(), pinOwn: true })
     ).rejects.toBeTruthy();
   });
 });
 ```
-
-Note the second test expects `p_pin_own: false` — pinning is decided when the session is **built**, so forwarding `true` on a continuation page would be misleading noise. The implementation must send `pinOwn` only when `sessionId` is null.
 
 - [ ] **Step 2: Run it and confirm it fails**
 
@@ -1493,12 +1655,11 @@ In `src/services/community/posts.service.ts`, replace lines 4-23:
 ```ts
 // Where the reader is in a ranked session. `sessionId` null means "build a new
 // session" — the snapshot is the pagination (migration 066), so there is no
-// cursor to carry. `pinOwn` only matters on the build.
+// cursor to carry.
 export type FeedPageParam = {
   sessionId: string | null;
   tier: number;
   offset: number;
-  pinOwn: boolean;
 };
 
 // Kept for user_posts / get_post, which still paginate by keyset.
@@ -1507,14 +1668,22 @@ export type FeedCursor = { score: number; createdAt: string; id: string };
 export async function getCommunityFeed(params: {
   userId: string;
   page: FeedPageParam;
+  // Whether this build should float the viewer's own <5-minute-old posts to the
+  // top. Only consulted when a session is actually being built.
+  pinOwn: boolean;
   limit?: number;
 }): Promise<CommunityPost[]> {
+  // Two conditions, both required. A continuation page has nothing to pin, and
+  // a tier-2+ build is the tail of the feed — the last place your own post
+  // should reappear on top.
+  const pinning =
+    params.page.sessionId === null && params.page.tier === 1 && params.pinOwn;
+
   const { data, error } = await supabase.rpc('community_feed_page', {
     p_user_id: params.userId,
     p_session_id: params.page.sessionId,
     p_tier: params.page.tier,
-    // Only meaningful when a session is being built.
-    p_pin_own: params.page.sessionId === null ? params.page.pinOwn : false,
+    p_pin_own: pinning,
     p_offset: params.page.offset,
     p_limit: params.limit ?? 10,
   });
@@ -1595,7 +1764,6 @@ const page = (overrides = {}) => ({
   sessionId: 's1',
   tier: 1,
   offset: 0,
-  pinOwn: false,
   ...overrides,
 });
 
@@ -1605,7 +1773,6 @@ describe('nextFeedPage', () => {
       sessionId: 's1',
       tier: 1,
       offset: 10,
-      pinOwn: false,
     });
   });
 
@@ -1615,7 +1782,6 @@ describe('nextFeedPage', () => {
       sessionId: 'new-session',
       tier: 1,
       offset: 10,
-      pinOwn: false,
     });
   });
 
@@ -1628,7 +1794,6 @@ describe('nextFeedPage', () => {
       sessionId: 's1',
       tier: 1,
       offset: 10,
-      pinOwn: false,
     });
   });
 
@@ -1638,7 +1803,6 @@ describe('nextFeedPage', () => {
       sessionId: null,
       tier: 2,
       offset: 0,
-      pinOwn: false,
     });
   });
 
@@ -1647,7 +1811,6 @@ describe('nextFeedPage', () => {
       sessionId: null,
       tier: 2,
       offset: 0,
-      pinOwn: false,
     });
   });
 
@@ -1674,6 +1837,7 @@ Expected: FAIL — `nextFeedPage` is not exported.
 Replace `src/hooks/useCommunityFeed.ts` entirely:
 
 ```ts
+import { MutableRefObject } from 'react';
 import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryKeys } from '@/constants/queryKeys';
 import { getCommunityFeed, FeedPageParam } from '@/services/community/posts.service';
@@ -1717,14 +1881,29 @@ export function nextFeedPage(
     return { ...current, sessionId, offset: nextOffset };
   }
   if (current.tier < LAST_TIER) {
-    // A fresh session for the wider pool. pinOwn stays off: the pin belongs to
-    // the moment you posted, not to the bottom of the feed.
-    return { sessionId: null, tier: current.tier + 1, offset: 0, pinOwn: false };
+    return { sessionId: null, tier: current.tier + 1, offset: 0 };
   }
   return undefined;
 }
 
-export function useCommunityFeed(enabled = true) {
+/**
+ * @param pinOwnRef Whether the NEXT session build should float the viewer's own
+ *   fresh posts to the top. A **ref**, not state, and read inside `queryFn`
+ *   rather than baked into `initialPageParam` — both deliberate:
+ *
+ *   - `initialPageParam` is a static object, so a value captured there could
+ *     never change without remounting the query.
+ *   - Pull-to-refresh must set it `false` and trigger the rebuild in the same
+ *     tick. A `useState` update would not have landed by the time
+ *     `resetQueries` reads the options, so the first refresh would still pin.
+ *
+ *   Refs are mutable and read at call time, which is exactly the semantics
+ *   needed. Posting sets it back to `true` (see the Community screen).
+ */
+export function useCommunityFeed(
+  pinOwnRef?: MutableRefObject<boolean>,
+  enabled = true
+) {
   const user = useAuthStore((s) => s.user);
 
   return useInfiniteQuery({
@@ -1733,13 +1912,13 @@ export function useCommunityFeed(enabled = true) {
       getCommunityFeed({
         userId: user!.id,
         page: pageParam,
+        pinOwn: pinOwnRef?.current ?? true,
         limit: PAGE_SIZE,
       }),
     initialPageParam: {
       sessionId: null,
       tier: 1,
       offset: 0,
-      pinOwn: true,
     } as FeedPageParam,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
       nextFeedPage(lastPage, lastPageParam, PAGE_SIZE),
@@ -1800,13 +1979,32 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ### Task 12: Wire the Community screen
 
 **Files:**
-- Modify: `app/(tabs)/community.tsx:65-68` (dedupe), `:103-109` (pull-to-refresh)
+- Modify: `app/(tabs)/community.tsx:45` (pin ref), `:65-68` (dedupe), `:103-109` (pull-to-refresh), `:288-291` (compose)
+- Modify: `src/components/community/ComposePostSheet.tsx:35-41` (add `onPosted`)
 
 **Interfaces:**
-- Consumes: `useCommunityFeed` (Task 11).
+- Consumes: `useCommunityFeed(pinOwnRef)` (Task 11).
 - Produces: nothing. Phase 3 becomes visible.
 
-- [ ] **Step 1: Dedupe the flattened pages**
+- [ ] **Step 1: Add the pin ref and pass it to the feed**
+
+Replace line 45 (`const feed = useCommunityFeed();`):
+
+```ts
+  // Whether the next session build should float your own fresh post to the top.
+  //
+  // A ref, not state, because the two things that flip it both need it read on
+  // the very next query — pull-to-refresh sets it false and rebuilds in the
+  // same tick, and a state update would not have landed in time.
+  //
+  // Posting turns it on; asking for a refresh turns it off. That is the whole
+  // rule: refreshing repeatedly inside the 5-minute window should not keep
+  // parking your own post at the top.
+  const pinOwnRef = useRef(true);
+  const feed = useCommunityFeed(pinOwnRef);
+```
+
+- [ ] **Step 2: Dedupe the flattened pages**
 
 Replace the `posts` memo at lines 65-68:
 
@@ -1823,7 +2021,7 @@ Replace the `posts` memo at lines 65-68:
   }, [feed.data]);
 ```
 
-- [ ] **Step 2: Reset the session on pull-to-refresh**
+- [ ] **Step 3: Release the pin and rebuild on pull-to-refresh**
 
 Replace the `usePullToRefresh` call at lines 103-109:
 
@@ -1833,11 +2031,14 @@ Replace the `usePullToRefresh` call at lines 103-109:
     // comes back and clear any pending pill.
     knownTopId.current = posts[0]?.id ?? null;
     setShowNewPill(false);
+    // The gesture half of the pin release. Set BEFORE the rebuild: the ref is
+    // read inside queryFn, so the very next request already carries it.
+    pinOwnRef.current = false;
     // resetQueries, not refetch. An infinite query's refetch re-runs every
     // LOADED page against its stored pageParam — i.e. against the OLD session
-    // id — so the ranking would never change and the own-post pin would never
-    // drop. resetQueries discards the pages, returns the query to
-    // initialPageParam (a fresh tier-1 session, pinOwn: true) and refetches it.
+    // id — so the ranking would never change and the pin would never drop.
+    // resetQueries discards the pages, returns the query to initialPageParam
+    // (a fresh tier-1 session) and refetches it.
     await queryClient.resetQueries({
       queryKey: queryKeys.community.feed.of(meId),
     });
@@ -1852,13 +2053,56 @@ Add the client above it:
   const queryClient = useQueryClient();
 ```
 
-and add `useQueryClient` to the existing `@tanstack/react-query` import on line 12, plus `queryKeys` from `@/constants/queryKeys` if the screen does not already import it.
+and add `useQueryClient` to the existing `@tanstack/react-query` import on line 12, plus `queryKeys` from `@/constants/queryKeys` and `useRef` from `react` if the screen does not already import them.
 
-**A deliberate scope cut, decided here so it is not rediscovered mid-task.** `resetQueries` returns the query to `initialPageParam`, which is a static object — so a pull-to-refresh always rebuilds with `pinOwn: true`. Threading a dynamic value through it needs screen state read during render *and* correct ordering against the async reset, which is a real hazard for a five-minute cosmetic window.
+- [ ] **Step 4: Give `ComposePostSheet` an `onPosted` prop**
 
-So **the pin is released by time only** (5 minutes), not by the refresh gesture. The `p_pin_own` parameter stays — Task 9 asserts both states, and `nextFeedPage` already sends `false` on every tier advance so pinning cannot leak into the tail. The behaviour the user asked for ("drops on manual refresh") is met in substance: refreshing more than five minutes after posting drops the pin, and refreshing within five minutes of posting keeping your own post on top is defensible. Revisit only if it actually annoys someone on a device.
+The sheet currently calls `onClose()` on both a successful post and a manual dismiss, so the screen cannot tell them apart. Per AGENTS.md the fix is to add the prop, not to fork the component.
 
-- [ ] **Step 3: Verify**
+In `src/components/community/ComposePostSheet.tsx`, extend the props:
+
+```ts
+export function ComposePostSheet({
+  visible,
+  onClose,
+  onPosted,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  // Fired only on a successful post — `onClose` also fires on dismiss, so it
+  // cannot stand in for "the user actually published something".
+  onPosted?: () => void;
+}) {
+```
+
+and in `submit()`'s `done.onSuccess`, call it before closing:
+
+```ts
+      onSuccess: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onPosted?.();
+        reset();
+        onClose();
+      },
+```
+
+- [ ] **Step 5: Re-arm the pin when the user posts**
+
+In `app/(tabs)/community.tsx`, at the `<ComposePostSheet>` usage (~line 288):
+
+```tsx
+      <ComposePostSheet
+        visible={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        // Posting is the one thing that earns the pin back after a refresh
+        // turned it off.
+        onPosted={() => {
+          pinOwnRef.current = true;
+        }}
+      />
+```
+
+- [ ] **Step 6: Verify**
 
 ```bash
 npm run typecheck && npm test && npx eslint "app/(tabs)/community.tsx"
@@ -1866,27 +2110,21 @@ npm run typecheck && npm test && npx eslint "app/(tabs)/community.tsx"
 
 Expected: typecheck 0, tests green, no new lint errors.
 
-- [ ] **Step 4: Verify on a device**
+- [ ] **Step 7: Run the Phase 3 device sheet**
 
-Work through this list on a real device — none of it is covered by tests:
+Open `docs/testing/community-feed-ranking-v2.md` (Task 15) and work through **section D — Phase 3** on iOS, then on Android. Tick every row. Do not skip Android: `minimumViewTime` behaves differently there and `react-native`'s `SafeAreaView` is a no-op, so this entire class of bug is invisible on iOS.
 
-1. Open Community. Feed loads, no duplicate cards.
-2. Scroll several pages. No card appears twice; no visible gap in the ranking.
-3. Post something. It appears at position 1.
-4. Pull to refresh. The pinned post drops to its organic position.
-5. Look for runs — no two consecutive cards from the same author; photos are broken up.
-6. Scroll to the bottom of tier 1. The feed continues rather than dead-ending (tier 2 is not built until Phase 4, so expect it to stop after one tier advance returns nothing — that is correct for now).
-7. Sign in as a throwaway account with no friends and no city. The feed must not be empty.
+Phase 3 leaves tier 2 unbuilt, so the feed is expected to stop after one tier advance returns nothing. That is correct at this point — D9 covers it.
 
-- [ ] **Step 5: Verify on Android specifically**
-
-Repeat steps 1-4 on Android. `minimumViewTime` in the viewability config behaves differently there, and `react-native`'s `SafeAreaView` is a no-op on Android — this whole class of bug is invisible on iOS.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add "app/(tabs)/community.tsx"
-git commit -m "feat(community): dedupe feed pages and rebuild the session on refresh
+git add "app/(tabs)/community.tsx" src/components/community/ComposePostSheet.tsx
+git commit -m "feat(community): snapshot pagination, dedupe, and the pin release
+
+Pull-to-refresh clears the own-post pin and rebuilds the session; posting
+re-arms it. ComposePostSheet gains onPosted because onClose also fires on
+dismiss and cannot stand in for 'the user actually published something'.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -2200,7 +2438,7 @@ Expected: `tier2 >= tier1`. If your database has no cross-city public posts, the
 - [ ] **Step 3: Re-run check4**
 
 Paste `supabase/check4_feed_ranking.sql` again.
-Expected: still 6/6 PASS. `build_feed_session` was re-created, so this guards against a bad paste.
+Expected: still 11/11 PASS — including rows 10 and 11, which only become meaningful once tier 2 exists. `build_feed_session` was re-created by this migration, so this also guards against a bad paste.
 
 - [ ] **Step 4: Commit**
 
@@ -2294,11 +2532,166 @@ Expected: typecheck 0, tests green, no new lint errors.
 2. Confirm the marker does **not** appear on an empty feed — `posts.length > 0` guards that, and the existing `CommunityNudgeCard` owns the empty state.
 3. Pull to refresh from the bottom. A fresh tier-1 session loads.
 
+Then run **section E — Phase 4** of `docs/testing/community-feed-ranking-v2.md` (Task 15) on iOS and Android.
+
 - [ ] **Step 5: Commit**
 
 ```bash
 git add "app/(tabs)/community.tsx"
 git commit -m "feat(community): show a caught-up marker at the end of the tail
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 15: Device test sheet
+
+Nothing in this redesign is covered by a component test, and the failure modes are visual or silent — a duplicate card, a run of three photos, a feed that ends early. This is the artifact that catches them, and it needs to exist as a document someone can tick through, not as steps buried in a plan.
+
+**Build it first if you are executing out of order** — Tasks 5, 12 and 14 all reference it.
+
+**Files:**
+- Create: `docs/testing/community-feed-ranking-v2.md`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: a checklist referenced by Tasks 5 (section C), 12 (section D) and 14 (section E).
+
+- [ ] **Step 1: Write the sheet**
+
+Create `docs/testing/community-feed-ranking-v2.md`:
+
+````markdown
+# Community feed ranking v2 — device test sheet
+
+Run on **iOS and Android**. Android is not optional: `minimumViewTime` behaves
+differently there and `react-native`'s `SafeAreaView` is a no-op, so a whole
+class of bug is invisible on iOS.
+
+Tick each row on each platform. A row that cannot be run (no second account, no
+cross-city posts) is **BLOCKED**, not passed — note it and come back.
+
+**Setup you need before starting:**
+
+| Need | Why |
+| --- | --- |
+| Two accounts, friends with each other | Sections C, D |
+| A third account, not a friend, same city | D5, D6 |
+| An account with **no** friends and **no** city set | D10 — the empty-feed guard |
+| At least 25 posts in the pool, mixed types | Paging and diversity need volume |
+| At least 3 photo posts from one author | D6 |
+
+---
+
+## A · Baseline — before any migration
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| A1 | Open Community, scroll to the end | Note how many posts before it stops | ☐ | ☐ |
+| A2 | Note the top 5 post ids | The "before" ranking, for comparison | ☐ | ☐ |
+
+## B · Phase 1 — scoring (migration 064)
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| B1 | Vote on a poll from a second account, wait 10 min | The poll rises in the feed | ☐ | ☐ |
+| B2 | Scroll the feed | No visible change otherwise — 064 is a scoring change only | ☐ | ☐ |
+
+## C · Phase 2 — impressions (migration 065)
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| C1 | Scroll slowly through 5 posts, dwelling on each | `post_impressions` gains 5 rows, `views = 1` | ☐ | ☐ |
+| C2 | Flick fast past 10 posts without stopping | Those posts are **absent** — `minimumViewTime` filtered them | ☐ | ☐ |
+| C3 | Scroll the same 5 posts again immediately | `views` still `1` — the 5-minute guard held | ☐ | ☐ |
+| C4 | Switch tabs mid-scroll, come back | The tail flushed on blur; no rows lost | ☐ | ☐ |
+| C5 | Kill the app mid-scroll | No crash, no unhandled rejection in the log | ☐ | ☐ |
+| C6 | Turn on airplane mode and scroll | Feed still scrolls; no error banner, no red box | ☐ | ☐ |
+| C7 | Confirm the feed order is unchanged from A2 | 065 must not affect ranking | ☐ | ☐ |
+
+Query for C1/C3:
+
+```sql
+SELECT post_id, views, last_seen_at FROM post_impressions
+WHERE user_id = '<your uid>' ORDER BY last_seen_at DESC LIMIT 20;
+```
+
+## D · Phase 3 — the snapshot (migration 066)
+
+The main event.
+
+### Pagination integrity
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| D1 | Scroll 5+ pages, watching for repeats | **No card appears twice.** The single most likely regression | ☐ | ☐ |
+| D2 | Scroll to the end, note the last post | Reaching the end does not error or hang | ☐ | ☐ |
+| D3 | From another account, hide/report a post mid-scroll, then keep paging | The feed **keeps going**. A short page must not end it | ☐ | ☐ |
+| D4 | Scroll down 5 pages, switch tabs, come back | Position and order preserved; no reshuffle | ☐ | ☐ |
+
+### Ranking
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| D5 | Compare the top 10 against A2 | Order has genuinely changed — friends and fresh photos higher | ☐ | ☐ |
+| D6 | Scan 20 cards for runs | No two consecutive from the same author; no two consecutive photos | ☐ | ☐ |
+| D7 | Have a friend post; refresh | It appears high, but a fresh engaged local post can still outrank it | ☐ | ☐ |
+| D8 | Scroll past a post 3 times over 15+ minutes, then refresh | It is gone from the feed | ☐ | ☐ |
+
+### The own-post pin
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| D9 | Post something | It appears at **position 1** | ☐ | ☐ |
+| D10 | Switch tabs and come back (within 5 min) | Still pinned — a focus refetch does not release it | ☐ | ☐ |
+| D11 | **Pull to refresh** (within 5 min) | Pin **released**; the post drops to its organic slot | ☐ | ☐ |
+| D12 | Pull to refresh again | Still unpinned. **This is the bug the release exists to prevent** | ☐ | ☐ |
+| D13 | Post again | Pinned again — posting re-arms it | ☐ | ☐ |
+| D14 | Post, wait 6 minutes, switch tabs and back | Unpinned by time alone, no gesture needed | ☐ | ☐ |
+| D15 | Post 2 posts inside 5 min | Both pinned, newest first | ☐ | ☐ |
+
+### Edge cases
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| D16 | Sign in as the no-friends / no-city account | Feed is **not empty** | ☐ | ☐ |
+| D17 | Block someone with posts in your feed, then refresh | Their posts are gone | ☐ | ☐ |
+| D18 | Scroll to the bottom of tier 1 | Stops after one empty tier advance — correct until Phase 4 | ☐ | ☐ |
+| D19 | Watch for a phantom "New posts ↑" pill | It only appears for genuinely new content | ☐ | ☐ |
+
+## E · Phase 4 — the endless tail (migration 067)
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| E1 | Scroll to the bottom of tier 1 | More posts load — cross-city ones you have not seen | ☐ | ☐ |
+| E2 | Keep scrolling to the true end | "You're all caught up" + the events rail | ☐ | ☐ |
+| E3 | Check the tail for repeats | **No post from earlier in the session reappears** | ☐ | ☐ |
+| E4 | Confirm the marker is absent on an empty feed | `CommunityNudgeCard` owns that state, not the marker | ☐ | ☐ |
+| E5 | Pull to refresh from the bottom | A fresh tier-1 session, scrolled to the top | ☐ | ☐ |
+
+---
+
+## Sign-off
+
+| | iOS | Android |
+| --- | --- | --- |
+| Device / OS version | | |
+| Build | | |
+| Date | | |
+| Tester | | |
+| Blocked rows | | |
+````
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/testing/community-feed-ranking-v2.md
+git commit -m "docs(community): add the feed ranking v2 device test sheet
+
+Nothing in this redesign has component-test coverage and the failure modes
+are visual or silent, so the manual sheet is real coverage rather than a
+formality. Android rows are not optional.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
