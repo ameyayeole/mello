@@ -284,6 +284,17 @@ export default function CommunityScreen() {
                   color={COLORS.primary}
                   style={{ marginVertical: SPACING[4] }}
                 />
+              ) : !feed.hasNextPage && posts.length > 0 ? (
+                /* The end of the tail. Every tier is exhausted and no seen post
+                   is ever re-served, so this is a real stopping point rather
+                   than a spinner that never resolves. */
+                <View style={styles.caughtUp}>
+                  <Text style={styles.caughtUpTitle}>You&apos;re all caught up</Text>
+                  <Text style={styles.caughtUpBody}>
+                    Check back later, or find something to do nearby.
+                  </Text>
+                  <EventsRail />
+                </View>
               ) : null
             }
             ListEmptyComponent={
@@ -436,6 +447,25 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   list: { padding: SPACING[4], paddingTop: SPACING[1], gap: SPACING[3] },
+  caughtUp: {
+    alignItems: 'center',
+    paddingTop: SPACING[6],
+    paddingBottom: SPACING[4],
+    gap: SPACING[2],
+  },
+  caughtUpTitle: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.body,
+    color: COLORS.accent,
+  },
+  caughtUpBody: {
+    // FONTS has no `regular` — the lightest weight in the ramp is `medium`.
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.inkLabel,
+    textAlign: 'center',
+    marginBottom: SPACING[2],
+  },
   dialogTitle: {
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.section,
