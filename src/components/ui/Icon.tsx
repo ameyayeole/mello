@@ -460,11 +460,16 @@ const TAB_SOLAR: Record<'home' | 'community' | 'map' | 'inbox', string> = {
 
 // `dark` is the tab bar's default, pale `chrome` glass. `light` is for the
 // smoked `onPhoto` bar shown over Profile — same active/inactive contrast,
-// inverted, and `inactive` reuses the muted-white token Profile's own text
-// already sits in, so the glyphs read as part of the same surface.
+// inverted, so the glyphs read as part of the same surface.
+//
+// Both inactive rungs sat one step too pale to survive the bar's own blur:
+// against `chrome` glass over a bright screen, a #BCB8C0 line glyph all but
+// disappeared. They are one rung darker/brighter now — `textSecondary` and
+// `textOnDark` — which still leaves a clear gap to the active ink/white, and
+// selection is drawn by the travelling chip anyway, not by contrast alone.
 const TAB_GLYPH_TONE: Record<'dark' | 'light', { active: string; inactive: string }> = {
-  dark: { active: COLORS.accent, inactive: '#BCB8C0' },
-  light: { active: COLORS.white, inactive: COLORS.textOnDarkMuted },
+  dark: { active: COLORS.accent, inactive: COLORS.textSecondary },
+  light: { active: COLORS.white, inactive: COLORS.textOnDark },
 };
 
 export function TabGlyph({
