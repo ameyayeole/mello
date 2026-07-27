@@ -16,6 +16,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)' +
       '|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*' +
+      '|expo-router|standard-navigation' +
       '|react-navigation|@react-navigation/.*' +
       '|react-native-svg|react-native-reanimated|react-native-gesture-handler' +
       '|react-native-safe-area-context|@gorhom/.*' +
