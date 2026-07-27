@@ -26,7 +26,13 @@ CREATE TABLE IF NOT EXISTS feed_sessions (
   -- Parallel to post_ids. Stored so CommunityPost.score keeps its real value
   -- and "why is this post fourth?" is answerable from the row.
   post_scores FLOAT[] NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- array_length returns NULL for empty arrays, not 0. Without COALESCE,
+  -- a mismatch between empty and populated arrays would pass the constraint
+  -- (NULL = 3 is NULL, treated as satisfied). With it, 0 = 3 is rejected.
+  CONSTRAINT feed_sessions_arrays_aligned
+    CHECK (COALESCE(array_length(post_ids, 1), 0)
+         = COALESCE(array_length(post_scores, 1), 0))
 );
 
 CREATE INDEX IF NOT EXISTS feed_sessions_user_idx
