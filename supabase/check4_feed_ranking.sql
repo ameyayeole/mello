@@ -17,15 +17,15 @@
 -- nobody can bisect. This asserts ORDER, not scores — order is the contract,
 -- the weights will be retuned.
 --
--- NINE assertions: media weight, author/type diversity, the seen threshold in
--- both directions, the pin in both states and against the re-rank, and
+-- ELEVEN assertions: media weight, author/type diversity, the seen threshold
+-- in both directions, the pin in both states and against the re-rank,
 -- friendship (including the "does not trump everything" case that guards the
--- whole redesign). Locality and tier-2 pool-widening are deliberately NOT
--- covered here — `build_feed_session` writes `p_tier` to `feed_sessions.tier`
--- but does not yet read it in its WHERE clause; the cross-city gate it would
--- drop is migration 067, not yet written. That coverage belongs in this file
--- once 067 ships, not before — asserting it now would test a feature that
--- doesn't exist yet and fail on a correct ranker.
+-- whole redesign), locality, and tier-2 pool-widening. The last two only
+-- became testable in 069_feed_tiers.sql, which is what makes `p_tier`
+-- actually gate the cross-city rows in build_feed_session's WHERE clause —
+-- before that migration tier 1 and tier 2 selected identically, and a
+-- locality assertion would have failed on a correct ranker while a widening
+-- assertion would have passed vacuously.
 --
 -- It borrows the two oldest profiles as the cast and reads only their ids.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +49,10 @@ DECLARE
   p_pin2   UUID;
   p_friend UUID;
   p_hot    UUID;
+  p_local  UUID;
+  p_cross  UUID;
+  v_tier1_len INT;
+  v_tier2_len INT;
   v_act    TEXT;
 BEGIN
   SELECT id INTO v_me    FROM profiles ORDER BY created_at LIMIT 1;
@@ -256,15 +260,50 @@ BEGIN
       CASE WHEN v_act = 'local photo first' THEN 'PASS' ELSE 'FAIL' END]];
   END IF;
 
-  -- Locality (same-city outranks cross-city) and tier-2 pool-widening were
-  -- removed from this check. `build_feed_session` writes `p_tier` to
-  -- `feed_sessions.tier` but does not yet read it in its WHERE clause —
-  -- tier-2 gate-dropping is migration 067, not yet written. A cross-city
-  -- fixture with no engagers can never clear the gated rung under any tier
-  -- today, so a locality assertion here would FAIL on a correct ranker, and a
-  -- widening assertion would pass vacuously (tier 1 and tier 2 select
-  -- identically, so `wider or equal` is trivially true). Add both back once
-  -- 067 makes `p_tier` do something.
+  ---------------------------------------------------------------------------
+  -- 10. Locality: a same-city post outranks an otherwise-identical cross-city
+  --     one. Same author (v_other, a stranger — same as assertion 1's pair),
+  --     same type, same age (both NOW()) and the same DEFAULT engagement
+  --     (0, per 064's column default), so the same_city term is the only
+  --     thing that can move them apart. Built under a TIER-2 session: under
+  --     tier 1 the cross-city post fails the gate (fresh, no KYC, no
+  --     engagers) and is not in the pool at all, so this assertion would
+  --     prove nothing there.
+  ---------------------------------------------------------------------------
+  INSERT INTO posts (author_id, type, visibility, body, city, created_at)
+    VALUES (v_other, 'text', 'public', 'same city', 'CheckCity', NOW())
+    RETURNING id INTO p_local;
+  INSERT INTO posts (author_id, type, visibility, body, city, created_at)
+    VALUES (v_other, 'text', 'public', 'other city', 'FarCity', NOW())
+    RETURNING id INTO p_cross;
+
+  -- Tier 1 first, so its length is captured before the tier-2 session (built
+  -- next, for the locality check) overwrites v_ids.
+  v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
+  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+  v_tier1_len := COALESCE(array_length(v_ids, 1), 0);
+
+  v_sess := build_feed_session(v_me, 2::SMALLINT, FALSE);
+  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+  v_tier2_len := COALESCE(array_length(v_ids, 1), 0);
+
+  v_act := CASE
+    WHEN array_position(v_ids, p_local) < array_position(v_ids, p_cross)
+    THEN 'local first' ELSE 'cross first' END;
+  results := results || ARRAY[ARRAY['10 locality', 'local first', v_act,
+    CASE WHEN v_act = 'local first' THEN 'PASS' ELSE 'FAIL' END]];
+
+  ---------------------------------------------------------------------------
+  -- 11. Tier widening: a tier-2 session's pool is never smaller than tier
+  --     1's for the same viewer. Not a vacuous >= here — p_cross above sits
+  --     in the tier-2 pool (gate dropped) but fails the tier-1 gate (fresh,
+  --     unapproved author, no engagers), so v_tier1_len is strictly less
+  --     than v_tier2_len for this exact fixture set.
+  ---------------------------------------------------------------------------
+  v_act := CASE WHEN v_tier2_len >= v_tier1_len
+    THEN 'wider or equal' ELSE 'narrower' END;
+  results := results || ARRAY[ARRAY['11 tier widening', 'wider or equal',
+    v_act, CASE WHEN v_act = 'wider or equal' THEN 'PASS' ELSE 'FAIL' END]];
 
   RAISE EXCEPTION 'check4-rollback';
 
@@ -277,7 +316,7 @@ EXCEPTION WHEN OTHERS THEN
   -- 'check3-rollback'` check.
   IF SQLERRM <> 'check4-rollback' THEN
     results := results || ARRAY[ARRAY['SCRIPT ERROR',
-      'all nine assertions to complete', SQLERRM, 'CANNOT RUN']];
+      'all eleven assertions to complete', SQLERRM, 'CANNOT RUN']];
   END IF;
 
   FOR i IN 1 .. COALESCE(array_length(results, 1), 0) LOOP
