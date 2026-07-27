@@ -96,11 +96,14 @@ BEGIN
   -- An external placeholder host may be blocked, slow, or simply wrong for
   -- expo-image's cache, and a grid of broken thumbnails makes D6 ("photos are
   -- broken up") impossible to judge by eye.
+  -- Each UNION branch is parenthesised because a bare LIMIT before UNION is a
+  -- syntax error: Postgres reads that LIMIT as belonging to the whole union,
+  -- then hits the UNION keyword where it expected the end of the statement.
   SELECT array_agg(u) INTO v_photos FROM (
-    SELECT unnest(media) AS u FROM posts
-      WHERE array_length(media, 1) > 0 AND hidden = FALSE LIMIT 6
+    (SELECT unnest(media) AS u FROM posts
+       WHERE array_length(media, 1) > 0 AND hidden = FALSE LIMIT 6)
     UNION
-    SELECT photo_url FROM profiles WHERE photo_url IS NOT NULL LIMIT 6
+    (SELECT photo_url FROM profiles WHERE photo_url IS NOT NULL LIMIT 6)
   ) x WHERE u IS NOT NULL;
 
   ---------------------------------------------------------------------------
@@ -172,12 +175,18 @@ BEGIN
   RAISE NOTICE '─────────────────────────────────────────────────────────';
 END $$;
 
--- Sanity check — what the ranker will now see for you. Run this separately if
--- you want to compare it against what the app actually shows.
---
---   SELECT body, type, engagement, like_count, created_at
---   FROM posts WHERE body LIKE 'Seed __ · %'
---   ORDER BY created_at DESC;
+-- The RAISE NOTICE output above may not surface in the Supabase SQL editor's
+-- results pane, so this runs unconditionally as the visible confirmation.
+-- Expect 30 rows.
+SELECT
+  body,
+  type,
+  round(engagement::numeric, 2) AS engagement,
+  like_count,
+  date_trunc('minute', created_at) AS created_at
+FROM posts
+WHERE body LIKE 'Seed __ · %'
+ORDER BY created_at DESC;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- CLEANUP — run this when you have finished section D.
