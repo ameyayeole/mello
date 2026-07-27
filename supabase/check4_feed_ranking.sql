@@ -14,8 +14,12 @@
 -- WHY THIS CHECK EXISTS. The v2 ranker is seven weights, a four-rung candidate
 -- pool, a seen filter and a greedy re-rank loop. `tsc` and `eslint` cannot see
 -- any of it, and the symptom of a broken weight is "the feed feels off", which
--- nobody can bisect. This asserts ORDER, not scores — order is the contract,
--- the weights will be retuned.
+-- nobody can bisect. This asserts ORDER for everything the diversity re-rank
+-- is contractually forbidden to disturb — the weights will be retuned, order
+-- among untouched pairs will not. The media-weight assertion is the one
+-- exception: the re-rank is explicitly licensed to reorder posts of
+-- differing types, so position there is not a valid proxy for the weight and
+-- it compares scores directly instead. See its own comment below.
 --
 -- ELEVEN assertions: media weight, author/type diversity, the seen threshold
 -- in both directions, the pin in both states and against the re-rank,
@@ -41,6 +45,7 @@ DECLARE
   v_third  UUID;
   v_sess   UUID;
   v_ids    UUID[];
+  v_scores FLOAT[];
   p_photo  UUID;
   p_text   UUID;
   p_photo2 UUID;
@@ -81,16 +86,28 @@ BEGIN
     RETURNING id INTO p_seen;
 
   ---------------------------------------------------------------------------
-  -- 1. A photo outranks an equally fresh text post.
+  -- 1. A photo outranks an equally fresh text post — on SCORE, not position.
+  --    This fixture set includes p_photo2, an identical second photo, so
+  --    p_photo and p_photo2 tie on score and the diversity re-rank (which
+  --    refuses to place two same-author same-type posts adjacently) is free
+  --    to slot p_text between them. That is the re-rank working as designed
+  --    — it is licensed to reorder across types — so p_photo ending up
+  --    AFTER p_text in post_ids proves nothing about the media weight.
+  --    Assertions 2 and 10, by contrast, compare posts the re-rank is
+  --    forbidden to reorder relative to each other, which is why position is
+  --    a valid proxy for them but not here. Comparing the two posts' scores
+  --    directly sidesteps the re-rank entirely.
   ---------------------------------------------------------------------------
   v_sess := build_feed_session(v_me, 1::SMALLINT, FALSE);
-  SELECT post_ids INTO v_ids FROM feed_sessions WHERE id = v_sess;
+  SELECT post_ids, post_scores INTO v_ids, v_scores FROM feed_sessions WHERE id = v_sess;
 
   v_act := CASE
-    WHEN array_position(v_ids, p_photo) < array_position(v_ids, p_text)
-    THEN 'photo first' ELSE 'text first' END;
-  results := results || ARRAY[ARRAY['1 media weight', 'photo first', v_act,
-    CASE WHEN v_act = 'photo first' THEN 'PASS' ELSE 'FAIL' END]];
+    WHEN array_position(v_ids, p_photo) IS NULL OR array_position(v_ids, p_text) IS NULL
+      THEN 'absent from session'
+    WHEN v_scores[array_position(v_ids, p_photo)] > v_scores[array_position(v_ids, p_text)]
+      THEN 'photo scores higher' ELSE 'text scores higher' END;
+  results := results || ARRAY[ARRAY['1 media weight', 'photo scores higher', v_act,
+    CASE WHEN v_act = 'photo scores higher' THEN 'PASS' ELSE 'FAIL' END]];
 
   ---------------------------------------------------------------------------
   -- 2. Two photos from the same author are not adjacent.
