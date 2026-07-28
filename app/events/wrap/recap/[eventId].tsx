@@ -108,7 +108,7 @@ export default function WrapRecapScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Animated.View entering={FadeInDown.duration(350)}>
-              <Text style={styles.overline}>That's a wrap</Text>
+              <Text style={styles.overline}>That&apos;s a wrap</Text>
               <Text style={styles.title}>{event?.title ?? 'Your night'}</Text>
               {(dateLabel || event?.host?.name) && (
                 <Text style={styles.subtitle}>

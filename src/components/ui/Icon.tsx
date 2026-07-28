@@ -446,20 +446,30 @@ export function PremiumBadge({ size = 14 }: { size?: number }) {
 // The active glyph is ink rather than coral because the floating tab bar marks
 // selection with a chip behind the icon — coral on top of that reads as two
 // competing signals, and coral is reserved for one CTA per screen.
-const TAB_SOLAR: Record<'home' | 'explore' | 'map' | 'inbox', string> = {
+const TAB_SOLAR: Record<'home' | 'community' | 'map' | 'inbox', string> = {
   home: 'Home2',
-  explore: 'Compass',
+  // PeopleNearby, not UsersGroupRounded: the latter's Solar glyph draws heads
+  // with <Ellipse>, and this project's react-native-svg build doesn't provide
+  // that primitive ("Property 'Ellipse' doesn't exist") — every working tab
+  // glyph uses only <Path>. PeopleNearby is Path-only and reads as a community
+  // (and stays distinct from the Inbox tab's chat glyph).
+  community: 'PeopleNearby',
   map: 'Map',
   inbox: 'ChatRound',
 };
 
 // `dark` is the tab bar's default, pale `chrome` glass. `light` is for the
 // smoked `onPhoto` bar shown over Profile — same active/inactive contrast,
-// inverted, and `inactive` reuses the muted-white token Profile's own text
-// already sits in, so the glyphs read as part of the same surface.
+// inverted, so the glyphs read as part of the same surface.
+//
+// Both inactive rungs sat one step too pale to survive the bar's own blur:
+// against `chrome` glass over a bright screen, a #BCB8C0 line glyph all but
+// disappeared. They are one rung darker/brighter now — `textSecondary` and
+// `textOnDark` — which still leaves a clear gap to the active ink/white, and
+// selection is drawn by the travelling chip anyway, not by contrast alone.
 const TAB_GLYPH_TONE: Record<'dark' | 'light', { active: string; inactive: string }> = {
-  dark: { active: COLORS.accent, inactive: '#BCB8C0' },
-  light: { active: COLORS.white, inactive: COLORS.textOnDarkMuted },
+  dark: { active: COLORS.accent, inactive: COLORS.textSecondary },
+  light: { active: COLORS.white, inactive: COLORS.textOnDark },
 };
 
 export function TabGlyph({
@@ -468,7 +478,7 @@ export function TabGlyph({
   size = 26,
   tone = 'dark',
 }: {
-  name: 'home' | 'explore' | 'map' | 'inbox';
+  name: 'home' | 'community' | 'map' | 'inbox';
   active: boolean;
   size?: number;
   tone?: 'dark' | 'light';

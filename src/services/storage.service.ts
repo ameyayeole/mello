@@ -187,6 +187,43 @@ export async function uploadWrapPhoto(
 }
 
 /**
+ * Uploads a Community photo-post image to the public event-photos bucket (016
+ * policies: public read, uid-folder write) under the author's uid folder, with a
+ * `post-` prefix so post media is distinguishable from covers/wraps. Compressed
+ * through the shared encoder.
+ */
+export async function uploadPostPhoto(
+  userId: string,
+  uri: string
+): Promise<string> {
+  const encoded = await encodeForUpload(uri, { maxWidth: 1280 });
+  const path = `${userId}/post-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}.${encoded.ext}`;
+
+  await uploadFileFromUri('event-photos', path, encoded.uri, encoded.contentType);
+
+  const { data } = supabase.storage.from('event-photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
+ * Resolves an ordered photo list to public URLs for a photo post: entries that
+ * are already remote (`http`) are kept, local `file://` URIs are uploaded. Order
+ * is preserved (it's the carousel order).
+ */
+export async function uploadPostPhotos(
+  userId: string,
+  uris: string[]
+): Promise<string[]> {
+  return Promise.all(
+    uris.map((uri) =>
+      uri.startsWith('http') ? Promise.resolve(uri) : uploadPostPhoto(userId, uri)
+    )
+  );
+}
+
+/**
  * Whether saving to the camera roll is possible. expo-media-library ships JS
  * only for now — the native module arrives with the next binary build, so the
  * gallery hides its "Download all" button until then.

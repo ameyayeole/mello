@@ -33,7 +33,7 @@ export default function WelcomeSafetyModal({
         <CoralGlow size={320} style={styles.glow} />
         <View style={styles.content}>
           <MelloPin height={49} />
-          <Text style={styles.title}>You're about to{'\n'}meet your city</Text>
+          <Text style={styles.title}>You&apos;re about to{'\n'}meet your city</Text>
           <Text style={styles.subtitle}>
             Mello is for meeting real people in real life. A few quick safety
             basics:

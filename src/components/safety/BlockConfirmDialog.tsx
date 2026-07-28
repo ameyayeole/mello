@@ -25,8 +25,8 @@ export default function BlockConfirmDialog({
       </View>
       <Text style={styles.title}>Block {name ?? 'this user'}?</Text>
       <Text style={styles.body}>
-        You'll both disappear from each other across Mello — profiles,
-        events, chats and messages. They won't be told. You can unblock
+        You&apos;ll both disappear from each other across Mello — profiles,
+        events, chats and messages. They won&apos;t be told. You can unblock
         later in Settings.
       </Text>
       <View style={styles.buttonRow}>

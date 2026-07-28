@@ -139,7 +139,7 @@ export default function WrapPhotosScreen() {
               <Animated.View entering={FadeInDown.duration(350)} style={styles.stakeBanner}>
                 <Icon name="crown" size={18} color={COLORS.primary} strokeWidth={2} />
                 <Text style={styles.stakeText}>
-                  The 6 most-liked photos go public on Explore as the event's
+                  The 6 most-liked photos go public on Explore as the event&apos;s
                   official wrap. Friendly competition, bring your best.
                 </Text>
               </Animated.View>
@@ -186,7 +186,7 @@ export default function WrapPhotosScreen() {
 
                   {(attendeesQuery.data?.length ?? 0) > 0 && (
                     <Animated.View entering={FadeInDown.delay(180).duration(350)}>
-                      <Text style={styles.sectionLabel}>TAG WHO'S IN THEM</Text>
+                      <Text style={styles.sectionLabel}>TAG WHO&apos;S IN THEM</Text>
                       <Text style={styles.tagHint}>
                         Tagged people see these photos first.
                       </Text>
@@ -218,7 +218,7 @@ export default function WrapPhotosScreen() {
                 <Animated.View entering={FadeInDown.delay(100).duration(350)} style={styles.fullNote}>
                   <Icon name="check" size={18} color={COLORS.success} strokeWidth={2.4} />
                   <Text style={styles.fullNoteText}>
-                    You've used all {MAX_PHOTOS} slots. Delete one in the gallery
+                    You&apos;ve used all {MAX_PHOTOS} slots. Delete one in the gallery
                     to swap in a better shot.
                   </Text>
                 </Animated.View>

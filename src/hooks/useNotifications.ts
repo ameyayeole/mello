@@ -164,6 +164,7 @@ export function useNotifications() {
             pending: p.pending as boolean | undefined,
             kind: p.kind as string | undefined,
             preview: p.preview as string | undefined,
+            count: p.count as number | undefined,
           });
           const data = {
             type: notif.type,

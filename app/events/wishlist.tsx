@@ -224,7 +224,7 @@ export default function WishlistScreen() {
               </View>
               <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
               <Text style={styles.emptyText}>
-                Swipe right on events you like — or tap ♥ — and they'll be
+                Swipe right on events you like — or tap ♥ — and they&apos;ll be
                 waiting for you here.
               </Text>
               <Button

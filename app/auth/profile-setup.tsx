@@ -446,7 +446,7 @@ export default function ProfileSetupScreen() {
                     />
                   </View>
                   {dobComplete && age !== null && age >= 18 && (
-                    <Text style={styles.fieldOk}>You're {age}. Looks good.</Text>
+                    <Text style={styles.fieldOk}>You&apos;re {age}. Looks good.</Text>
                   )}
                   {dobComplete && age !== null && age < 18 && (
                     <Text style={styles.fieldError}>
@@ -455,7 +455,7 @@ export default function ProfileSetupScreen() {
                   )}
                   {dobComplete && age === null && (
                     <Text style={styles.fieldError}>
-                      That date doesn't look right. Check it and try again.
+                      That date doesn&apos;t look right. Check it and try again.
                     </Text>
                   )}
                 </View>

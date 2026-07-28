@@ -136,6 +136,42 @@ export const queryKeys = {
     all: ['friendships'] as const,
     of: (userId: Id) => ['friendships', userId] as const,
   },
+  // Community feed. Scoped per viewer; ordering is keyset-paginated so the key
+  // itself carries no cursor (the cursor is the pageParam).
+  community: {
+    all: ['community'] as const,
+    feed: {
+      all: ['community', 'feed'] as const,
+      of: (userId: Id) => ['community', 'feed', userId] as const,
+    },
+    // One author's posts (the Profile "Posts" tab). Shows other people's posts,
+    // so it lives in DISCOVERY_FEED_KEYS below (blocking must clear it).
+    userPosts: {
+      all: ['community', 'userPosts'] as const,
+      of: (userId: Id) => ['community', 'userPosts', userId] as const,
+    },
+    // Per-post scope: like state + (Phase 2b) comments hang off this.
+    post: {
+      all: ['community', 'post'] as const,
+      of: (postId: Id) => ['community', 'post', postId] as const,
+    },
+    comments: {
+      all: ['community', 'comments'] as const,
+      of: (postId: Id) => ['community', 'comments', postId] as const,
+    },
+    replies: {
+      all: ['community', 'replies'] as const,
+      of: (parentId: Id) => ['community', 'replies', parentId] as const,
+    },
+    poll: {
+      all: ['community', 'poll'] as const,
+      of: (postId: Id) => ['community', 'poll', postId] as const,
+    },
+    wrapCard: {
+      all: ['community', 'wrapCard'] as const,
+      of: (eventId: Id) => ['community', 'wrapCard', eventId] as const,
+    },
+  },
 } as const;
 
 // Every cache that surfaces other people's events. Blocking or unblocking has
@@ -149,4 +185,6 @@ export const DISCOVERY_FEED_KEYS = [
   queryKeys.exploreFeed.all,
   queryKeys.dashboardNearby.all,
   queryKeys.swipeDeck.all,
+  queryKeys.community.feed.all,
+  queryKeys.community.userPosts.all,
 ] as const;

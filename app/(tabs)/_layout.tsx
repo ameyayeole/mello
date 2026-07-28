@@ -138,7 +138,7 @@ function EventReminderSheet() {
 
 // Must stay in the same order as the <Tabs.Screen> declarations below: the
 // indicator derives which slot to sit in from a route's index in this list.
-const TAB_ROUTES = ['/', '/explore', '/map', '/chats', '/profile'] as const;
+const TAB_ROUTES = ['/', '/community', '/map', '/chats', '/profile'] as const;
 
 // The quick scale-pop an icon does as the picked-up puck arrives over it, so
 // the tab you're about to land on lifts to meet you. Springs back on release.
@@ -170,7 +170,7 @@ function TabIcon({
   isProfileScreen,
   hovered = false,
 }: {
-  name: 'home' | 'explore' | 'map' | 'inbox';
+  name: 'home' | 'community' | 'map' | 'inbox';
   focused: boolean;
   badge?: number;
   isProfileScreen: boolean;
@@ -527,12 +527,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="community"
         options={{
-          title: 'Explore',
+          title: 'Community',
           tabBarIcon: ({ focused }) => (
             <TabIcon
-              name="explore"
+              name="community"
               focused={focused}
               isProfileScreen={isProfileScreen}
               hovered={pickedUp && dragIndex === 1}

@@ -100,6 +100,8 @@ const RSVP_TYPES = new Set([
 // Someone talking to you or about you.
 const MENTION_TYPES = new Set([
   'mention',
+  'comment_mention',
+  'post_mention',
   'new_message',
   'host_announcement',
   'note_received',
@@ -243,6 +245,46 @@ function notifText(notif: Notification, links: RowLinks): React.ReactNode {
       return <>{who} liked your photo</>;
     case 'photo_commented':
       return <>{who} commented on your photo</>;
+    case 'post_liked': {
+      // Coalesced: payload.count is the total likers in the window.
+      const others = ((payload?.count as number) ?? 1) - 1;
+      return others > 0 ? (
+        <>
+          {who} and {others} other{others > 1 ? 's' : ''} liked your post
+        </>
+      ) : (
+        <>{who} liked your post</>
+      );
+    }
+    case 'post_commented': {
+      const others = ((payload?.count as number) ?? 1) - 1;
+      return others > 0 ? (
+        <>
+          {who} and {others} other{others > 1 ? 's' : ''} commented on your post
+        </>
+      ) : (
+        <>{who} commented on your post</>
+      );
+    }
+    case 'comment_reply':
+      return <>{who} replied to your comment</>;
+    case 'comment_liked': {
+      const others = ((payload?.count as number) ?? 1) - 1;
+      return others > 0 ? (
+        <>
+          {who} and {others} other{others > 1 ? 's' : ''} liked your comment
+        </>
+      ) : (
+        <>{who} liked your comment</>
+      );
+    }
+    case 'comment_mention':
+      return <>{who} mentioned you in a comment</>;
+    case 'post_mention':
+      return <>{who} mentioned you in a post</>;
+    case 'poll_closed':
+      // System-sent (no actor) — the winner detail lives on the poll card.
+      return <>Your poll has closed — see the results</>;
     case 'encore_requested':
       return <>🔁 People want you to run {what('your event')} back</>;
     default:
@@ -606,6 +648,21 @@ export default function NotificationsScreen() {
             return router.push(`/events/wrap/gallery/${notif.event_id}`);
           }
           break;
+        case 'post_liked':
+        case 'post_commented':
+        case 'comment_reply':
+        case 'comment_liked':
+        case 'comment_mention':
+        case 'post_mention':
+        case 'poll_closed': {
+          // Deep-link the specific post when the payload carries its id (Phase 7
+          // detail screen); fall back to the feed for payloads without post_id
+          // (e.g. comment_reply carries only parent_id).
+          const postId = payload?.post_id as string | undefined;
+          return dismiss(() =>
+            router.push(postId ? `/post/${postId}` : '/(tabs)/community')
+          );
+        }
         case 'note_received':
           return dismiss(() => router.push('/(tabs)/chats'));
         case 'encore_requested':

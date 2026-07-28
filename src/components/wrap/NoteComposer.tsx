@@ -99,7 +99,7 @@ export function NoteComposer({
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Note for {recipient?.name}</Text>
         <Text style={styles.sub}>
-          Delivered privately. They can't reply unless you're friends.
+          Delivered privately. They can&apos;t reply unless you&apos;re friends.
         </Text>
       </View>
       <NavButton icon="close" onPress={onClose} accessibilityLabel="Close" />

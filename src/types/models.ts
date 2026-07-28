@@ -71,7 +71,15 @@ export type NotificationType =
   | 'note_received'
   | 'photo_liked'
   | 'photo_commented'
-  | 'encore_requested';
+  | 'encore_requested'
+  // Community posts (migration 046+)
+  | 'post_liked'
+  | 'post_commented'
+  | 'comment_reply'
+  | 'comment_liked'
+  | 'comment_mention'
+  | 'post_mention'
+  | 'poll_closed';
 
 export type ParticipantStatus = 'pending' | 'approved';
 
@@ -407,4 +415,76 @@ export interface PublicWrapPhoto {
   uploader_id: string;
   uploader_name: string;
   uploader_photo_url: string | null;
+}
+
+// ── Community feed (posts) ───────────────────────────────────────────────────
+
+export type PostType = 'text' | 'photo' | 'poll' | 'shared_wrap';
+export type PostVisibility = 'public' | 'friends';
+
+// One post as returned by the community_feed() RPC (author fields flattened).
+export interface CommunityPost {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_photo_url: string | null;
+  type: PostType;
+  visibility: PostVisibility;
+  body: string | null;
+  media: string[];
+  // Set only on shared_wrap posts → the referenced event's wrap (migration 060
+  // returns it from the feed / user_posts RPCs).
+  ref_wrap_event_id: string | null;
+  city: string | null;
+  like_count: number;
+  comment_count: number;
+  liked_by_me: boolean;
+  comments_enabled: boolean;
+  created_at: string;
+  // Ranking score from the frozen session snapshot (migration 066). Cards
+  // ignore it; it is here for debugging "why is this post fourth?".
+  score: number;
+  // Present only on rows from community_feed_page. Pagination is driven by
+  // `offset < session_total`, never by page length — a post moderated
+  // mid-session drops out of its slice and shortens the page.
+  session_id?: string;
+  session_total?: number;
+}
+
+// One poll option with its aggregate (anonymous) tally. `vote_count` is the
+// trigger-maintained count; who voted for what is never exposed.
+export interface PollOption {
+  id: string;
+  idx: number;
+  label: string;
+  vote_count: number;
+}
+
+// A poll's render data, loaded per-post by usePoll (not folded into the feed).
+// `my_option_id` is read from the viewer's own vote row — the only one RLS lets
+// them see — and is null until they vote. A cast is locked (no changing it).
+export interface Poll {
+  post_id: string;
+  closes_at: string;
+  options: PollOption[];
+  my_option_id: string | null;
+}
+
+// One comment as returned by post_comments_ranked / post_comment_replies.
+// `body` is null when the comment is a tombstone (deleted parent kept for its
+// replies → rendered as "comment removed"). `reply_count` is present on
+// top-level rows only.
+export interface PostComment {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_username: string;
+  author_photo_url: string | null;
+  body: string | null;
+  mentions: string[];
+  like_count: number;
+  reply_count?: number;
+  deleted: boolean;
+  liked_by_me: boolean;
+  created_at: string;
 }

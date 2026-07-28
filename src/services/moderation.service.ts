@@ -64,6 +64,25 @@ export type ReportReason =
   | 'fake_profile'
   | 'other';
 
+// Report a specific post. reported_id carries the author; post_id points at the
+// offending row (migration 054). >=3 distinct reporters auto-hides it (061).
+export async function reportPost(params: {
+  reporterId: string;
+  reportedId: string;
+  postId: string;
+  reason: ReportReason;
+  details?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_id: params.reporterId,
+    reported_id: params.reportedId,
+    post_id: params.postId,
+    reason: params.reason,
+    details: params.details ?? null,
+  });
+  if (error) throw error;
+}
+
 export async function reportUser(
   reporterId: string,
   reportedId: string,
@@ -78,6 +97,26 @@ export async function reportUser(
       reason,
       details: details ?? null,
     });
+
+  if (error) throw error;
+}
+
+// Report a specific comment. reported_id still carries the content's author;
+// comment_id points at the offending row (migration 054).
+export async function reportComment(params: {
+  reporterId: string;
+  reportedId: string;
+  commentId: string;
+  reason: ReportReason;
+  details?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_id: params.reporterId,
+    reported_id: params.reportedId,
+    comment_id: params.commentId,
+    reason: params.reason,
+    details: params.details ?? null,
+  });
 
   if (error) throw error;
 }

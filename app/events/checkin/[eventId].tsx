@@ -149,7 +149,7 @@ export default function HostCheckinScreen() {
                   <PressableScale style={styles.qrPlaceholder} onPress={() => refetchQr()}>
                     <Icon name="refresh" size={26} color={COLORS.textMuted} />
                     <Text style={styles.qrErrorText}>
-                      Couldn't load the code. Tap to retry.
+                      Couldn&apos;t load the code. Tap to retry.
                     </Text>
                   </PressableScale>
                 ) : (
@@ -163,7 +163,7 @@ export default function HostCheckinScreen() {
                 <View style={styles.dashLine} />
                 <View style={styles.notchRight} />
               </View>
-              <Text style={styles.codeLabel}>Can't scan? Read out this code</Text>
+              <Text style={styles.codeLabel}>Can&apos;t scan? Read out this code</Text>
               <Text style={styles.code}>
                 {qr ? `${qr.code.slice(0, 3)} ${qr.code.slice(3)}` : '· · ·'}
               </Text>

@@ -13,6 +13,12 @@ export function redirectSystemPath({
   initial: boolean;
 }): string {
   try {
+    const post = path.match(/(?:^|\/)post\/([^/?#]+)/);
+    if (post?.[1]) {
+      // The post detail screen (Phase 7) has a real file route.
+      return `/post/${decodeURIComponent(post[1])}`;
+    }
+
     const match = path.match(/(?:^|\/)event\/([^/?#]+)/);
     if (match?.[1]) {
       useUIStore.getState().setSelectedEvent(decodeURIComponent(match[1]));

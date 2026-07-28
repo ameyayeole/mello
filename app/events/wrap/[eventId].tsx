@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import {
@@ -24,11 +24,13 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
   Icon,
+  IconButton,
   Loader,
   PressableScale,
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { ShareWrapSheet } from '@/components/community/ShareWrapSheet';
 
 // The post-event hub: checklist, gallery preview, run-it-back, and the
 // locked/unlocked "night in numbers" recap.
@@ -36,6 +38,7 @@ export default function WrapHubScreen() {
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const user = useAuthStore((s) => s.user);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const eventQuery = useQuery({
     queryKey: queryKeys.eventDetail.of(eventId),
@@ -92,7 +95,21 @@ export default function WrapHubScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Event wrap" tone="transparent" />
+      {/* This branch only renders for attendees (the guard above returns early
+          otherwise), so the Share button is correctly attendee-only — matching
+          the shared_wrap insert RLS (059). */}
+      <ScreenHeader
+        title="Event wrap"
+        tone="transparent"
+        right={
+          <IconButton
+            icon="share"
+            variant="surface"
+            onPress={() => setShareOpen(true)}
+            accessibilityLabel="Share to Community"
+          />
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -229,6 +246,12 @@ export default function WrapHubScreen() {
           </PressableScale>
         </Animated.View>
       </ScrollView>
+
+      <ShareWrapSheet
+        eventId={eventId!}
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </Screen>
   );
 }

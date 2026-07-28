@@ -465,6 +465,18 @@ export async function getWrapSummary(
   return data as WrapSummary | null;
 }
 
+// The lean wrap preview (title + top photos) behind a shared_wrap post card.
+// get_explore_wraps' shape for one event; returns null if the event is gone
+// (ref_wrap_event_id is ON DELETE SET NULL → the card renders an empty state).
+export async function getWrapCard(eventId: string): Promise<ExploreWrap | null> {
+  const { data, error } = await supabase.rpc('get_wrap_card', {
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as ExploreWrap[];
+  return rows[0] ?? null;
+}
+
 // ── Explore surfaces ─────────────────────────────────────────────────────────
 
 export async function getExploreWraps(args: {

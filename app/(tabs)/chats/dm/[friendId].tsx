@@ -534,7 +534,7 @@ export default function DirectChatScreen() {
               />
               <Text style={styles.emptyName}>{friend?.name ?? 'Friend'}</Text>
               <Text style={styles.emptyText}>
-                Say hi — you're now connected on Mello.
+                Say hi — you&apos;re now connected on Mello.
               </Text>
             </View>
           }

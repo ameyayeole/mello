@@ -81,7 +81,7 @@ export default function PermissionsScreen() {
         <Animated.View entering={FadeInDown.duration(400)}>
           <Text style={styles.title}>A couple of{'\n'}quick things</Text>
           <Text style={styles.subtitle}>
-            So Mello can show you what's happening around you.
+            So Mello can show you what&apos;s happening around you.
           </Text>
         </Animated.View>
 

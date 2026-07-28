@@ -14,3 +14,11 @@ export function ilikePattern(term: string): string {
   const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return `"%${escaped}%"`;
 }
+
+// Same literal-safety as ilikePattern, but anchored at the start: `"term%"`. Use
+// for typeahead where a substring match ("a" hitting every name with an 'a') is
+// too noisy and only a starts-with match is wanted (e.g. @mention search).
+export function prefixIlikePattern(term: string): string {
+  const escaped = term.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}%"`;
+}

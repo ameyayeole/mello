@@ -39,6 +39,20 @@ module.exports = defineConfig([
         },
       ],
       'react-hooks/exhaustive-deps': 'warn',
+      // The React Compiler correctness rules (eslint-plugin-react-hooks v6) are
+      // WARN, not ERROR, in this Reanimated-heavy RN app. Audited every hit
+      // (2026-07): they fire on Reanimated worklet writes (`sv.value = …`),
+      // imperative run-once refs (`didInitialPop.current`), and legitimate
+      // external-sync effects (hydrate form from loaded data, merge realtime
+      // messages) — framework patterns, not bugs. Erroring would tax every
+      // animated/realtime file with a disable comment for zero safety gain.
+      // Same calibration the repo already chose for exhaustive-deps above; they
+      // stay visible as warnings so genuinely new violations still surface.
+      'react-hooks/immutability': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
     },
   },
 ]);

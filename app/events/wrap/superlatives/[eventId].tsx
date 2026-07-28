@@ -92,7 +92,7 @@ export default function SuperlativesScreen() {
         ) : (
           <Animated.View entering={FadeInDown.duration(300)}>
             <Text style={styles.intro}>
-              Hand out the night's awards. Votes are anonymous.
+              Hand out the night&apos;s awards. Votes are anonymous.
             </Text>
           </Animated.View>
         )}

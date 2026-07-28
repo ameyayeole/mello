@@ -28,6 +28,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useUIStore } from '@/stores/uiStore';
 import { useSavedEventIds, useSaveEvent } from '@/hooks/useSwipeDeck';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useAuthStore } from '@/stores/authStore';
 import {
   useHandedOver,
@@ -384,17 +385,14 @@ export default function DashboardScreen() {
   // Pull to refresh. The dashboard's own feeds are separate cache entries from
   // the map's, so a change made elsewhere in the app (blocking someone, say)
   // can land here later than it lands there — this is the manual escape hatch.
-  const refreshing =
-    nearbyQuery.isRefetching ||
-    joinedQuery.isRefetching ||
-    myEventsQuery.isRefetching;
-
-  function handleRefresh() {
-    nearbyQuery.refetch();
-    joinedQuery.refetch();
-    myEventsQuery.refetch();
-    unreadQuery.refetch();
-  }
+  const { refreshing, onRefresh } = usePullToRefresh(() =>
+    Promise.all([
+      nearbyQuery.refetch(),
+      joinedQuery.refetch(),
+      myEventsQuery.refetch(),
+      unreadQuery.refetch(),
+    ])
+  );
 
   const headerLines = useMemo(
     () => [greeting(), ...(linesQuery.data ?? [])],
@@ -464,7 +462,7 @@ export default function DashboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
+            onRefresh={onRefresh}
             tintColor={COLORS.primary}
           />
         }
@@ -555,48 +553,8 @@ export default function DashboardScreen() {
         {/* Post-event wrap prompt (hidden once completed) */}
         <WrapEntryCard />
 
-        {/* Tonight near you */}
-        {(nearbyQuery.data?.length ?? 0) > 0 && (
-          <Animated.View entering={FadeInDown.delay(30).duration(350)}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Tonight near you</Text>
-              <Text
-                style={styles.seeAll}
-                onPress={() => router.push('/(tabs)/explore')}
-              >
-                See all
-              </Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.nearbyScroll}
-              contentContainerStyle={styles.nearbyScrollContent}
-              snapToInterval={CARD_WIDTH + SPACING[3.5]}
-              decelerationRate="fast"
-            >
-              {nearbyQuery.data!.map((event) => (
-                <NearbyCard
-                  key={event.id}
-                  event={event}
-                  status={participation[event.id]}
-                  preview={previewsQuery.data?.[event.id]}
-                  saved={savedIds.has(event.id)}
-                  onToggleSave={() =>
-                    saveEvent.mutate({
-                      eventId: event.id,
-                      save: !savedIds.has(event.id),
-                    })
-                  }
-                  onPress={() => useUIStore.getState().setSelectedEvent(event.id)}
-                />
-              ))}
-            </ScrollView>
-          </Animated.View>
-        )}
-
         {/* Your plans — hosting and attending in one list, soonest first */}
-        <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+        <Animated.View entering={FadeInDown.delay(30).duration(350)}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your plans</Text>
             {hasMorePlans && (
@@ -618,12 +576,12 @@ export default function DashboardScreen() {
               </View>
               <Text style={styles.emptyTitle}>No plans yet</Text>
               <Text style={styles.emptyText}>
-                Explore what's happening and join something nearby.
+                Explore what&apos;s happening and join something nearby.
               </Text>
               <PressableScale
                 scaleTo={0.97}
                 style={styles.exploreBtn}
-                onPress={() => router.push('/(tabs)/explore')}
+                onPress={() => router.push('/(tabs)/map')}
               >
                 <Text style={styles.exploreBtnText}>Explore events</Text>
               </PressableScale>
@@ -677,6 +635,47 @@ export default function DashboardScreen() {
             </View>
           )}
         </Animated.View>
+
+        {/* Tonight near you — below Your plans: what you have already
+            committed to outranks what you might. */}
+        {(nearbyQuery.data?.length ?? 0) > 0 && (
+          <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Tonight near you</Text>
+              <Text
+                style={styles.seeAll}
+                onPress={() => router.push('/(tabs)/map')}
+              >
+                See all
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.nearbyScroll}
+              contentContainerStyle={styles.nearbyScrollContent}
+              snapToInterval={CARD_WIDTH + SPACING[3.5]}
+              decelerationRate="fast"
+            >
+              {nearbyQuery.data!.map((event) => (
+                <NearbyCard
+                  key={event.id}
+                  event={event}
+                  status={participation[event.id]}
+                  preview={previewsQuery.data?.[event.id]}
+                  saved={savedIds.has(event.id)}
+                  onToggleSave={() =>
+                    saveEvent.mutate({
+                      eventId: event.id,
+                      save: !savedIds.has(event.id),
+                    })
+                  }
+                  onPress={() => useUIStore.getState().setSelectedEvent(event.id)}
+                />
+              ))}
+            </ScrollView>
+          </Animated.View>
+        )}
       </ScrollView>
       </Animated.View>
 
