@@ -32,7 +32,6 @@ import {
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import MapView, { Region } from 'react-native-maps';
-import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Animated, {
@@ -44,7 +43,6 @@ import Animated, {
   SlideOutDown,
   ZoomIn,
   cancelAnimation,
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -78,7 +76,9 @@ import {
   Avatar,
   Button,
   Dialog,
+  Glass,
   Icon,
+  NavButton,
   PressableScale,
   Toggle,
 } from '@/components/ui';
@@ -116,6 +116,11 @@ interface Props {
 
 const PIN_SIZE = 60;
 const CIRCLE = 52;
+// Off the RADIUS scale, which stops at 24. The profile sheet — the app's only
+// other full-bleed pane rising from the bottom edge — is also 32, and matching
+// it matters more here than landing on a rung: these are the same object. If a
+// third one appears, this belongs in RADIUS.
+const CARD_RADIUS = 32;
 // Rough card height (chrome + body + button) plus the location pill riding
 // above it, used to centre the pin in the map strip left over.
 //
@@ -157,54 +162,29 @@ function defaultStart() {
   return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
 }
 
-// Progress ring in the heading row: an arc that fills a fifth per step.
-const RING_SIZE = 24;
-const RING_STROKE = 3;
-const RING_R = (RING_SIZE - RING_STROKE) / 2;
-const RING_C = 2 * Math.PI * RING_R;
+// Progress as a hairline across the top edge of the pane. It replaced a ring in
+// the heading row, which went when the heading row did — there is no chrome
+// left to hang a 24pt dial in. Still animated for the reason the ring was: the
+// fill moving is the main "you just finished that" feedback, and a bar that
+// snapped between fifths would read as a redraw rather than as progress.
+const PROGRESS_H = 2;
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-// The arc sweeps to its new length whenever a step is completed, rather than
-// snapping — the fill is the main "you just finished that" feedback.
-function StepRing({ step }: { step: number }) {
-  const progress = useSharedValue((step + 1) / STEP_COUNT);
-  const half = RING_SIZE / 2;
+function StepProgress({ step }: { step: number }) {
+  const pct = useSharedValue((step + 1) / STEP_COUNT);
 
   useEffect(() => {
-    progress.value = withTiming((step + 1) / STEP_COUNT, {
+    pct.value = withTiming((step + 1) / STEP_COUNT, {
       duration: 420,
       easing: Easing.out(Easing.cubic),
     });
-  }, [step]);
+  }, [step, pct]);
 
-  const arcProps = useAnimatedProps(() => ({
-    strokeDashoffset: RING_C * (1 - progress.value),
-  }));
+  const fill = useAnimatedStyle(() => ({ width: `${pct.value * 100}%` }));
 
   return (
-    <Svg width={RING_SIZE} height={RING_SIZE}>
-      <Circle
-        cx={half}
-        cy={half}
-        r={RING_R}
-        stroke={COLORS.borderOnDark}
-        strokeWidth={RING_STROKE}
-        fill="none"
-      />
-      <AnimatedCircle
-        cx={half}
-        cy={half}
-        r={RING_R}
-        stroke={COLORS.primary}
-        strokeWidth={RING_STROKE}
-        fill="none"
-        strokeDasharray={`${RING_C}`}
-        animatedProps={arcProps}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${half} ${half})`}
-      />
-    </Svg>
+    <View style={styles.progressTrack}>
+      <Animated.View style={[styles.progressFill, fill]} />
+    </View>
   );
 }
 
@@ -752,42 +732,36 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
               entering={SlideInDown.duration(380).easing(Easing.out(Easing.cubic))}
               exiting={SlideOutDown.duration(280).easing(Easing.in(Easing.cubic))}
             >
-              <View style={styles.card}>
-                {/* Dark heading sheet, one row: back on the left, the step
-                    title centred, a ring that fills step-by-step on the right.
-                    Set off from the content the way the home header is. */}
-                <View style={styles.headerSheet}>
-                  <View style={styles.cardHeader}>
-                    {/* First step has nothing to go back to, so the slot holds
-                        the close affordance instead — the search bar no longer
-                        carries one. Later steps swap it for Back. */}
-                    <View style={styles.backSlot}>
-                      <PressableScale
-                        scaleTo={0.88}
-                        style={styles.backBtn}
-                        onPress={step > 0 ? back : requestExit}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          step > 0 ? 'Previous step' : 'Cancel event creation'
-                        }
-                      >
-                        <Icon
-                          name={step > 0 ? 'back' : 'close'}
-                          size={17}
-                          color={COLORS.white}
-                        />
-                      </PressableScale>
-                    </View>
-                    <Text style={styles.stepTitle} numberOfLines={1}>
-                      {STEP_HEADS[step]}
-                    </Text>
-                    <View style={styles.ringSlot}>
-                      <StepRing step={step} />
-                    </View>
-                  </View>
-                </View>
+              {/* One frosted pane, not a dark band stacked on a white sheet.
+                  `edge="top"` rounds the top corners and draws the hairline
+                  across that edge alone — the card runs off the bottom of the
+                  screen, where a corner would read as the surface stopping
+                  short. Contents stay ink: this is a light tier (DESIGN.md §3
+                  — white type belongs on `onPhoto` and nowhere else). */}
+              <Glass
+                tier="panel"
+                radius={CARD_RADIUS}
+                edge="top"
+                style={styles.card}
+              >
+                <StepProgress step={step} />
 
                 <View style={styles.cardBody}>
+                  {/* Bare glyph, no chip — AGENTS.md assigns back/close/dismiss
+                      to NavButton, and its default colour is already the ink
+                      this pane wants. Step 0 has nothing to go back to, so it
+                      carries the close instead. */}
+                  <NavButton
+                    icon={step > 0 ? 'back' : 'close'}
+                    onPress={step > 0 ? back : requestExit}
+                    accessibilityLabel={
+                      step > 0 ? 'Previous step' : 'Cancel event creation'
+                    }
+                    style={styles.navSlot}
+                  />
+                  <Text style={styles.stepTitle} numberOfLines={1}>
+                    {STEP_HEADS[step]}
+                  </Text>
                   {/* A form that fills itself in is alarming without a reason.
                       Sits above the steps so it reads before the fields do, and
                       offers the way out in the same breath. */}
@@ -1198,7 +1172,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     disabled={nextDisabled}
                   />
                 </View>
-              </View>
+              </Glass>
             </Animated.View>
           )}
         </KeyboardAvoidingView>
@@ -1349,8 +1323,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  // Fill, hairline and radius all come from <Glass> now. What stays here is
+  // layout plus the shadow: the design's standard SHADOWS.glass throws
+  // downward, and this card's only exposed edge is its top, so it keeps the
+  // upward throw it was drawn with. Glass puts `style` on the unclipped outer
+  // view precisely so a caller can do this.
   card: {
-    backgroundColor: COLORS.surface,
     paddingBottom: SPACING[7],
     shadowColor: COLORS.ink,
     shadowOpacity: 0.16,
@@ -1358,38 +1336,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     elevation: 12,
   },
-  // Matches the home screen's greeting header: dark block with the white
-  // content sitting underneath it. Fully square — no corner rounding on any
-  // edge; the header, card and sheet all meet the screen edges flat.
-  headerSheet: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: SPACING[5],
-    paddingTop: SPACING[3],
-    paddingBottom: SPACING[3],
+  // Pulled left so the glyph's optical edge lines up with the title's stem
+  // rather than with its own 40pt touch box.
+  navSlot: { marginLeft: -SPACING[2.5] },
+  // Flush in the pane's top edge and full-bleed — no horizontal padding, so it
+  // spans the card the way a loading bar does rather than floating inside the
+  // content column. Clipped by the pane's radius, so it curves with the corner.
+  progressTrack: {
+    height: PROGRESS_H,
+    backgroundColor: COLORS.inkFaint,
+    overflow: 'hidden',
   },
+  progressFill: { height: PROGRESS_H, backgroundColor: COLORS.primary },
   cardBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2] },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: SPACING[2],
-  },
-  backSlot: { width: 34, height: 34, justifyContent: 'center' },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.fillOnDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Same width as backSlot so the title stays optically centred between them.
-  ringSlot: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   // Floats free under the search bar; `top` is supplied at render from the
   // safe-area inset so it clears the notch on every device.
   locationPillWrap: {
@@ -1422,12 +1381,15 @@ const styles = StyleSheet.create({
   },
   stepArea: { height: 268, marginBottom: SPACING[3] },
   step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  // Ordinary content now rather than a label on a dark band: left-aligned and
+  // ink, reading as the first line of the step instead of as chrome above it.
+  // Same size as before so the step-to-step rhythm is unchanged.
   stepTitle: {
-    flex: 1,
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.sectionLg,
-    color: COLORS.white,
-    textAlign: 'center',
+    color: COLORS.textPrimary,
+    marginTop: SPACING[2],
+    marginBottom: SPACING[1],
   },
   sectionPillRow: { flexGrow: 0, marginTop: SPACING[3], marginHorizontal: -20 },
   sectionPillContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
