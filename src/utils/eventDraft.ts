@@ -24,14 +24,30 @@ export function clampMaxPeople(input: string): number {
 
 export const STEP_COUNT = 5;
 
-// Only the first two steps gate progress: an event needs an activity and a
-// title. Everything after has a usable default.
+// DateTimeField floors the *date* picker at today but the time grid renders all
+// 48 slots unconditionally, so today + an earlier slot produces an event that
+// already ended. Nothing downstream catches it: createEvent inserts what it is
+// given, and a CHECK constraint cannot help because Postgres requires CHECK
+// expressions to be IMMUTABLE and now() is only STABLE. Enforcing it in the
+// database would take a BEFORE INSERT trigger; this is the guard that ships.
+export function isStartInPast(start: Date, now: Date = new Date()): boolean {
+  return start.getTime() < now.getTime();
+}
+
+// The first two steps gate on a required field; the "when" step gates on the
+// start being in the future. Everything else has a usable default.
+//
+// `startDate` is optional so a caller that has not reached the when-step yet —
+// and the existing tests — can ask about the earlier steps without inventing a
+// date. Absent means "nothing to check", not "invalid".
 export function canAdvanceFrom(
   step: number,
-  draft: { activity: string | null; title: string }
+  draft: { activity: string | null; title: string; startDate?: Date },
+  now: Date = new Date()
 ): boolean {
   if (step === 0) return draft.activity !== null;
   if (step === 1) return draft.title.trim().length > 0;
+  if (step === 2 && draft.startDate) return !isStartInPast(draft.startDate, now);
   return true;
 }
 

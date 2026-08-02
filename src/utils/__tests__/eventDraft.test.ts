@@ -2,6 +2,7 @@ import {
   clampMaxPeople,
   canAdvanceFrom,
   eventEndTime,
+  isStartInPast,
   MIN_PEOPLE,
   MAX_PEOPLE,
   DEFAULT_PEOPLE,
@@ -65,6 +66,52 @@ describe('canAdvanceFrom', () => {
     expect(canAdvanceFrom(2, { activity: null, title: '' })).toBe(true);
     expect(canAdvanceFrom(3, { activity: null, title: '' })).toBe(true);
     expect(canAdvanceFrom(4, { activity: null, title: '' })).toBe(true);
+  });
+
+  // The bug this guard exists for: the time grid has no floor, so today plus an
+  // earlier slot used to sail through every layer and create an event that had
+  // already ended.
+  it('blocks the when-step when the start has already passed', () => {
+    const now = new Date('2026-08-03T18:00:00Z');
+    const draft = { activity: 'coffee', title: 'Flat white' };
+    expect(
+      canAdvanceFrom(2, { ...draft, startDate: new Date('2026-08-03T17:30:00Z') }, now)
+    ).toBe(false);
+    expect(
+      canAdvanceFrom(2, { ...draft, startDate: new Date('2026-08-03T19:00:00Z') }, now)
+    ).toBe(true);
+  });
+
+  // Only the when-step looks at the date — a past start must not wedge the user
+  // on an unrelated step they cannot fix from.
+  it('ignores the start date on every other step', () => {
+    const now = new Date('2026-08-03T18:00:00Z');
+    const past = new Date('2026-08-03T17:00:00Z');
+    const draft = { activity: 'coffee', title: 'Flat white', startDate: past };
+    expect(canAdvanceFrom(0, draft, now)).toBe(true);
+    expect(canAdvanceFrom(1, draft, now)).toBe(true);
+    expect(canAdvanceFrom(3, draft, now)).toBe(true);
+    expect(canAdvanceFrom(4, draft, now)).toBe(true);
+  });
+
+  // Callers that have not reached the when-step yet pass no date at all.
+  it('treats a missing start date as nothing to check', () => {
+    expect(canAdvanceFrom(2, { activity: 'coffee', title: 'x' })).toBe(true);
+  });
+});
+
+describe('isStartInPast', () => {
+  const now = new Date('2026-08-03T18:00:00Z');
+
+  it('is true only for instants strictly before now', () => {
+    expect(isStartInPast(new Date('2026-08-03T17:59:59Z'), now)).toBe(true);
+    expect(isStartInPast(new Date('2026-08-03T18:00:01Z'), now)).toBe(false);
+  });
+
+  // Exactly now is not "in the past" — rounding a start to the current minute
+  // is a legitimate thing the default start can land on.
+  it('treats the current instant as not past', () => {
+    expect(isStartInPast(new Date(now), now)).toBe(false);
   });
 });
 

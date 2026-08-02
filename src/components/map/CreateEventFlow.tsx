@@ -22,10 +22,13 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   TITLE_MAX,
   DESCRIPTION_MAX,
+  MIN_PEOPLE,
+  MAX_PEOPLE,
   STEP_COUNT,
   clampMaxPeople,
   canAdvanceFrom,
   eventEndTime,
+  isStartInPast,
 } from '@/utils/eventDraft';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -67,7 +70,7 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
-import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
+import { Avatar, Button, Dialog, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
 
 // ─── In-map event creation ───────────────────────────────────────────────────
@@ -208,8 +211,23 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const [submitState, setSubmitState] = useState<'loading' | 'success'>('loading');
     const [firstHostVisible, setFirstHostVisible] = useState(false);
     const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
+    const [discardVisible, setDiscardVisible] = useState(false);
 
     const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const recentreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Every timer here outlives the frame that set it, and two of them navigate
+    // or drive the camera. Leaving them armed through an unmount pushes a route
+    // from a dead component.
+    useEffect(
+      () => () => {
+        if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+        if (successTimer.current) clearTimeout(successTimer.current);
+        if (recentreTimer.current) clearTimeout(recentreTimer.current);
+      },
+      []
+    );
 
     // Screen point the pin overlay hangs at while editing: horizontally centred,
     // vertically in the middle of the map strip that stays visible above the card.
@@ -362,6 +380,23 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     }
 
     const maxPeopleNum = clampMaxPeople(maxPeople);
+    // What is literally in the field, before clamping — null while it is empty
+    // or unparseable. Only used to tell the user which bound is about to bite.
+    const typedPeople = /^\d+$/.test(maxPeople) ? Number(maxPeople) : null;
+
+    // Only the fields the user had to type or choose count as work worth
+    // protecting. The date, duration and toggles all arrive pre-filled, so a
+    // draft carrying nothing but defaults exits without a prompt.
+    const hasWork =
+      activity !== null ||
+      title.trim().length > 0 ||
+      description.trim().length > 0 ||
+      photoUri !== null;
+
+    function requestExit() {
+      if (hasWork) setDiscardVisible(true);
+      else onExit();
+    }
 
     async function handleHost() {
       if (!user || !activity || !coord) return;
@@ -386,7 +421,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       );
       // Recentre the camera under the pin's new resting place as it travels,
       // so the coordinate stays put beneath it.
-      setTimeout(() => {
+      recentreTimer.current = setTimeout(() => {
         mapRef.current?.animateToRegion(
           {
             latitude: coord.lat,
@@ -439,13 +474,22 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         queryClient.invalidateQueries({ queryKey: queryKeys.myEvents.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.joinedEvents.all });
         setSubmitState('success');
-        setTimeout(() => {
+        successTimer.current = setTimeout(() => {
           router.push(`/events/created/${eventId}`);
           onExit();
         }, 1300);
       } catch (e) {
         showError(e, 'Could not host event');
-        // Fall back into the form with the pin back at its editing anchor.
+        // The recentre beat is still pending on the failure path; letting it
+        // fire would drive the camera for an event that was never created.
+        if (recentreTimer.current) clearTimeout(recentreTimer.current);
+        // Fall back into the form with the pin back at its editing anchor, and
+        // pull the camera back out to the span the form is composed against —
+        // without this the card returns over a map still zoomed to ZOOM_LNG_DELTA.
+        mapRef.current?.animateToRegion(
+          regionForAnchor(coord.lat, coord.lng, PLACE_LNG_DELTA),
+          400
+        );
         pinY.value = withTiming(anchorY, { duration: 400 });
         setPhase('form');
       }
@@ -458,7 +502,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       sectionFilter === 'all'
         ? ACTIVITIES
         : ACTIVITIES.filter((a) => a.section === sectionFilter);
-    const nextDisabled = !canAdvanceFrom(step, { activity, title });
+    const startInPast = isStartInPast(startDate);
+    const nextDisabled = !canAdvanceFrom(step, { activity, title, startDate });
     const endDate = eventEndTime(startDate, durationH);
     const stepEntering = FadeIn.duration(150).easing(Easing.out(Easing.quad));
 
@@ -573,7 +618,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <PressableScale
                         scaleTo={0.88}
                         style={styles.backBtn}
-                        onPress={step > 0 ? back : onExit}
+                        onPress={step > 0 ? back : requestExit}
                         accessibilityRole="button"
                         accessibilityLabel={
                           step > 0 ? 'Previous step' : 'Cancel event creation'
@@ -788,6 +833,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           {fmtDayShort(startDate)} · {fmtTime(startDate)} →{' '}
                           {fmtTime(endDate)}
                         </Text>
+                        {/* The Next button goes dead on a past start; say why,
+                            or the step reads as broken. */}
+                        {startInPast && (
+                          <Text style={styles.warning}>
+                            That start time has already passed — pick a later
+                            one.
+                          </Text>
+                        )}
                         <Text style={styles.label}>MAX PEOPLE</Text>
                         <View style={styles.stepperRow}>
                           <PressableScale
@@ -825,7 +878,19 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           >
                             <Text style={styles.stepperGlyph}>+</Text>
                           </PressableScale>
-                          <Text style={styles.stepperHint}>people incl. you</Text>
+                          {/* The field takes any two digits and the blur handler
+                              rewrites out-of-range values silently. Name the
+                              bound that is about to be applied — and which one —
+                              while the offending value is still on screen. */}
+                          <Text style={styles.stepperHint}>
+                            {typedPeople === null
+                              ? 'people incl. you'
+                              : typedPeople > MAX_PEOPLE
+                                ? `max ${MAX_PEOPLE} people`
+                                : typedPeople < MIN_PEOPLE
+                                  ? `min ${MIN_PEOPLE} people`
+                                  : 'people incl. you'}
+                          </Text>
                         </View>
                       </Animated.View>
                     )}
@@ -977,6 +1042,39 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           onPrimary={dismissFirstHost}
           onClose={dismissFirstHost}
         />
+
+        {/* Leaving is the only way to lose a draft — nothing persists it — so
+            it asks first once there is anything to lose. Kept local rather than
+            promoted to ui/: this is its only caller. */}
+        <Dialog visible={discardVisible} onClose={() => setDiscardVisible(false)}>
+          <Text style={styles.discardTitle}>Discard this event?</Text>
+          <Text style={styles.discardBody}>
+            What you&apos;ve filled in so far won&apos;t be saved.
+          </Text>
+          <View style={styles.discardRow}>
+            <PressableScale
+              scaleTo={0.96}
+              style={[styles.discardBtn, styles.discardKeep]}
+              onPress={() => setDiscardVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Keep editing"
+            >
+              <Text style={styles.discardKeepLabel}>Keep editing</Text>
+            </PressableScale>
+            <PressableScale
+              scaleTo={0.96}
+              style={[styles.discardBtn, styles.discardGo]}
+              onPress={() => {
+                setDiscardVisible(false);
+                onExit();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Discard"
+            >
+              <Text style={styles.discardGoLabel}>Discard</Text>
+            </PressableScale>
+          </View>
+        </Dialog>
 
         {/* Safety popup #9: confirm creating a female-only event (every time). */}
         <FemaleOnlyConfirmModal
@@ -1259,6 +1357,52 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
     marginTop: SPACING[2],
+  },
+  warning: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.error,
+    marginTop: SPACING[1.5],
+  },
+  // Discard confirm — same shape and tokens as the community delete confirm, so
+  // the two destructive prompts in the app read identically.
+  discardTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.section,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  discardBody: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING[2],
+  },
+  discardRow: {
+    flexDirection: 'row',
+    gap: SPACING[2],
+    alignSelf: 'stretch',
+    marginTop: SPACING[4],
+  },
+  discardBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discardKeep: { backgroundColor: COLORS.inkSubtle },
+  discardKeepLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textPrimary,
+  },
+  discardGo: { backgroundColor: COLORS.error },
+  discardGoLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.white,
   },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
   stepperBtn: {
