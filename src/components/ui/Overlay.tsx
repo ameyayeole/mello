@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -17,9 +17,7 @@ import {
 import Animated, {
   Easing,
   FadeIn,
-  FadeOut,
   SlideInDown,
-  SlideOutDown,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -96,8 +94,6 @@ function Overlay({
   // a sheet that sometimes scrolls and sometimes drags. A dedicated handle has
   // no such ambiguity.
   const dragY = useSharedValue(0);
-  const DISMISS_PX = 90;
-  const DISMISS_VELOCITY = 900;
 
   const pan = Gesture.Pan()
     .onChange((e) => {
@@ -108,21 +104,47 @@ function Overlay({
       const far = dragY.value > DISMISS_PX;
       const fast = e.velocityY > DISMISS_VELOCITY;
       if (far || fast) {
-        // Carry the throw through instead of stopping to animate out: the exit
-        // continues at the speed the finger left.
-        dragY.value = withTiming(dragY.value + 400, { duration: 160 });
+        // Tell the parent straight away and let the effect above drive the
+        // travel, so a dragged dismiss and a tapped one end identically.
         runOnJS(onClose)();
       } else {
         dragY.value = withSpring(0, { stiffness: 220, damping: 26, mass: 0.8 });
       }
     });
 
-  // A drag-dismiss leaves dragY parked at the thrown-out value. Without this
-  // the next open renders the card at that offset — off the bottom of the
-  // screen, so the sheet appears not to open at all.
+  // The Modal outlives `visible` by the length of one exit animation.
+  //
+  // A Modal unmounts its children the instant `visible` goes false, so a
+  // Reanimated `exiting` on the card never got a frame to run — dismissing by
+  // backdrop tap or by a button made the sheet vanish while only the scrim
+  // faded. Holding it mounted lets the card slide out under its own power, and
+  // every dismiss path (tap, button, hardware back, drag) now leaves the same
+  // way.
+  // Open needs no state at all — `visible` already says so. Only the closing
+  // half has to be remembered, for exactly as long as the card takes to leave.
+  const [exiting, setExiting] = useState(false);
+  const mounted = visible || exiting;
+
+  const done = useCallback(() => setExiting(false), []);
+
   useEffect(() => {
-    if (visible) dragY.value = 0;
-  }, [visible, dragY]);
+    if (visible) {
+      // Also resets the offset a drag-dismiss parked at its thrown-out value —
+      // without which the next open renders the card off the bottom of the
+      // screen and the sheet appears not to open at all.
+      dragY.value = 0;
+      return;
+    }
+    if (!sliding) return;
+    // Deliberate: this is the bridge between a prop flipping and an animation
+    // that has to finish before the Modal may unmount. There is no render-phase
+    // way to express "stay mounted a moment longer".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExiting(true);
+    dragY.value = withTiming(EXIT_PX, EXIT_TIMING, (finished) => {
+      if (finished) runOnJS(done)();
+    });
+  }, [visible, sliding, dragY, done]);
 
   const dragStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: dragY.value }],
@@ -155,7 +177,7 @@ function Overlay({
 
   return (
     <Modal
-      visible={visible}
+      visible={mounted}
       transparent
       animationType={sliding ? 'none' : animation}
       onRequestClose={onClose}
@@ -175,7 +197,6 @@ function Overlay({
         <Animated.View
           style={[styles.backdrop, sliding && scrimStyle]}
           entering={sliding ? FadeIn.duration(220) : undefined}
-          exiting={sliding ? FadeOut.duration(180) : undefined}
         >
           {dismissOnBackdropPress ? (
             <Pressable
@@ -189,7 +210,6 @@ function Overlay({
           <Animated.View
             style={dragStyle}
             entering={SlideInDown.duration(300).easing(Easing.out(Easing.cubic))}
-            exiting={SlideOutDown.duration(220).easing(Easing.in(Easing.cubic))}
           >
             {keyboardAvoiding ? (
               <KeyboardAvoidingView
@@ -248,6 +268,13 @@ export function Sheet({
 export function Dialog(props: BaseProps) {
   return <Overlay {...props} anchor="center" />;
 }
+
+// How far the card travels on its way out, and how long it takes. Far enough to
+// clear any sheet this holds — it is a translate, so it costs no layout.
+const EXIT_PX = 700;
+const EXIT_TIMING = { duration: 260, easing: Easing.in(Easing.cubic) } as const;
+const DISMISS_PX = 90;
+const DISMISS_VELOCITY = 900;
 
 const styles = StyleSheet.create({
   // Root holds the layout; the scrim is a layer inside it, so the dim can fade
