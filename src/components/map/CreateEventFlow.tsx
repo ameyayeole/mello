@@ -2,6 +2,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -61,7 +62,12 @@ import {
   saveEventDraft,
 } from '@/services/eventDraftStore';
 import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
-import DateTimeField, { roundUpTo30, fmtTime } from '@/components/DateTimeField';
+import {
+  roundUpTo30,
+  fmtTime,
+  fmtDayShort,
+  fmtDayLong,
+} from '@/components/DateTimeField';
 import { PlaceResult } from '@/components/PlaceSearch';
 import {
   ACTIVITIES,
@@ -69,7 +75,6 @@ import {
   SECTIONS,
   SectionId,
 } from '@/constants/activities';
-import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
@@ -170,6 +175,40 @@ function defaultStart() {
   return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
 }
 
+// Wheel options. Built from `now` rather than module load so a session left
+// open overnight does not offer yesterday.
+function dayOptions(now: Date) {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return Array.from({ length: DATE_WINDOW_DAYS }, (_, i) => {
+    const d = new Date(midnight);
+    d.setDate(d.getDate() + i);
+    return {
+      value: d.getTime(),
+      label:
+        i === 0
+          ? 'Today'
+          : i === 1
+            ? 'Tomorrow'
+            : d.toLocaleDateString(undefined, {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+              }),
+    };
+  });
+}
+
+function timeOptions() {
+  const perDay = (24 * 60) / TIME_STEP_MIN;
+  return Array.from({ length: perDay }, (_, i) => {
+    const mins = i * TIME_STEP_MIN;
+    const d = new Date();
+    d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+    return { value: mins, label: fmtTime(d) };
+  });
+}
+
 // Progress across the top edge of the pane. It replaced a ring in the heading
 // row, which went when the heading row did — there is no chrome left to hang a
 // 24pt dial in. Still animated for the reason the ring was: the fill moving is
@@ -188,52 +227,60 @@ const WHEEL_ITEM_H = 48;
 const WHEEL_VISIBLE = 5;
 const WHEEL_H = WHEEL_ITEM_H * WHEEL_VISIBLE;
 
-function DurationWheel({
+// One wheel, driven by a list of {value,label}. Duration, date and time are the
+// same interaction — a column scrolling under a fixed band — so they are the
+// same component rather than three that drift apart.
+function Wheel<T extends string | number>({
+  options,
   value,
   onChange,
+  width,
 }: {
-  value: number;
-  onChange: (h: number) => void;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  width?: number;
 }) {
-  const listRef = useRef<ScrollView>(null);
-  // Opening scrolled to the current value is the whole point of a wheel — it
-  // shows where you are in the range, not just what you picked.
-  const initialOffset = (DURATIONS.indexOf(value) || 0) * WHEEL_ITEM_H;
+  // Opening scrolled to the current value is most of the point of a wheel — it
+  // shows where you sit in the range, not just what you picked. -1 guards a
+  // value that has fallen out of the list (a date that has since passed).
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
 
   function settle(y: number) {
-    const i = Math.round(y / WHEEL_ITEM_H);
-    const next = DURATIONS[Math.min(DURATIONS.length - 1, Math.max(0, i))];
-    if (next !== value) {
+    const i = Math.min(options.length - 1, Math.max(0, Math.round(y / WHEEL_ITEM_H)));
+    const next = options[i]?.value;
+    if (next !== undefined && next !== value) {
       Haptics.selectionAsync();
       onChange(next);
     }
   }
 
   return (
-    <View style={styles.wheelWrap}>
-      {/* The band sits behind the list and never moves; the numbers move under
-          it. Behind, so it cannot intercept the drag. */}
+    <View style={[styles.wheelWrap, width != null && { width }]}>
+      {/* Behind the list and never moving; the labels travel under it. Behind,
+          so it cannot intercept the drag. */}
       <View style={styles.wheelBand} pointerEvents="none" />
       <ScrollView
-        ref={listRef}
+        style={styles.wheelScroll}
         showsVerticalScrollIndicator={false}
         snapToInterval={WHEEL_ITEM_H}
         decelerationRate="fast"
-        contentOffset={{ x: 0, y: initialOffset }}
+        contentOffset={{ x: 0, y: index * WHEEL_ITEM_H }}
         contentContainerStyle={styles.wheelContent}
         onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
-        // A slow drag that never gains momentum ends here instead.
+        // A slow drag that never builds momentum ends here instead.
         onScrollEndDrag={(e) => settle(e.nativeEvent.contentOffset.y)}
       >
-        {DURATIONS.map((h) => (
-          <View key={h} style={styles.wheelItem}>
+        {options.map((o) => (
+          <View key={String(o.value)} style={styles.wheelItem}>
             <Text
               style={[
                 styles.wheelLabelOff,
-                h === value && styles.wheelLabelOn,
+                o.value === value && styles.wheelLabelOn,
               ]}
+              numberOfLines={1}
             >
-              {h} {h === 1 ? 'hour' : 'hours'}
+              {o.label}
             </Text>
           </View>
         ))}
@@ -241,6 +288,11 @@ function DurationWheel({
     </View>
   );
 }
+
+// How far ahead an event can be scheduled. Long enough for a season, short
+// enough that the date wheel stays a wheel rather than a calendar.
+const DATE_WINDOW_DAYS = 90;
+const TIME_STEP_MIN = 30;
 
 function StepProgress({ step }: { step: number }) {
   const pct = useSharedValue((step + 1) / STEP_COUNT);
@@ -292,6 +344,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
     const [discardVisible, setDiscardVisible] = useState(false);
     const [durationOpen, setDurationOpen] = useState(false);
+    const [startOpen, setStartOpen] = useState(false);
     // The card's measured height, which is what the pin is centred against.
     const [cardH, setCardH] = useState(0);
     // True while the current form came back from storage rather than being
@@ -716,6 +769,12 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       }
     }
 
+    // Keyed on the day itself, not on the sheet opening: the 90-entry list only
+    // goes stale when midnight passes, and that is exactly when this changes.
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    const days = useMemo(() => dayOptions(new Date(todayMs)), [todayMs]);
+    const times = useMemo(() => timeOptions(), []);
+
     if (!active || mapW === 0 || mapH === 0) return null;
 
     const emoji = activity ? ACTIVITY_MAP[activity].emoji : null;
@@ -724,6 +783,12 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         ? ACTIVITIES
         : ACTIVITIES.filter((a) => a.section === sectionFilter);
     const startInPast = isStartInPast(startDate);
+    // The wheels address day and minute-of-day separately; `startDate` is the
+    // single source of truth both are read back out of.
+    const startDayValue = new Date(startDate).setHours(0, 0, 0, 0);
+    const startMinuteValue =
+      startDate.getHours() * 60 +
+      Math.round(startDate.getMinutes() / TIME_STEP_MIN) * TIME_STEP_MIN;
     const nextDisabled = !canAdvanceFrom(step, { activity, title, startDate });
     const endDate = eventEndTime(startDate, durationH);
     const stepEntering = FadeIn.duration(150).easing(Easing.out(Easing.quad));
@@ -833,7 +898,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                   short. Contents stay ink: this is a light tier (DESIGN.md §3
                   — white type belongs on `onPhoto` and nowhere else). */}
               <Glass
-                tier="panel"
+                tier="chrome"
                 radius={CARD_RADIUS}
                 edge="top"
                 style={styles.card}
@@ -940,7 +1005,6 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           <View style={styles.typeGrid}>
                             {visibleActivities.map((a) => {
                               const sel = activity === a.id;
-                              const cat = categoryStyle(a.id);
                               return (
                                 <PressableScale
                                   key={a.id}
@@ -956,14 +1020,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                                     setActivity(a.id);
                                   }}
                                 >
+                                  {/* One treatment for every type. Per-category
+                                      tint and accent made the grid read as
+                                      twenty different components; selection is
+                                      a weight change now, not a hue change. */}
                                   <View
                                     style={[
                                       styles.typeTile,
-                                      sel && {
-                                        backgroundColor: cat.tint,
-                                        borderColor: cat.accent,
-                                        borderWidth: 1.5,
-                                      },
+                                      sel && styles.typeTileOn,
                                     ]}
                                   >
                                     <Text style={styles.typeEmoji}>{a.emoji}</Text>
@@ -971,10 +1035,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                                   <Text
                                     style={[
                                       styles.typeLabel,
-                                      sel && {
-                                        color: cat.accent,
-                                        fontFamily: FONTS.bold,
-                                      },
+                                      sel && styles.typeLabelOn,
                                     ]}
                                     numberOfLines={1}
                                   >
@@ -1048,11 +1109,29 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                             "Saturday 3 August · 7:00 PM", opening one picker.
                             Two half-width fields side by side made the user
                             think about date and time as separate decisions. */}
-                        <DateTimeField
-                          mode="datetime"
-                          value={startDate}
-                          onChange={setStartDate}
-                        />
+                        <PressableScale
+                          scaleTo={TAP_SCALE}
+                          style={styles.summaryRow}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setStartOpen(true);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Starts ${fmtDayLong(startDate)} at ${fmtTime(startDate)}. Change`}
+                        >
+                          <Text style={styles.summaryValue}>
+                            {fmtDayShort(startDate)}
+                          </Text>
+                          <Text style={styles.summaryMeta}>
+                            {fmtTime(startDate)}
+                          </Text>
+                          <Icon
+                            name="chevronRight"
+                            size={16}
+                            color={COLORS.textMuted}
+                            strokeWidth={GLYPH_STROKE}
+                          />
+                        </PressableScale>
                         {/* The Next button goes dead on a past start; say why,
                             or the step reads as broken. */}
                         {startInPast && (
@@ -1114,7 +1193,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                             accessibilityRole="button"
                             accessibilityLabel="One fewer person"
                           >
-                            <Text style={styles.stepperGlyph}>−</Text>
+                            <Icon name="minus" size={20} color={COLORS.white} strokeWidth={2.6} />
                           </PressableScale>
                           <View style={styles.peopleValueWrap}>
                             <Text style={styles.peopleValue}>{maxPeopleNum}</Text>
@@ -1134,7 +1213,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                             accessibilityRole="button"
                             accessibilityLabel="One more person"
                           >
-                            <Text style={styles.stepperGlyph}>+</Text>
+                            <Icon name="plus" size={20} color={COLORS.white} strokeWidth={2.6} />
                           </PressableScale>
                         </View>
                       </Animated.View>
@@ -1295,12 +1374,68 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         {/* Every hour still selectable — the horizontal scroller was the
             problem, not the range. Wrapped into a grid, all 24 are reachable
             without dragging and the short ones are where the thumb already is. */}
+        {/* Date and time as two columns of the same wheel, so picking a start
+            is one gesture language rather than a calendar plus a grid. Day and
+            minute-of-day are kept apart and recombined on change — a single
+            list of every slot in 90 days would be 4,320 rows. */}
+        <Sheet visible={startOpen} onClose={() => setStartOpen(false)}>
+          <View style={styles.sheetBody}>
+            <Text style={styles.sheetTitle}>Starts</Text>
+            <View style={styles.wheelRow}>
+              <Wheel
+                options={days}
+                value={startDayValue}
+                onChange={(ms) => {
+                  const d = new Date(ms as number);
+                  const next = new Date(startDate);
+                  next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                  setStartDate(next);
+                }}
+              />
+              <Wheel
+                options={times}
+                value={startMinuteValue}
+                onChange={(mins) => {
+                  const next = new Date(startDate);
+                  next.setHours(
+                    Math.floor((mins as number) / 60),
+                    (mins as number) % 60,
+                    0,
+                    0
+                  );
+                  setStartDate(next);
+                }}
+              />
+            </View>
+            {startInPast && (
+              <Text style={styles.warning}>
+                That start time has already passed — pick a later one.
+              </Text>
+            )}
+            <Button
+              variant="secondary"
+              label="Done"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setStartOpen(false);
+              }}
+            />
+          </View>
+        </Sheet>
+
         <Sheet visible={durationOpen} onClose={() => setDurationOpen(false)}>
           {/* Sheet supplies no horizontal padding — callers own their own
               gutters — so the content sets them here. */}
           <View style={styles.sheetBody}>
             <Text style={styles.sheetTitle}>Lasts for</Text>
-            <DurationWheel value={durationH} onChange={setDurationH} />
+            <Wheel
+              options={DURATIONS.map((h) => ({
+                value: h,
+                label: `${h} ${h === 1 ? 'hour' : 'hours'}`,
+              }))}
+              value={durationH}
+              onChange={setDurationH}
+            />
             <Button
               variant="secondary"
               label="Done"
@@ -1475,7 +1610,7 @@ const styles = StyleSheet.create({
     borderRadius: PROGRESS_H / 2,
     backgroundColor: COLORS.inkFaint,
     overflow: 'hidden',
-    marginBottom: SPACING[1],
+    marginBottom: SPACING[3],
   },
   progressFill: {
     height: PROGRESS_H,
@@ -1572,6 +1707,14 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  // Selection is a lift, not a colour: the same translucent step every other
+  // picked surface in the flow uses, with the app black to mark it.
+  typeTileOn: {
+    backgroundColor: COLORS.inkFaint,
+    borderColor: COLORS.accent,
   },
   typeEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
   typeLabel: {
@@ -1579,6 +1722,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.inkLabel,
   },
+  typeLabelOn: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
   input: {
     height: 50,
     backgroundColor: 'transparent',
@@ -1734,11 +1878,13 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
   },
-  wheelWrap: {
-    height: WHEEL_H,
-    justifyContent: 'center',
-    marginVertical: SPACING[3],
-  },
+  wheelWrap: { flex: 1, height: WHEEL_H, marginVertical: SPACING[3] },
+  // Two wheels abreast for date + time; the band spans each column separately
+  // so the pair reads as one control rather than two stacked lists.
+  wheelRow: { flexDirection: 'row', gap: SPACING[3] },
+  // Explicit height. Without it the ScrollView sizes to its content, lays all
+  // 24 rows out and has nothing left to scroll — which is exactly how it shipped.
+  wheelScroll: { height: WHEEL_H },
   // Half a viewport of padding at each end, so the first and last rows can
   // reach the centre band instead of stopping at the edge.
   wheelContent: { paddingVertical: (WHEEL_H - WHEEL_ITEM_H) / 2 },
@@ -1777,12 +1923,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepperBtnOff: { opacity: 0.4 },
-  stepperGlyph: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.title,
-    color: COLORS.white,
-    lineHeight: 24,
-  },
   photoWrap: { marginTop: SPACING[4], borderRadius: RADIUS.lg, overflow: 'hidden' },
   photoPreview: { width: '100%', height: 180 },
   photoRemove: {
