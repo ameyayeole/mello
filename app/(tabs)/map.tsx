@@ -129,8 +129,10 @@ export default function MapScreen() {
 
   // ── In-map event creation ──────────────────────────────────────────────────
   // While creatingEvent is on, the rest of the map UI steps aside: the filter
-  // button collapses away, chips/FABs/pins fade out, and CreateEventFlow owns
-  // the interaction (including cancelling, from its own card header).
+  // button collapses away and is replaced in the same slot by a close button,
+  // chips/FABs/pins fade out, and CreateEventFlow owns the interaction. The
+  // close routes back into the flow rather than flipping creatingEvent itself,
+  // so leaving always goes through the flow's unsaved-draft prompt.
   const flowRef = useRef<CreateEventFlowRef>(null);
   const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
   // 0 = browse chrome, 1 = create chrome (X in, filter out).
@@ -146,6 +148,14 @@ export default function MapScreen() {
     marginLeft: interpolate(createProg.value, [0, 1], [10, 0]),
     opacity: 1 - createProg.value,
     transform: [{ scale: interpolate(createProg.value, [0, 1], [1, 0.6]) }],
+  }));
+  // The exact mirror of the filter button: one swaps in as the other collapses,
+  // so the row never reflows and the slot always holds precisely one control.
+  const closeBtnStyle = useAnimatedStyle(() => ({
+    width: interpolate(createProg.value, [0, 1], [0, 44]),
+    marginLeft: interpolate(createProg.value, [0, 1], [0, 10]),
+    opacity: createProg.value,
+    transform: [{ scale: interpolate(createProg.value, [0, 1], [0.6, 1]) }],
   }));
 
   // Pins only pop on the first batch of events and briefly after a cluster is
@@ -356,8 +366,10 @@ export default function MapScreen() {
           entering={FadeInDown.duration(400)}
           style={styles.searchRow}
         >
-          {/* Cancelling create mode lives on the wizard card's own header now,
-              so the search bar keeps only the filter button on its right. */}
+          {/* Right of the search field, one slot holds one control: the filter
+              in browse mode, the create-mode close in its place. The card's own
+              header only offers Back past the first step, so without this the
+              only way out of a five-step wizard was to walk back through it. */}
           <PlaceSearch
             onResult={(r) => {
               if (creatingEvent) flowRef.current?.handlePlace(r);
@@ -367,7 +379,10 @@ export default function MapScreen() {
             bias={coords}
             style={styles.searchInput}
           />
-          <Animated.View style={[styles.morphSlot, filterBtnStyle]}>
+          <Animated.View
+            style={[styles.morphSlot, filterBtnStyle]}
+            pointerEvents={creatingEvent ? 'none' : 'auto'}
+          >
             <PressableScale
               scaleTo={0.9}
               style={styles.roundBtn}
@@ -381,6 +396,22 @@ export default function MapScreen() {
                   <Text style={styles.filterBadgeText}>{filterCount}</Text>
                 </View>
               )}
+            </PressableScale>
+          </Animated.View>
+          {/* Goes through the flow's own exit, not setCreatingEvent(false), so
+              it asks about an unsaved draft exactly like the card's X does. */}
+          <Animated.View
+            style={[styles.morphSlot, closeBtnStyle]}
+            pointerEvents={creatingEvent ? 'auto' : 'none'}
+          >
+            <PressableScale
+              scaleTo={0.9}
+              style={styles.roundBtn}
+              onPress={() => flowRef.current?.requestExit()}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel event creation"
+            >
+              <Icon name="close" size={19} color={COLORS.textPrimary} />
             </PressableScale>
           </Animated.View>
         </Animated.View>

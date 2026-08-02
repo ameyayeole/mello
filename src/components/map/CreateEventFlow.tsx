@@ -94,6 +94,10 @@ export interface CreateEventFlowRef {
   handleMapPress: (coord: { latitude: number; longitude: number }) => void;
   handlePlace: (r: PlaceResult) => void;
   handleRegionSettled: (region: Region) => void;
+  /** Leave create mode from outside the card — the map's close button. Routes
+   *  through the same draft prompt as the card's own exit, so cancelling can
+   *  never skip the save/discard question. */
+  requestExit: () => void;
 }
 
 interface Props {
@@ -413,6 +417,9 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       handlePlace(r) {
         plantPin(r.lat, r.lng, r.name);
       },
+      requestExit() {
+        requestExit();
+      },
       handleRegionSettled(region) {
         if (phase !== 'form') return;
         // The pin is glued to the anchor point, so whatever coordinate now sits
@@ -458,6 +465,9 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       photoUri !== null;
 
     function requestExit() {
+      // The event is already on its way and the zoom is mid-flight; there is
+      // nothing to cancel and no draft left to ask about.
+      if (phase === 'submit') return;
       if (hasWork) setDiscardVisible(true);
       else onExit();
     }
