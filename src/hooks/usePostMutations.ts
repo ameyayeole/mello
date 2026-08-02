@@ -12,6 +12,7 @@ import {
 } from '@/services/community/posts.service';
 import { createPoll } from '@/services/community/polls.service';
 import { uploadPostPhotos } from '@/services/storage.service';
+import { reportPost } from '@/services/moderation.service';
 import { queryKeys } from '@/constants/queryKeys';
 import { PostVisibility, Profile } from '@/types/models';
 import { useAuthStore } from '@/stores/authStore';
@@ -126,6 +127,28 @@ export function useCreateSharedWrap() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.community.feed.all });
       qc.invalidateQueries({ queryKey: queryKeys.community.userPosts.all });
+    },
+  });
+}
+
+// Report a post. Invalidates userPosts caches to remove the reported post
+// from all profile views. Matches the pattern of useDeletePost.
+export function useReportPost() {
+  const qc = useQueryClient();
+  const viewerId = useAuthStore((s) => s.user?.id) ?? '';
+
+  return useMutation({
+    mutationFn: ({ postId, authorId }: { postId: string; authorId: string }) =>
+      reportPost({
+        reporterId: viewerId,
+        reportedId: authorId,
+        postId,
+        reason: 'inappropriate',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: queryKeys.community.userPosts.all,
+      });
     },
   });
 }
