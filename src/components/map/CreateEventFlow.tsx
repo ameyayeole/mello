@@ -192,9 +192,19 @@ function StepProgress({ step }: { step: number }) {
 
   const fill = useAnimatedStyle(() => ({ width: `${pct.value * 100}%` }));
 
+  // The clipper is as tall as the corner radius, not as tall as the bar. React
+  // Native scales a corner radius down to fit its box, so putting the card's
+  // 32pt radius on a 4pt-tall element collapsed it to a 4pt radius and the bar
+  // went on cutting straight across the corners. At full height the curve is a
+  // true quarter-circle and the bar's ends disappear into it.
+  //
+  // Absolute so those 32pt cost no layout, and transparent to touches so it
+  // cannot swallow a tap meant for the row beneath.
   return (
-    <View style={styles.progressTrack}>
-      <Animated.View style={[styles.progressFill, fill]} />
+    <View style={styles.progressClip} pointerEvents="none">
+      <View style={styles.progressTrack}>
+        <Animated.View style={[styles.progressFill, fill]} />
+      </View>
     </View>
   );
 }
@@ -1421,23 +1431,22 @@ const styles = StyleSheet.create({
   // Pulled left so the glyph's optical edge lines up with the content column
   // below it rather than with its own 40pt touch box.
   navSlot: { marginLeft: -SPACING[2.5] },
-  // Flush in the pane's top edge and full-bleed, so it spans the card the way a
-  // loading bar does rather than floating inside the content column.
-  //
-  // It carries the card's own top radii because <Glass> cannot clip it: the
-  // glass pane is an absolutely-positioned layer *behind* the children, not
-  // their parent, so nothing about the children is clipped to the radius. The
-  // bar was cutting straight across the rounded corners. Given radii larger
-  // than the box, the corners resolve to ellipses the bar's own height, which
-  // is what makes the ends sweep up along the card's curve instead of stopping
-  // square.
-  progressTrack: {
-    height: PROGRESS_H,
-    backgroundColor: COLORS.inkFaint,
+  // Carries the card's radius at full height so the corner is a true curve, and
+  // clips the bar to it. <Glass> cannot do this itself: its pane is an
+  // absolutely-positioned layer *behind* the children, not their parent, so
+  // nothing about the children is clipped to the radius.
+  progressClip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: CARD_RADIUS,
     borderTopLeftRadius: CARD_RADIUS,
     borderTopRightRadius: CARD_RADIUS,
     overflow: 'hidden',
+    zIndex: 2,
   },
+  progressTrack: { height: PROGRESS_H, backgroundColor: COLORS.inkFaint },
   progressFill: { height: PROGRESS_H, backgroundColor: COLORS.primary },
   cardBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2] },
   // Floats free under the search bar; `top` is supplied at render from the
@@ -1470,7 +1479,10 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.white,
   },
-  stepArea: { height: 268, marginBottom: SPACING[3] },
+  // Sized to the tallest step (the when-step: three labelled groups).
+  // It was 268, which the when-step overran — the people row was being
+  // cut off by the Next button sitting under it.
+  stepArea: { height: 316, marginBottom: SPACING[3] },
   step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   // Ordinary content now rather than a label on a dark band: left-aligned and
   // ink, sharing the glyph's line. Same size as before so the step-to-step
@@ -1564,8 +1576,10 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
     color: COLORS.inkLabel,
-    marginTop: SPACING[3.5],
-    marginBottom: SPACING[1.5],
+    // Generous above, tight below: the gap separates one group from the last,
+    // while the label stays visually attached to the control it names.
+    marginTop: SPACING[5],
+    marginBottom: SPACING[1],
   },
   durChip: {
     height: 36,
@@ -1674,22 +1688,21 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
   },
-  // Steppers pinned to the edges with the value centred between them, so the
-  // number is what the eye lands on rather than the controls.
+  // No tray. The two buttons carry the weight on their own, so the row reads as
+  // a control rather than as another filled field stacked under the two above.
   peopleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 60,
-    paddingHorizontal: SPACING[3],
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.inkFaint,
+    height: 52,
     marginTop: SPACING[1],
   },
   peopleValueWrap: { alignItems: 'center' },
+  // Bigger now that there is no tray holding the row together — the number is
+  // what carries it, so it has to be the thing the eye lands on.
   peopleValue: {
     fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.sectionLg,
+    fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
   },
   peopleUnit: {
@@ -1716,11 +1729,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.inkSubtle,
   },
+  // The app black, per the button rule: this is a workhorse control, not a
+  // primary action, and coral here would compete with Next.
   stepperBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.inkSubtle,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1728,7 +1743,7 @@ const styles = StyleSheet.create({
   stepperGlyph: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.title,
-    color: COLORS.textPrimary,
+    color: COLORS.white,
     lineHeight: 24,
   },
   photoWrap: { marginTop: SPACING[4], borderRadius: RADIUS.lg, overflow: 'hidden' },
