@@ -31,6 +31,7 @@ import {
 } from '@/utils/eventDraft';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import MapView, { Region } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -60,7 +61,7 @@ import {
   saveEventDraft,
 } from '@/services/eventDraftStore';
 import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
-import DateTimeField, { roundUpTo30, fmtDayShort, fmtTime } from '@/components/DateTimeField';
+import DateTimeField, { roundUpTo30, fmtTime } from '@/components/DateTimeField';
 import { PlaceResult } from '@/components/PlaceSearch';
 import {
   ACTIVITIES,
@@ -80,6 +81,7 @@ import {
   Icon,
   NavButton,
   PressableScale,
+  Sheet,
   Toggle,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
@@ -116,28 +118,32 @@ interface Props {
 
 const PIN_SIZE = 60;
 const CIRCLE = 52;
+// One tap depth for every control in the flow. It used to range 0.88–0.97 with
+// no pattern, and the deepest ones read as a bounce: PressableScale's spring is
+// underdamped, so the release overshoots past 1 in proportion to how far the
+// press went down. Shallow dip, small overshoot.
+const TAP_SCALE = 0.96;
+// One glyph weight too. Icon defaults to 1.8 and NavButton draws at 2.1, so the
+// back arrow came out heavier than everything beside it. 2.1 is the nav weight
+// and the one that reads correctly at this size, so the rest match it.
+const GLYPH_STROKE = 2.1;
 // Off the RADIUS scale, which stops at 24. The profile sheet — the app's only
 // other full-bleed pane rising from the bottom edge — is also 32, and matching
 // it matters more here than landing on a rung: these are the same object. If a
 // third one appears, this belongs in RADIUS.
 const CARD_RADIUS = 32;
-// Rough card height (chrome + body + button) plus the location pill riding
-// above it, used to centre the pin in the map strip left over.
+// First-frame fallback only. The card reports its real height through onLayout
+// and `anchorY` uses that from the next frame on — this is just what to assume
+// for the one frame before the measurement lands.
 //
-// This is not decoration: `anchorY` divides the leftover strip by it, and
-// `regionForAnchor` uses that anchor to decide which coordinate sits under the
-// pin. Get it wrong and events are created at the wrong place, silently.
-//
-// Was 495 when the card wore a dark heading sheet. That band was 70pt
-// (12 pad + a 34pt row + 12 pad); the frosted rebuild replaced it with a 2pt
-// progress hairline, a 40pt NavButton and a 36pt title block (8 + 24 + 4) —
-// 78pt, so the card grew by 8 rather than shrinking. Computed from the style
-// values rather than measured on a device; the pin-accuracy check in the QA
-// pass is what actually confirms it.
-const CARD_EST = 503;
-// The search bar floats over the top of the map (safe area + 12pt pad + a 44pt
-// row), so that strip isn't really free space. Centring the pin has to discount
-// it or the pin rides visibly high.
+// It used to be the only source of truth, which made the pin's position (and
+// therefore the coordinate the event is created at) depend on a number nobody
+// re-derived when the card's chrome changed. Measuring removes both the drift
+// and the per-device guesswork.
+const CARD_EST_FALLBACK = 503;
+// Bottom of the search row, below the safe area: SPACING[3] of top padding plus
+// a 44pt control. Added to `insets.top`, so it lands correctly on every device
+// rather than assuming a notch height.
 const TOP_CHROME = 56;
 // Map spans while placing / while zooming into the freshly hosted pin.
 const PLACE_LNG_DELTA = 0.005;
@@ -164,12 +170,15 @@ function defaultStart() {
   return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
 }
 
-// Progress as a hairline across the top edge of the pane. It replaced a ring in
-// the heading row, which went when the heading row did — there is no chrome
-// left to hang a 24pt dial in. Still animated for the reason the ring was: the
-// fill moving is the main "you just finished that" feedback, and a bar that
-// snapped between fifths would read as a redraw rather than as progress.
-const PROGRESS_H = 2;
+// Progress across the top edge of the pane. It replaced a ring in the heading
+// row, which went when the heading row did — there is no chrome left to hang a
+// 24pt dial in. Still animated for the reason the ring was: the fill moving is
+// the main "you just finished that" feedback, and a bar that snapped between
+// fifths would read as a redraw rather than as progress.
+//
+// 4pt, not 2. At 2 it read as a rendering artefact rather than as a deliberate
+// element — too fine to register as progress at a glance.
+const PROGRESS_H = 4;
 
 function StepProgress({ step }: { step: number }) {
   const pct = useSharedValue((step + 1) / STEP_COUNT);
@@ -220,6 +229,9 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const [firstHostVisible, setFirstHostVisible] = useState(false);
     const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
     const [discardVisible, setDiscardVisible] = useState(false);
+    const [durationOpen, setDurationOpen] = useState(false);
+    // The card's measured height, which is what the pin is centred against.
+    const [cardH, setCardH] = useState(0);
     // True while the current form came back from storage rather than being
     // started here — drives the "draft restored" affordance.
     const [restored, setRestored] = useState(false);
@@ -244,12 +256,20 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       []
     );
 
-    // Screen point the pin overlay hangs at while editing: horizontally centred,
-    // vertically in the middle of the map strip that stays visible above the card.
+    // Screen point the pin hangs at while editing: horizontally centred, and
+    // vertically at the exact midpoint of the visible map — between the bottom
+    // of the search row and the top of the card.
+    //
+    // Both ends are real measurements rather than constants, which is what makes
+    // this land identically on every device: the top comes from the live safe-area
+    // inset, the bottom from the card's own onLayout. The old version divided by
+    // a hardcoded card height, so the pin sat differently depending on how far
+    // that estimate had drifted from the card actually on screen.
     const anchorX = mapW / 2;
     const topChrome = insets.top + TOP_CHROME;
+    const cardTop = mapH - (cardH || CARD_EST_FALLBACK);
     const anchorY = Math.max(
-      topChrome + (mapH - topChrome - CARD_EST) / 2,
+      topChrome + (cardTop - topChrome) / 2,
       topChrome + PIN_SIZE / 2
     );
 
@@ -344,6 +364,15 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       };
     }, [active]);
 
+    // The pin is parked at whatever anchorY was when it was planted, so when the
+    // measurement lands (or the card's height changes — the restored-draft row
+    // adds a line) it has to travel to the new midpoint. Only while editing:
+    // during submit the pin is mid-choreography and owns its own position.
+    useEffect(() => {
+      if (phase !== 'form') return;
+      pinY.value = withTiming(anchorY, { duration: 220 });
+    }, [anchorY, phase, pinY]);
+
     useEffect(() => {
       if (phase === 'submit' && submitState === 'loading') {
         ringDeg.value = 0;
@@ -433,6 +462,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     }));
 
     async function pickPhoto() {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
@@ -450,9 +480,6 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     }
 
     const maxPeopleNum = clampMaxPeople(maxPeople);
-    // What is literally in the field, before clamping — null while it is empty
-    // or unparseable. Only used to tell the user which bound is about to bite.
-    const typedPeople = /^\d+$/.test(maxPeople) ? Number(maxPeople) : null;
 
     // Only the fields the user had to type or choose count as work worth
     // protecting. The date, duration and toggles all arrive pre-filled, so a
@@ -527,6 +554,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     async function handleHost() {
       if (!user || !activity || !coord) return;
       Keyboard.dismiss();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       setPhase('submit');
       setSubmitState('loading');
 
@@ -602,12 +630,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         queryClient.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.myEvents.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.joinedEvents.all });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setSubmitState('success');
         successTimer.current = setTimeout(() => {
           router.push(`/events/created/${eventId}`);
           onExit();
         }, 1300);
       } catch (e) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         showError(e, 'Could not host event');
         // The recentre beat is still pending on the failure path; letting it
         // fire would drive the camera for an event that was never created.
@@ -647,7 +677,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             pointerEvents="none"
           >
             <View style={styles.promptPill}>
-              <Icon name="pin" size={15} color={COLORS.primary} />
+              <Icon name="pin" size={15} color={COLORS.primary} strokeWidth={GLYPH_STROKE} />
               <Text style={styles.promptText}>Tap anywhere to drop a pin</Text>
             </View>
           </Animated.View>
@@ -667,7 +697,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             pointerEvents="none"
           >
             <View style={styles.locationPill}>
-              <Icon name="location" size={13} color={COLORS.white} />
+              <Icon name="location" size={13} color={COLORS.white} strokeWidth={GLYPH_STROKE} />
               <Text style={styles.locationText} numberOfLines={1}>
                 {locationName || 'Locating…'}
               </Text>
@@ -745,25 +775,32 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 radius={CARD_RADIUS}
                 edge="top"
                 style={styles.card}
+                onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
               >
                 <StepProgress step={step} />
 
                 <View style={styles.cardBody}>
-                  {/* Bare glyph, no chip — AGENTS.md assigns back/close/dismiss
-                      to NavButton, and its default colour is already the ink
-                      this pane wants. Step 0 has nothing to go back to, so it
-                      carries the close instead. */}
-                  <NavButton
-                    icon={step > 0 ? 'back' : 'close'}
-                    onPress={step > 0 ? back : requestExit}
-                    accessibilityLabel={
-                      step > 0 ? 'Previous step' : 'Cancel event creation'
-                    }
-                    style={styles.navSlot}
-                  />
-                  <Text style={styles.stepTitle} numberOfLines={1}>
-                    {STEP_HEADS[step]}
-                  </Text>
+                  {/* Glyph and title on one line. Bare glyph, no chip —
+                      AGENTS.md assigns back/close/dismiss to NavButton, and its
+                      default colour is already the ink this pane wants. Step 0
+                      has nothing to go back to, so it carries the close. */}
+                  <View style={styles.titleRow}>
+                    <NavButton
+                      icon={step > 0 ? 'back' : 'close'}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (step > 0) back();
+                        else requestExit();
+                      }}
+                      accessibilityLabel={
+                        step > 0 ? 'Previous step' : 'Cancel event creation'
+                      }
+                      style={styles.navSlot}
+                    />
+                    <Text style={styles.stepTitle} numberOfLines={1}>
+                      {STEP_HEADS[step]}
+                    </Text>
+                  </View>
                   {/* A form that fills itself in is alarming without a reason.
                       Sits above the steps so it reads before the fields do, and
                       offers the way out in the same breath. */}
@@ -776,7 +813,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         Picked up where you left off
                       </Text>
                       <PressableScale
-                        scaleTo={0.94}
+                        scaleTo={TAP_SCALE}
                         onPress={discardDraft}
                         accessibilityRole="button"
                         accessibilityLabel="Start a fresh event"
@@ -809,12 +846,15 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                               return (
                                 <PressableScale
                                   key={s.id}
-                                  scaleTo={0.94}
+                                  scaleTo={TAP_SCALE}
                                   style={[
                                     styles.sectionPill,
                                     sel && styles.sectionPillActive,
                                   ]}
-                                  onPress={() => setSectionFilter(s.id)}
+                                  onPress={() => {
+                                    Haptics.selectionAsync();
+                                    setSectionFilter(s.id);
+                                  }}
                                   accessibilityRole="button"
                                   accessibilityState={{ selected: sel }}
                                 >
@@ -843,9 +883,17 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                               return (
                                 <PressableScale
                                   key={a.id}
-                                  scaleTo={0.9}
+                                  // 0.9 was a 10% dip where the rest of the app
+                                  // uses 3-4%. PressableScale's spring is
+                                  // underdamped, so the release overshoots in
+                                  // proportion to the dip — a big scaleTo is
+                                  // what made these tiles visibly bounce.
+                                  scaleTo={TAP_SCALE}
                                   style={styles.typeItem}
-                                  onPress={() => setActivity(a.id)}
+                                  onPress={() => {
+                                    Haptics.selectionAsync();
+                                    setActivity(a.id);
+                                  }}
                                 >
                                   <View
                                     style={[
@@ -935,58 +983,15 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         style={styles.step}
                       >
                         <Text style={styles.label}>STARTS</Text>
-                        {/* One Date, two windows onto it: date and time each
-                            open their own slimmed-down picker. */}
-                        <View style={styles.startRow}>
-                          <View style={{ flex: 1.4 }}>
-                            <DateTimeField
-                              mode="date"
-                              compact
-                              value={startDate}
-                              onChange={setStartDate}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <DateTimeField
-                              mode="time"
-                              compact
-                              value={startDate}
-                              onChange={setStartDate}
-                            />
-                          </View>
-                        </View>
-                        <Text style={styles.label}>LASTS FOR</Text>
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          style={styles.durScroll}
-                          contentContainerStyle={styles.durScrollContent}
-                        >
-                          {DURATIONS.map((h) => (
-                            <PressableScale
-                              key={h}
-                              scaleTo={0.92}
-                              style={[
-                                styles.durChip,
-                                durationH === h && styles.durChipActive,
-                              ]}
-                              onPress={() => setDurationH(h)}
-                            >
-                              <Text
-                                style={[
-                                  styles.durChipText,
-                                  durationH === h && styles.durChipTextActive,
-                                ]}
-                              >
-                                {h}h
-                              </Text>
-                            </PressableScale>
-                          ))}
-                        </ScrollView>
-                        <Text style={styles.durSummary}>
-                          {fmtDayShort(startDate)} · {fmtTime(startDate)} →{' '}
-                          {fmtTime(endDate)}
-                        </Text>
+                        {/* Non-compact datetime: one full-width row reading
+                            "Saturday 3 August · 7:00 PM", opening one picker.
+                            Two half-width fields side by side made the user
+                            think about date and time as separate decisions. */}
+                        <DateTimeField
+                          mode="datetime"
+                          value={startDate}
+                          onChange={setStartDate}
+                        />
                         {/* The Next button goes dead on a past start; say why,
                             or the step reads as broken. */}
                         {startInPast && (
@@ -995,56 +1000,81 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                             one.
                           </Text>
                         )}
-                        <Text style={styles.label}>MAX PEOPLE</Text>
-                        <View style={styles.stepperRow}>
+
+                        <Text style={styles.label}>LASTS FOR</Text>
+                        {/* A summary row, not 24 chips in a horizontal
+                            scroller. The scroller put every option on screen at
+                            once and made the common ones as hard to reach as
+                            the rare ones; this shows the answer and hides the
+                            choosing until it is asked for. */}
+                        <PressableScale
+                          scaleTo={TAP_SCALE}
+                          style={styles.summaryRow}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setDurationOpen(true);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Lasts ${durationH} hours. Change`}
+                        >
+                          <Text style={styles.summaryValue}>
+                            {durationH}
+                            {durationH === 1 ? ' hour' : ' hours'}
+                          </Text>
+                          <Text style={styles.summaryMeta}>
+                            until {fmtTime(endDate)}
+                          </Text>
+                          <Icon
+                            name="chevronRight"
+                            size={16}
+                            color={COLORS.textMuted}
+                            strokeWidth={GLYPH_STROKE}
+                          />
+                        </PressableScale>
+
+                        <Text style={styles.label}>PEOPLE</Text>
+                        {/* Steppers only. The free-text field it replaces took
+                            any two digits and silently rewrote them on blur,
+                            which is why it needed a hint explaining the clamp;
+                            a control that cannot go out of range needs no
+                            explanation. */}
+                        <View style={styles.peopleRow}>
                           <PressableScale
-                            scaleTo={0.88}
+                            scaleTo={TAP_SCALE}
                             style={[
                               styles.stepperBtn,
-                              maxPeopleNum <= 2 && styles.stepperBtnOff,
+                              maxPeopleNum <= MIN_PEOPLE && styles.stepperBtnOff,
                             ]}
-                            onPress={() =>
-                              setMaxPeople(String(Math.max(2, maxPeopleNum - 1)))
-                            }
+                            disabled={maxPeopleNum <= MIN_PEOPLE}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              setMaxPeople(String(maxPeopleNum - 1));
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel="One fewer person"
                           >
                             <Text style={styles.stepperGlyph}>−</Text>
                           </PressableScale>
-                          <TextInput
-                            style={styles.stepperValue}
-                            value={maxPeople}
-                            onChangeText={(t) =>
-                              setMaxPeople(t.replace(/[^0-9]/g, '').slice(0, 2))
-                            }
-                            onBlur={() => setMaxPeople(String(maxPeopleNum))}
-                            keyboardType="number-pad"
-                            returnKeyType="done"
-                            selectTextOnFocus
-                          />
+                          <View style={styles.peopleValueWrap}>
+                            <Text style={styles.peopleValue}>{maxPeopleNum}</Text>
+                            <Text style={styles.peopleUnit}>people incl. you</Text>
+                          </View>
                           <PressableScale
-                            scaleTo={0.88}
+                            scaleTo={TAP_SCALE}
                             style={[
                               styles.stepperBtn,
-                              maxPeopleNum >= 50 && styles.stepperBtnOff,
+                              maxPeopleNum >= MAX_PEOPLE && styles.stepperBtnOff,
                             ]}
-                            onPress={() =>
-                              setMaxPeople(String(Math.min(50, maxPeopleNum + 1)))
-                            }
+                            disabled={maxPeopleNum >= MAX_PEOPLE}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              setMaxPeople(String(maxPeopleNum + 1));
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel="One more person"
                           >
                             <Text style={styles.stepperGlyph}>+</Text>
                           </PressableScale>
-                          {/* The field takes any two digits and the blur handler
-                              rewrites out-of-range values silently. Name the
-                              bound that is about to be applied — and which one —
-                              while the offending value is still on screen. */}
-                          <Text style={styles.stepperHint}>
-                            {typedPeople === null
-                              ? 'people incl. you'
-                              : typedPeople > MAX_PEOPLE
-                                ? `max ${MAX_PEOPLE} people`
-                                : typedPeople < MIN_PEOPLE
-                                  ? `min ${MIN_PEOPLE} people`
-                                  : 'people incl. you'}
-                          </Text>
                         </View>
                       </Animated.View>
                     )}
@@ -1064,9 +1094,12 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                               contentFit="cover"
                             />
                             <PressableScale
-                              scaleTo={0.88}
+                              scaleTo={TAP_SCALE}
                               style={styles.photoRemove}
-                              onPress={() => setPhotoUri(null)}
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setPhotoUri(null);
+                              }}
                               accessibilityLabel="Remove photo"
                             >
                               <Icon name="close" size={14} color={COLORS.white} strokeWidth={2.5} />
@@ -1074,14 +1107,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           </View>
                         ) : (
                           <PressableScale
-                            scaleTo={0.97}
+                            scaleTo={TAP_SCALE}
                             style={styles.photoEmpty}
                             onPress={pickPhoto}
                             accessibilityRole="button"
                             accessibilityLabel="Add a cover photo"
                           >
                             <View style={styles.photoEmptyIcon}>
-                              <Icon name="camera" size={22} color={COLORS.primary} />
+                              <Icon name="camera" size={22} color={COLORS.primary} strokeWidth={GLYPH_STROKE} />
                             </View>
                             <Text style={styles.photoEmptyTitle}>Choose a photo</Text>
                             <Text style={styles.photoEmptySub}>
@@ -1170,7 +1203,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                   <Button
                     variant="primary"
                     label={step === STEP_COUNT - 1 ? 'Host event' : 'Next'}
-                    onPress={step === STEP_COUNT - 1 ? handleHost : next}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      if (step === STEP_COUNT - 1) handleHost();
+                      else next();
+                    }}
                     disabled={nextDisabled}
                   />
                 </View>
@@ -1194,6 +1231,42 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           onClose={dismissFirstHost}
         />
 
+        {/* Every hour still selectable — the horizontal scroller was the
+            problem, not the range. Wrapped into a grid, all 24 are reachable
+            without dragging and the short ones are where the thumb already is. */}
+        <Sheet visible={durationOpen} onClose={() => setDurationOpen(false)}>
+          <Text style={styles.label}>LASTS FOR</Text>
+          <View style={styles.durSheetGrid}>
+            {DURATIONS.map((h) => (
+              <PressableScale
+                key={h}
+                scaleTo={TAP_SCALE}
+                style={[
+                  styles.durSheetChip,
+                  durationH === h && styles.durChipActive,
+                ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setDurationH(h);
+                  setDurationOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: durationH === h }}
+                accessibilityLabel={`${h} ${h === 1 ? 'hour' : 'hours'}`}
+              >
+                <Text
+                  style={[
+                    styles.durChipText,
+                    durationH === h && styles.durChipTextActive,
+                  ]}
+                >
+                  {h}h
+                </Text>
+              </PressableScale>
+            ))}
+          </View>
+        </Sheet>
+
         {/* Leaving now keeps the draft, so the question is no longer "lose this
             work?" but "which did you mean?" — the destructive option has to be
             the explicit one. Kept local rather than promoted to ui/: one caller. */}
@@ -1204,7 +1277,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           </Text>
           <View style={styles.discardRow}>
             <PressableScale
-              scaleTo={0.96}
+              scaleTo={TAP_SCALE}
               style={[styles.discardBtn, styles.discardKeep]}
               onPress={() => {
                 setDiscardVisible(false);
@@ -1216,7 +1289,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
               <Text style={styles.discardKeepLabel}>Save for later</Text>
             </PressableScale>
             <PressableScale
-              scaleTo={0.96}
+              scaleTo={TAP_SCALE}
               style={[styles.discardBtn, styles.discardGo]}
               onPress={() => {
                 discardDraft();
@@ -1338,15 +1411,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     elevation: 12,
   },
-  // Pulled left so the glyph's optical edge lines up with the title's stem
-  // rather than with its own 40pt touch box.
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1],
+    marginTop: SPACING[1],
+    marginBottom: SPACING[2],
+  },
+  // Pulled left so the glyph's optical edge lines up with the content column
+  // below it rather than with its own 40pt touch box.
   navSlot: { marginLeft: -SPACING[2.5] },
-  // Flush in the pane's top edge and full-bleed — no horizontal padding, so it
-  // spans the card the way a loading bar does rather than floating inside the
-  // content column. Clipped by the pane's radius, so it curves with the corner.
+  // Flush in the pane's top edge and full-bleed, so it spans the card the way a
+  // loading bar does rather than floating inside the content column.
+  //
+  // It carries the card's own top radii because <Glass> cannot clip it: the
+  // glass pane is an absolutely-positioned layer *behind* the children, not
+  // their parent, so nothing about the children is clipped to the radius. The
+  // bar was cutting straight across the rounded corners. Given radii larger
+  // than the box, the corners resolve to ellipses the bar's own height, which
+  // is what makes the ends sweep up along the card's curve instead of stopping
+  // square.
   progressTrack: {
     height: PROGRESS_H,
     backgroundColor: COLORS.inkFaint,
+    borderTopLeftRadius: CARD_RADIUS,
+    borderTopRightRadius: CARD_RADIUS,
     overflow: 'hidden',
   },
   progressFill: { height: PROGRESS_H, backgroundColor: COLORS.primary },
@@ -1384,14 +1473,13 @@ const styles = StyleSheet.create({
   stepArea: { height: 268, marginBottom: SPACING[3] },
   step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   // Ordinary content now rather than a label on a dark band: left-aligned and
-  // ink, reading as the first line of the step instead of as chrome above it.
-  // Same size as before so the step-to-step rhythm is unchanged.
+  // ink, sharing the glyph's line. Same size as before so the step-to-step
+  // rhythm is unchanged.
   stepTitle: {
+    flex: 1,
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
-    marginTop: SPACING[2],
-    marginBottom: SPACING[1],
   },
   sectionPillRow: { flexGrow: 0, marginTop: SPACING[3], marginHorizontal: -20 },
   sectionPillContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
@@ -1415,7 +1503,15 @@ const styles = StyleSheet.create({
   },
   sectionPillTextActive: { fontFamily: FONTS.bold, color: COLORS.white },
   typeScroll: { flex: 1, marginTop: SPACING[3], marginHorizontal: -4 },
-  typeScrollContent: { paddingHorizontal: SPACING[1], paddingBottom: SPACING[2] },
+  // The top padding is not decoration. PressableScale springs back underdamped,
+  // so a tile briefly scales *past* 1 on release; without headroom the scroll
+  // view clips that overshoot and the first row's tiles lose their top edge
+  // mid-bounce. The padding is the room the overshoot needs.
+  typeScrollContent: {
+    paddingHorizontal: SPACING[1],
+    paddingTop: SPACING[1],
+    paddingBottom: SPACING[2],
+  },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1471,9 +1567,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING[3.5],
     marginBottom: SPACING[1.5],
   },
-  startRow: { flexDirection: 'row', gap: SPACING[2.5] },
-  durScroll: { flexGrow: 0, marginHorizontal: -20 },
-  durScrollContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
   durChip: {
     height: 36,
     paddingHorizontal: SPACING[3.5],
@@ -1494,12 +1587,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   durChipTextActive: { color: COLORS.primary },
-  durSummary: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
-    marginTop: SPACING[2],
-  },
   warning: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
@@ -1565,7 +1652,70 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.white,
   },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3.5] },
+  // A value the user can read at a glance with the choosing tucked behind it.
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
+    height: 52,
+    paddingHorizontal: SPACING[4],
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.inkFaint,
+    marginTop: SPACING[1],
+  },
+  summaryValue: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textPrimary,
+  },
+  summaryMeta: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textMuted,
+  },
+  // Steppers pinned to the edges with the value centred between them, so the
+  // number is what the eye lands on rather than the controls.
+  peopleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 60,
+    paddingHorizontal: SPACING[3],
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.inkFaint,
+    marginTop: SPACING[1],
+  },
+  peopleValueWrap: { alignItems: 'center' },
+  peopleValue: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.sectionLg,
+    color: COLORS.textPrimary,
+  },
+  peopleUnit: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.textMuted,
+  },
+  // The duration sheet: every hour, wrapped, so nothing scrolls sideways and
+  // the common values are not buried at the same depth as the rare ones.
+  durSheetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING[2],
+    paddingTop: SPACING[2],
+    paddingBottom: SPACING[4],
+  },
+  durSheetChip: {
+    width: 64,
+    height: 44,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.inkFaint,
+    borderWidth: 1,
+    borderColor: COLORS.inkSubtle,
+  },
   stepperBtn: {
     width: 38,
     height: 38,
@@ -1580,20 +1730,6 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.title,
     color: COLORS.textPrimary,
     lineHeight: 24,
-  },
-  stepperValue: {
-    minWidth: 46,
-    textAlign: 'center',
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.title,
-    color: COLORS.textPrimary,
-    paddingVertical: SPACING[1],
-    paddingHorizontal: SPACING[1],
-  },
-  stepperHint: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textMuted,
   },
   photoWrap: { marginTop: SPACING[4], borderRadius: RADIUS.lg, overflow: 'hidden' },
   photoPreview: { width: '100%', height: 180 },
