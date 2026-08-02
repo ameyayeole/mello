@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.body,
     lineHeight: TYPE_SIZE.body * 1.4,
-    color: COLORS.textPrimary,
+    color: COLORS.white,
     marginTop: SPACING[3],
   },
 });
