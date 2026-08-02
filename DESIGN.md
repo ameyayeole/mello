@@ -474,10 +474,86 @@ uppercase, often preceded by a 6px status dot.
       photo, not of a row floating over an arbitrary feed — so it is a targeted
       fix, not a replacement for the tiers.
 
-## 8. Using this
+## 8. The travelling selection
+
+**One of this app's two signature motions, alongside the glass.** Where a
+control has several options and one of them is picked, the selection is a
+single object that *moves* — never a background that fades out of one option
+and into another.
+
+The reason is that the eye can follow a thing that travels. A fade gives it
+nothing to track, so a row of five reads as five separate lights blinking; a
+travelling chip reads as one object with a position, and the row becomes one
+control. It also answers "where did I come from" for free, which a fade cannot.
+
+Shipped in the tab bar (`TabIndicator`), the create flow's category row
+(`SectionPills`) and its activity grid (`TypeGrid`). **Reach for this before
+inventing anything else** when a new control needs to show a selection.
+
+### The motion
+
+```
+GLIDE = { stiffness: 190, damping: 19–24, mass: 0.85 }
+```
+
+A spring, not a curve — it should arrive rather than stop. Two rules govern the
+damping:
+
+- **Short, fixed travel** (the tab bar: one narrow tab, always) → **19**. The
+  small overshoot is the character.
+- **Long or variable travel** (a scrollable row, a grid) → **24**. A spring's
+  overshoot is a fixed *proportion* of the distance covered, so the numbers
+  that settle nicely over 60pt lurch over 300. 24 puts the ratio just under
+  critical: still an arrival, but the overrun stays invisible however far it
+  came.
+
+The tab bar adds a **stretch**: wider and thinner as it leaves, rounding out on
+arrival, squashing across the direction of travel while stretching along it so
+the apparent volume is conserved. That is what makes it read as a bubble in
+water rather than a box on rails. Worth copying wherever the travel is long
+enough to see it.
+
+### Grids travel on the axes
+
+A strip only has one axis. A grid has two, and a straight line between two cells
+crosses cells that were never on the path — which reads as flying over the grid
+rather than moving through it.
+
+So the indicator moves **one axis then the other, longer leg first** (~190ms
+each, `inOut(quad)` into the corner and `out(cubic)` out of it). From A3 to C2:
+down two, then left one.
+
+Three cases travel straight instead, because a right angle in them would be
+pedantry rather than clarity:
+
+| Case | Path |
+| --- | --- |
+| Same row | straight across |
+| Same column | straight down |
+| Touching diagonal (`|Δcol| = |Δrow| = 1`) | straight across the corner |
+
+### Getting it right
+
+- **Measure, don't compute** unless every item is the same width. The tab bar
+  derives its chip's position from a fixed item width; label-width pills and
+  grid cells each have to report their own frame via `onLayout`.
+- **Read `nativeEvent` synchronously.** React pools synthetic events, so
+  touching `e.nativeEvent` inside a state updater throws — pull the numbers out
+  first and let the updater close over them. This has already cost one crash.
+- **Don't animate the first placement.** Without a "have I been positioned yet"
+  guard the indicator flies in from the origin every time the screen mounts.
+- **Put it behind the options**, so it can never intercept a tap.
+- Reanimated honours the OS reduce-motion setting by default, which collapses
+  all of this to an instant move. Nothing extra to do.
+
+## 9. Using this
 
 When a design change comes in, check it against §3 first — if a new surface
 isn't one of the three glass tiers, that's a decision worth naming rather than
 inventing a fourth, and `<Glass>` is where the fourth would have to go. Add the
 number here when you ship one, and tick the box in §7 so the next session knows
 what's real.
+
+Then check it against §8. If the change involves picking one thing out of
+several, the selection travels — that is the house motion, and a fresh fade or a
+per-option highlight is a decision to justify, not a default to fall into.

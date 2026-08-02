@@ -340,10 +340,24 @@ function Wheel<T extends string | number>({
 const DATE_WINDOW_DAYS = 90;
 const TIME_STEP_MIN = 30;
 
-// The app's travel spring, borrowed from the tab bar's GLIDE. Anything that
-// moves from one place to another in this flow uses it, so the motion reads as
-// one system rather than as each control having its own opinion.
-const GLIDE = { stiffness: 190, damping: 19, mass: 0.85 } as const;
+// The app's travel motion — see DESIGN.md §9, "The travelling selection".
+//
+// The tab bar's own GLIDE is damping 19, which is right there because its chip
+// only ever moves one narrow tab. A spring's overshoot is a fixed *proportion*
+// of the distance travelled, so the same numbers that read as a pleasant
+// settle over 60pt read as a lurch over 300 — which is exactly what the
+// category row does when it jumps from one end to the other. Damping 24 puts
+// the ratio just under critical: it still arrives rather than stops, and the
+// overrun stays small enough not to register however far it came.
+const GLIDE = { stiffness: 190, damping: 24, mass: 0.85 } as const;
+
+// Grid travel. The indicator moves on the axes rather than cutting across the
+// diagonal, so it reads as stepping between cells instead of flying over them.
+// One leg then the other, the longer one first.
+const LEG_MS = 190;
+const GRID_COLS = 4;
+// The emoji plate. The indicator is sized to it, so both have to agree.
+const TILE = 58;
 
 // The category filter row, with a selection that travels rather than a
 // background that fades in and out per pill — the same idea as the tab bar's
@@ -434,6 +448,136 @@ function SectionPills({
         );
       })}
     </ScrollView>
+  );
+}
+
+// The activity grid, with the same travelling selection as the category row —
+// but a grid is not a strip, so the indicator does not cut the diagonal.
+//
+// A straight line from A3 to C2 crosses cells that were never on the way. The
+// indicator instead moves along one axis and then the other, longer leg first,
+// so it reads as stepping through the grid rather than flying over it. Moves
+// that are already axis-aligned, or that land on a touching diagonal neighbour,
+// travel straight — a right angle there would be pedantry, not clarity.
+// See DESIGN.md §9.
+function TypeGrid({
+  activities,
+  value,
+  onChange,
+}: {
+  activities: { id: ActivityId; emoji: string; label: string }[];
+  value: ActivityId | null;
+  onChange: (id: ActivityId) => void;
+}) {
+  const [frames, setFrames] = useState<
+    Record<string, { x: number; y: number; w: number }>
+  >({});
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const shown = useSharedValue(0);
+  const placed = useRef(false);
+  const prevIndex = useRef<number | null>(null);
+
+  const index = value ? activities.findIndex((a) => a.id === value) : -1;
+  const frame = value ? frames[value] : undefined;
+
+  useEffect(() => {
+    if (!frame || index < 0) {
+      shown.value = withTiming(0, { duration: 120 });
+      prevIndex.current = null;
+      placed.current = false;
+      return;
+    }
+    const tx = frame.x + (frame.w - TILE) / 2;
+    const ty = frame.y;
+    shown.value = withTiming(1, { duration: 140 });
+
+    const from = prevIndex.current;
+    prevIndex.current = index;
+    // First placement, or arriving from nothing: no travel to animate.
+    if (!placed.current || from === null) {
+      placed.current = true;
+      x.value = tx;
+      y.value = ty;
+      return;
+    }
+
+    const dCol = (index % GRID_COLS) - (from % GRID_COLS);
+    const dRow = Math.floor(index / GRID_COLS) - Math.floor(from / GRID_COLS);
+    const straight =
+      dCol === 0 || dRow === 0 || (Math.abs(dCol) === 1 && Math.abs(dRow) === 1);
+
+    if (straight) {
+      x.value = withSpring(tx, GLIDE);
+      y.value = withSpring(ty, GLIDE);
+      return;
+    }
+    // Longer leg first: the move reads as "mostly down, then across" rather
+    // than as two equal halves with a corner in the middle.
+    const rowFirst = Math.abs(dRow) >= Math.abs(dCol);
+    const lead = { duration: LEG_MS, easing: Easing.inOut(Easing.quad) };
+    const follow = { duration: LEG_MS, easing: Easing.out(Easing.cubic) };
+    if (rowFirst) {
+      y.value = withTiming(ty, lead);
+      x.value = withDelay(LEG_MS, withTiming(tx, follow));
+    } else {
+      x.value = withTiming(tx, lead);
+      y.value = withDelay(LEG_MS, withTiming(ty, follow));
+    }
+  }, [frame, index, x, y, shown]);
+
+  const indicator = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { translateY: y.value }],
+    opacity: shown.value,
+  }));
+
+  return (
+    <View style={styles.typeGrid}>
+      {/* Behind the tiles, so it can never take a tap. */}
+      <Animated.View style={[styles.typeIndicator, indicator]} pointerEvents="none" />
+      {activities.map((a) => {
+        const sel = value === a.id;
+        return (
+          <PressableScale
+            key={a.id}
+            scaleTo={TAP_SCALE}
+            style={styles.typeItem}
+            // Synchronously — React nulls nativeEvent once the handler returns.
+            onLayout={(e) => {
+              const { x: px, y: py, width } = e.nativeEvent.layout;
+              setFrames((f) =>
+                f[a.id]?.x === px && f[a.id]?.y === py
+                  ? f
+                  : { ...f, [a.id]: { x: px, y: py, w: width } }
+              );
+            }}
+            onPress={() => {
+              Haptics.selectionAsync();
+              onChange(a.id);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: sel }}
+          >
+            <View style={styles.typeTile}>
+              <Text style={styles.typeEmoji}>{a.emoji}</Text>
+            </View>
+            <Text
+              style={[styles.typeLabel, sel && styles.typeLabelOn]}
+              numberOfLines={1}
+            >
+              {a.label}
+            </Text>
+          </PressableScale>
+        );
+      })}
+      {/* Keeps a short last row left-aligned under space-between instead of
+          spreading it out. */}
+      {Array.from({
+        length: (GRID_COLS - (activities.length % GRID_COLS)) % GRID_COLS,
+      }).map((_, i) => (
+        <View key={`spacer-${i}`} style={styles.typeItem} />
+      ))}
+    </View>
   );
 }
 
@@ -1114,56 +1258,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           contentContainerStyle={styles.typeScrollContent}
                           showsVerticalScrollIndicator={false}
                         >
-                          <View style={styles.typeGrid}>
-                            {visibleActivities.map((a) => {
-                              const sel = activity === a.id;
-                              return (
-                                <PressableScale
-                                  key={a.id}
-                                  // 0.9 was a 10% dip where the rest of the app
-                                  // uses 3-4%. PressableScale's spring is
-                                  // underdamped, so the release overshoots in
-                                  // proportion to the dip — a big scaleTo is
-                                  // what made these tiles visibly bounce.
-                                  scaleTo={TAP_SCALE}
-                                  style={styles.typeItem}
-                                  onPress={() => {
-                                    Haptics.selectionAsync();
-                                    setActivity(a.id);
-                                  }}
-                                >
-                                  {/* One treatment for every type. Per-category
-                                      tint and accent made the grid read as
-                                      twenty different components; selection is
-                                      a weight change now, not a hue change. */}
-                                  <View
-                                    style={[
-                                      styles.typeTile,
-                                      sel && styles.typeTileOn,
-                                    ]}
-                                  >
-                                    <Text style={styles.typeEmoji}>{a.emoji}</Text>
-                                  </View>
-                                  <Text
-                                    style={[
-                                      styles.typeLabel,
-                                      sel && styles.typeLabelOn,
-                                    ]}
-                                    numberOfLines={1}
-                                  >
-                                    {a.label}
-                                  </Text>
-                                </PressableScale>
-                              );
-                            })}
-                            {/* Keeps a short last row left-aligned under
-                                space-between instead of spreading it out. */}
-                            {Array.from({
-                              length: (4 - (visibleActivities.length % 4)) % 4,
-                            }).map((_, i) => (
-                              <View key={`spacer-${i}`} style={styles.typeItem} />
-                            ))}
-                          </View>
+                          <TypeGrid
+                            activities={visibleActivities}
+                            value={activity}
+                            onChange={setActivity}
+                          />
                         </ScrollView>
                       </Animated.View>
                     )}
@@ -1876,21 +1975,25 @@ const styles = StyleSheet.create({
     rowGap: SPACING[3.5],
   },
   typeItem: { width: '23%', alignItems: 'center', gap: SPACING[1.5] },
+  // The travelling selection, sized to the emoji plate and sitting behind it.
+  typeIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: TILE,
+    height: TILE,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.inkFaint,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+  },
   // Bare emoji, no plate. Only the selected type gets a tinted container.
   typeTile: {
-    width: 58,
-    height: 58,
+    width: TILE,
+    height: TILE,
     borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  // Selection is a lift, not a colour: the same translucent step every other
-  // picked surface in the flow uses, with the app black to mark it.
-  typeTileOn: {
-    backgroundColor: COLORS.inkFaint,
-    borderColor: COLORS.accent,
   },
   typeEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
   typeLabel: {
