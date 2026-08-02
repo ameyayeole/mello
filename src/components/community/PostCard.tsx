@@ -27,7 +27,7 @@ export function PostCard({
   profileUserId?: string;
 }) {
   return (
-    <Glass tier="panel" radius={RADIUS['2xl']} style={styles.card}>
+    <Glass tier="onPhoto" radius={RADIUS['2xl']} style={styles.card}>
       {/* Overflow is now on every post — the screen's handler branches on
           ownership (Delete for your own, Report for others'). */}
       <PostAuthorRow post={post} onOverflow={() => onOverflow(post)} />
