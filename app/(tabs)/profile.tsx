@@ -19,6 +19,7 @@ import Animated, {
   Easing,
   FadeInDown,
   interpolate,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -71,7 +72,10 @@ import {
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
 import FeaturedPlanCard from '@/components/events/FeaturedPlanCard';
-import { ProfilePosts } from '@/components/community/ProfilePosts';
+import {
+  ProfilePosts,
+  POSTS_NEAR_BOTTOM_PX,
+} from '@/components/community/ProfilePosts';
 
 // The photo is a 4:5 portrait, shown whole — cropping the user's own picture to
 // a band is the one place in the app where that reads as a slight.
@@ -265,8 +269,22 @@ export default function ProfileTabScreen() {
   const photoHeight = width * HERO_RATIO;
 
   const scrollY = useSharedValue(0);
+
+  // This ScrollView is the only real scroller on the screen, so it is also the
+  // only place that knows how close the Posts section is to running out. The
+  // near-bottom flag is mirrored on the UI thread so we hop to JS on the edge
+  // crossing rather than on all 60 scroll frames a second.
+  const [postsNearBottom, setPostsNearBottom] = useState(false);
+  const nearBottomUI = useSharedValue(false);
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
+    const toEnd =
+      e.contentSize.height - e.layoutMeasurement.height - e.contentOffset.y;
+    const near = toEnd < POSTS_NEAR_BOTTOM_PX;
+    if (near !== nearBottomUI.value) {
+      nearBottomUI.value = near;
+      runOnJS(setPostsNearBottom)(near);
+    }
   });
 
   // The photo moves inside a window that scrolls at full speed, so it is always
@@ -687,10 +705,15 @@ export default function ProfileTabScreen() {
             )}
           </Animated.View>
 
-          {/* Community posts — Grid|List, viewer-scoped (own profile → all). */}
+          {/* Community posts — viewer-scoped (own profile → all). Paging is
+              driven from this screen's onScroll; see ProfilePosts. */}
           <Animated.View entering={FadeInDown.delay(215).duration(400)}>
             <Text style={styles.sectionTitle}>Posts</Text>
-            <ProfilePosts userId={user.id} onDark />
+            <ProfilePosts
+              userId={user.id}
+              onDark
+              nearBottom={postsNearBottom}
+            />
           </Animated.View>
 
           {/* Wishlist: events bookmarked on the swipe deck */}

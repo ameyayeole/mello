@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { PressableScale, Dialog, Button } from '@/components/ui';
@@ -14,16 +14,30 @@ import { CommunityPost } from '@/types/models';
 import { PostCard } from './PostCard';
 import { CommentSheet } from './CommentSheet';
 
+// How close to the end of the *host page* counts as "near the bottom". Lives
+// here rather than in each screen so the two profiles can't drift apart.
+export const POSTS_NEAR_BOTTOM_PX = 500;
+
 // The Profile "Posts" tab, dropped into either profile screen. Self-contained:
-// it owns the Grid/List toggle, the comment sheet, and the delete dialog, so the
-// host screen adds one line. Viewer-scoped rows come from useUserPosts (RLS).
-// Delete runs the same useDeletePost path as the feed (spec: one code path).
+// it owns the comment sheet and the delete dialog, so the host screen adds one
+// line. Viewer-scoped rows come from useUserPosts (RLS). Delete runs the same
+// useDeletePost path as the feed (spec: one code path).
+//
+// Posts render with .map() into the host's ScrollView on purpose. A FlatList
+// here would be a list nested inside a scroll view of the same orientation:
+// it gets an unbounded height, so windowing never engages and onEndReached
+// never fires. Instead the host — which owns the only real scroll view —
+// tells us when the user is near the bottom via `nearBottom`.
 export function ProfilePosts({
   userId,
   onDark = false,
+  nearBottom = false,
 }: {
   userId: string;
   onDark?: boolean;
+  /** Host sets this true while the page is scrolled within
+   *  POSTS_NEAR_BOTTOM_PX of its end. Each rising edge asks for one more page. */
+  nearBottom?: boolean;
 }) {
   const meId = useAuthStore((s) => s.user?.id);
   const q = useUserPosts(userId);
@@ -62,6 +76,20 @@ export function ProfilePosts({
     });
   }
   const posts = useMemo(() => q.data?.pages.flat() ?? [], [q.data]);
+
+  // Fire on the RISING edge only. Holding `nearBottom` true would otherwise
+  // re-trigger every time a page landed and pull the whole table down in one
+  // go: growing the content does not itself emit a scroll event, so the flag
+  // can stay true with nothing left to re-evaluate it. One page per entry into
+  // the zone; scrolling out and back in arms it again. The user who stops dead
+  // inside the zone gets no further pages — that is what "Load more" is for.
+  const wasNearBottom = useRef(false);
+  useEffect(() => {
+    const entered = nearBottom && !wasNearBottom.current;
+    wasNearBottom.current = nearBottom;
+    if (!entered) return;
+    if (q.hasNextPage && !q.isFetchingNextPage) q.fetchNextPage();
+  }, [nearBottom, q]);
 
   function confirmDelete() {
     if (!pendingDelete) return;
