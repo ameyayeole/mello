@@ -405,15 +405,19 @@ function SectionPills({
             key={s.id}
             scaleTo={TAP_SCALE}
             style={styles.sectionPill}
-            onLayout={(e) =>
-              setFrames((f) => ({
-                ...f,
-                [s.id]: {
-                  x: e.nativeEvent.layout.x,
-                  w: e.nativeEvent.layout.width,
-                },
-              }))
-            }
+            // Read out of the event synchronously. React pools synthetic
+            // events and nulls `nativeEvent` once the handler returns, so
+            // touching it inside the state updater — which runs later — throws
+            // "Cannot read property 'layout' of null". The updater closes over
+            // plain numbers instead.
+            onLayout={(e) => {
+              const { x: px, width } = e.nativeEvent.layout;
+              setFrames((f) =>
+                f[s.id]?.x === px && f[s.id]?.w === width
+                  ? f
+                  : { ...f, [s.id]: { x: px, w: width } }
+              );
+            }}
             onPress={() => {
               Haptics.selectionAsync();
               onChange(s.id);
