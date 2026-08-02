@@ -18,11 +18,13 @@ export function PostCard({
   onOverflow,
   onComment,
   mentionables,
+  profileUserId,
 }: {
   post: CommunityPost;
   onOverflow: (post: CommunityPost) => void;
   onComment: (post: CommunityPost) => void;
   mentionables?: Map<string, string>;
+  profileUserId?: string;
 }) {
   return (
     <Glass tier="panel" radius={RADIUS['2xl']} style={styles.card}>
@@ -51,7 +53,7 @@ export function PostCard({
           caption={post.body ?? ''}
         />
       ) : null}
-      <PostActionBar post={post} onComment={onComment} />
+      <PostActionBar post={post} onComment={onComment} profileUserId={profileUserId} />
     </Glass>
   );
 }

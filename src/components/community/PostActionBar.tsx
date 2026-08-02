@@ -13,7 +13,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
 import { CommunityPost } from '@/types/models';
-import { useToggleLike } from '@/hooks/usePostInteractions';
+import { useToggleLike, useToggleLikeOnProfile } from '@/hooks/usePostInteractions';
 import { SharePostSheet } from './SharePostSheet';
 
 // Inline glyph controls, not Buttons — these are icon affordances, so a Button
@@ -25,11 +25,13 @@ import { SharePostSheet } from './SharePostSheet';
 export function PostActionBar({
   post,
   onComment,
+  profileUserId,
 }: {
   post: CommunityPost;
   onComment: (post: CommunityPost) => void;
+  profileUserId?: string;
 }) {
-  const toggle = useToggleLike();
+  const toggle = profileUserId ? useToggleLikeOnProfile(profileUserId) : useToggleLike();
   const [shareOpen, setShareOpen] = useState(false);
   const pop = useSharedValue(1);
   // Tap counter drives the heart pop from an effect — the repo's accepted place

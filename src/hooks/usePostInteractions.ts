@@ -69,3 +69,33 @@ export function useToggleLike() {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   return useMutation(likeMutations(qc, userId).toggle);
 }
+
+// Profile posts like toggle — patches userPosts cache, not the main feed
+export function useToggleLikeOnProfile(profileUserId: string) {
+  const qc = useQueryClient();
+  const viewerId = useAuthStore((s) => s.user?.id) ?? '';
+  const key = queryKeys.community.userPosts.of(profileUserId);
+
+  return useMutation({
+    mutationFn: ({ postId, liked }: ToggleArgs) =>
+      liked ? unlikePost({ postId, userId: viewerId }) : likePost({ postId, userId: viewerId }),
+    onMutate: async ({ postId, liked }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<InfiniteData<CommunityPost[]>>(key);
+      if (prev) {
+        qc.setQueryData<InfiniteData<CommunityPost[]>>(key, {
+          ...prev,
+          pages: patchPostInFeed(prev.pages, postId, (p) => ({
+            ...p,
+            liked_by_me: !liked,
+            like_count: Math.max(0, p.like_count + (liked ? -1 : 1)),
+          })),
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx: any) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+  });
+}

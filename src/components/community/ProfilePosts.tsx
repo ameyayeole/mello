@@ -117,6 +117,7 @@ export function ProfilePosts({
               post={p}
               onOverflow={onOverflow}
               onComment={setCommentPost}
+              profileUserId={userId}
             />
           ))}
           {q.hasNextPage && (
