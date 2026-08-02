@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -11,8 +10,6 @@ import {
   View,
   Text,
   StyleSheet,
-  StyleProp,
-  ViewStyle,
   TextInput,
   ScrollView,
   Keyboard,
@@ -41,7 +38,6 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
-  Extrapolation,
   FadeIn,
   FadeInDown,
   FadeOut,
@@ -49,9 +45,6 @@ import Animated, {
   SlideOutDown,
   ZoomIn,
   cancelAnimation,
-  interpolate,
-  runOnJS,
-  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -60,7 +53,6 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import type { SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { createEvent } from '@/services/events.service';
@@ -103,6 +95,7 @@ import {
   PressableScale,
   Sheet,
   Toggle,
+  Wheel,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
 
@@ -199,141 +192,6 @@ function defaultStart() {
 // 4pt, not 2. At 2 it read as a rendering artefact rather than as a deliberate
 // element — too fine to register as progress at a glance.
 const PROGRESS_H = 4;
-
-// Duration picker, wheel-style like the system timer: the list scrolls under a
-// fixed selection band rather than laying every option out at once. Snapping is
-// `snapToInterval` plus half-a-viewport of padding at each end, which is what
-// lets the first and last rows reach the centre.
-const WHEEL_ITEM_H = 48;
-const WHEEL_VISIBLE = 5;
-const WHEEL_H = WHEEL_ITEM_H * WHEEL_VISIBLE;
-
-// One row of the drum.
-function WheelRow({
-  label,
-  index,
-  scrollY,
-}: {
-  label: string;
-  index: number;
-  scrollY: SharedValue<number>;
-}) {
-  // Signed distance from the band, in rows: negative below it, positive above.
-  // Rows do not merely shrink as they leave — they rotate away from the viewer,
-  // which is the system picker's actual signature and the difference between a
-  // drum turning and a list with one item highlighted.
-  const style = useAnimatedStyle(() => {
-    const d = scrollY.value / WHEEL_ITEM_H - index;
-    const a = Math.abs(d);
-    return {
-      opacity: interpolate(a, [0, 1, 2, 3], [1, 0.55, 0.25, 0.08], Extrapolation.CLAMP),
-      transform: [
-        // Perspective has to lead the list, or the rotation flattens into a
-        // vertical squash instead of reading as a turn into the screen.
-        { perspective: 620 },
-        {
-          rotateX: `${interpolate(d, [-3, 0, 3], [-62, 0, 62], Extrapolation.CLAMP)}deg`,
-        },
-        { scale: interpolate(a, [0, 1, 2.5], [1, 0.9, 0.78], Extrapolation.CLAMP) },
-      ],
-    };
-  });
-  return (
-    <Animated.View style={[styles.wheelItem, style]}>
-      <Text style={styles.wheelLabel} numberOfLines={1}>
-        {label}
-      </Text>
-    </Animated.View>
-  );
-}
-
-// One wheel, driven by a list of {value,label}. Duration, date and time are the
-// same interaction — a column scrolling under a fixed band — so they are the
-// same component rather than three that drift apart.
-function Wheel<T extends string | number>({
-  options,
-  value,
-  onChange,
-  style,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-  style?: StyleProp<ViewStyle>;
-}) {
-  // Opening scrolled to the current value is most of the point of a wheel — it
-  // shows where you sit in the range, not just what you picked.
-  const index = Math.max(0, options.findIndex((o) => o.value === value));
-  // Drives the per-row falloff. Seeded so rows are styled correctly on the
-  // first frame, before any scrolling has happened.
-  const scrollY = useSharedValue(index * WHEEL_ITEM_H);
-  // Which row is under the band right now, as the finger moves. Separate from
-  // `value`, which only commits when the scroll comes to rest.
-  const passing = useSharedValue(index);
-
-  // The tick that makes it feel like a wheel and not a list. A real picker
-  // clicks once per row as it goes past, so the feedback is continuous with the
-  // gesture rather than arriving after it.
-  const tick = useCallback(() => {
-    Haptics.selectionAsync();
-  }, []);
-
-  // Throttled on the UI thread. A hard flick crosses rows faster than the
-  // haptic engine can answer, and every crossing is a hop to the JS thread —
-  // unthrottled it both stutters the scroll and blurs into one long buzz.
-  // 45ms keeps a slow scroll ticking per row and a fast spin ticking steadily.
-  const lastTick = useSharedValue(0);
-  const onScroll = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
-    const i = Math.round(e.contentOffset.y / WHEEL_ITEM_H);
-    if (i === passing.value) return;
-    passing.value = i;
-    const now = Date.now();
-    if (now - lastTick.value < 45) return;
-    lastTick.value = now;
-    runOnJS(tick)();
-  });
-
-  // Snapping is the platform's. It decelerates into the row rather than cutting
-  // to it, and it is the thing an iOS picker actually does — a hand-rolled
-  // scrollTo on top of momentum fought the momentum, and its "am I the one
-  // scrolling" guard could strand itself and swallow the next gesture.
-  function commit(y: number) {
-    const i = Math.min(options.length - 1, Math.max(0, Math.round(y / WHEEL_ITEM_H)));
-    const next = options[i]?.value;
-    if (next !== undefined && next !== value) onChange(next);
-  }
-
-  return (
-    <View style={[styles.wheelWrap, style]}>
-      {/* Behind the list and never moving; the labels travel under it. Behind,
-          so it cannot intercept the drag. */}
-      <View style={styles.wheelBand} pointerEvents="none" />
-      <Animated.ScrollView
-        style={styles.wheelScroll}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={WHEEL_ITEM_H}
-        decelerationRate="fast"
-        contentOffset={{ x: 0, y: index * WHEEL_ITEM_H }}
-        contentContainerStyle={styles.wheelContent}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
-        // A slow drag that never builds momentum gets no momentum-end at all.
-        onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
-      >
-        {options.map((o, i) => (
-          <WheelRow
-            key={String(o.value)}
-            label={o.label}
-            index={i}
-            scrollY={scrollY}
-          />
-        ))}
-      </Animated.ScrollView>
-    </View>
-  );
-}
 
 // The app's travel motion — see DESIGN.md §9, "The travelling selection".
 //
@@ -1639,8 +1497,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 style={styles.wheelFlex}
                 options={days}
                 value={startDayValue}
-                onChange={(ms) => {
-                  const d = new Date(ms as number);
+                onChange={(ms: number) => {
+                  const d = new Date(ms);
                   const next = new Date(startDate);
                   next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
                   setStartDate(next);
@@ -1650,11 +1508,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 style={styles.wheelFlex}
                 options={times}
                 value={startMinuteValue}
-                onChange={(mins) => {
+                onChange={(mins: number) => {
                   const next = new Date(startDate);
                   next.setHours(
-                    Math.floor((mins as number) / 60),
-                    (mins as number) % 60,
+                    Math.floor(mins / 60),
+                    mins % 60,
                     0,
                     0
                   );
@@ -2160,43 +2018,11 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
   },
-  // No flex here. In the duration sheet the wheel is a column child, where
-  // flex: 1 sets flexBasis 0 and overrides this height — inside an unbounded
-  // parent that collapses the wheel to nothing. Columns that want it to share
-  // width pass wheelFlex instead.
-  wheelWrap: { height: WHEEL_H, marginVertical: SPACING[3] },
+  // The two date/time columns share the sheet's width.
   wheelFlex: { flex: 1 },
   // Two wheels abreast for date + time; the band spans each column separately
   // so the pair reads as one control rather than two stacked lists.
   wheelRow: { flexDirection: 'row', gap: SPACING[3] },
-  // Explicit height. Without it the ScrollView sizes to its content, lays all
-  // 24 rows out and has nothing left to scroll — which is exactly how it shipped.
-  wheelScroll: { height: WHEEL_H },
-  // Half a viewport of padding at each end, so the first and last rows can
-  // reach the centre band instead of stopping at the edge.
-  wheelContent: { paddingVertical: (WHEEL_H - WHEEL_ITEM_H) / 2 },
-  wheelItem: { height: WHEEL_ITEM_H, justifyContent: 'center' },
-  // Filled, not outlined. The outline rule is for inputs; this is not one, it is
-  // the system picker's selected row, and that is a soft filled pill. An outline
-  // here reads as a field the numbers happen to be passing through.
-  wheelBand: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: (WHEEL_H - WHEEL_ITEM_H) / 2,
-    height: WHEEL_ITEM_H,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.inkFaint,
-  },
-  // One style for every row. Emphasis comes from the scroll-driven scale and
-  // opacity, not from swapping the selected row's font — which was what made
-  // the column jump as a value passed under the band.
-  wheelLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.section,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
   // The app black, per the button rule: this is a workhorse control, not a
   // primary action, and coral here would compete with Next.
   stepperBtn: {
