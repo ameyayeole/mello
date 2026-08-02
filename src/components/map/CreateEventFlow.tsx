@@ -116,9 +116,20 @@ interface Props {
 
 const PIN_SIZE = 60;
 const CIRCLE = 52;
-// Rough card height (dark heading sheet + body + button) plus the location
-// pill riding above it, used to centre the pin in the map strip left over.
-const CARD_EST = 495;
+// Rough card height (chrome + body + button) plus the location pill riding
+// above it, used to centre the pin in the map strip left over.
+//
+// This is not decoration: `anchorY` divides the leftover strip by it, and
+// `regionForAnchor` uses that anchor to decide which coordinate sits under the
+// pin. Get it wrong and events are created at the wrong place, silently.
+//
+// Was 495 when the card wore a dark heading sheet. That band was 70pt
+// (12 pad + a 34pt row + 12 pad); the frosted rebuild replaced it with a 2pt
+// progress hairline, a 40pt NavButton and a 36pt title block (8 + 24 + 4) —
+// 78pt, so the card grew by 8 rather than shrinking. Computed from the style
+// values rather than measured on a device; the pin-accuracy check in the QA
+// pass is what actually confirms it.
+const CARD_EST = 503;
 // The search bar floats over the top of the map (safe area + 12pt pad + a 44pt
 // row), so that strip isn't really free space. Centring the pin has to discount
 // it or the pin rides visibly high.

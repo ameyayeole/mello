@@ -25,7 +25,11 @@
 **Files:**
 - Modify: `src/components/map/CreateEventFlow.tsx` (the `CARD_EST` constant)
 
-**Why this is first:** `CARD_EST = 495` is a hardcoded estimate of the card's height, and it does not just describe the card — `anchorY` divides the leftover map strip by it to decide where the pin hangs, and `regionForAnchor()` uses that anchor to decide which coordinate is under the pin. Removing the black header sheet makes the card materially shorter. If `CARD_EST` is not corrected, the pin will hang too low and **the event will be created at the wrong coordinate**, silently. This is the one part of the redesign that can produce a data bug rather than a cosmetic one.
+**Why this is first:** `CARD_EST = 495` is a hardcoded estimate of the card's height, and it does not just describe the card — `anchorY` divides the leftover map strip by it to decide where the pin hangs, and `regionForAnchor()` uses that anchor to decide which coordinate is under the pin. If `CARD_EST` is not corrected, **the event is created at the wrong coordinate**, silently. This is the one part of the redesign that can produce a data bug rather than a cosmetic one.
+
+**Corrected during execution:** this task originally assumed removing the black band made the card *shorter*. It does not. The band was 70pt (12 pad + a 34pt row + 12 pad), and the replacement — a 2pt hairline, a 40pt `NavButton` and a 36pt title block — is 78pt, because the title moves from sharing the header row to a line of its own. The card grows by 8. `CARD_EST` is 503.
+
+The steps below describe measuring on a device, which is the better method where one is available. Where it is not, the delta above is computed from the style values and the pin-accuracy check in Task 5 is the real verification.
 
 - [ ] **Step 1: Instrument the card's real height**
 
