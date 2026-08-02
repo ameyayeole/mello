@@ -19,6 +19,7 @@ import Animated, {
   Easing,
   FadeInDown,
   interpolate,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -35,8 +36,6 @@ import {
   useOverlayRecede,
 } from '@/hooks/useOverlayScreen';
 import {
-  getSavedEvents,
-  unsaveEvent,
   getJoinedEvents,
   getMyEvents,
   getAttendeePreviews,
@@ -71,7 +70,10 @@ import {
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
 import FeaturedPlanCard from '@/components/events/FeaturedPlanCard';
-import { ProfilePosts } from '@/components/community/ProfilePosts';
+import {
+  ProfilePosts,
+  POSTS_NEAR_BOTTOM_PX,
+} from '@/components/community/ProfilePosts';
 
 // The photo is a 4:5 portrait, shown whole — cropping the user's own picture to
 // a band is the one place in the app where that reads as a slight.
@@ -185,14 +187,6 @@ export default function ProfileTabScreen() {
   const queryClient = useQueryClient();
 
   // Wishlist: events saved from the swipe deck's bookmark button.
-  const savedQuery = useQuery({
-    queryKey: queryKeys.savedEvents.of(user?.id),
-    queryFn: () => getSavedEvents(user!.id),
-    enabled: !!user,
-    staleTime: 60_000,
-    retry: 1,
-  });
-
   const joinedQuery = useQuery({
     queryKey: queryKeys.joinedEvents.of(user?.id),
     queryFn: () => getJoinedEvents(user!.id),
@@ -210,30 +204,26 @@ export default function ProfileTabScreen() {
     select: featuredHostedEvent,
   });
 
-  const { data: wishlist = [] } = savedQuery;
   const { data: joined = NO_EVENTS } = joinedQuery;
   const { data: hosting = null } = hostingQuery;
 
   // No pull-to-refresh here, unlike the other tabs. This screen is your own
   // record rather than a feed of other people's activity, and the things that
   // change it are writes you made: posting invalidates
-  // `community.userPosts.all` (postMutations), saving and unsaving invalidate
-  // the wishlist. A gesture would be asking you to fetch what your own action
-  // already fetched.
+  // `community.userPosts.all` (postMutations). A gesture would be asking you to
+  // fetch what your own action already fetched.
   //
   // The rest — a host approving your request, an event being taken down — is
   // someone else's write with nothing local to invalidate on, so it refreshes
   // silently whenever the tab regains focus. Cached content stays on screen
   // throughout; there is deliberately no indicator.
-  const refetchOwn = savedQuery.refetch;
   const refetchJoined = joinedQuery.refetch;
   const refetchHosting = hostingQuery.refetch;
   useFocusEffect(
     useCallback(() => {
-      refetchOwn();
       refetchJoined();
       refetchHosting();
-    }, [refetchOwn, refetchJoined, refetchHosting])
+    }, [refetchJoined, refetchHosting])
   );
 
   // Faces and the approved-only count. A second round trip rather than part of
@@ -246,27 +236,27 @@ export default function ProfileTabScreen() {
     enabled: previewIds.length > 0,
   });
 
-  const removeSaved = useMutation({
-    mutationFn: (eventId: string) => unsaveEvent(user!.id, eventId),
-    onMutate: (eventId) => {
-      queryClient.setQueryData<NearbyEvent[]>(
-        queryKeys.savedEvents.of(user?.id),
-        (events = []) => events.filter((e) => e.id !== eventId)
-      );
-      queryClient.setQueryData<string[]>(
-        queryKeys.savedEventIds.of(user?.id),
-        (ids = []) => ids.filter((i) => i !== eventId)
-      );
-    },
-  });
-
   // Above the `!user` early return, and staying there: these are hooks, and
   // signing out flips `user` to null mid-mount. Neither depends on the user.
   const photoHeight = width * HERO_RATIO;
 
   const scrollY = useSharedValue(0);
+
+  // This ScrollView is the only real scroller on the screen, so it is also the
+  // only place that knows how close the Posts section is to running out. The
+  // near-bottom flag is mirrored on the UI thread so we hop to JS on the edge
+  // crossing rather than on all 60 scroll frames a second.
+  const [postsNearBottom, setPostsNearBottom] = useState(false);
+  const nearBottomUI = useSharedValue(false);
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
+    const toEnd =
+      e.contentSize.height - e.layoutMeasurement.height - e.contentOffset.y;
+    const near = toEnd < POSTS_NEAR_BOTTOM_PX;
+    if (near !== nearBottomUI.value) {
+      nearBottomUI.value = near;
+      runOnJS(setPostsNearBottom)(near);
+    }
   });
 
   // The photo moves inside a window that scrolls at full speed, so it is always
@@ -687,74 +677,16 @@ export default function ProfileTabScreen() {
             )}
           </Animated.View>
 
-          {/* Community posts — Grid|List, viewer-scoped (own profile → all). */}
+          {/* Community posts — viewer-scoped (own profile → all). Paging is
+              driven from this screen's onScroll; see ProfilePosts. */}
           <Animated.View entering={FadeInDown.delay(215).duration(400)}>
             <Text style={styles.sectionTitle}>Posts</Text>
-            <ProfilePosts userId={user.id} onDark />
+            <ProfilePosts
+              userId={user.id}
+              onDark
+              nearBottom={postsNearBottom}
+            />
           </Animated.View>
-
-          {/* Wishlist: events bookmarked on the swipe deck */}
-          {wishlist.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(230).duration(400)}>
-              <Text style={styles.sectionTitle}>Wishlist</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.bleed}
-                contentContainerStyle={styles.wishlistRow}
-              >
-                {wishlist.map((e) => {
-                  const cat = categoryStyle(e.activity);
-                  const emoji = ACTIVITY_MAP[e.activity]?.emoji ?? '📍';
-                  return (
-                    <PressableScale
-                      key={e.id}
-                      scaleTo={0.96}
-                      style={styles.wishCard}
-                      onPress={() => useUIStore.getState().setSelectedEvent(e.id)}
-                    >
-                      <View
-                        style={[styles.wishMedia, { backgroundColor: cat.tint }]}
-                      >
-                        {e.image_url ? (
-                          <Image
-                            source={{ uri: e.image_url }}
-                            style={StyleSheet.absoluteFill}
-                            contentFit="cover"
-                            transition={150}
-                          />
-                        ) : (
-                          <Text style={styles.wishEmoji}>{emoji}</Text>
-                        )}
-                        <PressableScale
-                          scaleTo={0.85}
-                          style={styles.wishRemove}
-                          onPress={() => removeSaved.mutate(e.id)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Remove ${e.title} from wishlist`}
-                        >
-                          <Icon
-                            name="close"
-                            size={12}
-                            color="#fff"
-                            strokeWidth={2.6}
-                          />
-                        </PressableScale>
-                      </View>
-                      <View style={styles.wishBody}>
-                        <Text style={styles.wishTitle} numberOfLines={2}>
-                          {e.title}
-                        </Text>
-                        <Text style={styles.wishTime} numberOfLines={1}>
-                          {formatEventWhen(e.starts_at)}
-                        </Text>
-                      </View>
-                    </PressableScale>
-                  );
-                })}
-              </ScrollView>
-            </Animated.View>
-          )}
         </Glass>
       </Animated.ScrollView>
 
@@ -1169,39 +1101,4 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderOnDark,
   },
   viewerDotActive: { backgroundColor: COLORS.white },
-
-  wishlistRow: { gap: SPACING[2.5], paddingHorizontal: SPACING[5] },
-  wishCard: {
-    width: 148,
-    borderRadius: RADIUS.xl,
-    overflow: 'hidden',
-    backgroundColor: COLORS.fillOnDark,
-    borderWidth: 1,
-    borderColor: COLORS.borderOnDark,
-  },
-  wishMedia: { height: 86, alignItems: 'center', justifyContent: 'center' },
-  wishEmoji: { fontSize: TYPE_SIZE.display },
-  wishRemove: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: RADIUS.xs,
-    backgroundColor: COLORS.glassOnPhotoSolid,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wishBody: { padding: SPACING[2.5], paddingTop: SPACING[2], gap: SPACING[0.5] },
-  wishTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
-    lineHeight: 17,
-    color: COLORS.white,
-  },
-  wishTime: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textOnDarkMuted,
-  },
 });

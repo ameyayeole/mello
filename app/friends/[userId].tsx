@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   FadeInDown,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -60,7 +61,10 @@ import EventSheetStack, {
   EventSheetStackRef,
 } from '@/components/events/EventSheetStack';
 import EventRow from '@/components/events/EventRow';
-import { ProfilePosts } from '@/components/community/ProfilePosts';
+import {
+  ProfilePosts,
+  POSTS_NEAR_BOTTOM_PX,
+} from '@/components/community/ProfilePosts';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
 import { showError } from '@/utils/errors';
@@ -127,8 +131,21 @@ export default function UserProfileScreen() {
   // ── Scaffold animation (all hooks, so they run before any early return) ──
   const photoHeight = width * HERO_RATIO;
   const scrollY = useSharedValue(0);
+
+  // Same arrangement as app/(tabs)/profile.tsx: this is the only real scroller,
+  // so it is the only thing that can tell ProfilePosts to fetch another page.
+  // The flag is mirrored on the UI thread so we only cross to JS on the edge.
+  const [postsNearBottom, setPostsNearBottom] = useState(false);
+  const nearBottomUI = useSharedValue(false);
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
+    const toEnd =
+      e.contentSize.height - e.layoutMeasurement.height - e.contentOffset.y;
+    const near = toEnd < POSTS_NEAR_BOTTOM_PX;
+    if (near !== nearBottomUI.value) {
+      nearBottomUI.value = near;
+      runOnJS(setPostsNearBottom)(near);
+    }
   });
   const photoStyle = useAnimatedStyle(() => {
     const y = scrollY.value;
@@ -571,7 +588,7 @@ export default function UserProfileScreen() {
               only, friend → public + friends). Same tab as own profile. */}
           <Animated.View entering={FadeInDown.delay(200).duration(400)}>
             <Text style={styles.sectionTitle}>Posts</Text>
-            <ProfilePosts userId={userId} onDark />
+            <ProfilePosts userId={userId} onDark nearBottom={postsNearBottom} />
           </Animated.View>
 
           {!isSelf && blocked && (

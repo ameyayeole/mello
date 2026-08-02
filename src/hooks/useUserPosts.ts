@@ -16,7 +16,7 @@ function nextCommunityCursor(
 ): FeedCursor | undefined {
   if (lastPage.length < pageSize) return undefined;
   const last = lastPage[lastPage.length - 1];
-  return { score: last.score, createdAt: last.created_at, id: last.id };
+  return { createdAt: last.created_at, id: last.id };
 }
 
 // One profile's posts (the "Posts" tab). Viewer-scoped by the user_posts RPC's
