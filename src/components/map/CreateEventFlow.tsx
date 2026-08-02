@@ -49,8 +49,6 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
-  withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,6 +96,9 @@ import {
   Wheel,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { SectionPills } from './create/SectionPills';
+import { StepProgress } from './create/StepProgress';
+import { TypeGrid } from './create/TypeGrid';
 
 // ─── In-map event creation ───────────────────────────────────────────────────
 // Replaces the old full-screen create form. The map itself is the canvas:
@@ -189,29 +190,6 @@ function defaultStart() {
 // the main "you just finished that" feedback, and a bar that snapped between
 // fifths would read as a redraw rather than as progress.
 //
-// 4pt, not 2. At 2 it read as a rendering artefact rather than as a deliberate
-// element — too fine to register as progress at a glance.
-const PROGRESS_H = 4;
-
-// The app's travel motion — see DESIGN.md §9, "The travelling selection".
-//
-// The tab bar's own GLIDE is damping 19, which is right there because its chip
-// only ever moves one narrow tab. A spring's overshoot is a fixed *proportion*
-// of the distance travelled, so the same numbers that read as a pleasant
-// settle over 60pt read as a lurch over 300 — which is exactly what the
-// category row does when it jumps from one end to the other. Damping 24 puts
-// the ratio just under critical: it still arrives rather than stops, and the
-// overrun stays small enough not to register however far it came.
-const GLIDE = { stiffness: 190, damping: 24, mass: 0.85 } as const;
-
-// Grid travel.
-//
-// How much the indicator compresses while travelling.
-const SQUASH = 0.08;
-const GRID_COLS = 4;
-// The emoji plate. The indicator is sized to it, so both have to agree.
-const TILE = 58;
-
 // The category filter row, with a selection that travels rather than a
 // background that fades in and out per pill — the same idea as the tab bar's
 // chip, and for the same reason: the eye can follow a thing that moves, so the
@@ -220,225 +198,8 @@ const TILE = 58;
 // The tab bar can compute its chip's position from a fixed item width. These
 // pills are label-width, so each one reports its own frame and the indicator
 // interpolates between measured values.
-function SectionPills({
-  sections,
-  value,
-  onChange,
-}: {
-  sections: { id: SectionId | 'all'; label: string }[];
-  value: SectionId | 'all';
-  onChange: (id: SectionId | 'all') => void;
-}) {
-  const [frames, setFrames] = useState<Record<string, { x: number; w: number }>>(
-    {}
-  );
-  const x = useSharedValue(0);
-  const w = useSharedValue(0);
-  // The first measurement positions without animating, or the indicator flies
-  // in from the left edge every time the step mounts.
-  const placed = useRef(false);
-
-  const frame = frames[value];
-  useEffect(() => {
-    if (!frame) return;
-    if (!placed.current) {
-      placed.current = true;
-      x.value = frame.x;
-      w.value = frame.w;
-      return;
-    }
-    x.value = withSpring(frame.x, GLIDE);
-    w.value = withSpring(frame.w, GLIDE);
-  }, [frame, x, w]);
-
-  const indicator = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }],
-    width: w.value,
-  }));
-
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.sectionPillRow}
-      contentContainerStyle={styles.sectionPillContent}
-    >
-      {/* Behind the labels, so it can never intercept a tap. */}
-      <Animated.View style={[styles.sectionIndicator, indicator]} />
-      {sections.map((s) => {
-        const sel = value === s.id;
-        return (
-          <PressableScale
-            key={s.id}
-            scaleTo={TAP_SCALE}
-            style={styles.sectionPill}
-            // Read out of the event synchronously. React pools synthetic
-            // events and nulls `nativeEvent` once the handler returns, so
-            // touching it inside the state updater — which runs later — throws
-            // "Cannot read property 'layout' of null". The updater closes over
-            // plain numbers instead.
-            onLayout={(e) => {
-              const { x: px, width } = e.nativeEvent.layout;
-              setFrames((f) =>
-                f[s.id]?.x === px && f[s.id]?.w === width
-                  ? f
-                  : { ...f, [s.id]: { x: px, w: width } }
-              );
-            }}
-            onPress={() => {
-              Haptics.selectionAsync();
-              onChange(s.id);
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: sel }}
-          >
-            <Text
-              style={[styles.sectionPillText, sel && styles.sectionPillTextActive]}
-            >
-              {s.label}
-            </Text>
-          </PressableScale>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-// The activity grid, with the same travelling selection as the category row.
 // Straight to the target on both axes — see DESIGN.md §8.
-function TypeGrid({
-  activities,
-  value,
-  onChange,
-}: {
-  activities: { id: ActivityId; emoji: string; label: string }[];
-  value: ActivityId | null;
-  onChange: (id: ActivityId) => void;
-}) {
-  const [frames, setFrames] = useState<
-    Record<string, { x: number; y: number; w: number }>
-  >({});
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const shown = useSharedValue(0);
-  // 0 at rest, 1 mid-travel.
-  const squash = useSharedValue(0);
-  const placed = useRef(false);
-  const prevIndex = useRef<number | null>(null);
 
-  const index = value ? activities.findIndex((a) => a.id === value) : -1;
-  const frame = value ? frames[value] : undefined;
-
-  useEffect(() => {
-    if (!frame || index < 0) {
-      shown.value = withTiming(0, { duration: 120 });
-      prevIndex.current = null;
-      placed.current = false;
-      return;
-    }
-    const tx = frame.x + (frame.w - TILE) / 2;
-    const ty = frame.y;
-    shown.value = withTiming(1, { duration: 140 });
-
-    const from = prevIndex.current;
-    prevIndex.current = index;
-    // First placement, or arriving from nothing: no travel to animate.
-    if (!placed.current || from === null) {
-      placed.current = true;
-      x.value = tx;
-      y.value = ty;
-      return;
-    }
-
-    // Straight to the target, both axes together. An earlier version stepped
-    // the axes to avoid "crossing cells that were never on the way" — but the
-    // indicator is a thing moving over the grid, not a token walking through
-    // it, and the diagonal is simply where it is going.
-    squash.value = withSequence(
-      withTiming(1, { duration: 130, easing: Easing.out(Easing.quad) }),
-      withSpring(0, GLIDE)
-    );
-    x.value = withSpring(tx, GLIDE);
-    y.value = withSpring(ty, GLIDE);
-  }, [frame, index, x, y, shown, squash]);
-
-  const indicator = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: x.value },
-      { translateY: y.value },
-      { scale: 1 - squash.value * SQUASH },
-    ],
-    opacity: shown.value,
-  }));
-
-  return (
-    <View style={styles.typeGrid}>
-      {/* Behind the tiles, so it can never take a tap. */}
-      <Animated.View style={[styles.typeIndicator, indicator]} pointerEvents="none" />
-      {activities.map((a) => {
-        const sel = value === a.id;
-        return (
-          <PressableScale
-            key={a.id}
-            scaleTo={TAP_SCALE}
-            style={styles.typeItem}
-            // Synchronously — React nulls nativeEvent once the handler returns.
-            onLayout={(e) => {
-              const { x: px, y: py, width } = e.nativeEvent.layout;
-              setFrames((f) =>
-                f[a.id]?.x === px && f[a.id]?.y === py
-                  ? f
-                  : { ...f, [a.id]: { x: px, y: py, w: width } }
-              );
-            }}
-            onPress={() => {
-              Haptics.selectionAsync();
-              onChange(a.id);
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: sel }}
-          >
-            <View style={styles.typeTile}>
-              <Text style={styles.typeEmoji}>{a.emoji}</Text>
-            </View>
-            <Text
-              style={[styles.typeLabel, sel && styles.typeLabelOn]}
-              numberOfLines={1}
-            >
-              {a.label}
-            </Text>
-          </PressableScale>
-        );
-      })}
-      {/* Keeps a short last row left-aligned under space-between instead of
-          spreading it out. */}
-      {Array.from({
-        length: (GRID_COLS - (activities.length % GRID_COLS)) % GRID_COLS,
-      }).map((_, i) => (
-        <View key={`spacer-${i}`} style={styles.typeItem} />
-      ))}
-    </View>
-  );
-}
-
-function StepProgress({ step }: { step: number }) {
-  const pct = useSharedValue((step + 1) / STEP_COUNT);
-
-  useEffect(() => {
-    pct.value = withTiming((step + 1) / STEP_COUNT, {
-      duration: 420,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [step, pct]);
-
-  const fill = useAnimatedStyle(() => ({ width: `${pct.value * 100}%` }));
-
-  return (
-    <View style={styles.progressTrack}>
-      <Animated.View style={[styles.progressFill, fill]} />
-    </View>
-  );
-}
 
 const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
   function CreateEventFlow({ active, mapRef, mapW, mapH, onExit }, ref) {
@@ -1721,22 +1482,6 @@ const styles = StyleSheet.create({
   // Pulled left so the glyph's optical edge lines up with the content column
   // below it rather than with its own 40pt touch box.
   navSlot: { marginLeft: -SPACING[2.5] },
-  // Below the title row rather than in the card's top edge. That is where it
-  // belongs — it describes the step you are reading, not the pane — and it also
-  // retires the corner problem entirely: away from the radius there is no curve
-  // to follow, so the bar is just a bar with rounded ends.
-  progressTrack: {
-    height: PROGRESS_H,
-    borderRadius: PROGRESS_H / 2,
-    backgroundColor: COLORS.inkFaint,
-    overflow: 'hidden',
-    marginBottom: SPACING[3],
-  },
-  progressFill: {
-    height: PROGRESS_H,
-    borderRadius: PROGRESS_H / 2,
-    backgroundColor: COLORS.primary,
-  },
   cardBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2] },
   // Floats free under the search bar; `top` is supplied at render from the
   // safe-area inset so it clears the notch on every device.
@@ -1782,33 +1527,6 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
   },
-  sectionPillRow: { flexGrow: 0, marginTop: SPACING[3], marginHorizontal: -20 },
-  sectionPillContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
-  sectionPill: {
-    height: 32,
-    justifyContent: 'center',
-    paddingHorizontal: SPACING[3.5],
-    borderRadius: RADIUS.full,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  // The travelling selection. Absolute inside the scroll content so it shares
-  // the pills' coordinate space, and behind them so it cannot take a tap.
-  sectionIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    height: 32,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.accent,
-  },
-  sectionPillText: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
-  },
-  sectionPillTextActive: { fontFamily: FONTS.bold, color: COLORS.white },
   typeScroll: { flex: 1, marginTop: SPACING[3], marginHorizontal: -4 },
   // The top padding is not decoration. PressableScale springs back underdamped,
   // so a tile briefly scales *past* 1 on release; without headroom the scroll
@@ -1819,40 +1537,6 @@ const styles = StyleSheet.create({
     paddingTop: SPACING[1],
     paddingBottom: SPACING[2],
   },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: SPACING[3.5],
-  },
-  typeItem: { width: '23%', alignItems: 'center', gap: SPACING[1.5] },
-  // The travelling selection, sized to the emoji plate and sitting behind it.
-  typeIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: TILE,
-    height: TILE,
-    borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.inkFaint,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
-  // Bare emoji, no plate. Only the selected type gets a tinted container.
-  typeTile: {
-    width: TILE,
-    height: TILE,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  typeEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
-  typeLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.inkLabel,
-  },
-  typeLabelOn: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
   input: {
     height: 50,
     backgroundColor: 'transparent',
