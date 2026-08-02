@@ -1,18 +1,17 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PressableScale, Dialog, Button } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { SPACING, RADIUS } from '@/constants/spacing';
-import { useMutation } from '@tanstack/react-query';
+import { SPACING } from '@/constants/spacing';
 import { useUserPosts } from '@/hooks/useUserPosts';
-import { useDeletePost } from '@/hooks/usePostMutations';
-import { reportPost } from '@/services/moderation.service';
+import { useDeletePost, useReportPost } from '@/hooks/usePostMutations';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import { PostCard } from './PostCard';
 import { CommentSheet } from './CommentSheet';
+import { PostInteractionDialog } from './PostInteractionDialog';
 
 // How close to the end of the *host page* counts as "near the bottom". Lives
 // here rather than in each screen so the two profiles can't drift apart.
@@ -42,38 +41,37 @@ export function ProfilePosts({
   const meId = useAuthStore((s) => s.user?.id);
   const q = useUserPosts(userId);
   const del = useDeletePost();
+  const report = useReportPost();
   const [commentPost, setCommentPost] = useState<CommunityPost | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
-  const [reportTarget, setReportTarget] = useState<CommunityPost | null>(null);
-
-  const report = useMutation({
-    mutationFn: (post: CommunityPost) =>
-      reportPost({
-        reporterId: meId!,
-        reportedId: post.author_id,
-        postId: post.id,
-        reason: 'inappropriate',
-      }),
-  });
+  const [interactionDialog, setInteractionDialog] = useState<{
+    type: 'delete' | 'report' | null;
+    post: CommunityPost | null;
+  }>({ type: null, post: null });
 
   // Overflow branches on ownership: Delete your own, Report someone else's.
   function onOverflow(post: CommunityPost) {
-    if (post.author_id === meId) setPendingDelete(post);
-    else setReportTarget(post);
+    if (post.author_id === meId) setInteractionDialog({ type: 'delete', post });
+    else setInteractionDialog({ type: 'report', post });
   }
 
   function confirmReport() {
-    if (!reportTarget) return;
-    report.mutate(reportTarget, {
-      onSuccess: () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setReportTarget(null);
+    if (!interactionDialog.post) return;
+    report.mutate(
+      {
+        postId: interactionDialog.post.id,
+        authorId: interactionDialog.post.author_id,
       },
-      onError: () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setReportTarget(null);
-      },
-    });
+      {
+        onSuccess: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setInteractionDialog({ type: null, post: null });
+        },
+        onError: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setInteractionDialog({ type: null, post: null });
+        },
+      }
+    );
   }
   const posts = useMemo(() => q.data?.pages.flat() ?? [], [q.data]);
 
@@ -92,14 +90,16 @@ export function ProfilePosts({
   }, [nearBottom, q]);
 
   function confirmDelete() {
-    if (!pendingDelete) return;
-    del.mutate(pendingDelete.id, {
+    if (!interactionDialog.post) return;
+    del.mutate(interactionDialog.post.id, {
       onSuccess: () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setPendingDelete(null);
+        setInteractionDialog({ type: null, post: null });
       },
-      onError: () =>
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+      onError: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setInteractionDialog({ type: null, post: null });
+      },
     });
   }
 
@@ -140,58 +140,29 @@ export function ProfilePosts({
         />
       )}
 
-      {/* Same shape/tokens as the feed's delete dialog (app/(tabs)/community.tsx)
-          so the two read identically — this is the shared delete affordance. */}
-      <Dialog visible={!!pendingDelete} onClose={() => setPendingDelete(null)}>
-        <Text style={styles.dialogTitle}>Delete post?</Text>
-        <Text style={styles.dialogBody}>This can&apos;t be undone.</Text>
-        <View style={styles.dialogButtonRow}>
-          <PressableScale
-            scaleTo={0.96}
-            style={[styles.dialogBtn, styles.dialogCancelBtn]}
-            onPress={() => setPendingDelete(null)}
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-          >
-            <Text style={styles.dialogCancelLabel}>Cancel</Text>
-          </PressableScale>
-          <PressableScale
-            scaleTo={0.96}
-            style={[styles.dialogBtn, styles.dialogDeleteBtn]}
-            onPress={confirmDelete}
-            disabled={del.isPending}
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-          >
-            <Text style={styles.dialogDeleteLabel}>Delete</Text>
-          </PressableScale>
-        </View>
-      </Dialog>
+      {interactionDialog.type === 'delete' && interactionDialog.post && (
+        <PostInteractionDialog
+          visible={true}
+          title="Delete post?"
+          body="This can't be undone."
+          actionLabel="Delete"
+          onConfirm={confirmDelete}
+          onClose={() => setInteractionDialog({ type: null, post: null })}
+          isLoading={del.isPending}
+        />
+      )}
 
-      <Dialog visible={!!reportTarget} onClose={() => setReportTarget(null)}>
-        <Text style={styles.dialogTitle}>Report post?</Text>
-        <Text style={styles.dialogBody}>
-          Our team will review it. Posts reported by several people are hidden
-          automatically.
-        </Text>
-        <View style={styles.dialogButtonRow}>
-          <PressableScale
-            scaleTo={0.96}
-            style={[styles.dialogBtn, styles.dialogCancelBtn]}
-            onPress={() => setReportTarget(null)}
-          >
-            <Text style={styles.dialogCancelLabel}>Cancel</Text>
-          </PressableScale>
-          <PressableScale
-            scaleTo={0.96}
-            style={[styles.dialogBtn, styles.dialogDeleteBtn]}
-            onPress={confirmReport}
-            disabled={report.isPending}
-          >
-            <Text style={styles.dialogDeleteLabel}>Report</Text>
-          </PressableScale>
-        </View>
-      </Dialog>
+      {interactionDialog.type === 'report' && interactionDialog.post && (
+        <PostInteractionDialog
+          visible={true}
+          title="Report post?"
+          body="Our team will review it. Posts reported by several people are hidden automatically."
+          actionLabel="Report"
+          onConfirm={confirmReport}
+          onClose={() => setInteractionDialog({ type: null, post: null })}
+          isLoading={report.isPending}
+        />
+      )}
     </View>
   );
 }
@@ -204,44 +175,4 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[2.5],
   },
   emptyOnDark: { color: COLORS.textOnDarkMuted },
-
-  // Delete dialog — token-for-token with the feed's confirm (community.tsx).
-  dialogTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.section,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
-  dialogBody: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginTop: SPACING[2],
-  },
-  dialogButtonRow: {
-    flexDirection: 'row',
-    gap: SPACING[2],
-    alignSelf: 'stretch',
-    marginTop: SPACING[4],
-  },
-  dialogBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dialogCancelBtn: { backgroundColor: COLORS.inkSubtle },
-  dialogCancelLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
-  dialogDeleteBtn: { backgroundColor: COLORS.error },
-  dialogDeleteLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.white,
-  },
 });
