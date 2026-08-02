@@ -148,8 +148,10 @@ const ZOOM_MS = 950;
 const PIN_DROP_MS = 420;
 const DURATIONS = Array.from({ length: 24 }, (_, i) => i + 1);
 
-// Step headings live in the dark sheet at the top of the card rather than
-// inside each step, so the heading block stays put while the content swaps.
+// Headings live out here rather than inside each step's own JSX, so the title
+// line stays put while the content below it swaps. It used to sit in a dark
+// heading sheet; the sheet is gone but the reason for hoisting the strings is
+// the same.
 const STEP_HEADS = [
   "What's the plan?",
   'Name your event',
@@ -1398,7 +1400,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: SPACING[3.5],
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inkFaint,
     borderWidth: 1,
     borderColor: COLORS.inkSubtle,
   },
@@ -1437,7 +1439,7 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inkFaint,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING[3.5],
     fontFamily: FONTS.semibold,
@@ -1476,7 +1478,7 @@ const styles = StyleSheet.create({
     height: 36,
     paddingHorizontal: SPACING[3.5],
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inkFaint,
     borderWidth: 1.5,
     borderColor: 'transparent',
     alignItems: 'center',
@@ -1568,7 +1570,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inkSubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1613,7 +1615,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[7],
     paddingHorizontal: SPACING[7],
     borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inkFaint,
     borderWidth: 1,
     borderColor: COLORS.inkSubtle,
   },
@@ -1654,7 +1656,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING[8],
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inkFaint,
   },
   photoFallbackText: {
     flex: 1,
