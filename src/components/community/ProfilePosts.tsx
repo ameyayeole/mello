@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PressableScale, Dialog } from '@/components/ui';
+import { PressableScale, Dialog, Button } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
@@ -75,44 +75,33 @@ export function ProfilePosts({
     });
   }
 
-  const renderPost = ({ item }: { item: CommunityPost }) => (
-    <View style={{ paddingHorizontal: SPACING[3] }}>
-      <PostCard
-        post={item}
-        onOverflow={onOverflow}
-        onComment={setCommentPost}
-      />
-    </View>
-  );
-
   return (
-    <View style={{ flex: 1 }}>
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{
-          paddingVertical: SPACING[3],
-          gap: SPACING[3],
-        }}
-        scrollEnabled={posts.length > 0}
-        ListEmptyComponent={
-          <Text style={[styles.empty, onDark && styles.emptyOnDark]}>
-            No posts yet.
-          </Text>
-        }
-        onEndReached={() => {
-          if (q.hasNextPage && !q.isFetchingNextPage) {
-            q.fetchNextPage();
-          }
-        }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          q.isFetchingNextPage ? (
-            <ActivityIndicator size="large" style={{ marginVertical: 16 }} />
-          ) : null
-        }
-      />
+    <View>
+      {posts.length === 0 ? (
+        <Text style={[styles.empty, onDark && styles.emptyOnDark]}>
+          No posts yet.
+        </Text>
+      ) : (
+        <View style={{ gap: SPACING[3] }}>
+          {posts.map((p) => (
+            <PostCard
+              key={p.id}
+              post={p}
+              onOverflow={onOverflow}
+              onComment={setCommentPost}
+            />
+          ))}
+          {q.hasNextPage && (
+            <Button
+              label={q.isFetchingNextPage ? 'Loading…' : 'Load more'}
+              variant="tertiary"
+              size="md"
+              onPress={() => q.fetchNextPage()}
+              disabled={q.isFetchingNextPage}
+            />
+          )}
+        </View>
+      )}
 
       {commentPost && (
         <CommentSheet
