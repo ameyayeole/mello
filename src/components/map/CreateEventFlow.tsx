@@ -310,13 +310,20 @@ function Wheel<T extends string | number>({
     Haptics.selectionAsync();
   }, []);
 
+  // Throttled on the UI thread. A hard flick crosses rows faster than the
+  // haptic engine can answer, and every crossing is a hop to the JS thread —
+  // unthrottled it both stutters the scroll and blurs into one long buzz.
+  // 45ms keeps a slow scroll ticking per row and a fast spin ticking steadily.
+  const lastTick = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
     const i = Math.round(e.contentOffset.y / WHEEL_ITEM_H);
-    if (i !== passing.value) {
-      passing.value = i;
-      runOnJS(tick)();
-    }
+    if (i === passing.value) return;
+    passing.value = i;
+    const now = Date.now();
+    if (now - lastTick.value < 45) return;
+    lastTick.value = now;
+    runOnJS(tick)();
   });
 
   // Snapping is the platform's. It decelerates into the row rather than cutting
@@ -1091,7 +1098,16 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       Math.round(startDate.getMinutes() / TIME_STEP_MIN) * TIME_STEP_MIN;
     const nextDisabled = !canAdvanceFrom(step, { activity, title, startDate });
     const endDate = eventEndTime(startDate, durationH);
-    const stepEntering = FadeIn.duration(150).easing(Easing.out(Easing.quad));
+    // Steps come in on a short rise as well as a fade. A pure cross-fade at
+    // 150/80 was the most abrupt thing left in the flow — content simply
+    // replaced itself, with nothing to say a step had been completed. The
+    // durations are longer and the exit is quicker than the entrance, so the
+    // outgoing step is gone before the incoming one is legible and the two
+    // never read as overlapping.
+    const stepEntering = FadeInDown.duration(260)
+      .easing(Easing.out(Easing.cubic))
+      .withInitialValues({ transform: [{ translateY: 14 }] });
+    const stepExiting = FadeOut.duration(120).easing(Easing.in(Easing.quad));
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -1257,7 +1273,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <Animated.View
                         key="s0"
                         entering={stepEntering}
-                        exiting={FadeOut.duration(80)}
+                        exiting={stepExiting}
                         style={styles.step}
                       >
                         {/* Category pills narrow the grid down; "All" is the
@@ -1285,7 +1301,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <Animated.View
                         key="s1"
                         entering={stepEntering}
-                        exiting={FadeOut.duration(80)}
+                        exiting={stepExiting}
                         style={styles.step}
                       >
                         <TextInput
@@ -1326,7 +1342,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <Animated.View
                         key="s2"
                         entering={stepEntering}
-                        exiting={FadeOut.duration(80)}
+                        exiting={stepExiting}
                         style={styles.step}
                       >
                         <Text style={styles.label}>STARTS</Text>
@@ -1481,7 +1497,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <Animated.View
                         key="s3"
                         entering={stepEntering}
-                        exiting={FadeOut.duration(80)}
+                        exiting={stepExiting}
                         style={styles.step}
                       >
                         {photoUri ? (
@@ -1554,7 +1570,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <Animated.View
                         key="s4"
                         entering={stepEntering}
-                        exiting={FadeOut.duration(80)}
+                        exiting={stepExiting}
                         style={styles.step}
                       >
                         <View style={styles.safetyRow}>
