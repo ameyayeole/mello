@@ -9,7 +9,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Animated, {
-  Easing,
   Extrapolation,
   FadeIn,
   FadeInDown,
@@ -18,7 +17,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
@@ -139,12 +137,17 @@ export default function MapScreen() {
   // 0 = browse chrome, 1 = create chrome (X in, filter out).
   const createProg = useSharedValue(0);
   useEffect(() => {
-    createProg.value = withTiming(creatingEvent ? 1 : 0, {
-      // Standard decelerate curve: leaves quickly, arrives softly. Long enough
-      // at 380 to read as one continuous move rather than two separate pops,
-      // since the search field is travelling the whole time.
-      duration: 380,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    // A spring, not a curve: the controls should carry weight and overrun
+    // slightly before settling. A timing curve arrives dead-on and reads as
+    // inert no matter how it is eased.
+    //
+    // Underdamped on purpose — this settles past its target and comes back.
+    // Everything downstream is written to survive that, which is the whole
+    // reason the widths below are floored at zero.
+    createProg.value = withSpring(creatingEvent ? 1 : 0, {
+      damping: 13,
+      stiffness: 190,
+      mass: 1,
     });
   }, [creatingEvent]);
 
@@ -156,9 +159,15 @@ export default function MapScreen() {
   // leaves both controls sitting at half opacity through the middle of the
   // move, which reads as a smear; handing over at the midpoint keeps exactly
   // one of them legible at any moment.
+  // Widths and margins are floored at zero but deliberately NOT capped at their
+  // target. The spring overruns 1, so the arriving control swells a few pixels
+  // past its resting size and the search field — flex: 1 between the two — gets
+  // shoved a little too far and rebounds with it. That rebound is the momentum;
+  // capping the top of the range would animate it straight back out. A negative
+  // width, on the other hand, is a layout error, hence the floor.
   const filterBtnStyle = useAnimatedStyle(() => ({
-    width: interpolate(createProg.value, [0, 1], [44, 0]),
-    marginLeft: interpolate(createProg.value, [0, 1], [10, 0]),
+    width: Math.max(0, interpolate(createProg.value, [0, 1], [44, 0])),
+    marginLeft: Math.max(0, interpolate(createProg.value, [0, 1], [10, 0])),
     opacity: interpolate(
       createProg.value,
       [0, 0.45],
@@ -171,8 +180,8 @@ export default function MapScreen() {
     ],
   }));
   const closeBtnStyle = useAnimatedStyle(() => ({
-    width: interpolate(createProg.value, [0, 1], [0, 44]),
-    marginRight: interpolate(createProg.value, [0, 1], [0, 10]),
+    width: Math.max(0, interpolate(createProg.value, [0, 1], [0, 44])),
+    marginRight: Math.max(0, interpolate(createProg.value, [0, 1], [0, 10])),
     opacity: interpolate(
       createProg.value,
       [0.55, 1],
