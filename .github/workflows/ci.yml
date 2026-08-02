@@ -1,0 +1,48 @@
+# Runs the three checks AGENTS.md already asks for before any change lands.
+#
+# These were previously manual, which is exactly how a react-hooks/rules-of-hooks
+# error reached main and survived four further pushes before anyone happened to
+# lint that file. The point of this workflow is that nobody has to remember.
+#
+# All three are hard gates. `eslint` exits non-zero only on errors, and the repo
+# is at zero errors — the 72 remaining warnings are pre-existing and do not fail
+# the build. To stop those growing too, add `--max-warnings 72` to the lint
+# script; it is left off here because the number drifts with every legitimate
+# refactor and a brittle gate gets disabled rather than fixed.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the version used locally so CI cannot pass on a runtime the
+      # app is never built against.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # `ci` not `install`: honours the lockfile exactly and fails if
+      # package.json and package-lock.json have drifted apart.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test -- --ci
+
+      - name: Lint
+        run: npm run lint

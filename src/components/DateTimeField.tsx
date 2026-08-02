@@ -8,6 +8,13 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
+import {
+  roundUpTo30,
+  sameDay,
+  fmtTime,
+  fmtDayLong,
+  fmtDayShort,
+} from '@/utils/time';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon } from '@/components/ui';
@@ -16,12 +23,7 @@ import { Button, Icon } from '@/components/ui';
 // No native datetime module (not in the build), so we render a custom calendar
 // month grid + a time list inside a modal. Formatting is done manually to avoid
 // relying on Intl in Hermes. Shared by the create-event and edit-event screens.
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
 const MONTHS_FULL = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -29,39 +31,10 @@ const MONTHS_FULL = [
 const TIME_CHIP_W = 86;
 const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => i * 30); // minutes of day
 
-export function roundUpTo30(d: Date) {
-  const r = new Date(d);
-  r.setSeconds(0, 0);
-  const m = r.getMinutes();
-  if (m % 30 !== 0) r.setMinutes(m + (30 - (m % 30)));
-  return r;
-}
-export function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
 function startOfDay(d: Date) {
   const r = new Date(d);
   r.setHours(0, 0, 0, 0);
   return r;
-}
-export function fmtTime(d: Date) {
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ap = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m.toString().padStart(2, '0')} ${ap}`;
-}
-export function fmtDayLong(d: Date) {
-  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-// Compact label for the side-by-side start/end fields, where the full long date
-// won't fit at half width: "12 Jan · 10:00 AM".
-export function fmtDayShort(d: Date) {
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
 // Build a 6-week grid of Date cells (null padding before/after the month).
@@ -331,12 +304,17 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
     paddingVertical: SPACING[0.5],
   },
+  // Outlined rather than filled. A grey block reads as read-only; an outline
+  // reads as somewhere to put something. It also stops the field turning into
+  // an opaque smudge on the frosted create-event card, which is translucent.
   dateField: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2],
     height: 48,
-    backgroundColor: COLORS.background,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING[3.5],
   },
@@ -443,3 +421,7 @@ const styles = StyleSheet.create({
   },
   chipTextActive: { color: COLORS.primary },
 });
+
+// Re-exported so the many callers that reach for these through this component
+// keep working; the implementations live in utils/time now.
+export { roundUpTo30, sameDay, fmtTime, fmtDayLong, fmtDayShort };

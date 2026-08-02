@@ -13,7 +13,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
 import { CommunityPost } from '@/types/models';
-import { useToggleLike, useToggleLikeOnProfile } from '@/hooks/usePostInteractions';
+import { useToggleLike } from '@/hooks/usePostInteractions';
 import { SharePostSheet } from './SharePostSheet';
 
 // Inline glyph controls, not Buttons — these are icon affordances, so a Button
@@ -26,12 +26,17 @@ export function PostActionBar({
   post,
   onComment,
   profileUserId,
+  onDark = false,
 }: {
   post: CommunityPost;
   onComment: (post: CommunityPost) => void;
   profileUserId?: string;
+  onDark?: boolean;
 }) {
-  const toggle = profileUserId ? useToggleLikeOnProfile(profileUserId) : useToggleLike();
+  // The unlit glyph + count colour. Coral for a liked heart reads on both
+  // surfaces, so only the resting state has two rungs.
+  const quiet = onDark ? COLORS.textOnDark : COLORS.textMuted;
+  const toggle = useToggleLike(profileUserId);
   const [shareOpen, setShareOpen] = useState(false);
   const pop = useSharedValue(1);
   // Tap counter drives the heart pop from an effect — the repo's accepted place
@@ -71,11 +76,13 @@ export function PostActionBar({
             name="heart"
             variant={post.liked_by_me ? 'bold' : 'linear'}
             size={22}
-            color={post.liked_by_me ? COLORS.primary : COLORS.textMuted}
+            color={post.liked_by_me ? COLORS.primary : quiet}
           />
         </Animated.View>
         {post.like_count > 0 ? (
-          <Text style={styles.count}>{post.like_count}</Text>
+          <Text style={[styles.count, onDark && styles.countOnDark]}>
+            {post.like_count}
+          </Text>
         ) : null}
       </PressableScale>
 
@@ -85,9 +92,11 @@ export function PostActionBar({
         accessibilityRole="button"
         accessibilityLabel="Comments"
       >
-        <Icon name="chat" size={20} color={COLORS.textMuted} />
+        <Icon name="chat" size={20} color={quiet} />
         {post.comment_count > 0 ? (
-          <Text style={styles.count}>{post.comment_count}</Text>
+          <Text style={[styles.count, onDark && styles.countOnDark]}>
+            {post.comment_count}
+          </Text>
         ) : null}
       </PressableScale>
 
@@ -97,7 +106,7 @@ export function PostActionBar({
         accessibilityRole="button"
         accessibilityLabel="Share"
       >
-        <Icon name="share" size={20} color={COLORS.textMuted} />
+        <Icon name="share" size={20} color={quiet} />
       </PressableScale>
     </View>
 
@@ -129,6 +138,7 @@ const styles = StyleSheet.create({
   count: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
-    color: COLORS.textPrimary,
+    color: COLORS.textMuted,
   },
+  countOnDark: { color: COLORS.white },
 });

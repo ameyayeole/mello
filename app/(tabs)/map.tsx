@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Animated, {
-  Easing,
+  Extrapolation,
   FadeIn,
   FadeInDown,
   FadeOut,
@@ -17,7 +17,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
@@ -129,23 +128,72 @@ export default function MapScreen() {
 
   // ── In-map event creation ──────────────────────────────────────────────────
   // While creatingEvent is on, the rest of the map UI steps aside: the filter
-  // button collapses away, chips/FABs/pins fade out, and CreateEventFlow owns
-  // the interaction (including cancelling, from its own card header).
+  // button collapses away and is replaced in the same slot by a close button,
+  // chips/FABs/pins fade out, and CreateEventFlow owns the interaction. The
+  // close routes back into the flow rather than flipping creatingEvent itself,
+  // so leaving always goes through the flow's unsaved-draft prompt.
   const flowRef = useRef<CreateEventFlowRef>(null);
   const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
   // 0 = browse chrome, 1 = create chrome (X in, filter out).
   const createProg = useSharedValue(0);
   useEffect(() => {
-    createProg.value = withTiming(creatingEvent ? 1 : 0, {
-      duration: 320,
-      easing: Easing.inOut(Easing.cubic),
+    // A spring, not a curve: the controls should carry weight and overrun
+    // slightly before settling. A timing curve arrives dead-on and reads as
+    // inert no matter how it is eased.
+    //
+    // Damped to the tab bar's GLIDE rather than the looser spring this shipped
+    // with. At damping 13 the overrun was large enough to read as a wobble; the
+    // bar's own travel spring is the app's reference for "carries weight but
+    // arrives". Still overshoots, which is why the widths below are floored at
+    // zero — just not enough to notice as a bounce.
+    createProg.value = withSpring(creatingEvent ? 1 : 0, {
+      damping: 19,
+      stiffness: 190,
+      mass: 0.85,
     });
   }, [creatingEvent]);
+
+  // The two controls trade places across the search field: the filter is pushed
+  // out to the right as the close arrives from the left, and the field itself —
+  // which is just flex: 1 between them — slides and stretches to follow.
+  //
+  // The fades are staggered rather than a straight crossfade. Overlapping them
+  // leaves both controls sitting at half opacity through the middle of the
+  // move, which reads as a smear; handing over at the midpoint keeps exactly
+  // one of them legible at any moment.
+  // Widths and margins are floored at zero but deliberately NOT capped at their
+  // target. The spring overruns 1, so the arriving control swells a few pixels
+  // past its resting size and the search field — flex: 1 between the two — gets
+  // shoved a little too far and rebounds with it. That rebound is the momentum;
+  // capping the top of the range would animate it straight back out. A negative
+  // width, on the other hand, is a layout error, hence the floor.
   const filterBtnStyle = useAnimatedStyle(() => ({
-    width: interpolate(createProg.value, [0, 1], [44, 0]),
-    marginLeft: interpolate(createProg.value, [0, 1], [10, 0]),
-    opacity: 1 - createProg.value,
-    transform: [{ scale: interpolate(createProg.value, [0, 1], [1, 0.6]) }],
+    width: Math.max(0, interpolate(createProg.value, [0, 1], [44, 0])),
+    marginLeft: Math.max(0, interpolate(createProg.value, [0, 1], [10, 0])),
+    opacity: interpolate(
+      createProg.value,
+      [0, 0.45],
+      [1, 0],
+      Extrapolation.CLAMP
+    ),
+    transform: [
+      { scale: interpolate(createProg.value, [0, 1], [1, 0.6]) },
+      { translateX: interpolate(createProg.value, [0, 1], [0, 18]) },
+    ],
+  }));
+  const closeBtnStyle = useAnimatedStyle(() => ({
+    width: Math.max(0, interpolate(createProg.value, [0, 1], [0, 44])),
+    marginRight: Math.max(0, interpolate(createProg.value, [0, 1], [0, 10])),
+    opacity: interpolate(
+      createProg.value,
+      [0.55, 1],
+      [0, 1],
+      Extrapolation.CLAMP
+    ),
+    transform: [
+      { scale: interpolate(createProg.value, [0, 1], [0.6, 1]) },
+      { translateX: interpolate(createProg.value, [0, 1], [-18, 0]) },
+    ],
   }));
 
   // Pins only pop on the first batch of events and briefly after a cluster is
@@ -356,8 +404,28 @@ export default function MapScreen() {
           entering={FadeInDown.duration(400)}
           style={styles.searchRow}
         >
-          {/* Cancelling create mode lives on the wizard card's own header now,
-              so the search bar keeps only the filter button on its right. */}
+          {/* Leading slot: empty in browse mode, the create-mode close once the
+              wizard is open. The card's own header only offers Back past the
+              first step, so without this the only way out of a five-step wizard
+              was to walk back through every one of them.
+
+              Goes through the flow's own exit rather than setCreatingEvent, so
+              it asks about an unsaved draft exactly as the card's X does —
+              otherwise this would be the one route that silently binned work. */}
+          <Animated.View
+            style={[styles.morphSlot, closeBtnStyle]}
+            pointerEvents={creatingEvent ? 'auto' : 'none'}
+          >
+            <PressableScale
+              scaleTo={0.9}
+              style={styles.roundBtn}
+              onPress={() => flowRef.current?.requestExit()}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel event creation"
+            >
+              <Icon name="close" size={19} color={COLORS.textPrimary} />
+            </PressableScale>
+          </Animated.View>
           <PlaceSearch
             onResult={(r) => {
               if (creatingEvent) flowRef.current?.handlePlace(r);
@@ -367,7 +435,10 @@ export default function MapScreen() {
             bias={coords}
             style={styles.searchInput}
           />
-          <Animated.View style={[styles.morphSlot, filterBtnStyle]}>
+          <Animated.View
+            style={[styles.morphSlot, filterBtnStyle]}
+            pointerEvents={creatingEvent ? 'none' : 'auto'}
+          >
             <PressableScale
               scaleTo={0.9}
               style={styles.roundBtn}

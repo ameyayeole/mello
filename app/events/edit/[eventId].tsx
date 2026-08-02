@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Switch,
   Alert,
   Platform,
 } from 'react-native';
@@ -54,6 +53,7 @@ import {
   PressableScale,
   Screen,
   ScreenHeader,
+  Toggle,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
 
@@ -397,11 +397,10 @@ export default function EditEventScreen() {
                   : 'Only friends can see'}
               </Text>
             </View>
-            <Switch
+            <Toggle
               value={isPublic}
               onValueChange={setIsPublic}
-              trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-              thumbColor={COLORS.surface}
+              accessibilityLabel="Public event"
             />
           </View>
           <View style={styles.safetyRow}>
@@ -413,11 +412,10 @@ export default function EditEventScreen() {
                   : 'Anyone can join instantly'}
               </Text>
             </View>
-            <Switch
+            <Toggle
               value={requiresApproval}
               onValueChange={setRequiresApproval}
-              trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-              thumbColor={COLORS.surface}
+              accessibilityLabel="Approve who joins"
             />
           </View>
           {/* Female-only hosting is offered to female profiles only. */}
@@ -431,13 +429,12 @@ export default function EditEventScreen() {
                     : 'Anyone can see and join'}
                 </Text>
               </View>
-              <Switch
+              <Toggle
                 value={womenOnly}
                 onValueChange={(on) =>
                   on ? setWomenOnlyConfirmVisible(true) : setWomenOnly(false)
                 }
-                trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                thumbColor={COLORS.surface}
+                accessibilityLabel="Female-only event"
               />
             </View>
           )}

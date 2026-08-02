@@ -17,22 +17,26 @@ const GUTTER = 3;
 export function SharedWrapCard({
   eventId,
   caption,
+  onDark = false,
 }: {
   eventId: string;
   caption: string;
+  onDark?: boolean;
 }) {
   const router = useRouter();
   const wrap = useWrapCard(eventId);
 
-  const captionEl = caption ? <TextPostBody body={caption} /> : null;
+  const captionEl = caption ? (
+    <TextPostBody body={caption} onDark={onDark} />
+  ) : null;
 
   if (wrap.isLoading || wrap.data === undefined) {
     return (
       <View>
         {captionEl}
-        <View style={styles.card}>
-          <View style={styles.skelTitle} />
-          <View style={styles.skelGrid} />
+        <View style={[styles.card, onDark && styles.cardOnDark]}>
+          <View style={[styles.skelTitle, onDark && styles.skelOnDark]} />
+          <View style={[styles.skelGrid, onDark && styles.skelOnDark]} />
         </View>
       </View>
     );
@@ -44,8 +48,10 @@ export function SharedWrapCard({
     return (
       <View>
         {captionEl}
-        <View style={[styles.card, styles.deadCard]}>
-          <Text style={styles.deadText}>This wrap is no longer available.</Text>
+        <View style={[styles.card, styles.deadCard, onDark && styles.cardOnDark]}>
+          <Text style={[styles.deadText, onDark && styles.quietOnDark]}>
+            This wrap is no longer available.
+          </Text>
         </View>
       </View>
     );
@@ -66,7 +72,7 @@ export function SharedWrapCard({
       {captionEl}
       <PressableScale
         scaleTo={0.99}
-        style={styles.card}
+        style={[styles.card, onDark && styles.cardOnDark]}
         onPress={() => router.push(`/events/wrap/${eventId}`)}
         accessibilityRole="button"
         accessibilityLabel={`View the wrap for ${w.title}`}
@@ -74,11 +80,17 @@ export function SharedWrapCard({
         <View style={styles.head}>
           <Text style={styles.emoji}>{emoji}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text
+              style={[styles.title, onDark && styles.titleOnDark]}
+              numberOfLines={1}
+            >
               {w.title}
             </Text>
             {meta ? (
-              <Text style={styles.meta} numberOfLines={1}>
+              <Text
+                style={[styles.meta, onDark && styles.quietOnDark]}
+                numberOfLines={1}
+              >
                 {meta}
               </Text>
             ) : null}
@@ -91,19 +103,27 @@ export function SharedWrapCard({
               <Image
                 key={p.id}
                 source={{ uri: p.url }}
-                style={styles.tile}
+                style={[styles.tile, onDark && styles.skelOnDark]}
                 contentFit="cover"
                 transition={150}
               />
             ))}
           </View>
         ) : (
-          <Text style={styles.noPhotos}>No photos in this wrap yet.</Text>
+          <Text style={[styles.noPhotos, onDark && styles.quietOnDark]}>
+            No photos in this wrap yet.
+          </Text>
         )}
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>View wrap</Text>
-          <Icon name="chevronRight" size={16} color={COLORS.textSecondary} />
+          <Text style={[styles.footerText, onDark && styles.footerTextOnDark]}>
+            View wrap
+          </Text>
+          <Icon
+            name="chevronRight"
+            size={16}
+            color={onDark ? COLORS.textOnDark : COLORS.textSecondary}
+          />
         </View>
       </PressableScale>
     </View>
@@ -122,6 +142,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     gap: SPACING[2.5],
   },
+  // A card nested in an already-blurred dark pane lifts with translucent white
+  // rather than a blur of its own (see the fillOnDark note in colors.ts).
+  cardOnDark: {
+    backgroundColor: COLORS.fillOnDark,
+    borderColor: COLORS.borderOnDark,
+  },
   head: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   emoji: { fontSize: TYPE_SIZE.titleLg },
   title: {
@@ -129,12 +155,16 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
+  titleOnDark: { color: COLORS.white },
   meta: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
+  // One rung for every muted string on this card — meta, "no photos", and the
+  // dead-wrap notice all sit at the same weight.
+  quietOnDark: { color: COLORS.textOnDarkMuted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GUTTER },
   tile: {
     width: TILE,
@@ -153,6 +183,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
+  footerTextOnDark: { color: COLORS.textOnDark },
 
   deadCard: { alignItems: 'center' },
   deadText: {
@@ -172,4 +203,6 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.inkSubtle,
   },
+  // Shared by the two skeletons and the photo tiles' placeholder fill.
+  skelOnDark: { backgroundColor: COLORS.fillOnDark },
 });

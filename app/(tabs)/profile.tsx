@@ -28,7 +28,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import {
   useHandedOver,
@@ -46,7 +46,6 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { formatEventWhen } from '@/utils/time';
 import { splitByWhen, featuredHostedEvent } from '@/utils/events';
 import { hasWrapped } from '@/services/wrap.service';
 import {
@@ -184,7 +183,6 @@ export default function ProfileTabScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [tab, setTab] = useState<'upcoming' | 'attended'>('upcoming');
-  const queryClient = useQueryClient();
 
   // Wishlist: events saved from the swipe deck's bookmark button.
   const joinedQuery = useQuery({

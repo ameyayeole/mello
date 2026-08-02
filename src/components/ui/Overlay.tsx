@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -8,6 +9,22 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  FadeIn,
+  SlideInDown,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 
@@ -46,43 +63,167 @@ function Overlay({
   // and back out on close, which a fade can't do. For sheets that are meant to
   // feel *presented* rather than to just appear.
   animation = 'fade',
+  grabber = false,
   style,
 }: BaseProps & {
   anchor: 'bottom' | 'center';
   keyboardAvoiding?: boolean;
   animation?: 'fade' | 'slide';
+  grabber?: boolean;
 }) {
+  // A plain View, deliberately. This used to be a Pressable carrying an empty
+  // onPress to stop presses reaching the backdrop — which worked, but a
+  // Pressable claims the touch before any nested scrollable can, so a sheet
+  // containing a ScrollView (a picker wheel, a long list) could never be
+  // scrolled. The backdrop is a sibling *behind* the card now, so presses on
+  // the card simply never reach it and no swallowing handler is needed.
+
+  // `slide` is driven here rather than by the Modal. Modal's own slide animates
+  // the whole tree — scrim included — so the dim travelled up from the bottom
+  // edge with the card and read as a black panel rising rather than as the page
+  // dimming. Splitting them lets the scrim fade in place while only the card
+  // moves, which is what a presented sheet is supposed to look like.
+  const sliding = animation === 'slide';
+
+  // Drag-to-dismiss. A grabber is a promise that the sheet can be pulled down;
+  // without this it was decoration and the sheet ignored the gesture entirely.
+  //
+  // The gesture lives on the grabber strip rather than on the whole card on
+  // purpose. These sheets hold pickers, and a pan over the card would have to
+  // arbitrate with the wheel's own scroll on every touch — the usual source of
+  // a sheet that sometimes scrolls and sometimes drags. A dedicated handle has
+  // no such ambiguity.
+  const dragY = useSharedValue(0);
+
+  const pan = Gesture.Pan()
+    .onChange((e) => {
+      // Downward only; pulling up should not lift the sheet off its edge.
+      dragY.value = Math.max(0, dragY.value + e.changeY);
+    })
+    .onEnd((e) => {
+      const far = dragY.value > DISMISS_PX;
+      const fast = e.velocityY > DISMISS_VELOCITY;
+      if (far || fast) {
+        // Tell the parent straight away and let the effect above drive the
+        // travel, so a dragged dismiss and a tapped one end identically.
+        runOnJS(onClose)();
+      } else {
+        dragY.value = withSpring(0, { stiffness: 220, damping: 26, mass: 0.8 });
+      }
+    });
+
+  // The Modal outlives `visible` by the length of one exit animation.
+  //
+  // A Modal unmounts its children the instant `visible` goes false, so a
+  // Reanimated `exiting` on the card never got a frame to run — dismissing by
+  // backdrop tap or by a button made the sheet vanish while only the scrim
+  // faded. Holding it mounted lets the card slide out under its own power, and
+  // every dismiss path (tap, button, hardware back, drag) now leaves the same
+  // way.
+  // Open needs no state at all — `visible` already says so. Only the closing
+  // half has to be remembered, for exactly as long as the card takes to leave.
+  const [exiting, setExiting] = useState(false);
+  const mounted = visible || exiting;
+
+  const done = useCallback(() => setExiting(false), []);
+
+  useEffect(() => {
+    if (visible) {
+      // Also resets the offset a drag-dismiss parked at its thrown-out value —
+      // without which the next open renders the card off the bottom of the
+      // screen and the sheet appears not to open at all.
+      dragY.value = 0;
+      return;
+    }
+    if (!sliding) return;
+    // Deliberate: this is the bridge between a prop flipping and an animation
+    // that has to finish before the Modal may unmount. There is no render-phase
+    // way to express "stay mounted a moment longer".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExiting(true);
+    dragY.value = withTiming(EXIT_PX, EXIT_TIMING, (finished) => {
+      if (finished) runOnJS(done)();
+    });
+  }, [visible, sliding, dragY, done]);
+
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: dragY.value }],
+  }));
+  // The scrim lightens as the sheet is pulled away, so the page underneath comes
+  // back with the gesture rather than only at the end of it.
+  const scrimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(dragY.value, [0, 260], [1, 0], 'clamp'),
+  }));
+
   const card = (
-    // `onPress={() => {}}` is load-bearing: without a handler the press falls
-    // through to the backdrop and closes the overlay.
-    <Pressable
-      style={[
-        anchor === 'bottom' ? styles.sheetCard : styles.dialogCard,
-        style,
-      ]}
-      onPress={() => {}}
+    <View
+      style={[anchor === 'bottom' ? styles.sheetCard : styles.dialogCard, style]}
     >
+      {sliding && grabber ? (
+        <GestureDetector gesture={pan}>
+          {/* The strip, not just the pill — 5pt is not a target. */}
+          <View style={styles.grabberHit}>
+            <View style={styles.grabber} />
+          </View>
+        </GestureDetector>
+      ) : grabber ? (
+        <View style={styles.grabberHit}>
+          <View style={styles.grabber} />
+        </View>
+      ) : null}
       {children}
-    </Pressable>
+    </View>
   );
 
   return (
     <Modal
-      visible={visible}
+      visible={mounted}
       transparent
-      animationType={animation}
+      animationType={sliding ? 'none' : animation}
       onRequestClose={onClose}
       // Without this the scrim stops at the status bar on Android.
       statusBarTranslucent
     >
-      <Pressable
+      {/* A Modal renders into its own native hierarchy, which the app-root
+          GestureHandlerRootView does not reach into — without one here the pan
+          below is registered and then never fires. It costs nothing when there
+          is no gesture inside. */}
+      <GestureHandlerRootView
         style={[
-          styles.backdrop,
+          styles.backdropRoot,
           anchor === 'bottom' ? styles.alignBottom : styles.alignCenter,
         ]}
-        onPress={dismissOnBackdropPress ? onClose : undefined}
       >
-        {keyboardAvoiding ? (
+        <Animated.View
+          style={[styles.backdrop, sliding && scrimStyle]}
+          entering={sliding ? FadeIn.duration(220) : undefined}
+        >
+          {dismissOnBackdropPress ? (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={onClose}
+              accessibilityLabel="Dismiss"
+            />
+          ) : null}
+        </Animated.View>
+        {sliding ? (
+          <Animated.View
+            style={dragStyle}
+            entering={SlideInDown.duration(300).easing(Easing.out(Easing.cubic))}
+          >
+            {keyboardAvoiding ? (
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={styles.kav}
+                pointerEvents="box-none"
+              >
+                {card}
+              </KeyboardAvoidingView>
+            ) : (
+              card
+            )}
+          </Animated.View>
+        ) : keyboardAvoiding ? (
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.kav}
@@ -93,7 +234,7 @@ function Overlay({
         ) : (
           card
         )}
-      </Pressable>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -110,13 +251,15 @@ export function Sheet({
   animation?: 'fade' | 'slide';
 }) {
   return (
+    // The grabber is Overlay's to render now, not a child passed in: it is the
+    // drag handle, so it has to sit inside the gesture the card owns.
     <Overlay
       {...props}
       anchor="bottom"
       keyboardAvoiding={keyboardAvoiding}
       animation={animation}
+      grabber={grabber}
     >
-      {grabber ? <View style={styles.grabber} /> : null}
       {children}
     </Overlay>
   );
@@ -126,8 +269,25 @@ export function Dialog(props: BaseProps) {
   return <Overlay {...props} anchor="center" />;
 }
 
+// How far the card travels on its way out, and how long it takes. Far enough to
+// clear any sheet this holds — it is a translate, so it costs no layout.
+const EXIT_PX = 700;
+const EXIT_TIMING = { duration: 260, easing: Easing.in(Easing.cubic) } as const;
+const DISMISS_PX = 90;
+const DISMISS_VELOCITY = 900;
+
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: COLORS.scrim },
+  // Root holds the layout; the scrim is a layer inside it, so the dim can fade
+  // on its own while the card slides.
+  backdropRoot: { flex: 1 },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.scrim,
+  },
   alignBottom: { justifyContent: 'flex-end' },
   alignCenter: { justifyContent: 'center', paddingHorizontal: SPACING[8] },
   kav: { justifyContent: 'flex-end' },
@@ -144,12 +304,14 @@ const styles = StyleSheet.create({
     padding: SPACING[6],
     alignItems: 'center',
   },
+  // The draggable strip. The pill itself is 5pt tall — far under a usable
+  // target — so the gesture lives on a padded row around it.
+  grabberHit: { paddingTop: SPACING[2], paddingBottom: SPACING[2] },
   grabber: {
     alignSelf: 'center',
     width: 40,
     height: 5,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(15,24,44,0.15)',
-    marginTop: SPACING[2],
+    backgroundColor: COLORS.chipGrab,
   },
 });

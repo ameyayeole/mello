@@ -84,6 +84,10 @@ const glyphs: Record<string, Glyph> = {
     </>
   ),
   plus: <Path d="M12 5v14M5 12h14" />,
+  // The counterpart to `plus`, for steppers. A "−" set as text sits off-centre
+  // in a round button — the glyph's metrics are not the box's — where a stroked
+  // path is centred by construction.
+  minus: <Path d="M5 12h14" />,
   trash: (
     <>
       <Path d="M4 7h16M10 11v6M14 11v6" />

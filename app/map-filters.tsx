@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Switch,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useUIStore } from '@/stores/uiStore';
@@ -26,6 +20,7 @@ import {
   Screen,
   ScreenHeader,
   SectionLabel,
+  Toggle,
 } from '@/components/ui';
 import {
   DEFAULT_MAP_FILTERS,
@@ -125,11 +120,7 @@ function ToggleRow({
         </View>
         <Text style={styles.toggleSub}>{subtitle}</Text>
       </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ true: COLORS.primary }}
-      />
+      <Toggle value={value} onValueChange={onChange} />
     </View>
   );
 }

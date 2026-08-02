@@ -4,6 +4,11 @@ export const COLORS = {
   primaryLight: '#FF8E8B',
   primaryTint: '#FDECEC',
   primaryDark: '#993232',
+  // The unfilled remainder of a coral progress arc — the create-flow pin's
+  // spinner runs `primary` over this. Alpha rather than `primaryTint` because
+  // it sits on a white circle *and* over the map, and a solid tint only works
+  // against one of those.
+  primaryTrack: 'rgba(249, 91, 91, 0.18)',
   secondary: '#6D4AD6',
   secondaryTint: '#EEE9FB',
   // The app black. Cooler and bluer than the old #17151A — see the note on the
