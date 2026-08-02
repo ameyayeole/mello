@@ -519,9 +519,22 @@ A strip only has one axis. A grid has two, and a straight line between two cells
 crosses cells that were never on the path — which reads as flying over the grid
 rather than moving through it.
 
-So the indicator moves **one axis then the other, longer leg first** (~190ms
-each, `inOut(quad)` into the corner and `out(cubic)` out of it). From A3 to C2:
-down two, then left one.
+So the indicator moves **one axis then the other, longer leg first**. From A3 to
+C2: down two, then left one.
+
+**Both legs are springs, and the second starts before the first has settled**
+(~110ms lead). This is the part that took two attempts. Timed legs with the
+corner on a hard boundary are the obvious implementation and they feel like a
+machine: the indicator stops dead, turns, and sets off again. Overlapping
+springs round the corner off, so the path curves through it and the whole move
+reads as one continuous travel that happens to be axis-aligned — which is the
+point. The lead has to stay short enough to overlap and long enough that the
+path still reads as down-then-across rather than as a diagonal.
+
+A shared **squash** (~8%, out on departure, springing back on arrival) runs
+across both legs, so an L-path reads as one gesture that compressed to move
+rather than as two journeys with a pause between them. Same family as the tab
+bar's stretch, simpler because the direction of travel changes mid-flight.
 
 Three cases travel straight instead, because a right angle in them would be
 pedantry rather than clarity:

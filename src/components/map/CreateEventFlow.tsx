@@ -54,6 +54,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -353,8 +354,14 @@ const GLIDE = { stiffness: 190, damping: 24, mass: 0.85 } as const;
 
 // Grid travel. The indicator moves on the axes rather than cutting across the
 // diagonal, so it reads as stepping between cells instead of flying over them.
-// One leg then the other, the longer one first.
-const LEG_MS = 190;
+//
+// How far the leading leg gets before the other sets off. Short enough that the
+// two overlap — which is what rounds the corner and keeps the move feeling like
+// one gesture — long enough that the path still reads as down-then-across
+// rather than as a diagonal.
+const CORNER_LEAD_MS = 110;
+// How much the indicator compresses while travelling.
+const SQUASH = 0.08;
 const GRID_COLS = 4;
 // The emoji plate. The indicator is sized to it, so both have to agree.
 const TILE = 58;
@@ -475,6 +482,8 @@ function TypeGrid({
   const x = useSharedValue(0);
   const y = useSharedValue(0);
   const shown = useSharedValue(0);
+  // 0 at rest, 1 mid-travel.
+  const squash = useSharedValue(0);
   const placed = useRef(false);
   const prevIndex = useRef<number | null>(null);
 
@@ -507,27 +516,43 @@ function TypeGrid({
     const straight =
       dCol === 0 || dRow === 0 || (Math.abs(dCol) === 1 && Math.abs(dRow) === 1);
 
+    // A dip on departure that recovers on arrival. Both legs share it, so an
+    // L-path reads as one gesture that compressed to move rather than as two
+    // journeys with a pause in the middle.
+    squash.value = withSequence(
+      withTiming(1, { duration: 130, easing: Easing.out(Easing.quad) }),
+      withSpring(0, GLIDE)
+    );
+
     if (straight) {
       x.value = withSpring(tx, GLIDE);
       y.value = withSpring(ty, GLIDE);
       return;
     }
-    // Longer leg first: the move reads as "mostly down, then across" rather
-    // than as two equal halves with a corner in the middle.
+    // Springs on both legs, and the second starts before the first has settled.
+    // Timed legs with the corner on a hard boundary was the mechanical version:
+    // it stopped dead, turned, and set off again. Overlapping springs round the
+    // corner off, so the path curves through it and the whole move reads as one
+    // continuous travel that happens to be axis-aligned.
+    //
+    // The longer leg leads, so it reads as "mostly down, then across" rather
+    // than as two equal halves meeting at a right angle.
     const rowFirst = Math.abs(dRow) >= Math.abs(dCol);
-    const lead = { duration: LEG_MS, easing: Easing.inOut(Easing.quad) };
-    const follow = { duration: LEG_MS, easing: Easing.out(Easing.cubic) };
     if (rowFirst) {
-      y.value = withTiming(ty, lead);
-      x.value = withDelay(LEG_MS, withTiming(tx, follow));
+      y.value = withSpring(ty, GLIDE);
+      x.value = withDelay(CORNER_LEAD_MS, withSpring(tx, GLIDE));
     } else {
-      x.value = withTiming(tx, lead);
-      y.value = withDelay(LEG_MS, withTiming(ty, follow));
+      x.value = withSpring(tx, GLIDE);
+      y.value = withDelay(CORNER_LEAD_MS, withSpring(ty, GLIDE));
     }
-  }, [frame, index, x, y, shown]);
+  }, [frame, index, x, y, shown, squash]);
 
   const indicator = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }],
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value },
+      { scale: 1 - squash.value * SQUASH },
+    ],
     opacity: shown.value,
   }));
 
