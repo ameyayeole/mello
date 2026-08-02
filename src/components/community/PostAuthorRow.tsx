@@ -16,9 +16,11 @@ import { relativeTime } from '@/utils/time';
 export function PostAuthorRow({
   post,
   onOverflow,
+  onDark = false,
 }: {
   post: CommunityPost;
   onOverflow?: () => void;
+  onDark?: boolean;
 }) {
   const router = useRouter();
   const meId = useAuthStore((s) => s.user?.id);
@@ -42,10 +44,10 @@ export function PostAuthorRow({
       >
         <Avatar name={post.author_name} photoUrl={post.author_photo_url} size={40} />
         <View style={styles.text}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text style={[styles.name, onDark && styles.nameOnDark]} numberOfLines={1}>
             {post.author_name}
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
+          <Text style={[styles.meta, onDark && styles.metaOnDark]} numberOfLines={1}>
             {meta}
           </Text>
         </View>
@@ -56,6 +58,7 @@ export function PostAuthorRow({
           variant="ghost"
           size={32}
           iconSize={18}
+          color={onDark ? COLORS.textOnDark : undefined}
           onPress={onOverflow}
           accessibilityLabel="Post options"
         />
@@ -78,10 +81,12 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
+  nameOnDark: { color: COLORS.white },
   meta: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
     marginTop: 1,
   },
+  metaOnDark: { color: COLORS.textOnDarkMuted },
 });

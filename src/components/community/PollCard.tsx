@@ -34,10 +34,12 @@ function ResultBar({
   option,
   total,
   mine,
+  onDark,
 }: {
   option: PollOption;
   total: number;
   mine: boolean;
+  onDark: boolean;
 }) {
   const share = total > 0 ? option.vote_count / total : 0;
   const grow = useSharedValue(0);
@@ -49,19 +51,34 @@ function ResultBar({
   }));
 
   return (
-    <View style={styles.resultRow}>
+    <View style={[styles.resultRow, onDark && styles.resultRowOnDark]}>
       <Animated.View
-        style={[styles.bar, mine ? styles.barMine : styles.barOther, barStyle]}
+        style={[
+          styles.bar,
+          mine
+            ? onDark
+              ? styles.barMineOnDark
+              : styles.barMine
+            : onDark
+              ? styles.barOtherOnDark
+              : styles.barOther,
+          barStyle,
+        ]}
         pointerEvents="none"
       />
       <View style={styles.resultContent}>
-        <Text style={styles.resultLabel} numberOfLines={1}>
+        <Text
+          style={[styles.resultLabel, onDark && styles.resultLabelOnDark]}
+          numberOfLines={1}
+        >
           {option.label}
         </Text>
         {mine ? (
           <Icon name="check" size={14} color={COLORS.primary} strokeWidth={2.4} />
         ) : null}
-        <Text style={styles.resultPct}>{Math.round(share * 100)}%</Text>
+        <Text style={[styles.resultPct, onDark && styles.resultPctOnDark]}>
+          {Math.round(share * 100)}%
+        </Text>
       </View>
     </View>
   );
@@ -70,7 +87,15 @@ function ResultBar({
 // The poll body of a type='poll' post. Before voting (and while open): the
 // question + tappable option pills, no counts. After voting OR once closed:
 // animated result bars, the viewer's pick marked, and a votes/closes footer.
-export function PollCard({ postId, question }: { postId: string; question: string }) {
+export function PollCard({
+  postId,
+  question,
+  onDark = false,
+}: {
+  postId: string;
+  question: string;
+  onDark?: boolean;
+}) {
   const poll = usePoll(postId);
   const vote = useCastVote(postId);
 
@@ -81,12 +106,16 @@ export function PollCard({ postId, question }: { postId: string; question: strin
 
   return (
     <View style={styles.wrap}>
-      {question ? <Text style={styles.question}>{question}</Text> : null}
+      {question ? (
+        <Text style={[styles.question, onDark && styles.questionOnDark]}>
+          {question}
+        </Text>
+      ) : null}
 
       {poll.isLoading || !poll.data ? (
         <View style={styles.skeleton}>
-          <View style={styles.skelRow} />
-          <View style={styles.skelRow} />
+          <View style={[styles.skelRow, onDark && styles.skelRowOnDark]} />
+          <View style={[styles.skelRow, onDark && styles.skelRowOnDark]} />
         </View>
       ) : showResults ? (
         <>
@@ -96,9 +125,10 @@ export function PollCard({ postId, question }: { postId: string; question: strin
               option={o}
               total={total}
               mine={o.id === poll.data!.my_option_id}
+              onDark={onDark}
             />
           ))}
-          <Text style={styles.footer}>
+          <Text style={[styles.footer, onDark && styles.footerOnDark]}>
             {total} vote{total === 1 ? '' : 's'} ·{' '}
             {closed ? 'Final' : closesInLabel(poll.data.closes_at)}
           </Text>
@@ -114,16 +144,21 @@ export function PollCard({ postId, question }: { postId: string; question: strin
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 vote.mutate(o.id);
               }}
-              style={styles.voteRow}
+              style={[styles.voteRow, onDark && styles.voteRowOnDark]}
               accessibilityRole="button"
               accessibilityLabel={`Vote for ${o.label}`}
             >
-              <Text style={styles.voteLabel} numberOfLines={1}>
+              <Text
+                style={[styles.voteLabel, onDark && styles.voteLabelOnDark]}
+                numberOfLines={1}
+              >
                 {o.label}
               </Text>
             </PressableScale>
           ))}
-          <Text style={styles.footer}>{closesInLabel(poll.data.closes_at)}</Text>
+          <Text style={[styles.footer, onDark && styles.footerOnDark]}>
+            {closesInLabel(poll.data.closes_at)}
+          </Text>
         </>
       )}
     </View>
@@ -140,6 +175,7 @@ const styles = StyleSheet.create({
     lineHeight: TYPE_SIZE.body * 1.35,
     color: COLORS.textPrimary,
   },
+  questionOnDark: { color: COLORS.white },
 
   // Vote mode — a plain inset pill per option.
   voteRow: {
@@ -151,11 +187,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: SPACING[3.5],
   },
+  // On dark glass the pill is a translucent white *lift*, not another blur —
+  // see the fillOnDark note in colors.ts.
+  voteRowOnDark: {
+    backgroundColor: COLORS.fillOnDark,
+    borderColor: COLORS.borderOnDark,
+  },
   voteLabel: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
+  voteLabelOnDark: { color: COLORS.white },
 
   // Result mode — label over a growing bar.
   resultRow: {
@@ -167,9 +210,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
   },
+  resultRowOnDark: { backgroundColor: COLORS.fillOnDark },
   bar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: RADIUS.md },
   barMine: { backgroundColor: COLORS.primaryTint },
   barOther: { backgroundColor: COLORS.chipGrab },
+  // `primaryTint` is a near-white pink and `chipGrab` is dark ink — both vanish
+  // on dark glass. `primaryDark` keeps the pick unmistakably coral while staying
+  // dark enough for white label text; `chipGrabOnDark` is the ramp's own
+  // on-dark counterpart to chipGrab.
+  barMineOnDark: { backgroundColor: COLORS.primaryDark },
+  barOtherOnDark: { backgroundColor: COLORS.chipGrabOnDark },
   resultContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -182,11 +232,13 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
+  resultLabelOnDark: { color: COLORS.white },
   resultPct: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
+  resultPctOnDark: { color: COLORS.white },
 
   footer: {
     fontFamily: FONTS.medium,
@@ -194,6 +246,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
+  footerOnDark: { color: COLORS.textOnDarkMuted },
 
   skeleton: { gap: SPACING[2] },
   skelRow: {
@@ -201,4 +254,5 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.inkSubtle,
   },
+  skelRowOnDark: { backgroundColor: COLORS.fillOnDark },
 });

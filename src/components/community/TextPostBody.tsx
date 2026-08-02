@@ -11,12 +11,18 @@ import { SPACING } from '@/constants/spacing';
 export function TextPostBody({
   body,
   mentionables,
+  onDark = false,
 }: {
   body: string;
   mentionables?: Map<string, string>;
+  onDark?: boolean;
 }) {
   return (
-    <MentionText content={body} style={styles.body} mentionables={mentionables} />
+    <MentionText
+      content={body}
+      style={[styles.body, onDark && styles.bodyOnDark]}
+      mentionables={mentionables}
+    />
   );
 }
 
@@ -25,7 +31,8 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.body,
     lineHeight: TYPE_SIZE.body * 1.4,
-    color: COLORS.white,
+    color: COLORS.textPrimary,
     marginTop: SPACING[3],
   },
+  bodyOnDark: { color: COLORS.white },
 });

@@ -118,6 +118,7 @@ export function ProfilePosts({
               onOverflow={onOverflow}
               onComment={setCommentPost}
               profileUserId={userId}
+              onDark={onDark}
             />
           ))}
           {q.hasNextPage && (
