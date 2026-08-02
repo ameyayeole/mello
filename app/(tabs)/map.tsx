@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Animated, {
   Easing,
+  Extrapolation,
   FadeIn,
   FadeInDown,
   FadeOut,
@@ -139,23 +140,49 @@ export default function MapScreen() {
   const createProg = useSharedValue(0);
   useEffect(() => {
     createProg.value = withTiming(creatingEvent ? 1 : 0, {
-      duration: 320,
-      easing: Easing.inOut(Easing.cubic),
+      // Standard decelerate curve: leaves quickly, arrives softly. Long enough
+      // at 380 to read as one continuous move rather than two separate pops,
+      // since the search field is travelling the whole time.
+      duration: 380,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
     });
   }, [creatingEvent]);
+
+  // The two controls trade places across the search field: the filter is pushed
+  // out to the right as the close arrives from the left, and the field itself —
+  // which is just flex: 1 between them — slides and stretches to follow.
+  //
+  // The fades are staggered rather than a straight crossfade. Overlapping them
+  // leaves both controls sitting at half opacity through the middle of the
+  // move, which reads as a smear; handing over at the midpoint keeps exactly
+  // one of them legible at any moment.
   const filterBtnStyle = useAnimatedStyle(() => ({
     width: interpolate(createProg.value, [0, 1], [44, 0]),
     marginLeft: interpolate(createProg.value, [0, 1], [10, 0]),
-    opacity: 1 - createProg.value,
-    transform: [{ scale: interpolate(createProg.value, [0, 1], [1, 0.6]) }],
+    opacity: interpolate(
+      createProg.value,
+      [0, 0.45],
+      [1, 0],
+      Extrapolation.CLAMP
+    ),
+    transform: [
+      { scale: interpolate(createProg.value, [0, 1], [1, 0.6]) },
+      { translateX: interpolate(createProg.value, [0, 1], [0, 18]) },
+    ],
   }));
-  // The exact mirror of the filter button: one swaps in as the other collapses,
-  // so the row never reflows and the slot always holds precisely one control.
   const closeBtnStyle = useAnimatedStyle(() => ({
     width: interpolate(createProg.value, [0, 1], [0, 44]),
-    marginLeft: interpolate(createProg.value, [0, 1], [0, 10]),
-    opacity: createProg.value,
-    transform: [{ scale: interpolate(createProg.value, [0, 1], [0.6, 1]) }],
+    marginRight: interpolate(createProg.value, [0, 1], [0, 10]),
+    opacity: interpolate(
+      createProg.value,
+      [0.55, 1],
+      [0, 1],
+      Extrapolation.CLAMP
+    ),
+    transform: [
+      { scale: interpolate(createProg.value, [0, 1], [0.6, 1]) },
+      { translateX: interpolate(createProg.value, [0, 1], [-18, 0]) },
+    ],
   }));
 
   // Pins only pop on the first batch of events and briefly after a cluster is
@@ -366,10 +393,28 @@ export default function MapScreen() {
           entering={FadeInDown.duration(400)}
           style={styles.searchRow}
         >
-          {/* Right of the search field, one slot holds one control: the filter
-              in browse mode, the create-mode close in its place. The card's own
-              header only offers Back past the first step, so without this the
-              only way out of a five-step wizard was to walk back through it. */}
+          {/* Leading slot: empty in browse mode, the create-mode close once the
+              wizard is open. The card's own header only offers Back past the
+              first step, so without this the only way out of a five-step wizard
+              was to walk back through every one of them.
+
+              Goes through the flow's own exit rather than setCreatingEvent, so
+              it asks about an unsaved draft exactly as the card's X does —
+              otherwise this would be the one route that silently binned work. */}
+          <Animated.View
+            style={[styles.morphSlot, closeBtnStyle]}
+            pointerEvents={creatingEvent ? 'auto' : 'none'}
+          >
+            <PressableScale
+              scaleTo={0.9}
+              style={styles.roundBtn}
+              onPress={() => flowRef.current?.requestExit()}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel event creation"
+            >
+              <Icon name="close" size={19} color={COLORS.textPrimary} />
+            </PressableScale>
+          </Animated.View>
           <PlaceSearch
             onResult={(r) => {
               if (creatingEvent) flowRef.current?.handlePlace(r);
@@ -396,22 +441,6 @@ export default function MapScreen() {
                   <Text style={styles.filterBadgeText}>{filterCount}</Text>
                 </View>
               )}
-            </PressableScale>
-          </Animated.View>
-          {/* Goes through the flow's own exit, not setCreatingEvent(false), so
-              it asks about an unsaved draft exactly like the card's X does. */}
-          <Animated.View
-            style={[styles.morphSlot, closeBtnStyle]}
-            pointerEvents={creatingEvent ? 'auto' : 'none'}
-          >
-            <PressableScale
-              scaleTo={0.9}
-              style={styles.roundBtn}
-              onPress={() => flowRef.current?.requestExit()}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel event creation"
-            >
-              <Icon name="close" size={19} color={COLORS.textPrimary} />
             </PressableScale>
           </Animated.View>
         </Animated.View>
