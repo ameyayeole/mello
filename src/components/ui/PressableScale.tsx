@@ -7,6 +7,13 @@ import Animated, {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+// Damping 20 against stiffness 400 is a damping ratio of 0.5 — well
+// underdamped, so the release overshot past scale 1 and every control in the
+// app swelled slightly before settling. That is what read as bounce, and it was
+// worst wherever scaleTo was deep. 0.85 keeps the spring's give without the
+// visible rebound: it settles crisply instead of wobbling back.
+const PRESS_SPRING = { damping: 34, stiffness: 400, mass: 1 } as const;
+
 // Pressable that springs down slightly on press — the app-wide tap feel.
 export function PressableScale({
   children,
@@ -26,10 +33,10 @@ export function PressableScale({
   return (
     <AnimatedPressable
       onPressIn={() => {
-        pressed.value = withSpring(1, { damping: 20, stiffness: 400 });
+        pressed.value = withSpring(1, PRESS_SPRING);
       }}
       onPressOut={() => {
-        pressed.value = withSpring(0, { damping: 20, stiffness: 400 });
+        pressed.value = withSpring(0, PRESS_SPRING);
       }}
       style={[style, animatedStyle]}
       {...rest}

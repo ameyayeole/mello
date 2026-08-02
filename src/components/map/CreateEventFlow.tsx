@@ -40,6 +40,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
+  Extrapolation,
   FadeIn,
   FadeInDown,
   FadeOut,
@@ -47,12 +48,16 @@ import Animated, {
   SlideOutDown,
   ZoomIn,
   cancelAnimation,
+  interpolate,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withRepeat,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { createEvent } from '@/services/events.service';
@@ -236,6 +241,39 @@ const WHEEL_H = WHEEL_ITEM_H * WHEEL_VISIBLE;
 // One wheel, driven by a list of {value,label}. Duration, date and time are the
 // same interaction — a column scrolling under a fixed band — so they are the
 // same component rather than three that drift apart.
+function WheelRow({
+  label,
+  index,
+  scrollY,
+}: {
+  label: string;
+  index: number;
+  scrollY: SharedValue<number>;
+}) {
+  // Distance from the band, in rows. Everything below is a function of it, so
+  // the column reads as a surface curving away rather than as a list where one
+  // item happens to be styled differently.
+  const style = useAnimatedStyle(() => {
+    const d = Math.abs(scrollY.value / WHEEL_ITEM_H - index);
+    return {
+      opacity: interpolate(d, [0, 1, 2.5], [1, 0.5, 0.15], Extrapolation.CLAMP),
+      transform: [
+        { scale: interpolate(d, [0, 1, 2.5], [1, 0.86, 0.72], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+  return (
+    <Animated.View style={[styles.wheelItem, style]}>
+      <Text style={styles.wheelLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </Animated.View>
+  );
+}
+
+// One wheel, driven by a list of {value,label}. Duration, date and time are the
+// same interaction — a column scrolling under a fixed band — so they are the
+// same component rather than three that drift apart.
 function Wheel<T extends string | number>({
   options,
   value,
@@ -248,9 +286,14 @@ function Wheel<T extends string | number>({
   style?: StyleProp<ViewStyle>;
 }) {
   // Opening scrolled to the current value is most of the point of a wheel — it
-  // shows where you sit in the range, not just what you picked. -1 guards a
-  // value that has fallen out of the list (a date that has since passed).
+  // shows where you sit in the range, not just what you picked.
   const index = Math.max(0, options.findIndex((o) => o.value === value));
+  // Drives the per-row falloff. Seeded so rows are styled correctly on the
+  // first frame, before any scrolling has happened.
+  const scrollY = useSharedValue(index * WHEEL_ITEM_H);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
 
   function settle(y: number) {
     const i = Math.min(options.length - 1, Math.max(0, Math.round(y / WHEEL_ITEM_H)));
@@ -266,31 +309,28 @@ function Wheel<T extends string | number>({
       {/* Behind the list and never moving; the labels travel under it. Behind,
           so it cannot intercept the drag. */}
       <View style={styles.wheelBand} pointerEvents="none" />
-      <ScrollView
+      <Animated.ScrollView
         style={styles.wheelScroll}
         showsVerticalScrollIndicator={false}
         snapToInterval={WHEEL_ITEM_H}
         decelerationRate="fast"
         contentOffset={{ x: 0, y: index * WHEEL_ITEM_H }}
         contentContainerStyle={styles.wheelContent}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
         // A slow drag that never builds momentum ends here instead.
         onScrollEndDrag={(e) => settle(e.nativeEvent.contentOffset.y)}
       >
-        {options.map((o) => (
-          <View key={String(o.value)} style={styles.wheelItem}>
-            <Text
-              style={[
-                styles.wheelLabelOff,
-                o.value === value && styles.wheelLabelOn,
-              ]}
-              numberOfLines={1}
-            >
-              {o.label}
-            </Text>
-          </View>
+        {options.map((o, i) => (
+          <WheelRow
+            key={String(o.value)}
+            label={o.label}
+            index={i}
+            scrollY={scrollY}
+          />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -299,6 +339,99 @@ function Wheel<T extends string | number>({
 // enough that the date wheel stays a wheel rather than a calendar.
 const DATE_WINDOW_DAYS = 90;
 const TIME_STEP_MIN = 30;
+
+// The app's travel spring, borrowed from the tab bar's GLIDE. Anything that
+// moves from one place to another in this flow uses it, so the motion reads as
+// one system rather than as each control having its own opinion.
+const GLIDE = { stiffness: 190, damping: 19, mass: 0.85 } as const;
+
+// The category filter row, with a selection that travels rather than a
+// background that fades in and out per pill — the same idea as the tab bar's
+// chip, and for the same reason: the eye can follow a thing that moves, so the
+// row reads as one object instead of six.
+//
+// The tab bar can compute its chip's position from a fixed item width. These
+// pills are label-width, so each one reports its own frame and the indicator
+// interpolates between measured values.
+function SectionPills({
+  sections,
+  value,
+  onChange,
+}: {
+  sections: { id: SectionId | 'all'; label: string }[];
+  value: SectionId | 'all';
+  onChange: (id: SectionId | 'all') => void;
+}) {
+  const [frames, setFrames] = useState<Record<string, { x: number; w: number }>>(
+    {}
+  );
+  const x = useSharedValue(0);
+  const w = useSharedValue(0);
+  // The first measurement positions without animating, or the indicator flies
+  // in from the left edge every time the step mounts.
+  const placed = useRef(false);
+
+  const frame = frames[value];
+  useEffect(() => {
+    if (!frame) return;
+    if (!placed.current) {
+      placed.current = true;
+      x.value = frame.x;
+      w.value = frame.w;
+      return;
+    }
+    x.value = withSpring(frame.x, GLIDE);
+    w.value = withSpring(frame.w, GLIDE);
+  }, [frame, x, w]);
+
+  const indicator = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }],
+    width: w.value,
+  }));
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.sectionPillRow}
+      contentContainerStyle={styles.sectionPillContent}
+    >
+      {/* Behind the labels, so it can never intercept a tap. */}
+      <Animated.View style={[styles.sectionIndicator, indicator]} />
+      {sections.map((s) => {
+        const sel = value === s.id;
+        return (
+          <PressableScale
+            key={s.id}
+            scaleTo={TAP_SCALE}
+            style={styles.sectionPill}
+            onLayout={(e) =>
+              setFrames((f) => ({
+                ...f,
+                [s.id]: {
+                  x: e.nativeEvent.layout.x,
+                  w: e.nativeEvent.layout.width,
+                },
+              }))
+            }
+            onPress={() => {
+              Haptics.selectionAsync();
+              onChange(s.id);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: sel }}
+          >
+            <Text
+              style={[styles.sectionPillText, sel && styles.sectionPillTextActive]}
+            >
+              {s.label}
+            </Text>
+          </PressableScale>
+        );
+      })}
+    </ScrollView>
+  );
+}
 
 function StepProgress({ step }: { step: number }) {
   const pct = useSharedValue((step + 1) / STEP_COUNT);
@@ -351,6 +484,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const [discardVisible, setDiscardVisible] = useState(false);
     const [durationOpen, setDurationOpen] = useState(false);
     const [startOpen, setStartOpen] = useState(false);
+    const [editingPeople, setEditingPeople] = useState(false);
     // The card's measured height, which is what the pin is centred against.
     const [cardH, setCardH] = useState(0);
     // True while the current form came back from storage rather than being
@@ -966,43 +1100,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       >
                         {/* Category pills narrow the grid down; "All" is the
                             default so nothing is hidden until you choose. */}
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          style={styles.sectionPillRow}
-                          contentContainerStyle={styles.sectionPillContent}
-                        >
-                          {[{ id: 'all' as const, label: 'All' }, ...SECTIONS].map(
-                            (s) => {
-                              const sel = sectionFilter === s.id;
-                              return (
-                                <PressableScale
-                                  key={s.id}
-                                  scaleTo={TAP_SCALE}
-                                  style={[
-                                    styles.sectionPill,
-                                    sel && styles.sectionPillActive,
-                                  ]}
-                                  onPress={() => {
-                                    Haptics.selectionAsync();
-                                    setSectionFilter(s.id);
-                                  }}
-                                  accessibilityRole="button"
-                                  accessibilityState={{ selected: sel }}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.sectionPillText,
-                                      sel && styles.sectionPillTextActive,
-                                    ]}
-                                  >
-                                    {s.label}
-                                  </Text>
-                                </PressableScale>
-                              );
-                            }
-                          )}
-                        </ScrollView>
+                        <SectionPills
+                          sections={[{ id: 'all', label: 'All' }, ...SECTIONS]}
+                          value={sectionFilter}
+                          onChange={setSectionFilter}
+                        />
                         <ScrollView
                           style={styles.typeScroll}
                           contentContainerStyle={styles.typeScrollContent}
@@ -1201,10 +1303,43 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           >
                             <Icon name="minus" size={20} color={COLORS.white} strokeWidth={2.6} />
                           </PressableScale>
-                          <View style={styles.peopleValueWrap}>
-                            <Text style={styles.peopleValue}>{maxPeopleNum}</Text>
+                          {/* Tap the number to type it. The steppers are right
+                              for nudging by one and wrong for going from 4 to
+                              30, which is why the free-text field this replaced
+                              existed at all — but it is only a field while it
+                              is being edited, so the clamp still cannot bite
+                              silently: it applies on blur, in view. */}
+                          <PressableScale
+                            scaleTo={TAP_SCALE}
+                            style={styles.peopleValueWrap}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              setEditingPeople(true);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${maxPeopleNum} people. Tap to type a number`}
+                          >
+                            {editingPeople ? (
+                              <TextInput
+                                style={styles.peopleInput}
+                                value={maxPeople}
+                                onChangeText={(t) =>
+                                  setMaxPeople(t.replace(/[^0-9]/g, '').slice(0, 2))
+                                }
+                                onBlur={() => {
+                                  setMaxPeople(String(maxPeopleNum));
+                                  setEditingPeople(false);
+                                }}
+                                keyboardType="number-pad"
+                                returnKeyType="done"
+                                selectTextOnFocus
+                                autoFocus
+                              />
+                            ) : (
+                              <Text style={styles.peopleValue}>{maxPeopleNum}</Text>
+                            )}
                             <Text style={styles.peopleUnit}>people incl. you</Text>
-                          </View>
+                          </PressableScale>
                           <PressableScale
                             scaleTo={TAP_SCALE}
                             style={[
@@ -1251,7 +1386,20 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                               <Icon name="close" size={14} color={COLORS.white} strokeWidth={2.5} />
                             </PressableScale>
                           </View>
-                        ) : (
+                        ) : null}
+                        {/* The X on the corner removes; swapping one photo for
+                            another had meant removing first and then finding
+                            the picker again. This is the action people actually
+                            want after seeing the preview. */}
+                        {photoUri ? (
+                          <Button
+                            variant="tertiary"
+                            size="md"
+                            label="Replace photo"
+                            onPress={pickPhoto}
+                          />
+                        ) : null}
+                        {!photoUri ? (
                           <PressableScale
                             scaleTo={TAP_SCALE}
                             style={styles.photoEmpty}
@@ -1268,7 +1416,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                               joining your event.
                             </Text>
                           </PressableScale>
-                        )}
+                        ) : null}
                         {!photoUri && (
                           <View style={styles.photoFallback}>
                             <Avatar
@@ -1691,9 +1839,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  sectionPillActive: {
+  // The travelling selection. Absolute inside the scroll content so it shares
+  // the pills' coordinate space, and behind them so it cannot take a tap.
+  sectionIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: 32,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
   },
   sectionPillText: {
     fontFamily: FONTS.semibold,
@@ -1877,7 +2031,17 @@ const styles = StyleSheet.create({
     height: 52,
     marginTop: SPACING[1],
   },
-  peopleValueWrap: { alignItems: 'center' },
+  peopleValueWrap: { alignItems: 'center', minWidth: 96 },
+  // Same metrics as the label it replaces, so swapping between them does not
+  // shift the row.
+  peopleInput: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.title,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    padding: 0,
+    minWidth: 60,
+  },
   // Bigger now that there is no tray holding the row together — the number is
   // what carries it, so it has to be the thing the eye lands on.
   peopleValue: {
@@ -1924,16 +2088,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  wheelLabelOff: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-  },
-  wheelLabelOn: {
-    fontFamily: FONTS.heavy,
+  // One style for every row. Emphasis comes from the scroll-driven scale and
+  // opacity, not from swapping the selected row's font — which was what made
+  // the column jump as a value passed under the band.
+  wheelLabel: {
+    fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.section,
     color: COLORS.textPrimary,
+    textAlign: 'center',
   },
   // The app black, per the button rule: this is a workhorse control, not a
   // primary action, and coral here would compete with Next.

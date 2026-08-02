@@ -141,13 +141,15 @@ export default function MapScreen() {
     // slightly before settling. A timing curve arrives dead-on and reads as
     // inert no matter how it is eased.
     //
-    // Underdamped on purpose — this settles past its target and comes back.
-    // Everything downstream is written to survive that, which is the whole
-    // reason the widths below are floored at zero.
+    // Damped to the tab bar's GLIDE rather than the looser spring this shipped
+    // with. At damping 13 the overrun was large enough to read as a wobble; the
+    // bar's own travel spring is the app's reference for "carries weight but
+    // arrives". Still overshoots, which is why the widths below are floored at
+    // zero — just not enough to notice as a bounce.
     createProg.value = withSpring(creatingEvent ? 1 : 0, {
-      damping: 13,
+      damping: 19,
       stiffness: 190,
-      mass: 1,
+      mass: 0.85,
     });
   }, [creatingEvent]);
 
