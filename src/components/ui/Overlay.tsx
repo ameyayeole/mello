@@ -52,18 +52,18 @@ function Overlay({
   keyboardAvoiding?: boolean;
   animation?: 'fade' | 'slide';
 }) {
+  // A plain View, deliberately. This used to be a Pressable carrying an empty
+  // onPress to stop presses reaching the backdrop — which worked, but a
+  // Pressable claims the touch before any nested scrollable can, so a sheet
+  // containing a ScrollView (a picker wheel, a long list) could never be
+  // scrolled. The backdrop is a sibling *behind* the card now, so presses on
+  // the card simply never reach it and no swallowing handler is needed.
   const card = (
-    // `onPress={() => {}}` is load-bearing: without a handler the press falls
-    // through to the backdrop and closes the overlay.
-    <Pressable
-      style={[
-        anchor === 'bottom' ? styles.sheetCard : styles.dialogCard,
-        style,
-      ]}
-      onPress={() => {}}
+    <View
+      style={[anchor === 'bottom' ? styles.sheetCard : styles.dialogCard, style]}
     >
       {children}
-    </Pressable>
+    </View>
   );
 
   return (
@@ -75,13 +75,19 @@ function Overlay({
       // Without this the scrim stops at the status bar on Android.
       statusBarTranslucent
     >
-      <Pressable
+      <View
         style={[
           styles.backdrop,
           anchor === 'bottom' ? styles.alignBottom : styles.alignCenter,
         ]}
-        onPress={dismissOnBackdropPress ? onClose : undefined}
       >
+        {dismissOnBackdropPress ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onClose}
+            accessibilityLabel="Dismiss"
+          />
+        ) : null}
         {keyboardAvoiding ? (
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -93,7 +99,7 @@ function Overlay({
         ) : (
           card
         )}
-      </Pressable>
+      </View>
     </Modal>
   );
 }

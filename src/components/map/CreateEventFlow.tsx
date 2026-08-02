@@ -10,6 +10,8 @@ import {
   View,
   Text,
   StyleSheet,
+  StyleProp,
+  ViewStyle,
   TextInput,
   ScrollView,
   Keyboard,
@@ -65,7 +67,6 @@ import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
 import {
   roundUpTo30,
   fmtTime,
-  fmtDayShort,
   fmtDayLong,
 } from '@/components/DateTimeField';
 import { PlaceResult } from '@/components/PlaceSearch';
@@ -175,6 +176,23 @@ function defaultStart() {
   return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
 }
 
+// The one day label. Used by the wheel and by the STARTS row that opens it, so
+// the row cannot describe the date differently from the list it came from —
+// which it did: the row showed "28 Aug" while the wheel showed "Fri, 28 Aug".
+function dayLabel(d: Date, today: Date): string {
+  const days = Math.round(
+    (new Date(d).setHours(0, 0, 0, 0) - new Date(today).setHours(0, 0, 0, 0)) /
+      86_400_000
+  );
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 // Wheel options. Built from `now` rather than module load so a session left
 // open overnight does not offer yesterday.
 function dayOptions(now: Date) {
@@ -183,19 +201,7 @@ function dayOptions(now: Date) {
   return Array.from({ length: DATE_WINDOW_DAYS }, (_, i) => {
     const d = new Date(midnight);
     d.setDate(d.getDate() + i);
-    return {
-      value: d.getTime(),
-      label:
-        i === 0
-          ? 'Today'
-          : i === 1
-            ? 'Tomorrow'
-            : d.toLocaleDateString(undefined, {
-                weekday: 'short',
-                day: 'numeric',
-                month: 'short',
-              }),
-    };
+    return { value: d.getTime(), label: dayLabel(d, midnight) };
   });
 }
 
@@ -234,12 +240,12 @@ function Wheel<T extends string | number>({
   options,
   value,
   onChange,
-  width,
+  style,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
-  width?: number;
+  style?: StyleProp<ViewStyle>;
 }) {
   // Opening scrolled to the current value is most of the point of a wheel — it
   // shows where you sit in the range, not just what you picked. -1 guards a
@@ -256,7 +262,7 @@ function Wheel<T extends string | number>({
   }
 
   return (
-    <View style={[styles.wheelWrap, width != null && { width }]}>
+    <View style={[styles.wheelWrap, style]}>
       {/* Behind the list and never moving; the labels travel under it. Behind,
           so it cannot intercept the drag. */}
       <View style={styles.wheelBand} pointerEvents="none" />
@@ -1120,7 +1126,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           accessibilityLabel={`Starts ${fmtDayLong(startDate)} at ${fmtTime(startDate)}. Change`}
                         >
                           <Text style={styles.summaryValue}>
-                            {fmtDayShort(startDate)}
+                            {dayLabel(startDate, new Date(todayMs))}
                           </Text>
                           <Text style={styles.summaryMeta}>
                             {fmtTime(startDate)}
@@ -1378,11 +1384,17 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             is one gesture language rather than a calendar plus a grid. Day and
             minute-of-day are kept apart and recombined on change — a single
             list of every slot in 90 days would be 4,320 rows. */}
-        <Sheet visible={startOpen} onClose={() => setStartOpen(false)}>
+        <Sheet
+          visible={startOpen}
+          animation="slide"
+          grabber
+          onClose={() => setStartOpen(false)}
+        >
           <View style={styles.sheetBody}>
             <Text style={styles.sheetTitle}>Starts</Text>
             <View style={styles.wheelRow}>
               <Wheel
+                style={styles.wheelFlex}
                 options={days}
                 value={startDayValue}
                 onChange={(ms) => {
@@ -1393,6 +1405,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 }}
               />
               <Wheel
+                style={styles.wheelFlex}
                 options={times}
                 value={startMinuteValue}
                 onChange={(mins) => {
@@ -1423,7 +1436,12 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           </View>
         </Sheet>
 
-        <Sheet visible={durationOpen} onClose={() => setDurationOpen(false)}>
+        <Sheet
+          visible={durationOpen}
+          animation="slide"
+          grabber
+          onClose={() => setDurationOpen(false)}
+        >
           {/* Sheet supplies no horizontal padding — callers own their own
               gutters — so the content sets them here. */}
           <View style={styles.sheetBody}>
@@ -1878,7 +1896,12 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.sectionLg,
     color: COLORS.textPrimary,
   },
-  wheelWrap: { flex: 1, height: WHEEL_H, marginVertical: SPACING[3] },
+  // No flex here. In the duration sheet the wheel is a column child, where
+  // flex: 1 sets flexBasis 0 and overrides this height — inside an unbounded
+  // parent that collapses the wheel to nothing. Columns that want it to share
+  // width pass wheelFlex instead.
+  wheelWrap: { height: WHEEL_H, marginVertical: SPACING[3] },
+  wheelFlex: { flex: 1 },
   // Two wheels abreast for date + time; the band spans each column separately
   // so the pair reads as one control rather than two stacked lists.
   wheelRow: { flexDirection: 'row', gap: SPACING[3] },
