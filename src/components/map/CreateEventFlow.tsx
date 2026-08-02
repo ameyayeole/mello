@@ -57,6 +57,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { createEvent } from '@/services/events.service';
 import { uploadEventPhoto } from '@/services/storage.service';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
+import {
+  clearEventDraft,
+  loadEventDraft,
+  saveEventDraft,
+} from '@/services/eventDraftStore';
 import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
 import DateTimeField, { roundUpTo30, fmtDayShort, fmtTime } from '@/components/DateTimeField';
 import { PlaceResult } from '@/components/PlaceSearch';
@@ -212,6 +217,13 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const [firstHostVisible, setFirstHostVisible] = useState(false);
     const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
     const [discardVisible, setDiscardVisible] = useState(false);
+    // True while the current form came back from storage rather than being
+    // started here — drives the "draft restored" affordance.
+    const [restored, setRestored] = useState(false);
+    // Autosave must not run until the restore has had its turn. Otherwise the
+    // debounced save of the still-blank form can beat a slow keychain read,
+    // find no work, and clear the very draft that is about to be restored.
+    const [draftLoaded, setDraftLoaded] = useState(false);
 
     const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,9 +261,9 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       transform: [{ rotate: `${ringDeg.value}deg` }],
     }));
 
-    // Entering create mode always starts a fresh draft.
-    useEffect(() => {
-      if (!active) return;
+    // Reset to a blank draft. Split out from the entry effect so "start fresh"
+    // can reuse it without re-running the restore or the safety popup.
+    function resetDraft() {
       setPhase('drop');
       setStep(0);
       setCoord(null);
@@ -268,13 +280,65 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       setRequiresApproval(false);
       setWomenOnly(false);
       setSubmitState('loading');
+      setRestored(false);
       pinScale.value = 0;
       pinY.value = anchorY;
-      if (user) {
-        hasSeenSafetyFlag(user.id, 'first_host').then((seen) => {
-          if (!seen) setFirstHostVisible(true);
-        });
+    }
+
+    // Entering create mode starts blank, then restores a stored draft if there
+    // is one. Blank-first matters: the restore is async, so without it the form
+    // would briefly show the *previous* session's fields before this one's.
+    useEffect(() => {
+      if (!active) return;
+      resetDraft();
+      setDraftLoaded(false);
+      if (!user) {
+        setDraftLoaded(true);
+        return;
       }
+
+      hasSeenSafetyFlag(user.id, 'first_host').then((seen) => {
+        if (!seen) setFirstHostVisible(true);
+      });
+
+      // Guards against a draft landing after the user has already left, or
+      // after they hit "start fresh" while the read was in flight.
+      let cancelled = false;
+      loadEventDraft(user.id).then((d) => {
+        if (cancelled) return;
+        // Arms autosave either way — a miss is as conclusive as a hit.
+        setDraftLoaded(true);
+        if (!d) return;
+        setActivity(d.activity as ActivityId | null);
+        setTitle(d.title);
+        setDescription(d.description);
+        setPhotoUri(d.photoUri);
+        setStartDate(new Date(d.startsAt));
+        setDurationH(d.durationH);
+        setMaxPeople(d.maxPeople);
+        setIsPublic(d.isPublic);
+        setRequiresApproval(d.requiresApproval);
+        setWomenOnly(d.womenOnly);
+        setLocationName(d.locationName);
+        setStep(d.step);
+        setRestored(true);
+        // Only a draft that got as far as a pin can reopen the form; without a
+        // coordinate there is nothing to hang it on, so it resumes at the drop
+        // prompt with the fields already filled.
+        if (d.coord) {
+          setCoord(d.coord);
+          setPhase('form');
+          pinScale.value = 1;
+          pinY.value = anchorY;
+          mapRef.current?.animateToRegion(
+            regionForAnchor(d.coord.lat, d.coord.lng, PLACE_LNG_DELTA),
+            550
+          );
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
     }, [active]);
 
     useEffect(() => {
@@ -398,6 +462,59 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       else onExit();
     }
 
+    function discardDraft() {
+      if (user) clearEventDraft(user.id);
+      setDiscardVisible(false);
+      resetDraft();
+    }
+
+    // Autosave, debounced so a keystroke does not hit the keychain on every
+    // character. Every user-entered field is a dependency; nothing derived is,
+    // so the draft is only rewritten when something actually changed.
+    //
+    // Skipped once submitting: from that point the event either exists (and the
+    // draft is cleared) or failed (and the form is still standing, so the next
+    // edit saves it again).
+    useEffect(() => {
+      if (!active || !user || phase === 'submit' || !draftLoaded) return;
+      const t = setTimeout(() => {
+        saveEventDraft(user.id, {
+          step,
+          coord,
+          locationName,
+          activity,
+          title,
+          description,
+          photoUri,
+          startsAt: startDate.getTime(),
+          durationH,
+          maxPeople,
+          isPublic,
+          requiresApproval,
+          womenOnly,
+        });
+      }, 600);
+      return () => clearTimeout(t);
+    }, [
+      active,
+      user,
+      phase,
+      draftLoaded,
+      step,
+      coord,
+      locationName,
+      activity,
+      title,
+      description,
+      photoUri,
+      startDate,
+      durationH,
+      maxPeople,
+      isPublic,
+      requiresApproval,
+      womenOnly,
+    ]);
+
     async function handleHost() {
       if (!user || !activity || !coord) return;
       Keyboard.dismiss();
@@ -469,6 +586,9 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           });
         })();
         const [eventId] = await Promise.all([create, minWait]);
+        // The event exists now, so the draft has nothing left to protect.
+        // Before navigation, so a slow write cannot outlive the screen.
+        await clearEventDraft(user.id);
         queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.myEvents.all });
@@ -641,6 +761,28 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 </View>
 
                 <View style={styles.cardBody}>
+                  {/* A form that fills itself in is alarming without a reason.
+                      Sits above the steps so it reads before the fields do, and
+                      offers the way out in the same breath. */}
+                  {restored && (
+                    <Animated.View
+                      entering={FadeIn.duration(220)}
+                      style={styles.restoredRow}
+                    >
+                      <Text style={styles.restoredText}>
+                        Picked up where you left off
+                      </Text>
+                      <PressableScale
+                        scaleTo={0.94}
+                        onPress={discardDraft}
+                        accessibilityRole="button"
+                        accessibilityLabel="Start a fresh event"
+                        hitSlop={8}
+                      >
+                        <Text style={styles.restoredAction}>Start fresh</Text>
+                      </PressableScale>
+                    </Animated.View>
+                  )}
                   {/* Steps (absolute-fill so enter/exit slides overlap cleanly) */}
                   <View style={styles.stepArea}>
                     {step === 0 && (
@@ -1043,33 +1185,36 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           onClose={dismissFirstHost}
         />
 
-        {/* Leaving is the only way to lose a draft — nothing persists it — so
-            it asks first once there is anything to lose. Kept local rather than
-            promoted to ui/: this is its only caller. */}
+        {/* Leaving now keeps the draft, so the question is no longer "lose this
+            work?" but "which did you mean?" — the destructive option has to be
+            the explicit one. Kept local rather than promoted to ui/: one caller. */}
         <Dialog visible={discardVisible} onClose={() => setDiscardVisible(false)}>
-          <Text style={styles.discardTitle}>Discard this event?</Text>
+          <Text style={styles.discardTitle}>Leave this event?</Text>
           <Text style={styles.discardBody}>
-            What you&apos;ve filled in so far won&apos;t be saved.
+            We&apos;ll keep your draft so you can pick it up later.
           </Text>
           <View style={styles.discardRow}>
             <PressableScale
               scaleTo={0.96}
               style={[styles.discardBtn, styles.discardKeep]}
-              onPress={() => setDiscardVisible(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Keep editing"
-            >
-              <Text style={styles.discardKeepLabel}>Keep editing</Text>
-            </PressableScale>
-            <PressableScale
-              scaleTo={0.96}
-              style={[styles.discardBtn, styles.discardGo]}
               onPress={() => {
                 setDiscardVisible(false);
                 onExit();
               }}
               accessibilityRole="button"
-              accessibilityLabel="Discard"
+              accessibilityLabel="Save for later"
+            >
+              <Text style={styles.discardKeepLabel}>Save for later</Text>
+            </PressableScale>
+            <PressableScale
+              scaleTo={0.96}
+              style={[styles.discardBtn, styles.discardGo]}
+              onPress={() => {
+                discardDraft();
+                onExit();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Discard draft"
             >
               <Text style={styles.discardGoLabel}>Discard</Text>
             </PressableScale>
@@ -1364,6 +1509,25 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     marginTop: SPACING[1.5],
   },
+  restoredRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING[2],
+    marginBottom: SPACING[3],
+  },
+  restoredText: {
+    flex: 1,
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.textMuted,
+  },
+  restoredAction: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.primary,
+  },
+
   // Discard confirm — same shape and tokens as the community delete confirm, so
   // the two destructive prompts in the app read identically.
   discardTitle: {
