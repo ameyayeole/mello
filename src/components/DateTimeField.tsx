@@ -331,12 +331,17 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
     paddingVertical: SPACING[0.5],
   },
+  // Outlined rather than filled. A grey block reads as read-only; an outline
+  // reads as somewhere to put something. It also stops the field turning into
+  // an opaque smudge on the frosted create-event card, which is translucent.
   dateField: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2],
     height: 48,
-    backgroundColor: COLORS.background,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING[3.5],
   },

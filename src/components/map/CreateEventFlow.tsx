@@ -180,6 +180,68 @@ function defaultStart() {
 // element — too fine to register as progress at a glance.
 const PROGRESS_H = 4;
 
+// Duration picker, wheel-style like the system timer: the list scrolls under a
+// fixed selection band rather than laying every option out at once. Snapping is
+// `snapToInterval` plus half-a-viewport of padding at each end, which is what
+// lets the first and last rows reach the centre.
+const WHEEL_ITEM_H = 48;
+const WHEEL_VISIBLE = 5;
+const WHEEL_H = WHEEL_ITEM_H * WHEEL_VISIBLE;
+
+function DurationWheel({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (h: number) => void;
+}) {
+  const listRef = useRef<ScrollView>(null);
+  // Opening scrolled to the current value is the whole point of a wheel — it
+  // shows where you are in the range, not just what you picked.
+  const initialOffset = (DURATIONS.indexOf(value) || 0) * WHEEL_ITEM_H;
+
+  function settle(y: number) {
+    const i = Math.round(y / WHEEL_ITEM_H);
+    const next = DURATIONS[Math.min(DURATIONS.length - 1, Math.max(0, i))];
+    if (next !== value) {
+      Haptics.selectionAsync();
+      onChange(next);
+    }
+  }
+
+  return (
+    <View style={styles.wheelWrap}>
+      {/* The band sits behind the list and never moves; the numbers move under
+          it. Behind, so it cannot intercept the drag. */}
+      <View style={styles.wheelBand} pointerEvents="none" />
+      <ScrollView
+        ref={listRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={WHEEL_ITEM_H}
+        decelerationRate="fast"
+        contentOffset={{ x: 0, y: initialOffset }}
+        contentContainerStyle={styles.wheelContent}
+        onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
+        // A slow drag that never gains momentum ends here instead.
+        onScrollEndDrag={(e) => settle(e.nativeEvent.contentOffset.y)}
+      >
+        {DURATIONS.map((h) => (
+          <View key={h} style={styles.wheelItem}>
+            <Text
+              style={[
+                styles.wheelLabelOff,
+                h === value && styles.wheelLabelOn,
+              ]}
+            >
+              {h} {h === 1 ? 'hour' : 'hours'}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 function StepProgress({ step }: { step: number }) {
   const pct = useSharedValue((step + 1) / STEP_COUNT);
 
@@ -192,19 +254,9 @@ function StepProgress({ step }: { step: number }) {
 
   const fill = useAnimatedStyle(() => ({ width: `${pct.value * 100}%` }));
 
-  // The clipper is as tall as the corner radius, not as tall as the bar. React
-  // Native scales a corner radius down to fit its box, so putting the card's
-  // 32pt radius on a 4pt-tall element collapsed it to a 4pt radius and the bar
-  // went on cutting straight across the corners. At full height the curve is a
-  // true quarter-circle and the bar's ends disappear into it.
-  //
-  // Absolute so those 32pt cost no layout, and transparent to touches so it
-  // cannot swallow a tap meant for the row beneath.
   return (
-    <View style={styles.progressClip} pointerEvents="none">
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, fill]} />
-      </View>
+    <View style={styles.progressTrack}>
+      <Animated.View style={[styles.progressFill, fill]} />
     </View>
   );
 }
@@ -787,8 +839,6 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 style={styles.card}
                 onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
               >
-                <StepProgress step={step} />
-
                 <View style={styles.cardBody}>
                   {/* Glyph and title on one line. Bare glyph, no chip —
                       AGENTS.md assigns back/close/dismiss to NavButton, and its
@@ -811,6 +861,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       {STEP_HEADS[step]}
                     </Text>
                   </View>
+                  <StepProgress step={step} />
                   {/* A form that fills itself in is alarming without a reason.
                       Sits above the steps so it reads before the fields do, and
                       offers the way out in the same breath. */}
@@ -1245,35 +1296,19 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             problem, not the range. Wrapped into a grid, all 24 are reachable
             without dragging and the short ones are where the thumb already is. */}
         <Sheet visible={durationOpen} onClose={() => setDurationOpen(false)}>
-          <Text style={styles.label}>LASTS FOR</Text>
-          <View style={styles.durSheetGrid}>
-            {DURATIONS.map((h) => (
-              <PressableScale
-                key={h}
-                scaleTo={TAP_SCALE}
-                style={[
-                  styles.durSheetChip,
-                  durationH === h && styles.durChipActive,
-                ]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setDurationH(h);
-                  setDurationOpen(false);
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: durationH === h }}
-                accessibilityLabel={`${h} ${h === 1 ? 'hour' : 'hours'}`}
-              >
-                <Text
-                  style={[
-                    styles.durChipText,
-                    durationH === h && styles.durChipTextActive,
-                  ]}
-                >
-                  {h}h
-                </Text>
-              </PressableScale>
-            ))}
+          {/* Sheet supplies no horizontal padding — callers own their own
+              gutters — so the content sets them here. */}
+          <View style={styles.sheetBody}>
+            <Text style={styles.sheetTitle}>Lasts for</Text>
+            <DurationWheel value={durationH} onChange={setDurationH} />
+            <Button
+              variant="secondary"
+              label="Done"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setDurationOpen(false);
+              }}
+            />
           </View>
         </Sheet>
 
@@ -1431,23 +1466,22 @@ const styles = StyleSheet.create({
   // Pulled left so the glyph's optical edge lines up with the content column
   // below it rather than with its own 40pt touch box.
   navSlot: { marginLeft: -SPACING[2.5] },
-  // Carries the card's radius at full height so the corner is a true curve, and
-  // clips the bar to it. <Glass> cannot do this itself: its pane is an
-  // absolutely-positioned layer *behind* the children, not their parent, so
-  // nothing about the children is clipped to the radius.
-  progressClip: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: CARD_RADIUS,
-    borderTopLeftRadius: CARD_RADIUS,
-    borderTopRightRadius: CARD_RADIUS,
+  // Below the title row rather than in the card's top edge. That is where it
+  // belongs — it describes the step you are reading, not the pane — and it also
+  // retires the corner problem entirely: away from the radius there is no curve
+  // to follow, so the bar is just a bar with rounded ends.
+  progressTrack: {
+    height: PROGRESS_H,
+    borderRadius: PROGRESS_H / 2,
+    backgroundColor: COLORS.inkFaint,
     overflow: 'hidden',
-    zIndex: 2,
+    marginBottom: SPACING[1],
   },
-  progressTrack: { height: PROGRESS_H, backgroundColor: COLORS.inkFaint },
-  progressFill: { height: PROGRESS_H, backgroundColor: COLORS.primary },
+  progressFill: {
+    height: PROGRESS_H,
+    borderRadius: PROGRESS_H / 2,
+    backgroundColor: COLORS.primary,
+  },
   cardBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2] },
   // Floats free under the search bar; `top` is supplied at render from the
   // safe-area inset so it clears the notch on every device.
@@ -1500,9 +1534,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: SPACING[3.5],
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.inkFaint,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.inkSubtle,
+    borderColor: COLORS.border,
   },
   sectionPillActive: {
     backgroundColor: COLORS.accent,
@@ -1547,7 +1581,9 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    backgroundColor: COLORS.inkFaint,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING[3.5],
     fontFamily: FONTS.semibold,
@@ -1581,26 +1617,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING[5],
     marginBottom: SPACING[1],
   },
-  durChip: {
-    height: 36,
-    paddingHorizontal: SPACING[3.5],
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.inkFaint,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durChipActive: {
-    backgroundColor: COLORS.primaryTint,
-    borderColor: COLORS.primary,
-  },
-  durChipText: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: COLORS.textSecondary,
-  },
-  durChipTextActive: { color: COLORS.primary },
   warning: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
@@ -1674,7 +1690,9 @@ const styles = StyleSheet.create({
     height: 52,
     paddingHorizontal: SPACING[4],
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.inkFaint,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     marginTop: SPACING[1],
   },
   summaryValue: {
@@ -1710,24 +1728,43 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
-  // The duration sheet: every hour, wrapped, so nothing scrolls sideways and
-  // the common values are not buried at the same depth as the rare ones.
-  durSheetGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING[2],
-    paddingTop: SPACING[2],
-    paddingBottom: SPACING[4],
+  sheetBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[5] },
+  sheetTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.sectionLg,
+    color: COLORS.textPrimary,
   },
-  durSheetChip: {
-    width: 64,
-    height: 44,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
+  wheelWrap: {
+    height: WHEEL_H,
     justifyContent: 'center',
-    backgroundColor: COLORS.inkFaint,
+    marginVertical: SPACING[3],
+  },
+  // Half a viewport of padding at each end, so the first and last rows can
+  // reach the centre band instead of stopping at the edge.
+  wheelContent: { paddingVertical: (WHEEL_H - WHEEL_ITEM_H) / 2 },
+  wheelItem: { height: WHEEL_ITEM_H, justifyContent: 'center' },
+  // Outlined, not filled — the band marks where the selection is without
+  // painting a block behind the number.
+  wheelBand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: (WHEEL_H - WHEEL_ITEM_H) / 2,
+    height: WHEEL_ITEM_H,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.inkSubtle,
+    borderColor: COLORS.border,
+  },
+  wheelLabelOff: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+  },
+  wheelLabelOn: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.section,
+    color: COLORS.textPrimary,
   },
   // The app black, per the button rule: this is a workhorse control, not a
   // primary action, and coral here would compete with Next.
@@ -1766,9 +1803,9 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[7],
     paddingHorizontal: SPACING[7],
     borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.inkFaint,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.inkSubtle,
+    borderColor: COLORS.border,
   },
   photoEmptyIcon: {
     width: 50,
