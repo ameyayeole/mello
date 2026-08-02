@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -49,7 +50,7 @@ import Animated, {
   ZoomIn,
   cancelAnimation,
   interpolate,
-  useAnimatedRef,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -90,7 +91,6 @@ import {
   Avatar,
   Button,
   Dialog,
-  Glass,
   Icon,
   NavButton,
   PressableScale,
@@ -290,38 +290,37 @@ function Wheel<T extends string | number>({
   // Opening scrolled to the current value is most of the point of a wheel — it
   // shows where you sit in the range, not just what you picked.
   const index = Math.max(0, options.findIndex((o) => o.value === value));
-  const ref = useAnimatedRef<Animated.ScrollView>();
   // Drives the per-row falloff. Seeded so rows are styled correctly on the
   // first frame, before any scrolling has happened.
   const scrollY = useSharedValue(index * WHEEL_ITEM_H);
-  // True while we are the ones scrolling. The programmatic glide below fires
-  // another momentum-end when it lands, which would otherwise settle again.
-  const settling = useRef(false);
+  // Which row is under the band right now, as the finger moves. Separate from
+  // `value`, which only commits when the scroll comes to rest.
+  const passing = useSharedValue(index);
+
+  // The tick that makes it feel like a wheel and not a list. A real picker
+  // clicks once per row as it goes past, so the feedback is continuous with the
+  // gesture rather than arriving after it.
+  const tick = useCallback(() => {
+    Haptics.selectionAsync();
+  }, []);
 
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
+    const i = Math.round(e.contentOffset.y / WHEEL_ITEM_H);
+    if (i !== passing.value) {
+      passing.value = i;
+      runOnJS(tick)();
+    }
   });
 
-  // `snapToInterval` hands the snap to the platform, which cuts the deceleration
-  // off and drops onto the nearest row — released between two, it jumps. Letting
-  // momentum run out and then gliding to the nearest offset ourselves keeps the
-  // whole movement continuous: it slows, then eases the rest of the way.
-  function settle(y: number) {
-    if (settling.current) {
-      settling.current = false;
-      return;
-    }
+  // Snapping is the platform's. It decelerates into the row rather than cutting
+  // to it, and it is the thing an iOS picker actually does — a hand-rolled
+  // scrollTo on top of momentum fought the momentum, and its "am I the one
+  // scrolling" guard could strand itself and swallow the next gesture.
+  function commit(y: number) {
     const i = Math.min(options.length - 1, Math.max(0, Math.round(y / WHEEL_ITEM_H)));
-    const target = i * WHEEL_ITEM_H;
-    if (Math.abs(target - y) > 0.5) {
-      settling.current = true;
-      ref.current?.scrollTo({ y: target, animated: true });
-    }
     const next = options[i]?.value;
-    if (next !== undefined && next !== value) {
-      Haptics.selectionAsync();
-      onChange(next);
-    }
+    if (next !== undefined && next !== value) onChange(next);
   }
 
   return (
@@ -331,16 +330,17 @@ function Wheel<T extends string | number>({
       <View style={styles.wheelBand} pointerEvents="none" />
       <Animated.ScrollView
         style={styles.wheelScroll}
-        ref={ref}
         showsVerticalScrollIndicator={false}
-        decelerationRate="normal"
+        snapToInterval={WHEEL_ITEM_H}
+        disableIntervalMomentum
+        decelerationRate="fast"
         contentOffset={{ x: 0, y: index * WHEEL_ITEM_H }}
         contentContainerStyle={styles.wheelContent}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
-        // A slow drag that never builds momentum ends here instead.
-        onScrollEndDrag={(e) => settle(e.nativeEvent.contentOffset.y)}
+        onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
+        // A slow drag that never builds momentum gets no momentum-end at all.
+        onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
       >
         {options.map((o, i) => (
           <WheelRow
@@ -1186,16 +1186,18 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
               entering={SlideInDown.duration(380).easing(Easing.out(Easing.cubic))}
               exiting={SlideOutDown.duration(280).easing(Easing.in(Easing.cubic))}
             >
-              {/* One frosted pane, not a dark band stacked on a white sheet.
-                  `edge="top"` rounds the top corners and draws the hairline
-                  across that edge alone — the card runs off the bottom of the
-                  screen, where a corner would read as the surface stopping
-                  short. Contents stay ink: this is a light tier (DESIGN.md §3
-                  — white type belongs on `onPhoto` and nowhere else). */}
-              <Glass
-                tier="chrome"
-                radius={CARD_RADIUS}
-                edge="top"
+              {/* Solid, not glass. A translucent pane takes the colour of
+                  whatever it is over, and over a map that is a different colour
+                  every time you pan — which is what read as "orange here, grey
+                  there". Going to `chrome` only reduced it. The card is opaque
+                  white now, matching the page surfaces elsewhere; it keeps the
+                  bright top edge and the rounded top corners, and gives up the
+                  blur. That is the trade: a stable colour or a see-through one.
+
+                  `edge="top"` reasoning still applies — the card runs off the
+                  bottom of the screen, where a corner would read as the surface
+                  stopping short, so only the top corners round. */}
+              <View
                 style={styles.card}
                 onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
               >
@@ -1615,7 +1617,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     disabled={nextDisabled}
                   />
                 </View>
-              </Glass>
+              </View>
             </Animated.View>
           )}
         </KeyboardAvoidingView>
@@ -1854,12 +1856,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  // Fill, hairline and radius all come from <Glass> now. What stays here is
-  // layout plus the shadow: the design's standard SHADOWS.glass throws
-  // downward, and this card's only exposed edge is its top, so it keeps the
-  // upward throw it was drawn with. Glass puts `style` on the unclipped outer
-  // view precisely so a caller can do this.
+  // The shadow throws upward: SHADOWS.glass throws down, and this card's only
+  // exposed edge is its top.
   card: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: CARD_RADIUS,
+    borderTopRightRadius: CARD_RADIUS,
+    borderTopWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: COLORS.glassBorder,
     paddingBottom: SPACING[7],
     shadowColor: COLORS.ink,
     shadowOpacity: 0.16,
@@ -2222,7 +2226,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepperBtnOff: { opacity: 0.4 },
-  photoWrap: { marginTop: SPACING[4], borderRadius: RADIUS.lg, overflow: 'hidden' },
+  photoWrap: {
+    marginTop: SPACING[4],
+    marginBottom: SPACING[3],
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+  },
   photoPreview: { width: '100%', height: 180 },
   photoRemove: {
     position: 'absolute',
