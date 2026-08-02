@@ -23,7 +23,7 @@ export type FeedPageParam = {
 };
 
 // Kept for user_posts / get_post, which still paginate by keyset.
-export type FeedCursor = { score: number; createdAt: string; id: string };
+export type FeedCursor = { createdAt: string; id: string };
 
 // True only when this call is building a session (never on a continuation
 // page) for tier 1 — the tail of the feed is never the right place for the
