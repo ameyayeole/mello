@@ -173,3 +173,50 @@ export function startsNewDay(
   if (!previous) return true;
   return !isSameDay(new Date(previous), new Date(current));
 }
+
+// ─── Date-picker formatting ──────────────────────────────────────────────────
+// Moved here from DateTimeField, which is a component: anything importing it
+// for these pure helpers dragged in the whole `ui` barrel and, through it,
+// Reanimated — which throws under Jest, so a caller could not be tested at all.
+// DateTimeField re-exports them, so existing imports are unaffected.
+
+const PICKER_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const PICKER_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// Nudges a time up to the next half hour, leaving one already on it alone.
+export function roundUpTo30(d: Date) {
+  const r = new Date(d);
+  r.setSeconds(0, 0);
+  const m = r.getMinutes();
+  if (m % 30 !== 0) r.setMinutes(m + (30 - (m % 30)));
+  return r;
+}
+
+export function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+export function fmtTime(d: Date) {
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m.toString().padStart(2, '0')} ${ap}`;
+}
+
+export function fmtDayLong(d: Date) {
+  return `${PICKER_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${PICKER_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Compact label for the side-by-side start/end fields, where the full long date
+// won't fit at half width: "12 Jan".
+export function fmtDayShort(d: Date) {
+  return `${d.getDate()} ${PICKER_MONTHS[d.getMonth()]}`;
+}

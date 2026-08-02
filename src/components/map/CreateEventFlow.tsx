@@ -77,6 +77,13 @@ import {
   fmtTime,
   fmtDayLong,
 } from '@/components/DateTimeField';
+import {
+  dayLabel,
+  dayOptions,
+  dayValueOf,
+  minuteValueOf,
+  timeOptions,
+} from '@/utils/eventSchedule';
 import { PlaceResult } from '@/components/PlaceSearch';
 import {
   ACTIVITIES,
@@ -181,45 +188,6 @@ const STEP_HEADS = [
 
 function defaultStart() {
   return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
-}
-
-// The one day label. Used by the wheel and by the STARTS row that opens it, so
-// the row cannot describe the date differently from the list it came from —
-// which it did: the row showed "28 Aug" while the wheel showed "Fri, 28 Aug".
-function dayLabel(d: Date, today: Date): string {
-  const days = Math.round(
-    (new Date(d).setHours(0, 0, 0, 0) - new Date(today).setHours(0, 0, 0, 0)) /
-      86_400_000
-  );
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Tomorrow';
-  return d.toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-}
-
-// Wheel options. Built from `now` rather than module load so a session left
-// open overnight does not offer yesterday.
-function dayOptions(now: Date) {
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-  return Array.from({ length: DATE_WINDOW_DAYS }, (_, i) => {
-    const d = new Date(midnight);
-    d.setDate(d.getDate() + i);
-    return { value: d.getTime(), label: dayLabel(d, midnight) };
-  });
-}
-
-function timeOptions() {
-  const perDay = (24 * 60) / TIME_STEP_MIN;
-  return Array.from({ length: perDay }, (_, i) => {
-    const mins = i * TIME_STEP_MIN;
-    const d = new Date();
-    d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
-    return { value: mins, label: fmtTime(d) };
-  });
 }
 
 // Progress across the top edge of the pane. It replaced a ring in the heading
@@ -366,11 +334,6 @@ function Wheel<T extends string | number>({
     </View>
   );
 }
-
-// How far ahead an event can be scheduled. Long enough for a season, short
-// enough that the date wheel stays a wheel rather than a calendar.
-const DATE_WINDOW_DAYS = 90;
-const TIME_STEP_MIN = 30;
 
 // The app's travel motion — see DESIGN.md §9, "The travelling selection".
 //
@@ -1092,10 +1055,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const startInPast = isStartInPast(startDate);
     // The wheels address day and minute-of-day separately; `startDate` is the
     // single source of truth both are read back out of.
-    const startDayValue = new Date(startDate).setHours(0, 0, 0, 0);
-    const startMinuteValue =
-      startDate.getHours() * 60 +
-      Math.round(startDate.getMinutes() / TIME_STEP_MIN) * TIME_STEP_MIN;
+    const startDayValue = dayValueOf(startDate);
+    const startMinuteValue = minuteValueOf(startDate);
     const nextDisabled = !canAdvanceFrom(step, { activity, title, startDate });
     const endDate = eventEndTime(startDate, durationH);
     // Steps come in on a short rise as well as a fade. A pure cross-fade at
