@@ -111,11 +111,24 @@ export function PostActionBar({
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', gap: SPACING[5], marginTop: SPACING[3] },
-  action: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
+  bar: {
+    flexDirection: 'row',
+    gap: SPACING[5],
+    marginTop: SPACING[4],
+    minHeight: 44,
+    alignItems: 'center',
+  },
+  action: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
+    paddingVertical: SPACING[2],
+    paddingHorizontal: SPACING[2],
+    minHeight: 44,
+  },
   count: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
-    color: COLORS.textMuted,
+    color: COLORS.textPrimary,
   },
 });
