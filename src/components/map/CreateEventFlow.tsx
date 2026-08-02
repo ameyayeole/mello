@@ -240,9 +240,7 @@ const WHEEL_ITEM_H = 48;
 const WHEEL_VISIBLE = 5;
 const WHEEL_H = WHEEL_ITEM_H * WHEEL_VISIBLE;
 
-// One wheel, driven by a list of {value,label}. Duration, date and time are the
-// same interaction — a column scrolling under a fixed band — so they are the
-// same component rather than three that drift apart.
+// One row of the drum.
 function WheelRow({
   label,
   index,
@@ -252,15 +250,23 @@ function WheelRow({
   index: number;
   scrollY: SharedValue<number>;
 }) {
-  // Distance from the band, in rows. Everything below is a function of it, so
-  // the column reads as a surface curving away rather than as a list where one
-  // item happens to be styled differently.
+  // Signed distance from the band, in rows: negative below it, positive above.
+  // Rows do not merely shrink as they leave — they rotate away from the viewer,
+  // which is the system picker's actual signature and the difference between a
+  // drum turning and a list with one item highlighted.
   const style = useAnimatedStyle(() => {
-    const d = Math.abs(scrollY.value / WHEEL_ITEM_H - index);
+    const d = scrollY.value / WHEEL_ITEM_H - index;
+    const a = Math.abs(d);
     return {
-      opacity: interpolate(d, [0, 1, 2.5], [1, 0.5, 0.15], Extrapolation.CLAMP),
+      opacity: interpolate(a, [0, 1, 2, 3], [1, 0.55, 0.25, 0.08], Extrapolation.CLAMP),
       transform: [
-        { scale: interpolate(d, [0, 1, 2.5], [1, 0.86, 0.72], Extrapolation.CLAMP) },
+        // Perspective has to lead the list, or the rotation flattens into a
+        // vertical squash instead of reading as a turn into the screen.
+        { perspective: 620 },
+        {
+          rotateX: `${interpolate(d, [-3, 0, 3], [-62, 0, 62], Extrapolation.CLAMP)}deg`,
+        },
+        { scale: interpolate(a, [0, 1, 2.5], [1, 0.9, 0.78], Extrapolation.CLAMP) },
       ],
     };
   });
@@ -332,7 +338,6 @@ function Wheel<T extends string | number>({
         style={styles.wheelScroll}
         showsVerticalScrollIndicator={false}
         snapToInterval={WHEEL_ITEM_H}
-        disableIntervalMomentum
         decelerationRate="fast"
         contentOffset={{ x: 0, y: index * WHEEL_ITEM_H }}
         contentContainerStyle={styles.wheelContent}
@@ -2194,8 +2199,9 @@ const styles = StyleSheet.create({
   // reach the centre band instead of stopping at the edge.
   wheelContent: { paddingVertical: (WHEEL_H - WHEEL_ITEM_H) / 2 },
   wheelItem: { height: WHEEL_ITEM_H, justifyContent: 'center' },
-  // Outlined, not filled — the band marks where the selection is without
-  // painting a block behind the number.
+  // Filled, not outlined. The outline rule is for inputs; this is not one, it is
+  // the system picker's selected row, and that is a soft filled pill. An outline
+  // here reads as a field the numbers happen to be passing through.
   wheelBand: {
     position: 'absolute',
     left: 0,
@@ -2203,8 +2209,7 @@ const styles = StyleSheet.create({
     top: (WHEEL_H - WHEEL_ITEM_H) / 2,
     height: WHEEL_ITEM_H,
     borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.inkFaint,
   },
   // One style for every row. Emphasis comes from the scroll-driven scale and
   // opacity, not from swapping the selected row's font — which was what made
