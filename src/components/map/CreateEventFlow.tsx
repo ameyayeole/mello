@@ -177,7 +177,7 @@ function StepRing({ step }: { step: number }) {
         cx={half}
         cy={half}
         r={RING_R}
-        stroke="rgba(255,255,255,0.18)"
+        stroke={COLORS.borderOnDark}
         strokeWidth={RING_STROKE}
         fill="none"
       />
@@ -674,7 +674,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             pointerEvents="none"
           >
             <View style={styles.locationPill}>
-              <Icon name="location" size={13} color="#fff" />
+              <Icon name="location" size={13} color={COLORS.white} />
               <Text style={styles.locationText} numberOfLines={1}>
                 {locationName || 'Locating…'}
               </Text>
@@ -712,7 +712,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       <Animated.View
                         entering={FadeIn.delay(180).duration(280)}
                       >
-                        <Icon name="check" size={26} color="#fff" strokeWidth={3} />
+                        <Icon name="check" size={26} color={COLORS.white} strokeWidth={3} />
                       </Animated.View>
                     </Animated.View>
                   )}
@@ -763,7 +763,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         <Icon
                           name={step > 0 ? 'back' : 'close'}
                           size={17}
-                          color="#fff"
+                          color={COLORS.white}
                         />
                       </PressableScale>
                     </View>
@@ -909,7 +909,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         <TextInput
                           style={styles.input}
                           placeholder="e.g. Sunset rooftop drinks"
-                          placeholderTextColor="rgba(15,24,44,0.40)"
+                          placeholderTextColor={COLORS.placeholder}
                           value={title}
                           onChangeText={setTitle}
                           maxLength={TITLE_MAX}
@@ -922,7 +922,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                         <TextInput
                           style={[styles.input, styles.multiline]}
                           placeholder="Short and inviting works best."
-                          placeholderTextColor="rgba(15,24,44,0.40)"
+                          placeholderTextColor={COLORS.placeholder}
                           value={description}
                           onChangeText={setDescription}
                           multiline
@@ -1073,7 +1073,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                               onPress={() => setPhotoUri(null)}
                               accessibilityLabel="Remove photo"
                             >
-                              <Icon name="close" size={14} color="#fff" strokeWidth={2.5} />
+                              <Icon name="close" size={14} color={COLORS.white} strokeWidth={2.5} />
                             </PressableScale>
                           </View>
                         ) : (
@@ -1269,7 +1269,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING[4],
     height: 40,
-    shadowColor: '#0F182C',
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.16,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -1292,11 +1292,11 @@ const styles = StyleSheet.create({
     width: CIRCLE,
     height: CIRCLE,
     borderRadius: CIRCLE / 2,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: '#0F182C',
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.25,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -1309,7 +1309,7 @@ const styles = StyleSheet.create({
     height: PIN_SIZE + 6,
     borderRadius: (PIN_SIZE + 6) / 2,
     borderWidth: 3,
-    borderColor: 'rgba(255,94,91,0.18)',
+    borderColor: COLORS.primaryTrack,
     borderTopColor: COLORS.primary,
   },
   successFill: {
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     paddingBottom: SPACING[7],
-    shadowColor: '#0F182C',
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.16,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: -8 },
@@ -1359,7 +1359,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: RADIUS.lg,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: COLORS.fillOnDark,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1388,7 +1388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[3.5],
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
-    shadowColor: '#0F182C',
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.16,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -1398,7 +1398,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
-    color: '#fff',
+    color: COLORS.white,
   },
   stepArea: { height: 268, marginBottom: SPACING[3] },
   step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -1406,7 +1406,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.sectionLg,
-    color: '#fff',
+    color: COLORS.white,
     textAlign: 'center',
   },
   sectionPillRow: { flexGrow: 0, marginTop: SPACING[3], marginHorizontal: -20 },
@@ -1418,7 +1418,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.background,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.08)',
+    borderColor: COLORS.inkSubtle,
   },
   sectionPillActive: {
     backgroundColor: COLORS.accent,
@@ -1429,7 +1429,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
   },
-  sectionPillTextActive: { fontFamily: FONTS.bold, color: '#fff' },
+  sectionPillTextActive: { fontFamily: FONTS.bold, color: COLORS.white },
   typeScroll: { flex: 1, marginTop: SPACING[3], marginHorizontal: -4 },
   typeScrollContent: { paddingHorizontal: SPACING[1], paddingBottom: SPACING[2] },
   typeGrid: {
@@ -1451,7 +1451,7 @@ const styles = StyleSheet.create({
   typeLabel: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.55)',
+    color: COLORS.inkLabel,
   },
   input: {
     height: 50,
@@ -1475,7 +1475,7 @@ const styles = StyleSheet.create({
   charCount: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.35)',
+    color: COLORS.textMuted,
     textAlign: 'right',
     marginTop: SPACING[1.5],
   },
@@ -1483,7 +1483,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
-    color: 'rgba(15,24,44,0.5)',
+    color: COLORS.inkLabel,
     marginTop: SPACING[3.5],
     marginBottom: SPACING[1.5],
   },
@@ -1620,7 +1620,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: RADIUS.md,
-    backgroundColor: 'rgba(15,24,44,0.55)',
+    backgroundColor: COLORS.glassOnPhoto,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1633,7 +1633,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xl,
     backgroundColor: COLORS.background,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.06)',
+    borderColor: COLORS.inkSubtle,
   },
   photoEmptyIcon: {
     width: 50,
