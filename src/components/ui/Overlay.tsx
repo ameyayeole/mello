@@ -8,6 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  SlideInDown,
+  SlideOutDown,
+} from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 
@@ -66,29 +73,59 @@ function Overlay({
     </View>
   );
 
+  // `slide` is driven here rather than by the Modal. Modal's own slide animates
+  // the whole tree — scrim included — so the dim travelled up from the bottom
+  // edge with the card and read as a black panel rising rather than as the page
+  // dimming. Splitting them lets the scrim fade in place while only the card
+  // moves, which is what a presented sheet is supposed to look like.
+  const sliding = animation === 'slide';
+
   return (
     <Modal
       visible={visible}
       transparent
-      animationType={animation}
+      animationType={sliding ? 'none' : animation}
       onRequestClose={onClose}
       // Without this the scrim stops at the status bar on Android.
       statusBarTranslucent
     >
       <View
         style={[
-          styles.backdrop,
+          styles.backdropRoot,
           anchor === 'bottom' ? styles.alignBottom : styles.alignCenter,
         ]}
       >
-        {dismissOnBackdropPress ? (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={onClose}
-            accessibilityLabel="Dismiss"
-          />
-        ) : null}
-        {keyboardAvoiding ? (
+        <Animated.View
+          style={styles.backdrop}
+          entering={sliding ? FadeIn.duration(220) : undefined}
+          exiting={sliding ? FadeOut.duration(180) : undefined}
+        >
+          {dismissOnBackdropPress ? (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={onClose}
+              accessibilityLabel="Dismiss"
+            />
+          ) : null}
+        </Animated.View>
+        {sliding ? (
+          <Animated.View
+            entering={SlideInDown.duration(300).easing(Easing.out(Easing.cubic))}
+            exiting={SlideOutDown.duration(220).easing(Easing.in(Easing.cubic))}
+          >
+            {keyboardAvoiding ? (
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={styles.kav}
+                pointerEvents="box-none"
+              >
+                {card}
+              </KeyboardAvoidingView>
+            ) : (
+              card
+            )}
+          </Animated.View>
+        ) : keyboardAvoiding ? (
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.kav}
@@ -133,7 +170,17 @@ export function Dialog(props: BaseProps) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: COLORS.scrim },
+  // Root holds the layout; the scrim is a layer inside it, so the dim can fade
+  // on its own while the card slides.
+  backdropRoot: { flex: 1 },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.scrim,
+  },
   alignBottom: { justifyContent: 'flex-end' },
   alignCenter: { justifyContent: 'center', paddingHorizontal: SPACING[8] },
   kav: { justifyContent: 'flex-end' },

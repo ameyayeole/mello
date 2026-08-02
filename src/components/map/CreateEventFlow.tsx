@@ -49,6 +49,7 @@ import Animated, {
   ZoomIn,
   cancelAnimation,
   interpolate,
+  useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -289,15 +290,33 @@ function Wheel<T extends string | number>({
   // Opening scrolled to the current value is most of the point of a wheel — it
   // shows where you sit in the range, not just what you picked.
   const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const ref = useAnimatedRef<Animated.ScrollView>();
   // Drives the per-row falloff. Seeded so rows are styled correctly on the
   // first frame, before any scrolling has happened.
   const scrollY = useSharedValue(index * WHEEL_ITEM_H);
+  // True while we are the ones scrolling. The programmatic glide below fires
+  // another momentum-end when it lands, which would otherwise settle again.
+  const settling = useRef(false);
+
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
 
+  // `snapToInterval` hands the snap to the platform, which cuts the deceleration
+  // off and drops onto the nearest row — released between two, it jumps. Letting
+  // momentum run out and then gliding to the nearest offset ourselves keeps the
+  // whole movement continuous: it slows, then eases the rest of the way.
   function settle(y: number) {
+    if (settling.current) {
+      settling.current = false;
+      return;
+    }
     const i = Math.min(options.length - 1, Math.max(0, Math.round(y / WHEEL_ITEM_H)));
+    const target = i * WHEEL_ITEM_H;
+    if (Math.abs(target - y) > 0.5) {
+      settling.current = true;
+      ref.current?.scrollTo({ y: target, animated: true });
+    }
     const next = options[i]?.value;
     if (next !== undefined && next !== value) {
       Haptics.selectionAsync();
@@ -312,9 +331,9 @@ function Wheel<T extends string | number>({
       <View style={styles.wheelBand} pointerEvents="none" />
       <Animated.ScrollView
         style={styles.wheelScroll}
+        ref={ref}
         showsVerticalScrollIndicator={false}
-        snapToInterval={WHEEL_ITEM_H}
-        decelerationRate="fast"
+        decelerationRate="normal"
         contentOffset={{ x: 0, y: index * WHEEL_ITEM_H }}
         contentContainerStyle={styles.wheelContent}
         onScroll={onScroll}
@@ -352,14 +371,8 @@ const TIME_STEP_MIN = 30;
 // overrun stays small enough not to register however far it came.
 const GLIDE = { stiffness: 190, damping: 24, mass: 0.85 } as const;
 
-// Grid travel. The indicator moves on the axes rather than cutting across the
-// diagonal, so it reads as stepping between cells instead of flying over them.
+// Grid travel.
 //
-// How far the leading leg gets before the other sets off. Short enough that the
-// two overlap — which is what rounds the corner and keeps the move feeling like
-// one gesture — long enough that the path still reads as down-then-across
-// rather than as a diagonal.
-const CORNER_LEAD_MS = 110;
 // How much the indicator compresses while travelling.
 const SQUASH = 0.08;
 const GRID_COLS = 4;
@@ -458,15 +471,8 @@ function SectionPills({
   );
 }
 
-// The activity grid, with the same travelling selection as the category row —
-// but a grid is not a strip, so the indicator does not cut the diagonal.
-//
-// A straight line from A3 to C2 crosses cells that were never on the way. The
-// indicator instead moves along one axis and then the other, longer leg first,
-// so it reads as stepping through the grid rather than flying over it. Moves
-// that are already axis-aligned, or that land on a touching diagonal neighbour,
-// travel straight — a right angle there would be pedantry, not clarity.
-// See DESIGN.md §9.
+// The activity grid, with the same travelling selection as the category row.
+// Straight to the target on both axes — see DESIGN.md §8.
 function TypeGrid({
   activities,
   value,
@@ -511,40 +517,16 @@ function TypeGrid({
       return;
     }
 
-    const dCol = (index % GRID_COLS) - (from % GRID_COLS);
-    const dRow = Math.floor(index / GRID_COLS) - Math.floor(from / GRID_COLS);
-    const straight =
-      dCol === 0 || dRow === 0 || (Math.abs(dCol) === 1 && Math.abs(dRow) === 1);
-
-    // A dip on departure that recovers on arrival. Both legs share it, so an
-    // L-path reads as one gesture that compressed to move rather than as two
-    // journeys with a pause in the middle.
+    // Straight to the target, both axes together. An earlier version stepped
+    // the axes to avoid "crossing cells that were never on the way" — but the
+    // indicator is a thing moving over the grid, not a token walking through
+    // it, and the diagonal is simply where it is going.
     squash.value = withSequence(
       withTiming(1, { duration: 130, easing: Easing.out(Easing.quad) }),
       withSpring(0, GLIDE)
     );
-
-    if (straight) {
-      x.value = withSpring(tx, GLIDE);
-      y.value = withSpring(ty, GLIDE);
-      return;
-    }
-    // Springs on both legs, and the second starts before the first has settled.
-    // Timed legs with the corner on a hard boundary was the mechanical version:
-    // it stopped dead, turned, and set off again. Overlapping springs round the
-    // corner off, so the path curves through it and the whole move reads as one
-    // continuous travel that happens to be axis-aligned.
-    //
-    // The longer leg leads, so it reads as "mostly down, then across" rather
-    // than as two equal halves meeting at a right angle.
-    const rowFirst = Math.abs(dRow) >= Math.abs(dCol);
-    if (rowFirst) {
-      y.value = withSpring(ty, GLIDE);
-      x.value = withDelay(CORNER_LEAD_MS, withSpring(tx, GLIDE));
-    } else {
-      x.value = withSpring(tx, GLIDE);
-      y.value = withDelay(CORNER_LEAD_MS, withSpring(ty, GLIDE));
-    }
+    x.value = withSpring(tx, GLIDE);
+    y.value = withSpring(ty, GLIDE);
   }, [frame, index, x, y, shown, squash]);
 
   const indicator = useAnimatedStyle(() => ({
