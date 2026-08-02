@@ -43,4 +43,5 @@ export type { TextFieldProps } from './TextField';
 export { EmptyState } from './EmptyState';
 export { Loader } from './Loader';
 export { Sheet, Dialog } from './Overlay';
+export { Toggle } from './Toggle';
 export { MelloPin, MelloWordmark, CoralGlow } from './MelloLogo';

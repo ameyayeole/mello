@@ -11,7 +11,6 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
-  Switch,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -75,7 +74,14 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId } from '@/types/models';
-import { Avatar, Button, Dialog, Icon, PressableScale } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  Dialog,
+  Icon,
+  PressableScale,
+  Toggle,
+} from '@/components/ui';
 import { showError } from '@/utils/errors';
 
 // ─── In-map event creation ───────────────────────────────────────────────────
@@ -1120,11 +1126,10 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                                 : 'Only friends can see'}
                             </Text>
                           </View>
-                          <Switch
+                          <Toggle
                             value={isPublic}
                             onValueChange={setIsPublic}
-                            trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                            thumbColor={COLORS.surface}
+                            accessibilityLabel="Public event"
                           />
                         </View>
                         <View style={styles.safetyRow}>
@@ -1136,11 +1141,10 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                                 : 'Anyone can join instantly'}
                             </Text>
                           </View>
-                          <Switch
+                          <Toggle
                             value={requiresApproval}
                             onValueChange={setRequiresApproval}
-                            trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                            thumbColor={COLORS.surface}
+                            accessibilityLabel="Approve who joins"
                           />
                         </View>
                         {/* Female-only hosting is offered to female profiles only. */}
@@ -1154,13 +1158,12 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                                   : 'Anyone can see and join'}
                               </Text>
                             </View>
-                            <Switch
+                            <Toggle
                               value={womenOnly}
                               onValueChange={(on) =>
                                 on ? setWomenOnlyConfirmVisible(true) : setWomenOnly(false)
                               }
-                              trackColor={{ true: COLORS.primary, false: COLORS.disabled }}
-                              thumbColor={COLORS.surface}
+                              accessibilityLabel="Female-only event"
                             />
                           </View>
                         )}

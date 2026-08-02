@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import {
   IconName,
   PressableScale,
   SectionLabel,
+  Toggle,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
 
@@ -295,14 +296,10 @@ export default function SettingsScreen() {
                   title="Ghost mode"
                   subtitle="Hide your online presence from others"
                   trailing={
-                    <Switch
+                    <Toggle
                       value={ghostMode}
                       onValueChange={toggleGhostMode}
-                      trackColor={{
-                        true: COLORS.primary,
-                        false: COLORS.disabled,
-                      }}
-                      thumbColor={COLORS.surface}
+                      accessibilityLabel="Ghost mode"
                     />
                   }
                 />
