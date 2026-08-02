@@ -928,6 +928,15 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                           multiline
                           maxLength={DESCRIPTION_MAX}
                         />
+                        {/* The field silently stops accepting input at the cap.
+                            The title above it has always said so; this one only
+                            shows the count once it is close enough to matter,
+                            so an empty box is not pre-loaded with "0/500". */}
+                        {description.length > DESCRIPTION_MAX * 0.8 && (
+                          <Text style={styles.charCount}>
+                            {description.length}/{DESCRIPTION_MAX}
+                          </Text>
+                        )}
                       </Animated.View>
                     )}
 
