@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -127,8 +127,17 @@ function Overlay({
 
   const done = useCallback(() => setExiting(false), []);
 
+  // Distinguishes "shut because it closed" from "shut because it has never been
+  // opened". Without it the effect below reads a first render as a dismissal
+  // and plays an exit animation for a sheet nobody opened — which is not merely
+  // a wasted animation, because `exiting` is half of `mounted`: every slide
+  // Sheet in the app briefly mounted its full contents on first render to
+  // animate out of a state it was never in.
+  const hasOpened = useRef(false);
+
   useEffect(() => {
     if (visible) {
+      hasOpened.current = true;
       // Also resets the offset a drag-dismiss parked at its thrown-out value —
       // without which the next open renders the card off the bottom of the
       // screen and the sheet appears not to open at all.
@@ -136,10 +145,16 @@ function Overlay({
       return;
     }
     if (!sliding) return;
-    // Deliberate: this is the bridge between a prop flipping and an animation
-    // that has to finish before the Modal may unmount. There is no render-phase
-    // way to express "stay mounted a moment longer".
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // Nothing to animate out of if it was never in.
+    if (!hasOpened.current) return;
+    hasOpened.current = false;
+    // The bridge between a prop flipping and an animation that has to finish
+    // before the Modal may unmount. There is no render-phase way to express
+    // "stay mounted a moment longer".
+    //
+    // This used to need an eslint-disable for `set-state-in-effect`. It no
+    // longer does, and that is the point: the rule was objecting to a state
+    // write that ran on mount, which is exactly the bug the guard above fixes.
     setExiting(true);
     dragY.value = withTiming(EXIT_PX, EXIT_TIMING, (finished) => {
       if (finished) runOnJS(done)();
