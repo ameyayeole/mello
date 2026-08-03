@@ -312,6 +312,9 @@ of the measurement table can be filled from the same instrument.
 
 ## Out of scope
 
-- The ~2.9s submit ceremony (design decision, not a perf bug)
+- ~~The ~2.9s submit ceremony~~ — was out of scope here (a design decision, not
+  a perf bug) and changed separately afterwards: the floor is 1,800ms, it now
+  applies to the failure path as well, and failure has a red X and a message
+  instead of a native alert. See `feat/submit-failure-state`.
 - The 90-day date window (windowing makes its cost moot)
 - The ~500 one-off font sizes in screens — known, deliberate debt per CLEANUP.md
