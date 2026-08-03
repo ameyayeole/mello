@@ -57,6 +57,33 @@ export interface Handoff {
   height: number;
 }
 
+// Where the element a dealt card came out of sat, in window coordinates, at
+// the moment it was tapped: a map pin, a feed card, a rail item. The card is
+// drawn at this rect and arcs to the centre of the screen, so the thing you
+// pressed becomes the thing you are looking at.
+//
+// Same idea as `Handoff` above, and measured for the same reason: the rect
+// depends on layout nobody should be re-deriving.
+export interface DealtOrigin {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// The open card and the deck behind it. `ids` is the whole deck; `index` is
+// which one is face up.
+//
+// `origin` belongs to the FIRST card only and is dropped on the first advance:
+// once you have swiped, nothing on screen is where the current card came from,
+// and flying back to the original pin would claim you are looking at an event
+// you are not.
+export interface DealtCardState {
+  ids: string[];
+  index: number;
+  origin: DealtOrigin | null;
+}
+
 interface UIState {
   selectedEventId: string | null;
   activeFilter: ActivityId | null;
@@ -91,6 +118,7 @@ interface UIState {
   overlayOpen: boolean;
   overlayMounted: boolean;
   handoff: Handoff | null;
+  dealtCard: DealtCardState | null;
   setSelectedEvent: (id: string | null) => void;
   setInAppBanner: (banner: InAppBanner | null) => void;
   setActiveChat: (key: string | null) => void;
@@ -114,6 +142,13 @@ interface UIState {
   // The route is gone — the handed-over element comes back. The handoff itself
   // survives, so a second visit flies from the same place.
   clearOverlay: () => void;
+  dealCard: (
+    ids: string[],
+    index: number,
+    origin: DealtOrigin | null
+  ) => void;
+  advanceDealtCard: () => void;
+  closeDealtCard: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -129,6 +164,7 @@ export const useUIStore = create<UIState>((set) => ({
   overlayOpen: false,
   overlayMounted: false,
   handoff: null,
+  dealtCard: null,
   setSelectedEvent: (selectedEventId) => set({ selectedEventId }),
   setInAppBanner: (inAppBanner) => set({ inAppBanner }),
   setActiveChat: (activeChat) => set({ activeChat }),
@@ -142,4 +178,13 @@ export const useUIStore = create<UIState>((set) => ({
   enterOverlay: () => set({ overlayOpen: true, overlayMounted: true }),
   closeOverlay: () => set({ overlayOpen: false }),
   clearOverlay: () => set({ overlayOpen: false, overlayMounted: false }),
+  dealCard: (ids, index, origin) => set({ dealtCard: { ids, index, origin } }),
+  advanceDealtCard: () =>
+    set((s) => {
+      if (!s.dealtCard) return s;
+      const next = s.dealtCard.index + 1;
+      if (next >= s.dealtCard.ids.length) return { dealtCard: null };
+      return { dealtCard: { ...s.dealtCard, index: next, origin: null } };
+    }),
+  closeDealtCard: () => set({ dealtCard: null }),
 }));
