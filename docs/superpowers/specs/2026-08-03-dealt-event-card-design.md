@@ -199,17 +199,54 @@ Swiping a card away deals the next one in behind it. The deck comes from
 whatever opened it: a map pin deals the events in view (`useNearbyEvents`), the
 wishlist deals your saved list, the swipe deck deals its own queue.
 
-**Only the first card has an origin.** The second and every card after it rise
-from directly behind the outgoing one — same 620ms curve, no travel, no
-rotation, just scale 0.92 → 1 and a fade as the one in front clears. Trying to
-deal card five out of card five's pin would mean flying to a marker that may be
-off screen or not on the map at all.
+### The stack is visible
 
-The same applies to dismiss: the *first* card returns to its origin, and its
-origin element fades back in. **Once you have swiped at least once, dismiss is a
-plain downward exit** — there is nothing left on screen that the current card
-came out of. Restoring the original pin at that point would be a lie about
-which event you are looking at.
+The deck is not a queue you can't see. **Four cards behind the top one are
+rendered, thrown left and right like a hand someone actually put down**, with a
+"N more behind" count under it.
+
+| Depth | Rotation | Offset | Scale |
+| --- | --- | --- | --- |
+| 1 | −4° | −6.8, +5 | 0.96 |
+| 2 | +5.25° | +8.8, +10 | 0.92 |
+| 3 | −6.5° | −10.8, +15 | 0.88 |
+| 4 | +7.75° | +12.8, +20 | 0.84 |
+
+Anything deeper than 4 sits at depth 4's transform with opacity 0, so cards fade
+in as the stack shortens rather than popping into existence.
+
+Two things that are not decoration:
+
+**The mess is deterministic — a fixed table, not random jitter.** A random angle
+re-rolls on every re-render, so a card visibly twitches when something unrelated
+updates. That reads as a rendering fault, not as charm, and it is exactly the
+kind of thing nothing in the test suite would catch.
+
+**The cards behind are dimmed to 82% brightness.** Without it the stack competes
+with the card you are meant to be reading.
+
+**Only the top card renders a real blurred `Glass` panel.** The four behind get a
+flat fill at the same colour. Five stacked `BlurView`s is a genuine iOS cost for
+something that is dimmed, rotated and mostly occluded — nobody can tell the
+difference, and it is not worth five backdrop blurs to find out.
+
+### What the stack settles
+
+**The next card is already on screen, so it is never "dealt" at all.** Swiping
+the top card away just promotes the one behind it — every remaining card
+animates to the transform one depth shallower, over 460ms. Only the *first* card
+of a session is dealt from an origin.
+
+This replaces an earlier answer to the same problem. Without a visible stack,
+card two would have had to rise from behind card one out of nothing, because its
+own pin may be off screen or not on the map at all. The stack makes the question
+disappear.
+
+Dismiss still splits: the **first** card returns to its origin and the origin
+element fades back in. **Once you have swiped at least once, dismiss is a plain
+downward exit** — there is nothing on screen that the current card came out of,
+and flying back to the original pin would be a lie about which event you are
+looking at.
 
 `queryKeys.events.nearby` is **already** in `DISCOVERY_FEED_KEYS`
 (`src/constants/queryKeys.ts:184`), so a deck built on `useNearbyEvents` needs
@@ -242,6 +279,10 @@ Three things degrade, all knowingly:
 3. **3D `rotateY` at 60fps** over a full-bleed `expo-image` is the real
    unknown, and the reason the flip is a cross-fade rather than
    `backfaceVisibility`.
+4. **Five stacked cards, each with a photo.** Five `expo-image`s mounted at
+   once, four of them rotated and scaled. Mitigated by only the top card
+   carrying a real blur (§6), but the image cost is unavoidable and Android is
+   where it will show first.
 
 `react-native`'s `SafeAreaView` is a no-op on Android, so anything measuring
 against screen edges uses `useSafeAreaInsets`.
@@ -281,10 +322,11 @@ risk, with the rows that check *reasoning* rather than something observed marked
 as such. The highest-risk rows:
 
 1. Flip framerate on Android over a full-bleed photo
-2. The glass panel's flat-fill degradation on Android
-3. Haptic timing — whether the landing thud actually lands with the card
-4. Origin measurement from a map marker while the map is mid-pan
-5. That a map-dealt swipe does **not** decrement `swipesLeft`
+2. Scroll and swipe framerate with five stacked cards mounted
+3. The glass panel's flat-fill degradation on Android
+4. Haptic timing — whether the landing thud actually lands with the card
+5. Origin measurement from a map marker while the map is mid-pan
+6. That a map-dealt swipe does **not** decrement `swipesLeft`
 
 ---
 
@@ -297,4 +339,5 @@ as such. The highest-risk rows:
 | Tap flips | Drag-to-flip — collides with left/right pass/save, which already has that meaning app-wide |
 | Face C, glass panel on a full-bleed photo | A: full-bleed with a gradient. B: photo over a white body — rejected as the bottom sheet in a smaller box |
 | Presentation and content split | One `EventCard` that owns its own presentation — would not survive community's inline use |
+| A visible, messy stack of four behind the top card | A barely-there ±1.5° hint, and a ±9° scatter that competed with the card you are reading |
 | Logic extracted to a hook | Rewriting the safety queue from scratch |
