@@ -55,6 +55,11 @@ import { applyMapFilters, countActiveMapFilters } from '@/utils/mapFilters';
 const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 
 const PIN_SIZE = 60;
+// The pin's actual painted bubble (styles.pinBubble) — smaller than PIN_SIZE,
+// which is the touch target / pop-animation wrap around it. The dealt card's
+// origin should be the visible glyph a user tapped, not its invisible hit
+// area, or the card would appear to fly from a rect bigger than the pin.
+const PIN_BUBBLE_SIZE = 52;
 
 function PopPin({ pop, children }: { pop: boolean; children: React.ReactNode }) {
   const scale = useSharedValue(pop ? 0.4 : 1);
@@ -100,7 +105,7 @@ export default function MapScreen() {
   const mapFilters = useUIStore((s) => s.mapFilters);
   const creatingEvent = useUIStore((s) => s.creatingEvent);
   const setCreatingEvent = useUIStore((s) => s.setCreatingEvent);
-  const setSelectedEvent = useUIStore((s) => s.setSelectedEvent);
+  const dealCard = useUIStore((s) => s.dealCard);
   const { requestAndStart } = useLocation();
   const { friends } = useFriends();
   const mapRef = useRef<MapView>(null);
@@ -150,6 +155,13 @@ export default function MapScreen() {
     [setCreatingEvent]
   );
   const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
+  // The map container's own position in window coordinates. `pointForCoordinate`
+  // returns a point relative to the MapView itself, so a pin's window-space
+  // origin needs this added in. Measured on layout rather than per-tap: the
+  // container doesn't move once the screen has settled, and re-measuring on
+  // every pin tap would be a native round trip the pin doesn't need.
+  const containerRef = useRef<View>(null);
+  const [mapOffset, setMapOffset] = useState({ x: 0, y: 0 });
   // 0 = browse chrome, 1 = create chrome (X in, filter out).
   const createProg = useSharedValue(0);
   useEffect(() => {
@@ -309,13 +321,15 @@ export default function MapScreen() {
 
   return (
     <View
+      ref={containerRef}
       style={styles.container}
-      onLayout={(e) =>
+      onLayout={(e) => {
         setMapSize({
           w: e.nativeEvent.layout.width,
           h: e.nativeEvent.layout.height,
-        })
-      }
+        });
+        containerRef.current?.measureInWindow((x, y) => setMapOffset({ x, y }));
+      }}
     >
       <MapView
         ref={mapRef}
@@ -349,7 +363,36 @@ export default function MapScreen() {
                 anchor={{ x: 0.5, y: 0.5 }}
                 // Boosted pins draw above the rest of the field.
                 zIndex={boosted ? 10 : 1}
-                onPress={() => setSelectedEvent(event.id)}
+                onPress={async () => {
+                  // A Marker's children are not reliably measurable with
+                  // measureInWindow — react-native-maps gives the correct
+                  // answer directly instead.
+                  const p = await mapRef.current?.pointForCoordinate({
+                    latitude: event.lat,
+                    longitude: event.lng,
+                  });
+                  // The deck is every event currently rendered as a pin, this
+                  // one first — the same `clusters` the pins themselves came
+                  // from, so opening the card fetches nothing extra.
+                  const ids = [
+                    event.id,
+                    ...clusters
+                      .flatMap((c) => c.items.map((i) => i.id))
+                      .filter((id) => id !== event.id),
+                  ];
+                  dealCard(
+                    ids,
+                    0,
+                    p
+                      ? {
+                          x: p.x + mapOffset.x - PIN_BUBBLE_SIZE / 2,
+                          y: p.y + mapOffset.y - PIN_BUBBLE_SIZE / 2,
+                          width: PIN_BUBBLE_SIZE,
+                          height: PIN_BUBBLE_SIZE,
+                        }
+                      : null
+                  );
+                }}
               >
                 {/* Outer wrap stays static so the marker anchor never moves;
                     only the inner content scales in. */}
@@ -549,7 +592,15 @@ export default function MapScreen() {
             },
             500
           );
-          setSelectedEvent(event.id);
+          // No stable origin to fly from: the sheet this row lives in is
+          // closing in the same tick, and the map is mid-pan to a new region —
+          // unlike the pin tap above, nothing the user just looked at is still
+          // where it was. Same null-origin path a deep link takes.
+          const ids = [
+            event.id,
+            ...boostedEvents.map((e) => e.id).filter((id) => id !== event.id),
+          ];
+          dealCard(ids, 0, null);
         }}
       />
     </View>
@@ -628,8 +679,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pinBubble: {
-    width: 52,
-    height: 52,
+    width: PIN_BUBBLE_SIZE,
+    height: PIN_BUBBLE_SIZE,
     borderRadius: 26,
     backgroundColor: '#fff',
     alignItems: 'center',

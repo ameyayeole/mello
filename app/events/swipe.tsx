@@ -23,6 +23,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSwipeDeck } from '@/hooks/useSwipeDeck';
+import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import SwipeCard from '@/components/events/SwipeCard';
 import WishlistButton from '@/components/events/WishlistButton';
 import EventSheetStack, {
@@ -59,6 +60,9 @@ export default function SwipeDeckScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const sheetRef = useRef<EventSheetStackRef>(null);
+  // The top card's own measurable wrapper — only the top card is tappable
+  // (the two behind it are peeking, not pressable), so a single ref is enough.
+  const topCardRef = useRef<View>(null);
   const {
     deck,
     isLoading,
@@ -336,10 +340,36 @@ export default function SwipeDeckScreen() {
                   return (
                     <GestureDetector key={event.id} gesture={pan}>
                       <Animated.View style={[styles.cardWrap, topStyle]}>
-                        <SwipeCard
-                          event={event}
-                          onPress={() => sheetRef.current?.open(event.id)}
-                        />
+                        {/* Plain View, not the Animated.View above: the ref
+                            this measures needs a real host node — see
+                            useOpenOverlay's comment on why an animated
+                            component's ref isn't one to rely on for
+                            measureInWindow. */}
+                        <View ref={topCardRef} style={{ flex: 1 }} collapsable={false}>
+                          <SwipeCard
+                            event={event}
+                            onPress={() => {
+                              // The dealt card's deck is the swipe deck itself,
+                              // starting at this card — and its source is
+                              // 'swipeDeck', so a swipe on it delegates to this
+                              // screen's own quota-spending swipe() rather than
+                              // the generic browse advance/save.
+                              const ids = deck.map((e) => e.id);
+                              const node = topCardRef.current;
+                              const openWith = (origin: DealtOrigin | null) =>
+                                useUIStore
+                                  .getState()
+                                  .dealCard(ids, 0, origin, 'swipeDeck');
+                              if (!node) {
+                                openWith(null);
+                                return;
+                              }
+                              node.measureInWindow((x, y, width, height) =>
+                                openWith({ x, y, width, height })
+                              );
+                            }}
+                          />
+                        </View>
                         <Animated.View
                           pointerEvents="none"
                           style={[styles.stamp, styles.likeStamp, likeStampStyle]}

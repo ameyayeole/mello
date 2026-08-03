@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { useUIStore } from '@/stores/uiStore';
+import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import { updatePushToken } from '@/services/notifications.service';
 import { notificationCopy } from '@/utils/notificationCopy';
 import { Notification } from '@/types/models';
@@ -34,7 +34,13 @@ const EVENT_SHEET_TYPES = new Set([
 ]);
 
 // Routes a tapped notification (push or local banner) to its destination.
-export function openNotificationTarget(data: Record<string, unknown>) {
+// `origin` is the in-app banner's rect if it was still on screen when tapped
+// (see InAppNotification), or null for a system push tap — nothing on
+// screen to fly the card from when the app was backgrounded.
+export function openNotificationTarget(
+  data: Record<string, unknown>,
+  origin: DealtOrigin | null = null
+) {
   const type = data?.type as string | undefined;
   const eventId = data?.eventId ? String(data.eventId) : null;
 
@@ -87,8 +93,8 @@ export function openNotificationTarget(data: Record<string, unknown>) {
   }
 
   if (eventId && type && EVENT_SHEET_TYPES.has(type)) {
-    // The focused tab screen picks this up and opens the event bottom sheet.
-    useUIStore.getState().setSelectedEvent(eventId);
+    // A single-entry deck: nothing else is "the list this came from".
+    useUIStore.getState().dealCard([eventId], 0, origin);
   }
 }
 

@@ -100,6 +100,56 @@ export function useSaveEvent() {
   });
 }
 
+/**
+ * Records one swipe: the permanent pass/like (spends one of the day's free
+ * swipes for non-premium users via the DB trigger), plus — for a like — the
+ * wishlist save. This is the swipe deck's real contract, lifted out of
+ * `useSwipeDeck` the same way `useSaveEvent` was: `EventDealtCard` needs this
+ * exact behaviour for a dealt card sourced from the swipe deck screen, but
+ * mounting the whole deck (its `useInfiniteQuery` feed, swiped-ids query,
+ * swipe-count query) just to reach a `swipe()` closure would run that machinery
+ * globally, in the tabs layout, even when nobody is looking at the deck.
+ *
+ * Everywhere else a dealt card's swipe is 'browse' — no quota, no permanent
+ * pass — precisely so browsing the map or a feed can never quietly burn a
+ * user's daily swipes; see uiStore's `DealtCardSource`.
+ */
+export function useRecordSwipe() {
+  const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
+  const saveMutation = useSaveEvent();
+
+  const swipeMutation = useMutation({
+    mutationFn: ({
+      eventId,
+      direction,
+    }: {
+      eventId: string;
+      direction: 'like' | 'pass';
+    }) => recordSwipe(user!.id, eventId, direction),
+    onMutate: ({ eventId }) => {
+      queryClient.setQueryData<string[]>(
+        ['swipedEventIds', user?.id],
+        (ids = []) => (ids.includes(eventId) ? ids : [...ids, eventId])
+      );
+    },
+    onError: (e) => {
+      console.warn('recordSwipe failed:', e);
+      // The DB trigger may have rejected the swipe (daily cap) — resync.
+      queryClient.invalidateQueries({ queryKey: ['todaySwipes', user?.id] });
+    },
+  });
+
+  return (eventId: string, direction: 'like' | 'pass') => {
+    queryClient.setQueryData<number>(['todaySwipes', user?.id], (n = 0) =>
+      Math.max(0, n + 1)
+    );
+    swipeMutation.mutate({ eventId, direction });
+    // Liking = wanting to come back to it: straight onto the wishlist.
+    if (direction === 'like') saveMutation.mutate({ eventId, save: true });
+  };
+}
+
 // The swipeable event deck: the ranked explore_feed (interest match, proximity,
 // friends going, starts-soon — i.e. "most likely to join" first), minus events
 // the user already swiped, hosts, or that sit outside the city limits.
@@ -197,34 +247,15 @@ export function useSwipeDeck() {
     );
   };
 
-  const swipeMutation = useMutation({
-    mutationFn: ({
-      eventId,
-      direction,
-    }: {
-      eventId: string;
-      direction: 'like' | 'pass';
-    }) => recordSwipe(user!.id, eventId, direction),
-    onMutate: ({ eventId }) => {
-      setSwipedCache((ids) =>
-        ids.includes(eventId) ? ids : [...ids, eventId]
-      );
-    },
-    onError: (e) => {
-      console.warn('recordSwipe failed:', e);
-      // The DB trigger may have rejected the swipe (daily cap) — resync.
-      queryClient.invalidateQueries({ queryKey: ['todaySwipes', user?.id] });
-    },
-  });
-
   const saveMutation = useSaveEvent();
+  // Named distinctly from the imported `recordSwipe` service call it wraps —
+  // this is the hook's closure, that's the raw API function `useRecordSwipe`
+  // calls internally.
+  const doSwipe = useRecordSwipe();
 
   const swipe = (eventId: string, direction: 'like' | 'pass') => {
     setHistory((h) => [...h, { eventId, direction }]);
-    bumpTodaySwipes(1);
-    swipeMutation.mutate({ eventId, direction });
-    // Liking = wanting to come back to it: straight onto the wishlist.
-    if (direction === 'like') saveMutation.mutate({ eventId, save: true });
+    doSwipe(eventId, direction);
   };
 
   // Returns the undone swipe (for feedback copy), or null when there's nothing

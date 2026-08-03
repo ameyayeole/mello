@@ -71,6 +71,20 @@ export interface DealtOrigin {
   height: number;
 }
 
+// What a swipe on the dealt card should DO, not who opened it — the card
+// itself has no idea which screen dealt it. Every opener except the swipe
+// deck is 'browse': right saves to the wishlist, left just advances, no quota
+// and no permanent pass. The swipe deck is the one place that contract is
+// wrong — there, a swipe is the real thing, spending one of the day's free
+// swipes and recording a permanent pass — so its dealt card carries
+// 'swipeDeck' and EventDealtCard delegates to that screen's own swipe()
+// instead of the generic handler.
+//
+// A discriminant, not a stored callback: a function in zustand state can't be
+// serialised and silently goes stale the moment the component that created it
+// unmounts. A string survives `advanceDealtCard` exactly like `ids` does.
+export type DealtCardSource = 'browse' | 'swipeDeck';
+
 // The open card and the deck behind it. `ids` is the whole deck; `index` is
 // which one is face up.
 //
@@ -78,10 +92,14 @@ export interface DealtOrigin {
 // once you have swiped, nothing on screen is where the current card came from,
 // and flying back to the original pin would claim you are looking at an event
 // you are not.
+//
+// `source` survives every advance, unlike `origin` — which screen dealt the
+// deck doesn't change as you move through it.
 export interface DealtCardState {
   ids: string[];
   index: number;
   origin: DealtOrigin | null;
+  source: DealtCardSource;
 }
 
 interface UIState {
@@ -142,10 +160,14 @@ interface UIState {
   // The route is gone — the handed-over element comes back. The handoff itself
   // survives, so a second visit flies from the same place.
   clearOverlay: () => void;
+  // `source` defaults to 'browse' — every opener except the swipe deck screen
+  // wants the generic save/advance contract, so only that one call site needs
+  // to say so explicitly.
   dealCard: (
     ids: string[],
     index: number,
-    origin: DealtOrigin | null
+    origin: DealtOrigin | null,
+    source?: DealtCardSource
   ) => void;
   advanceDealtCard: () => void;
   closeDealtCard: () => void;
@@ -178,7 +200,8 @@ export const useUIStore = create<UIState>((set) => ({
   enterOverlay: () => set({ overlayOpen: true, overlayMounted: true }),
   closeOverlay: () => set({ overlayOpen: false }),
   clearOverlay: () => set({ overlayOpen: false, overlayMounted: false }),
-  dealCard: (ids, index, origin) => set({ dealtCard: { ids, index, origin } }),
+  dealCard: (ids, index, origin, source = 'browse') =>
+    set({ dealtCard: { ids, index, origin, source } }),
   advanceDealtCard: () =>
     set((s) => {
       if (!s.dealtCard) return s;

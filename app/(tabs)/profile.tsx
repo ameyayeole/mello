@@ -176,6 +176,10 @@ export default function ProfileTabScreen() {
   const handedOver = useHandedOver();
   const recedeStyle = useOverlayRecede();
   const settingsRef = useRef<View>(null);
+  // One measurable wrapper per Upcoming/Attended row, keyed by event id — the
+  // list can reorder under a refetch, so an index-keyed array could hand a
+  // tap the wrong row's rect.
+  const tabRowRefs = useRef<Record<string, View | null>>({});
   const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset();
   const user = useAuthStore((s) => s.user);
@@ -658,12 +662,32 @@ export default function ProfileTabScreen() {
             {tabRows.length > 0 ? (
               <View style={{ gap: SPACING[2.5] }}>
                 {tabRows.map((e) => (
-                  <EventRow
+                  <View
                     key={e.id}
-                    event={e}
-                    onDark
-                    onPress={() => useUIStore.getState().setSelectedEvent(e.id)}
-                  />
+                    ref={(el) => {
+                      tabRowRefs.current[e.id] = el;
+                    }}
+                    collapsable={false}
+                  >
+                    <EventRow
+                      event={e}
+                      onDark
+                      onPress={() => {
+                        const ids = tabRows.map((row) => row.id);
+                        const index = ids.indexOf(e.id);
+                        const node = tabRowRefs.current[e.id];
+                        if (!node) {
+                          useUIStore.getState().dealCard(ids, index, null);
+                          return;
+                        }
+                        node.measureInWindow((x, y, width, height) => {
+                          useUIStore
+                            .getState()
+                            .dealCard(ids, index, { x, y, width, height });
+                        });
+                      }}
+                    />
+                  </View>
                 ))}
               </View>
             ) : (

@@ -13,6 +13,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSavedEvents, unsaveEvent } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import EventSheetStack, {
   EventSheetStackRef,
 } from '@/components/events/EventSheetStack';
@@ -162,6 +163,9 @@ export default function WishlistScreen() {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
   const sheetRef = useRef<EventSheetStackRef>(null);
+  // One measurable wrapper per card, keyed by event id — measured at tap time
+  // for the dealt card's origin.
+  const cardRefs = useRef<Record<string, View | null>>({});
 
   const { data: wishlist = [], isLoading } = useQuery({
     queryKey: queryKeys.savedEvents.of(user?.id),
@@ -210,11 +214,35 @@ export default function WishlistScreen() {
             <Animated.View
               entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(320)}
             >
-              <WishlistCard
-                event={item}
-                onPress={() => sheetRef.current?.open(item.id)}
-                onRemove={() => remove.mutate(item.id)}
-              />
+              {/* Plain View, not the Animated.View above: the ref this
+                  measures needs a real host node — see useOpenOverlay's
+                  comment on why an animated component's ref isn't one to
+                  rely on for measureInWindow. */}
+              <View
+                ref={(el) => {
+                  cardRefs.current[item.id] = el;
+                }}
+                collapsable={false}
+              >
+                <WishlistCard
+                  event={item}
+                  onPress={() => {
+                    const ids = wishlist.map((e) => e.id);
+                    const i = ids.indexOf(item.id);
+                    const node = cardRefs.current[item.id];
+                    if (!node) {
+                      useUIStore.getState().dealCard(ids, i, null);
+                      return;
+                    }
+                    node.measureInWindow((x, y, width, height) => {
+                      useUIStore
+                        .getState()
+                        .dealCard(ids, i, { x, y, width, height });
+                    });
+                  }}
+                  onRemove={() => remove.mutate(item.id)}
+                />
+              </View>
             </Animated.View>
           )}
           ListEmptyComponent={

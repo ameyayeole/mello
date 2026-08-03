@@ -311,6 +311,10 @@ export default function DashboardScreen() {
   const recedeStyle = useOverlayRecede();
   const bellRef = useRef<View>(null);
   const searchRef = useRef<View>(null);
+  // One measurable wrapper per "Tonight near you" card, keyed by event id —
+  // the row order can shift under a refetch, so an index-keyed array could
+  // hand a tap the wrong card's rect.
+  const nearbyRefs = useRef<Record<string, View | null>>({});
 
   const savedIdsQuery = useSavedEventIds();
   const saveEvent = useSaveEvent();
@@ -658,20 +662,40 @@ export default function DashboardScreen() {
               decelerationRate="fast"
             >
               {nearbyQuery.data!.map((event) => (
-                <NearbyCard
+                <View
                   key={event.id}
-                  event={event}
-                  status={participation[event.id]}
-                  preview={previewsQuery.data?.[event.id]}
-                  saved={savedIds.has(event.id)}
-                  onToggleSave={() =>
-                    saveEvent.mutate({
-                      eventId: event.id,
-                      save: !savedIds.has(event.id),
-                    })
-                  }
-                  onPress={() => useUIStore.getState().setSelectedEvent(event.id)}
-                />
+                  ref={(el) => {
+                    nearbyRefs.current[event.id] = el;
+                  }}
+                  collapsable={false}
+                >
+                  <NearbyCard
+                    event={event}
+                    status={participation[event.id]}
+                    preview={previewsQuery.data?.[event.id]}
+                    saved={savedIds.has(event.id)}
+                    onToggleSave={() =>
+                      saveEvent.mutate({
+                        eventId: event.id,
+                        save: !savedIds.has(event.id),
+                      })
+                    }
+                    onPress={() => {
+                      const ids = nearbyQuery.data!.map((e) => e.id);
+                      const index = ids.indexOf(event.id);
+                      const node = nearbyRefs.current[event.id];
+                      if (!node) {
+                        useUIStore.getState().dealCard(ids, index, null);
+                        return;
+                      }
+                      node.measureInWindow((x, y, width, height) => {
+                        useUIStore
+                          .getState()
+                          .dealCard(ids, index, { x, y, width, height });
+                      });
+                    }}
+                  />
+                </View>
               ))}
             </ScrollView>
           </Animated.View>

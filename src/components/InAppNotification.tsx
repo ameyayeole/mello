@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useUIStore, InAppBanner } from '@/stores/uiStore';
+import { DealtOrigin, useUIStore, InAppBanner } from '@/stores/uiStore';
 import { openNotificationTarget } from '@/hooks/useNotifications';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
 import { COLORS } from '@/constants/colors';
@@ -53,6 +53,10 @@ function BannerCard({ banner }: { banner: InAppBanner }) {
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(HIDDEN_Y);
   const dismissed = useRef(false);
+  // Measured on tap for the dealt card's origin — this card is still on
+  // screen at that moment (it hasn't started its hide animation yet), unlike
+  // a system push tap, which has nothing on screen to fly from.
+  const cardRef = useRef<View>(null);
 
   const clear = useCallback(() => {
     const current = useUIStore.getState().inAppBanner;
@@ -78,8 +82,18 @@ function BannerCard({ banner }: { banner: InAppBanner }) {
   const onTap = () => {
     if (dismissed.current) return;
     dismissed.current = true;
-    useUIStore.getState().setInAppBanner(null);
-    openNotificationTarget(banner.data);
+    const finish = (origin: DealtOrigin | null) => {
+      useUIStore.getState().setInAppBanner(null);
+      openNotificationTarget(banner.data, origin);
+    };
+    // Measure before clearing the banner: clearing unmounts this node on the
+    // next render, and measureInWindow never fires for a detached one.
+    const node = cardRef.current;
+    if (!node) {
+      finish(null);
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => finish({ x, y, width, height }));
   };
 
   const pan = Gesture.Pan()
@@ -117,7 +131,7 @@ function BannerCard({ banner }: { banner: InAppBanner }) {
           animatedStyle,
         ]}
       >
-        <View style={styles.card}>
+        <View style={styles.card} ref={cardRef} collapsable={false}>
           <View style={[styles.iconCircle, { backgroundColor: style.tint }]}>
             <Icon name={style.icon} size={20} color={style.color} />
           </View>

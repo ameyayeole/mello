@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { PressableScale } from '@/components/ui';
@@ -22,6 +23,9 @@ const MAX_CARDS = 8;
 export function EventsRail() {
   const city = useAuthStore((s) => s.user?.city);
   const { data: events = [] } = useNearbyEvents();
+  // One measurable wrapper per card, keyed by event id — measured at tap time
+  // for the dealt card's origin.
+  const cardRefs = useRef<Record<string, View | null>>({});
 
   const cards = events.slice(0, MAX_CARDS);
   if (cards.length === 0) return null;
@@ -41,35 +45,55 @@ export function EventsRail() {
           const cat = categoryStyle(e.activity);
           const emoji = ACTIVITY_MAP[e.activity]?.emoji ?? '📍';
           return (
-            <PressableScale
+            <View
               key={e.id}
-              scaleTo={0.96}
-              style={styles.card}
-              onPress={() => useUIStore.getState().setSelectedEvent(e.id)}
-              accessibilityRole="button"
-              accessibilityLabel={e.title}
+              ref={(el) => {
+                cardRefs.current[e.id] = el;
+              }}
+              collapsable={false}
             >
-              <View style={[styles.media, { backgroundColor: cat.tint }]}>
-                {e.image_url ? (
-                  <Image
-                    source={{ uri: e.image_url }}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                    transition={150}
-                  />
-                ) : (
-                  <Text style={styles.emoji}>{emoji}</Text>
-                )}
-              </View>
-              <View style={styles.body}>
-                <Text style={styles.title} numberOfLines={2}>
-                  {e.title}
-                </Text>
-                <Text style={styles.time} numberOfLines={1}>
-                  {formatEventWhen(e.starts_at)}
-                </Text>
-              </View>
-            </PressableScale>
+              <PressableScale
+                scaleTo={0.96}
+                style={styles.card}
+                onPress={() => {
+                  const ids = cards.map((c) => c.id);
+                  const index = ids.indexOf(e.id);
+                  const node = cardRefs.current[e.id];
+                  if (!node) {
+                    useUIStore.getState().dealCard(ids, index, null);
+                    return;
+                  }
+                  node.measureInWindow((x, y, width, height) => {
+                    useUIStore
+                      .getState()
+                      .dealCard(ids, index, { x, y, width, height });
+                  });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={e.title}
+              >
+                <View style={[styles.media, { backgroundColor: cat.tint }]}>
+                  {e.image_url ? (
+                    <Image
+                      source={{ uri: e.image_url }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={150}
+                    />
+                  ) : (
+                    <Text style={styles.emoji}>{emoji}</Text>
+                  )}
+                </View>
+                <View style={styles.body}>
+                  <Text style={styles.title} numberOfLines={2}>
+                    {e.title}
+                  </Text>
+                  <Text style={styles.time} numberOfLines={1}>
+                    {formatEventWhen(e.starts_at)}
+                  </Text>
+                </View>
+              </PressableScale>
+            </View>
           );
         })}
       </ScrollView>

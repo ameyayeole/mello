@@ -21,7 +21,7 @@ import Animated, {
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useAuthStore } from '@/stores/authStore';
-import { useUIStore } from '@/stores/uiStore';
+import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import { useOverlayScreen } from '@/hooks/useOverlayScreen';
 import { useFriends } from '@/hooks/useFriends';
 import {
@@ -114,6 +114,10 @@ export default function SearchScreen() {
   const user = useAuthStore((s) => s.user);
   const inputRef = useRef<TextInput>(null);
   const profileSheet = useRef<ProfileBottomSheetRef>(null);
+  // One measurable wrapper per event result, keyed by id — results reorder as
+  // the query re-runs on each keystroke, so an index-keyed array could hand a
+  // tap the wrong row's rect.
+  const eventRefs = useRef<Record<string, View | null>>({});
 
   // Two screens in one file, because they are one object: the same field flies
   // up from home and from the Inbox, and only what it reaches differs.
@@ -275,14 +279,15 @@ export default function SearchScreen() {
   // route and is pushed on top, which puts you back in your results when you
   // come out of it rather than back on the home screen; the keyboard still goes
   // down, since you are leaving either way.
-  const openEvent = (eventId: string) => {
+  const openEvent = (eventId: string, origin: DealtOrigin | null) => {
     // In chat mode the row *is* a conversation, so it opens the thread rather
     // than the details sheet — the details are a tap away inside it.
     if (chatMode) {
       close(() => router.push(`/(tabs)/chats/${eventId}`));
       return;
     }
-    useUIStore.getState().setSelectedEvent(eventId);
+    const ids = events.map((e) => e.id);
+    useUIStore.getState().dealCard(ids, ids.indexOf(eventId), origin);
     close();
   };
 
@@ -359,14 +364,34 @@ export default function SearchScreen() {
                         280
                       )}
                     >
-                      <EventRow
-                        event={event}
-                        glass
-                        photo
-                        cta={chatMode ? 'chat' : 'details'}
-                        tone="quiet"
-                        onPress={() => openEvent(event.id)}
-                      />
+                      {/* Plain View, not the Animated.View above: the ref
+                          this measures needs a real host node, and an
+                          animated component's ref is not one to rely on for
+                          measureInWindow (see useOpenOverlay's comment). */}
+                      <View
+                        ref={(el) => {
+                          eventRefs.current[event.id] = el;
+                        }}
+                        collapsable={false}
+                      >
+                        <EventRow
+                          event={event}
+                          glass
+                          photo
+                          cta={chatMode ? 'chat' : 'details'}
+                          tone="quiet"
+                          onPress={() => {
+                            const node = eventRefs.current[event.id];
+                            if (!node) {
+                              openEvent(event.id, null);
+                              return;
+                            }
+                            node.measureInWindow((x, y, width, height) => {
+                              openEvent(event.id, { x, y, width, height });
+                            });
+                          }}
+                        />
+                      </View>
                     </Animated.View>
                   ))}
                 </View>

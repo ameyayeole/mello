@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +13,7 @@ import Animated, {
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useAuthStore } from '@/stores/authStore';
-import { useUIStore } from '@/stores/uiStore';
+import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import { useOverlayScreen } from '@/hooks/useOverlayScreen';
 import { useFriends } from '@/hooks/useFriends';
 import {
@@ -456,6 +456,9 @@ export default function NotificationsScreen() {
   // The chip's flight, the content's arrival and the way out — all of it is the
   // app's overlay choreography, shared with the search screen.
   const { travel, content, handoff, dismiss } = useOverlayScreen();
+  // One measurable wrapper per row, keyed by notification id — measured at tap
+  // time for the dealt card's origin.
+  const notifRefs = useRef<Record<string, View | null>>({});
 
   const [filter, setFilter] = useState<FilterId>('all');
   // The row currently being accepted or declined. One at a time — these are
@@ -602,8 +605,10 @@ export default function NotificationsScreen() {
   // then puts you back in the list you were reading, which is the whole point
   // of being able to tap a name.
   const openEvent = useCallback(
-    (eventId: string) => {
-      useUIStore.getState().setSelectedEvent(eventId);
+    (eventId: string, origin: DealtOrigin | null = null) => {
+      // A single-entry deck: nothing else on this list is "the deck the tap
+      // came from" the way a feed's rows are.
+      useUIStore.getState().dealCard([eventId], 0, origin);
       dismiss();
     },
     [dismiss]
@@ -615,7 +620,7 @@ export default function NotificationsScreen() {
   );
 
   const onPressNotif = useCallback(
-    (notif: Notification) => {
+    (notif: Notification, origin: DealtOrigin | null) => {
       if (!notif.is_read) markOne.mutate(notif.id);
       const payload = notif.payload as Record<string, unknown> | null;
       const friendId = payload?.friendId as string | undefined;
@@ -674,7 +679,7 @@ export default function NotificationsScreen() {
           break;
       }
 
-      if (notif.event_id) openEvent(notif.event_id);
+      if (notif.event_id) openEvent(notif.event_id, origin);
     },
     [dismiss, markOne, openEvent, openPerson, router]
   );
@@ -842,20 +847,36 @@ export default function NotificationsScreen() {
                     )}
                   </View>
                 ) : (
-                  <NotifRow
-                    notif={item.notif}
-                    index={index}
-                    action={openRequest(item.notif)}
-                    links={{
-                      person: item.notif.sender_id
-                        ? () => openPerson(item.notif.sender_id!)
-                        : undefined,
-                      event: item.notif.event_id
-                        ? () => openEvent(item.notif.event_id!)
-                        : undefined,
+                  <View
+                    ref={(el) => {
+                      notifRefs.current[item.notif.id] = el;
                     }}
-                    onPress={() => onPressNotif(item.notif)}
-                  />
+                    collapsable={false}
+                  >
+                    <NotifRow
+                      notif={item.notif}
+                      index={index}
+                      action={openRequest(item.notif)}
+                      links={{
+                        person: item.notif.sender_id
+                          ? () => openPerson(item.notif.sender_id!)
+                          : undefined,
+                        event: item.notif.event_id
+                          ? () => openEvent(item.notif.event_id!)
+                          : undefined,
+                      }}
+                      onPress={() => {
+                        const node = notifRefs.current[item.notif.id];
+                        if (!node) {
+                          onPressNotif(item.notif, null);
+                          return;
+                        }
+                        node.measureInWindow((x, y, width, height) =>
+                          onPressNotif(item.notif, { x, y, width, height })
+                        );
+                      }}
+                    />
+                  </View>
                 )
               }
               ListEmptyComponent={

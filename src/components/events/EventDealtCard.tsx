@@ -8,6 +8,7 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useUIStore } from '@/stores/uiStore';
 import { useEventCard, LEAVE_REASONS } from '@/hooks/useEventCard';
+import { useRecordSwipe } from '@/hooks/useSwipeDeck';
 import { shareEvent } from '@/utils/shareEvent';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
@@ -141,22 +142,36 @@ export function EventDealtCard() {
     router.push(`/friends/${event.host_id}`);
   }, [event, dismissQueue, close, router]);
 
-  // The card's own swipe gesture, supplied to `DealtCard`. This is generic
-  // advance-and-save/advance-only — NOT `useSwipeDeck`'s `swipe()`, which
-  // records a permanent pass and spends one of ten daily free swipes. That
-  // hook is never imported here; wiring it in would mean browsing the map
-  // silently burned a user's quota. (The swipe screen's own opener is Task
-  // 8's job — it passes its real `swipe()` through there, not here.)
-  // Right always SAVES (never toggles): a card already bookmarked via its own
-  // chip before being swiped must not be un-saved by the same gesture that
-  // saves everyone else's.
+  // The card's own swipe gesture, supplied to `DealtCard`. `deal.source` is
+  // the discriminant Task 8 added to the dealt-card state: 'browse' (every
+  // opener except the swipe deck) is generic advance-and-save/advance-only —
+  // no quota, no permanent pass, so browsing the map or a feed can never
+  // silently burn a user's swipes. 'swipeDeck' delegates to `useRecordSwipe`,
+  // the exact same mutation the swipe screen's own `swipe()` calls (see that
+  // hook's comment for why it's a standalone piece rather than the whole
+  // `useSwipeDeck` — mounting that deck's queries here, globally, just to
+  // reach a `swipe()` closure would run them even when nobody is swiping).
+  //
+  // Right always SAVES (never toggles) on the browse path: a card already
+  // bookmarked via its own chip before being swiped must not be un-saved by
+  // the same gesture that saves everyone else's. `recordSwipe`'s own 'like'
+  // is likewise always a save, never a toggle, for the same reason.
+  const recordSwipe = useRecordSwipe();
+  const isSwipeDeck = deal?.source === 'swipeDeck';
   const handleSave = useCallback(() => {
-    if (!saved) toggleSave();
+    if (isSwipeDeck && topId) {
+      recordSwipe(topId, 'like');
+    } else if (!saved) {
+      toggleSave();
+    }
     advance();
-  }, [saved, toggleSave, advance]);
+  }, [isSwipeDeck, topId, recordSwipe, saved, toggleSave, advance]);
   const handlePass = useCallback(() => {
+    if (isSwipeDeck && topId) {
+      recordSwipe(topId, 'pass');
+    }
     advance();
-  }, [advance]);
+  }, [isSwipeDeck, topId, recordSwipe, advance]);
 
   // A non-host approved participant of an event that hasn't wrapped — the one
   // state that offers "Leave event". Reusing `primaryLabel` rather than

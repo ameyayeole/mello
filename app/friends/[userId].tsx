@@ -30,6 +30,7 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useFriends } from '@/hooks/useFriends';
 import {
   isBlocked,
@@ -122,6 +123,9 @@ export default function UserProfileScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const sheetRef = useRef<EventSheetStackRef>(null);
+  // One measurable wrapper per hosted-event row, keyed by event id — measured
+  // at tap time for the dealt card's origin.
+  const eventRowRefs = useRef<Record<string, View | null>>({});
 
   // Safety popup #12: intro sheet shown every time before the report reasons.
   const [reportIntroVisible, setReportIntroVisible] = useState(false);
@@ -573,12 +577,32 @@ export default function UserProfileScreen() {
               <Text style={styles.sectionTitle}>Hosting</Text>
               <View style={{ gap: SPACING[2.5] }}>
                 {theirEvents!.map((e) => (
-                  <EventRow
+                  <View
                     key={e.id}
-                    event={e}
-                    onDark
-                    onPress={() => sheetRef.current?.open(e.id)}
-                  />
+                    ref={(el) => {
+                      eventRowRefs.current[e.id] = el;
+                    }}
+                    collapsable={false}
+                  >
+                    <EventRow
+                      event={e}
+                      onDark
+                      onPress={() => {
+                        const ids = theirEvents!.map((row) => row.id);
+                        const index = ids.indexOf(e.id);
+                        const node = eventRowRefs.current[e.id];
+                        if (!node) {
+                          useUIStore.getState().dealCard(ids, index, null);
+                          return;
+                        }
+                        node.measureInWindow((x, y, width, height) => {
+                          useUIStore
+                            .getState()
+                            .dealCard(ids, index, { x, y, width, height });
+                        });
+                      }}
+                    />
+                  </View>
                 ))}
               </View>
             </Animated.View>
