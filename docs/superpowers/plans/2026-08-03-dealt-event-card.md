@@ -725,9 +725,27 @@ export function safetyPopup(
 }
 ```
 
-> The two accent/tint pairs above are literals in the current sheet and are
-> carried across unchanged rather than invented. They are per-popup brand
-> colours with no `COLORS` entry; do **not** add new literals beyond these.
+**The accent/tint pairs must NOT stay as hex literals** — that collides with
+the global "never hardcode a colour" constraint. The values are already in the
+codebase (in `EventBottomSheet`) and must not change; name them in
+`src/constants/colors.ts` and import them here:
+
+```ts
+  // Per-popup accents for the pre-join safety queue. Each popup is colour-
+  // coded to what it is warning about, which is why these are not the brand
+  // ramp: purple for the women-only space, amber for a new-host caution, pink
+  // for the party/alcohol note. Values carried unchanged from the sheet these
+  // popups used to live in.
+  safetyWomen: '#7C5CE0',
+  safetyWomenTint: '#F0ECFC',
+  safetyCaution: '#C8791E',
+  safetyCautionTint: '#FBF0E2',
+  safetyParty: '#D6478E',
+  safetyPartyTint: '#FBE7F1',
+```
+
+Then `accent: COLORS.safetyWomen, tint: COLORS.safetyWomenTint` and so on.
+Add no colour literals beyond naming these six.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1197,6 +1215,33 @@ export interface EventCardProps {
 export function EventCard(props: EventCardProps): JSX.Element;
 ```
 
+- [ ] **Step 0: Add the two missing primitive props FIRST**
+
+Both are "the primitive is close but missing something" cases. **Add the prop.
+Do not fork, and do not hand-roll a substitute** (`AGENTS.md`).
+
+**`Glass` needs `flat`.** Today it decides between blur and flat fill purely by
+`Platform.OS === 'ios'`. A dealt stack renders five panes and only the top one
+should pay for a real `BlurView`. Add:
+
+```tsx
+  // Force the Android flat-fill path on every platform. For a surface that is
+  // shaded, rotated and mostly occluded — the cards behind the top of a dealt
+  // stack — five stacked BlurViews is a real iOS cost for a difference nobody
+  // can see.
+  flat = false,
+```
+…and change the internal `supportsBlur` decision to `Platform.OS === 'ios' && !flat`.
+Add `flat?: boolean` to the prop types. Existing callers are unaffected.
+
+**`IconButton` needs an `onPhoto` variant.** Its current variants are
+`'plain' | 'surface' | 'tint' | 'ghost'`; none is legible on a photo. Add
+`'onPhoto'` to the union, rendering the smoked-glass chip
+(`COLORS.glassOnPhoto` fill, `COLORS.glassBorderOnPhoto` hairline, white
+glyph) — the same treatment `Glass`'s `onPhoto` tier gives a pane.
+
+Verify with `npm run typecheck` before continuing to Step 1.
+
 - [ ] **Step 1: Build the front face**
 
 Face C from the design: full-bleed photo, a `Glass` `onPhoto` pane inset in the
@@ -1280,12 +1325,12 @@ export function EventCard({
             <IconButton
               icon={saved ? 'bookmarkFilled' : 'bookmark'}
               onPress={onSave}
-              tone="onPhoto"
+              variant="onPhoto"
               accessibilityLabel={saved ? 'Remove from wishlist' : 'Save to wishlist'}
             />
           )}
           {onShare && (
-            <IconButton icon="share" onPress={onShare} tone="onPhoto" accessibilityLabel="Share" />
+            <IconButton icon="share" onPress={onShare} variant="onPhoto" accessibilityLabel="Share" />
           )}
         </View>
       )}
@@ -1295,9 +1340,9 @@ export function EventCard({
         radius={RADIUS.lg}
         shadow={false}
         style={styles.pane}
-        // Android has no backdrop blur at all, so `blurred` only changes
-        // anything on iOS — see Glass.
-        backdrop={blurred ? undefined : null}
+        // See Step 0. Android has no backdrop blur at all, so this only
+        // changes anything on iOS — which is exactly where the cost is.
+        flat={!blurred}
       >
         <View style={styles.hostRow}>
           <Avatar name={event.host_name ?? event.host?.name} photoUrl={event.host_photo_url ?? event.host?.photo_url} size={20} />
@@ -1361,7 +1406,7 @@ const styles = StyleSheet.create({
 });
 ```
 
-> If `IconButton` has no `tone="onPhoto"` prop, **add the prop** — do not fork
+> `IconButton`'s `onPhoto` variant and `Glass`'s `flat` prop are added in Step 0. Do not fork
 > it and do not hand-roll a chip. A missing prop is a five-minute fix; a fork is
 > permanent (`AGENTS.md`). Same for `TYPE_SIZE` steps that do not exist.
 
