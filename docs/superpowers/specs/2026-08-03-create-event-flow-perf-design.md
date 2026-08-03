@@ -89,13 +89,24 @@ Measured on device, pressing Create once:
 4. `CreateEventFlow` renders 3× on a single Create press — the memo fix (1c)
    still has something to bite on.
 
-| Measurement | Before | After |
+A second measurement, of one pin-drop plus a single map drag, gave the pan
+numbers:
+
+| Measurement | Before | After Stage 1 |
 |---|---|---|
-| Wheel rows mounted on pressing Create | 162 (×2 renders) | 0 |
-| `TypeGrid` renders on entering step 0 | 1 | — *(not a problem)* |
-| `CreateEventFlow` renders per Create press | 3 | TBD |
-| `CreateEventFlow` renders per pan-settle | TBD | TBD |
-| Starts-sheet open, tap → settled (ms) | TBD | TBD |
+| Wheel rows mounted on pressing Create | 162, twice | **0** |
+| `MapScreen` renders per pan | 5 | **3** |
+| `TypeGrid` renders per pan | 9 *(= 468 tile renders)* | **4** |
+| `TypeGrid` renders on entering step 0 | 1 | — *(never a problem)* |
+| `CreateEventFlow` renders per Create press | 3 | 3 |
+| `CreateEventFlow` renders per picker session | 32 | *(Stage 2)* |
+
+The four `TypeGrid` renders that survive are its own 52 `onLayout` writes on
+mount, which memo cannot touch and which happen once per entry to the step.
+
+`CreateEventFlow` reaching 32 is the number Stage 1 could not fix, and the
+reason Stage 2 exists: every wheel scroll and every keystroke called setState on
+a component holding 26 fields, and the whole flow hung off it.
 
 ## Stage 1 — Perf fixes
 
@@ -103,45 +114,69 @@ Four independent commits. Each is separately device-testable and bisectable —
 AGENTS.md forbids mixing a refactor with a redesign, and the same logic applies
 to mixing four unrelated fixes.
 
-### 1z. Don't mount overlay contents while shut — **done, `c05c871`**
+### 1z. Don't mount overlay contents while shut — **done, `c05c871` + `a6645a5`**
 
-Added after Stage 0, and promoted to first because it is the largest win and
-the one the user actually reported. `Overlay` returns `null` until
-`mounted` (`visible || exiting`), so a closing sheet keeps its content through
-the exit animation but a never-opened one costs nothing.
+Promoted to first because it is the largest win and the one actually reported.
+It took two goes and a regression, and both are worth recording.
 
-Same commit splits the scrim in two so `entering` and `scrimStyle` stop
-fighting over `opacity`.
+The first attempt returned `null` while `!mounted`. It did not work, and the
+reason was a second bug underneath: the exit effect reads "not visible" as
+"just closed", so on a first render with `visible={false}` and
+`animation="slide"` it ran the dismissal path anyway. `setExiting(true)` is
+half of `mounted`, so every slide Sheet in the app mounted its full contents on
+first render in order to animate out of a state it had never been in. Guarded
+on a `hasOpened` flag (`66bac74`).
 
-Blast radius is 26 callers, so this needs a device pass wider than the create
-flow. Safe on state: every caller declares its draft state *above* its own
-`<Sheet>`, so unmounting the children cannot lose a half-typed composer.
+The second attempt then broke closing: the sheet vanished, flashed back, and
+went again. Gating the mount on `mounted` is not the same as gating it on "has
+ever been opened" — `exiting` is set from an effect, so it is still false on the
+render where `visible` first goes false, and that one render unmounted the
+sheet before the effect remounted it to animate out. The guard now asks the
+question it always meant to (`a6645a5`).
 
-### 1a. Window the `Wheel`
+The lint rule was right twice here. `set-state-in-effect` was objecting to a
+state write that ran on mount, which was exactly bug one; and it correctly
+rejected `hasOpened` being set from an effect, which is derived state and
+belongs in render.
 
-`src/components/ui/Wheel.tsx`. `Animated.ScrollView` + `options.map` →
-`Animated.FlatList` with `getItemLayout`, `initialScrollIndex`, `windowSize={3}`.
-Mounted rows drop from 138 to ~15.
+Same work splits the scrim in two so `entering` and `scrimStyle` stop fighting
+over `opacity`.
 
-`WheelRow` is unchanged. Snapping (`snapToInterval`, `decelerationRate="fast"`),
-the worklet-driven falloff, the throttled haptic tick, and both commit paths
-(`onMomentumScrollEnd`, `onScrollEndDrag`) are ported verbatim. The
-half-viewport `contentContainerStyle` padding stays.
+Blast radius is 26 callers. Safe on state: every caller declares its draft state
+*above* its own `<Sheet>`, so unmounting the children cannot lose a half-typed
+composer.
 
-This is a `ui/` primitive improvement, not a fork — the duration sheet and every
-future caller get it too.
+### 1a. ~~Window the `Wheel`~~ — **superseded**
 
-### 1b. Stop the map working behind the overlay
+Once the wheels stopped mounting on the Create press, the remaining cost was
+three renders of a 90-row column per picker session. `memo` on `WheelRow` —
+whose props cannot change once mounted — stops a parent re-render at the wheel
+instead of reaching 90 children, which addresses the same cost without
+converting a working `ScrollView` to a `FlatList`.
 
-`app/(tabs)/map.tsx`. Pass `enabled: !creatingEvent` to `useNearbyEvents`, and
-skip rendering markers while `creatingEvent`. The pins are already faded out;
-this stops paying to render them.
+The caller had to be fixed for it to bite: the duration options were mapped
+inline, and the day/time handlers closed over `startDate` so each wheel got a
+new handler whenever the *other* one moved (`5d9d52d`).
 
-### 1c. Memoise the flow
+Windowing remains the right answer if the option lists ever grow. At 90 rows it
+is no longer the bottleneck.
 
-Wrap `CreateEventFlow` in `React.memo`; `useCallback` the `onExit` at
-`map.tsx:392`. Without the stable callback the memo is a no-op. Removes one of
-the three per-pan re-renders.
+### 1b. Stop the map working behind the overlay — **done, `1aae2e8`**
+
+`useNearbyEvents` gains a `paused` option. The markers were **already** skipped
+during create mode, so only the fetch and the 60s poll needed stopping — the
+original plan over-stated this, and checking the render body first is what
+caught it.
+
+### 1c. Memoise the flow — **done, `1aae2e8`**
+
+`memo` on `CreateEventFlow`, `TypeGrid` and `SectionPills`, plus a `useCallback`
+`onExit`. Each needed its props stabilising first, or the memo would have been
+decoration that failed silently.
+
+Also: one selector per field in `map.tsx` instead of a bare `useUIStore()`,
+which had subscribed the map screen to the whole store — it re-rendered when a
+chat sheet opened on another tab.
 
 ### 1d. ~~Fix the `TypeGrid` measurement cascade~~ — **dropped**
 
@@ -149,9 +184,8 @@ Stage 0 measured `TypeGrid` at **1 render**, not 52. React 19 batches the
 `onLayout` writes and the existing identity check in the updater already bails
 out. There is nothing here to fix.
 
-What survives from this item is the trivial half: hoist `stepEntering` /
-`stepExiting` out of `CreateEventFlow`'s render body to module scope, so they
-stop allocating fresh Reanimated builders every render. Folded into 1c.
+What survives is the trivial half: the step enter/exit builders move to module
+scope so they stop allocating per render. Folded into `StepShell` in Stage 2.
 
 ## Stage 2 — The split
 
@@ -176,44 +210,65 @@ stepped back to step 0. That is a behaviour change, not an optimisation.
 `discardVisible`, `womenOnlyConfirmVisible`, `firstHostVisible`, `restored`,
 `draftLoaded`.
 
-### Files
+### Files — as built (`faf5873`)
+
+1,846 lines in one file became 635 plus eleven. The line count is not the
+point; the **steps take no props** is the point, because that is what lets
+`memo` hold them against a re-render of the flow.
 
 ```
-src/components/map/create/
-  CreateEventFlow.tsx      orchestrator + imperative ref (~200 lines)
-  useCreatePin.ts          anchorY math, regionForAnchor, pin shared values, reverseGeocode
-  useDraftPersistence.ts   restore-on-entry, debounced autosave, clear
-  useHostSubmit.ts         two-beat choreography, createEvent, invalidation, failure path
-  CreateCard.tsx           card shell: title row, StepProgress, restored row, Next
-  CreatePin.tsx            pin overlay and its submit states
-  LocationPill.tsx
-  StartSheet.tsx
-  DurationSheet.tsx
-  DiscardDialog.tsx
-  steps/StepType.tsx
-  steps/StepDetails.tsx
-  steps/StepWhen.tsx
-  steps/StepPhoto.tsx
-  steps/StepSafety.tsx
-  TypeGrid.tsx  SectionPills.tsx  StepProgress.tsx  motion.ts   (existing)
+src/stores/createEventStore.ts   the draft + both persistence mappings   224
+src/components/map/
+  CreateEventFlow.tsx            orchestrator, pin, imperative ref       635
+  create/CreateCard.tsx          chrome + step switch + AdvanceButton    251
+  create/StepShell.tsx           shared absolute-fill frame, enter/exit    32
+  create/LocationPill.tsx        subscribes to locationName alone          73
+  create/DiscardDialog.tsx                                                 95
+  create/useDraftPersistence.ts  restore-on-entry, autosave, clear        102
+  create/steps/StepType.tsx                                                68
+  create/steps/StepDetails.tsx                                             86
+  create/steps/StepWhen.tsx      both pickers live here                   374
+  create/steps/StepPhoto.tsx                                              176
+  create/steps/StepSafety.tsx                                             112
+  create/{TypeGrid,SectionPills,StepProgress,motion}          (existing)
 ```
 
-### Two traps, both of which fail silently
+`useCreatePin` and `useHostSubmit` were **not** extracted. Both are tightly
+bound to `anchorY` and the pin's shared values, which the orchestrator owns;
+pulling them out would have meant passing four shared values and a region
+helper across a boundary that buys nothing. The flow is a readable 635 lines
+with them in place. Revisit if it grows again.
+
+The autosave stopped being an effect and became a store subscription. As an
+effect it needed all sixteen draft fields in its dependency array, which forced
+the component to subscribe to all sixteen just to feed it — the exact coupling
+the store exists to remove.
+
+### Traps, all of which fail silently
 
 1. **Stale imperative handlers.** The `useImperativeHandle` handlers close over
-   `phase`. If they read a subscribed value they go stale and the map's taps hit
-   the wrong branch. They must read `useCreateEventStore.getState()` inside the
-   handler body.
+   `phase`. They read `useCreateEventStore.getState()` inside the handler body;
+   a subscribed value would go stale and plant the event at the wrong
+   coordinate. **Done.**
 
-2. **Dropped cache invalidation.** The success path fires four
-   `invalidateQueries` calls (`CreateEventFlow.tsx:633-636`: `events`,
-   `exploreFeed`, `myEvents`, `joinedEvents`). Losing one during the move
-   produces no error — just a feed that stops updating. Explicit review
-   checkpoint before the Stage 2 commit lands.
+2. **Dropped cache invalidation.** Four `invalidateQueries` on success —
+   `events`, `exploreFeed`, `myEvents`, `joinedEvents`. Losing one produces no
+   error, just a feed that stops updating. **Verified present** by a mechanical
+   diff of the old file against the new set, which also confirmed no
+   accessibility label, service call or haptic was lost.
 
-`cardH` is a third thing to watch: `anchorY` is computed from it, so when the
-card moves into `CreateCard.tsx` the measurement has to flow back to the pin.
-Keeping it in the store is what makes that work without prop-drilling a setter.
+3. **The clamp on submit.** The first draft of the refactor wrote
+   `Number(maxPeople) || undefined` in place of `clampMaxPeople`, which would
+   have let an out-of-range party size reach the database — the same defect the
+   edit screen once shipped. Caught before commit. This is the class of thing a
+   1,800-line move buries.
+
+4. **Exiting views need a mounted parent.** The phase check sits *inside*
+   `CreateCard`'s `KeyboardAvoidingView`, not around the component. Unmounting
+   the wrapper too makes the card vanish on submit instead of sliding away.
+
+`cardH` lives in the store because `anchorY` is computed from it and the pin is
+not inside the card — that is what avoids prop-drilling a setter back up.
 
 ### Testing
 
@@ -221,12 +276,17 @@ Per AGENTS.md, component tests are not available (Reanimated 4 throws under
 Jest), so logic gets extracted to be driven without a renderer — the
 `participationMutations` pattern.
 
-New coverage:
-- store actions (reset, step advance, clamped people)
-- the stored-draft → store hydration mapping
-- the autosave payload builder
+New coverage — 15 tests, 296 total:
+- store actions (reset, step clamping, the party-size stepper's bounds)
+- both persistence mappings, in both directions
+- day/time setters, including that they produce a new `Date` rather than
+  mutating in place, since a subscriber comparing by reference would otherwise
+  never see the change
 
-The restore path currently has no tests at all.
+The two mapping tests were checked by deleting a field from `draftInputFrom`
+and confirming both fail. A test that cannot fail is worse than no test,
+particularly for a mapping whose failure mode is a draft that silently forgets
+one field.
 
 ## Verification
 
@@ -235,8 +295,12 @@ Per stage:
 ```sh
 npm run typecheck   # must stay at 0
 npm test            # must stay green
-npm run lint        # 95 errors / 16 warnings pre-existing; don't add
+npm run lint        # baseline is 0 errors / 65 warnings; don't add
 ```
+
+AGENTS.md still states the lint baseline as "95 errors / 16 warnings". That is
+stale — it is 0 / 65 on `main`. Left alone here rather than folded into an
+unrelated branch; worth its own commit.
 
 `tsc` passing does not mean the UI is right. Each stage also needs a device pass
 on the three paths — **Android specifically**, per AGENTS.md, since
