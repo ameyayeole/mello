@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -23,7 +23,12 @@ const TAP_SCALE = 0.96;
 const GRID_COLS = 4;
 const TILE = 58;
 
-export function TypeGrid({
+// Memoised because it is 52 tiles hanging off a component that re-renders for
+// reasons that have nothing to do with the grid. Measured at 9 renders — 468
+// tile renders — for one map pan, none of which changed a single activity.
+// The props are already stable: `onChange` is a setState, `value` a primitive,
+// and `activities` is memoised by the caller.
+export const TypeGrid = memo(function TypeGrid({
   activities,
   value,
   onChange,
@@ -137,7 +142,7 @@ export function TypeGrid({
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   typeGrid: {

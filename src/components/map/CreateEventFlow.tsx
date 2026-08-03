@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  memo,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -173,6 +174,23 @@ const DURATIONS = Array.from({ length: 24 }, (_, i) => i + 1);
 // line stays put while the content below it swaps. It used to sit in a dark
 // heading sheet; the sheet is gone but the reason for hoisting the strings is
 // the same.
+// Hoisted so `SectionPills` gets the same array every render — built inline it
+// was a new reference each time, which silently defeats the memo on it.
+const SECTION_OPTIONS = [{ id: 'all' as const, label: 'All' }, ...SECTIONS];
+
+// Steps come in on a short rise as well as a fade. A pure cross-fade at 150/80
+// was the most abrupt thing left in the flow — content simply replaced itself,
+// with nothing to say a step had been completed. The durations are longer and
+// the exit is quicker than the entrance, so the outgoing step is gone before
+// the incoming one is legible and the two never read as overlapping.
+//
+// Module scope, not the render body: these are builder objects, and rebuilding
+// them every render handed Reanimated a new animation identity each time.
+const STEP_ENTERING = FadeInDown.duration(260)
+  .easing(Easing.out(Easing.cubic))
+  .withInitialValues({ transform: [{ translateY: 14 }] });
+const STEP_EXITING = FadeOut.duration(120).easing(Easing.in(Easing.quad));
+
 const STEP_HEADS = [
   "What's the plan?",
   'Name your event',
@@ -665,14 +683,20 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const todayMs = new Date().setHours(0, 0, 0, 0);
     const days = useMemo(() => dayOptions(new Date(todayMs)), [todayMs]);
     const times = useMemo(() => timeOptions(), []);
+    // Above the early return because it is a hook, and memoised because it is
+    // `TypeGrid`'s only unstable prop — a fresh array here re-renders 52 tiles
+    // no matter what memo the grid carries.
+    const visibleActivities = useMemo(
+      () =>
+        sectionFilter === 'all'
+          ? ACTIVITIES
+          : ACTIVITIES.filter((a) => a.section === sectionFilter),
+      [sectionFilter]
+    );
 
     if (!active || mapW === 0 || mapH === 0) return null;
 
     const emoji = activity ? ACTIVITY_MAP[activity].emoji : null;
-    const visibleActivities =
-      sectionFilter === 'all'
-        ? ACTIVITIES
-        : ACTIVITIES.filter((a) => a.section === sectionFilter);
     const startInPast = isStartInPast(startDate);
     // The wheels address day and minute-of-day separately; `startDate` is the
     // single source of truth both are read back out of.
@@ -680,16 +704,6 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const startMinuteValue = minuteValueOf(startDate);
     const nextDisabled = !canAdvanceFrom(step, { activity, title, startDate });
     const endDate = eventEndTime(startDate, durationH);
-    // Steps come in on a short rise as well as a fade. A pure cross-fade at
-    // 150/80 was the most abrupt thing left in the flow — content simply
-    // replaced itself, with nothing to say a step had been completed. The
-    // durations are longer and the exit is quicker than the entrance, so the
-    // outgoing step is gone before the incoming one is legible and the two
-    // never read as overlapping.
-    const stepEntering = FadeInDown.duration(260)
-      .easing(Easing.out(Easing.cubic))
-      .withInitialValues({ transform: [{ translateY: 14 }] });
-    const stepExiting = FadeOut.duration(120).easing(Easing.in(Easing.quad));
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -854,14 +868,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     {step === 0 && (
                       <Animated.View
                         key="s0"
-                        entering={stepEntering}
-                        exiting={stepExiting}
+                        entering={STEP_ENTERING}
+                        exiting={STEP_EXITING}
                         style={styles.step}
                       >
                         {/* Category pills narrow the grid down; "All" is the
                             default so nothing is hidden until you choose. */}
                         <SectionPills
-                          sections={[{ id: 'all', label: 'All' }, ...SECTIONS]}
+                          sections={SECTION_OPTIONS}
                           value={sectionFilter}
                           onChange={setSectionFilter}
                         />
@@ -882,8 +896,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     {step === 1 && (
                       <Animated.View
                         key="s1"
-                        entering={stepEntering}
-                        exiting={stepExiting}
+                        entering={STEP_ENTERING}
+                        exiting={STEP_EXITING}
                         style={styles.step}
                       >
                         <TextInput
@@ -923,8 +937,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     {step === 2 && (
                       <Animated.View
                         key="s2"
-                        entering={stepEntering}
-                        exiting={stepExiting}
+                        entering={STEP_ENTERING}
+                        exiting={STEP_EXITING}
                         style={styles.step}
                       >
                         <Text style={styles.label}>STARTS</Text>
@@ -1078,8 +1092,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     {step === 3 && (
                       <Animated.View
                         key="s3"
-                        entering={stepEntering}
-                        exiting={stepExiting}
+                        entering={STEP_ENTERING}
+                        exiting={STEP_EXITING}
                         style={styles.step}
                       >
                         {photoUri ? (
@@ -1151,8 +1165,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                     {step === 4 && (
                       <Animated.View
                         key="s4"
-                        entering={stepEntering}
-                        exiting={stepExiting}
+                        entering={STEP_ENTERING}
+                        exiting={STEP_EXITING}
                         style={styles.step}
                       >
                         <View style={styles.safetyRow}>
@@ -1381,7 +1395,13 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
   }
 );
 
-export default CreateEventFlow;
+// Memoised because the map re-renders for reasons the wizard does not care
+// about — a region settle, an events refetch, the 60s poll. Measured at 5
+// MapScreen renders per pan, each dragging this whole tree with it.
+//
+// `onExit` must be a stable callback at the call site for this to do anything;
+// map.tsx holds it in a useCallback.
+export default memo(CreateEventFlow);
 
 const styles = StyleSheet.create({
   promptWrap: {

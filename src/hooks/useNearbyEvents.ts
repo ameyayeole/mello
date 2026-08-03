@@ -12,7 +12,14 @@ export interface SearchCenter {
   radiusM: number;
 }
 
-export function useNearbyEvents(center?: SearchCenter | null) {
+export function useNearbyEvents(
+  center?: SearchCenter | null,
+  // Stops fetching and polling without unmounting the hook, for when the map is
+  // still on screen but nothing is reading its pins — create mode hides the
+  // markers already, so every pan was buying a request and a 60s poll for
+  // results with nowhere to land.
+  options?: { paused?: boolean }
+) {
   const coords = useLocationStore((s) => s.coords);
   const activities = useUIStore((s) => s.mapFilters.activities);
   const searchRadius = useUIStore((s) => s.searchRadius);
@@ -46,7 +53,7 @@ export function useNearbyEvents(center?: SearchCenter | null) {
         target!.radiusM,
         serverActivity ?? undefined
       ),
-    enabled: !!target,
+    enabled: !!target && !options?.paused,
     staleTime: CONFIG.mapStaletimeMs,
     refetchInterval: CONFIG.mapRefetchIntervalMs,
     // Panning changes the query key (new ~100 m bucket); keep the previous

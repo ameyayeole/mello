@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Text, StyleSheet, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -18,7 +18,10 @@ import { GLIDE } from './motion';
 // keeps the release from reading as a bounce.
 const TAP_SCALE = 0.96;
 
-export function SectionPills({
+// Memoised for the same reason as TypeGrid — it sits in the same step and rode
+// along on every unrelated re-render of the flow. Its `sections` prop has to be
+// a stable reference for this to bite, which is why the caller hoists it.
+export const SectionPills = memo(function SectionPills({
   sections,
   value,
   onChange,
@@ -100,7 +103,7 @@ export function SectionPills({
       })}
     </ScrollView>
   );
-}
+});
 
 // The activity grid, with the same travelling selection as the category row.
 
