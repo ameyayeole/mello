@@ -96,6 +96,7 @@ import {
   Wheel,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { useRenderCount } from '@/hooks/useRenderCount';
 import { SectionPills } from './create/SectionPills';
 import { StepProgress } from './create/StepProgress';
 import { TypeGrid } from './create/TypeGrid';
@@ -203,6 +204,7 @@ function defaultStart() {
 
 const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
   function CreateEventFlow({ active, mapRef, mapW, mapH, onExit }, ref) {
+    useRenderCount('CreateEventFlow');
     const router = useRouter();
     const queryClient = useQueryClient();
     const user = useAuthStore((s) => s.user);

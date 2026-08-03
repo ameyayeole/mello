@@ -14,6 +14,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { ActivityId } from '@/types/models';
+import { useRenderCount } from '@/hooks/useRenderCount';
 import { GLIDE, SQUASH } from './motion';
 
 const TAP_SCALE = 0.96;
@@ -31,6 +32,7 @@ export function TypeGrid({
   value: ActivityId | null;
   onChange: (id: ActivityId) => void;
 }) {
+  useRenderCount('TypeGrid');
   const [frames, setFrames] = useState<
     Record<string, { x: number; y: number; w: number }>
   >({});
