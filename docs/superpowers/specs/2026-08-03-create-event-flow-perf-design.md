@@ -49,20 +49,73 @@ renders-on-entering-step-0 directly.
 Performance. Capture tap → sheet-settled for the Starts picker. Gives the mount
 cost of the 138 worklets in ms.
 
+### Results — and they changed the plan
+
+Measured on device, pressing Create once:
+
+```
+[render] MapScreen #17
+[render] CreateEventFlow #24
+[render] TypeGrid #1
+[render] CreateEventFlow #25
+[Reanimated] Property "opacity" … may be overwritten by a layout animation
+[render] Wheel(90) #1
+[render] Wheel(48) #1
+[Reanimated] Property "opacity" … may be overwritten by a layout animation
+[render] Wheel(24) #1
+[render] CreateEventFlow #26
+[render] Wheel(90) #2
+[render] Wheel(48) #2
+[render] Wheel(24) #2
+```
+
+**Two predictions were wrong, and the measurement found something worse.**
+
+1. **`TypeGrid` renders once, not 52 times.** React 19 batches the `onLayout`
+   writes. Fix 1d was aimed at a problem that does not exist and would have
+   measured no change. **Dropped.**
+
+2. **All three picker wheels mount on pressing Create**, before any sheet is
+   opened — then render a second time. `Modal` does *not* spare its children
+   when `visible` is false; it reconciles them anyway. So entering create mode
+   built 90 + 48 + 24 = **162 wheel rows, each with its own animated-style
+   worklet**, for pickers nobody had touched. This is the reported stagger, and
+   it was not in the original diagnosis at all.
+
+3. **A real bug surfaced in the log**: `entering` and `scrimStyle` both drive
+   `opacity` on one `Animated.View` in `Overlay`. The warning is the
+   drag-to-lighten scrim losing to the fade-in. Affects every sheet in the app.
+
+4. `CreateEventFlow` renders 3× on a single Create press — the memo fix (1c)
+   still has something to bite on.
+
 | Measurement | Before | After |
 |---|---|---|
-| `CreateEventFlow` renders per pan-settle | TBD | |
-| `TypeGrid` renders on entering step 0 | TBD | |
-| Starts-sheet open, tap → settled (ms) | TBD | |
-
-**If a number contradicts the diagnosis, the plan changes before code is
-written.**
+| Wheel rows mounted on pressing Create | 162 (×2 renders) | 0 |
+| `TypeGrid` renders on entering step 0 | 1 | — *(not a problem)* |
+| `CreateEventFlow` renders per Create press | 3 | TBD |
+| `CreateEventFlow` renders per pan-settle | TBD | TBD |
+| Starts-sheet open, tap → settled (ms) | TBD | TBD |
 
 ## Stage 1 — Perf fixes
 
 Four independent commits. Each is separately device-testable and bisectable —
 AGENTS.md forbids mixing a refactor with a redesign, and the same logic applies
 to mixing four unrelated fixes.
+
+### 1z. Don't mount overlay contents while shut — **done, `c05c871`**
+
+Added after Stage 0, and promoted to first because it is the largest win and
+the one the user actually reported. `Overlay` returns `null` until
+`mounted` (`visible || exiting`), so a closing sheet keeps its content through
+the exit animation but a never-opened one costs nothing.
+
+Same commit splits the scrim in two so `entering` and `scrimStyle` stop
+fighting over `opacity`.
+
+Blast radius is 26 callers, so this needs a device pass wider than the create
+flow. Safe on state: every caller declares its draft state *above* its own
+`<Sheet>`, so unmounting the children cannot lose a half-typed composer.
 
 ### 1a. Window the `Wheel`
 
@@ -90,14 +143,15 @@ Wrap `CreateEventFlow` in `React.memo`; `useCallback` the `onExit` at
 `map.tsx:392`. Without the stable callback the memo is a no-op. Removes one of
 the three per-pan re-renders.
 
-### 1d. Fix the `TypeGrid` measurement cascade
+### 1d. ~~Fix the `TypeGrid` measurement cascade~~ — **dropped**
 
-`src/components/map/create/TypeGrid.tsx`. Collect the 52 `onLayout` frames into
-a ref and flush once, instead of 52 sequential object spreads. Also hoist
-`stepEntering` / `stepExiting` out of `CreateEventFlow`'s render body to module
-scope — they currently allocate fresh Reanimated builders every render.
+Stage 0 measured `TypeGrid` at **1 render**, not 52. React 19 batches the
+`onLayout` writes and the existing identity check in the updater already bails
+out. There is nothing here to fix.
 
-Expected to move the step-transition feel most.
+What survives from this item is the trivial half: hoist `stepEntering` /
+`stepExiting` out of `CreateEventFlow`'s render body to module scope, so they
+stop allocating fresh Reanimated builders every render. Folded into 1c.
 
 ## Stage 2 — The split
 
