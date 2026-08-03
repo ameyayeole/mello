@@ -5,7 +5,9 @@ import { PressableScale } from './PressableScale';
 
 // 40×40 circular icon button for actions that live *on* a screen — share,
 // filter, rotate, overflow menus. 'plain' = grey fill, 'surface' = white +
-// border, 'tint' = coral tint fill with coral icon, 'ghost' = no fill.
+// border, 'tint' = coral tint fill with coral icon, 'ghost' = no fill,
+// 'onPhoto' = smoked-glass chip with a white glyph, for a button sitting on
+// top of an image — the same treatment `Glass`'s `onPhoto` tier gives a pane.
 //
 // Not for navigation: back / close / dismiss all use `NavButton`, which is a
 // bare glyph with no chip behind it.
@@ -22,7 +24,7 @@ export function IconButton({
 }: {
   icon: IconName;
   onPress?: () => void;
-  variant?: 'plain' | 'surface' | 'tint' | 'ghost';
+  variant?: 'plain' | 'surface' | 'tint' | 'ghost' | 'onPhoto';
   size?: number;
   iconSize?: number;
   color?: string;
@@ -31,7 +33,12 @@ export function IconButton({
   accessibilityLabel?: string;
 }) {
   const iconColor =
-    color ?? (variant === 'tint' ? COLORS.primary : COLORS.textPrimary);
+    color ??
+    (variant === 'tint'
+      ? COLORS.primary
+      : variant === 'onPhoto'
+        ? COLORS.white
+        : COLORS.textPrimary);
   return (
     <PressableScale
       onPress={onPress}
@@ -44,6 +51,7 @@ export function IconButton({
         variant === 'plain' && styles.plain,
         variant === 'surface' && styles.surface,
         variant === 'tint' && styles.tint,
+        variant === 'onPhoto' && styles.onPhoto,
         style,
       ]}
     >
@@ -62,6 +70,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   tint: { backgroundColor: COLORS.primaryTint },
+  onPhoto: {
+    backgroundColor: COLORS.glassOnPhoto,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: COLORS.glassBorderOnPhoto,
+  },
   badge: {
     position: 'absolute',
     top: 8,

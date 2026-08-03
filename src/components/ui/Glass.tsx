@@ -86,8 +86,6 @@ const BORDER: Record<GlassTier, string> = {
   onPhoto: COLORS.glassBorderOnPhoto,
 };
 
-const supportsBlur = Platform.OS === 'ios';
-
 export function Glass({
   children,
   tier = 'panel',
@@ -99,6 +97,11 @@ export function Glass({
   shadow = true,
   style,
   onLayout,
+  // Force the Android flat-fill path on every platform. For a surface that is
+  // shaded, rotated and mostly occluded — the cards behind the top of a dealt
+  // stack — five stacked BlurViews is a real iOS cost for a difference nobody
+  // can see.
+  flat = false,
 }: {
   children?: React.ReactNode;
   tier?: GlassTier;
@@ -119,7 +122,9 @@ export function Glass({
   // outer box `style` lands on — not to the pane, which is absolutely
   // positioned and would report the same number a frame later.
   onLayout?: ViewProps['onLayout'];
+  flat?: boolean;
 }) {
+  const supportsBlur = Platform.OS === 'ios' && !flat;
   // The pane is a clipped layer *behind* the children rather than their parent.
   //
   // Two reasons, both of which bit an earlier version. The pane needs
