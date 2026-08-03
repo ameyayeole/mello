@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -86,6 +86,12 @@ export function DealtCard({
   const dx = useSharedValue(0);
   const dy = useSharedValue(0);
 
+  // Mirrors `flip` onto the JS thread — only so the pan gesture below can be
+  // disabled while the back is showing (see the flip-crossing reaction and
+  // `pan.enabled` below). Nothing else reads this; `flip` itself remains the
+  // single source of truth for anything worklet-side.
+  const [backShowing, setBackShowing] = useState(false);
+
   // Where the card starts, relative to its landed position at screen centre.
   // With no origin it starts below the bottom edge instead.
   const startX = origin
@@ -116,14 +122,22 @@ export function DealtCard({
     }
   );
 
-  // The click of the card going through edge-on.
+  // The click of the card going through edge-on. Also mirrors which face is
+  // showing onto `backShowing` (JS thread) — the one thing `pan` below needs
+  // that a worklet read of `flip.value` can't give it: RNGH's `.enabled()`
+  // is a JS-side switch, not a shared value, so disabling the pan gesture for
+  // the back face (rule: the back only taps-to-return, its `ScrollView` owns
+  // vertical) has to be driven from here rather than read live in a worklet.
   useAnimatedReaction(
     () => flip.value,
     (now, before) => {
       if (before == null) return;
       const crossed =
         (before < 0.5 && now >= 0.5) || (before > 0.5 && now <= 0.5);
-      if (crossed) runOnJS(haptic)('flip');
+      if (crossed) {
+        runOnJS(haptic)('flip');
+        runOnJS(setBackShowing)(now >= 0.5);
+      }
     }
   );
 
@@ -161,7 +175,14 @@ export function DealtCard({
     });
   }
 
+  // Disabled while the back is showing: on that face vertical is the
+  // `ScrollView`'s to own, and a swipe-to-pass/save is a front-face-only
+  // action anyway (the back has no join/pass affordance to trigger). Without
+  // this, the outer `GestureDetector` — which wraps both faces, since the
+  // flip is a cross-fade rather than a real swap of subtrees — would still
+  // claim the touch stream ahead of a nested scroll on every drag.
   const pan = Gesture.Pan()
+    .enabled(!backShowing)
     .onUpdate((e) => {
       dx.value = e.translationX;
       // Up rubber-bands: it has no job, and letting it travel freely would
