@@ -1544,10 +1544,41 @@ quota — with no error and nothing in the tests to catch it."
 
 ## Task 8: Call sites
 
-Five openers. Each measures an origin and hands over a deck.
+**Eleven openers across nine files, not five.** The plan originally said five;
+that was counted from an early grep and never rechecked. Measured 2026-08-04:
+
+| File | Line | Channel |
+| --- | --- | --- |
+| `app/(tabs)/map.tsx` | 352 | pin tap → `setSelectedEvent` |
+| `app/(tabs)/map.tsx` | 552 | hot-events sheet → `setSelectedEvent` |
+| `app/(tabs)/index.tsx` | 673 | home card → `setSelectedEvent` |
+| `app/(tabs)/profile.tsx` | 665 | profile's event row → `setSelectedEvent` |
+| `app/search.tsx` | 285 | search result → `setSelectedEvent` |
+| `app/notifications.tsx` | 606 | tapped notification → `setSelectedEvent` |
+| `src/hooks/useNotifications.ts` | 91 | push handler → `setSelectedEvent` |
+| `src/components/community/EventsRail.tsx` | 48 | community rail → `setSelectedEvent` |
+| `app/+native-intent.ts` | 24 | deep link → `setSelectedEvent` |
+| `app/friends/[userId].tsx` | 580 | local `EventSheetStack` ref |
+| `app/events/wishlist.tsx` | 215 | local `EventSheetStack` ref |
+| `app/events/swipe.tsx` | 341 | local `EventSheetStack` ref |
+
+**Every one must be migrated in this task.** Task 7 removed `GlobalEventSheet`,
+which was the only consumer of `selectedEventId` — so until this task lands,
+every `setSelectedEvent` site above opens *nothing at all*. That is a broken
+intermediate state on `main`, and this task is what closes it.
+
+Origins by kind:
+- **The map pin** uses `pointForCoordinate` (see Step 1) — a `<Marker>`'s
+  children are not reliably measurable.
+- **Card and row taps** (home, profile, search, wishlist, friends, swipe,
+  community rail) measure a ref with `measureInWindow`.
+- **Notification taps** (`app/notifications.tsx`, `useNotifications.ts`) pass
+  the in-app banner's rect if it is still on screen, else `null`.
+- **The deep link** (`+native-intent.ts`) passes `null` — `DealtCard` already
+  handles a null origin with the bottom-edge entrance.
 
 **Files:**
-- Modify: `app/(tabs)/map.tsx:352`, `app/(tabs)/index.tsx`, `app/friends/[userId].tsx:580`, `app/events/wishlist.tsx:215`, `app/events/swipe.tsx:341`
+- Modify: all nine files in the table above.
 
 - [ ] **Step 1: The map**
 
