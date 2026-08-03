@@ -148,4 +148,16 @@ export const COLORS = {
   catMusic: '#6D4AD6',
   catTrekking: '#17915A',
   catGym: '#2A6FDB',
+
+  // Per-popup accents for the pre-join safety queue. Each popup is colour-
+  // coded to what it is warning about, which is why these are not the brand
+  // ramp: purple for the women-only space, amber for a new-host caution, pink
+  // for the party/alcohol note. Values carried unchanged from the sheet these
+  // popups used to live in.
+  safetyWomen: '#7C5CE0',
+  safetyWomenTint: '#F0ECFC',
+  safetyCaution: '#C8791E',
+  safetyCautionTint: '#FBF0E2',
+  safetyParty: '#D6478E',
+  safetyPartyTint: '#FBE7F1',
 } as const;
