@@ -150,6 +150,14 @@ the UI is right.** Anything visual needs a device — Android specifically,
 because `react-native`'s `SafeAreaView` is a no-op there and that whole class of
 bug is invisible on iOS.
 
+**If you can't run the device pass yourself, write the sheet.** Device test
+sheets live in `docs/testing/`, one per batch of work, ticked per platform —
+see `create-flow-refactor.md` for the shape. Order the sections by risk rather
+than by feature, and say explicitly which rows are checking *reasoning* rather
+than something already observed; those are the ones worth someone's time. An
+untested change with a sheet is a known quantity. An untested change without
+one is a guess that reads like a result.
+
 Tests live in `src/**/__tests__/` and cover `utils/`, `services/` and hooks.
 Component tests are not set up: Reanimated 4 throws on import under Jest. Test
 logic by extracting it — see `participationMutations` in
