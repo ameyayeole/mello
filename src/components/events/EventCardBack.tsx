@@ -10,12 +10,14 @@ import { eventImageUri } from '@/utils/events';
 import { formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { useNearbyEvents } from '@/hooks/useNearbyEvents';
+import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import type { EventDetail, NearbyEvent } from '@/types/models';
 import {
   ActivityGlyph,
   AttendeeStack,
   Avatar,
   CategoryPill,
+  Icon,
   PressableScale,
   SectionLabel,
   Tag,
@@ -28,6 +30,13 @@ export interface EventCardBackProps {
   // `event.participants` + a user id, since the front face and whatever wires
   // this card together already have to know it.
   isMember: boolean;
+  // Whether the viewer is beyond the free join radius and would need Mello+
+  // to join — `gate === 'premiumDistance'` from `useEventCard`, i.e. already
+  // excludes the host, participants and pending requests, matching the
+  // sheet's own `tooFar && !isParticipant && !isPending` condition. Handed
+  // in rather than recomputed here: the distance query and premium check
+  // both live in `useEventCard`, not this face.
+  tooFar: boolean;
   // "Happening near you" tap — opens that event. What that means (a new dealt
   // card, a push) is the composing screen's call, not this face's.
   onOpenEvent: (id: string) => void;
@@ -113,6 +122,7 @@ function NearbyMini({
 export function EventCardBack({
   event,
   isMember,
+  tooFar,
   onOpenEvent,
   secondaryActions,
 }: EventCardBackProps) {
@@ -154,6 +164,29 @@ export function EventCardBack({
       // this vertical one.
       nestedScrollEnabled
     >
+      {/* Both ported verbatim from EventBottomSheet.tsx:1315-1336. Unlike the
+          gate messaging in the primary action (which only a non-member ever
+          sees, by definition — a host/participant has nothing to join), these
+          render for EVERYONE the event is true for, host and members
+          included. Women-only in particular is safety-relevant information,
+          not just a join gate, and hiding it once someone is already in was
+          exactly the regression this restores. */}
+      {tooFar && (
+        <View style={styles.premiumPill}>
+          <Icon name="crown" size={13} color={PREMIUM_GOLD} strokeWidth={2} />
+          <Text style={styles.premiumPillText}>
+            Beyond your 10 km — join with Mello+
+          </Text>
+        </View>
+      )}
+
+      {event.women_only && (
+        <View style={styles.womenOnlyPill}>
+          <Icon name="user" size={13} color={COLORS.secondary} strokeWidth={2} />
+          <Text style={styles.womenOnlyText}>Female-only event</Text>
+        </View>
+      )}
+
       {event.description && (
         <View style={styles.section}>
           <SectionLabel>About</SectionLabel>
@@ -238,6 +271,38 @@ const styles = StyleSheet.create({
   face: { flex: 1, backgroundColor: COLORS.white },
   content: { padding: SPACING[5], paddingBottom: SPACING[8], gap: SPACING[5] },
   section: { gap: SPACING[2.5] },
+  // Verbatim from EventBottomSheet.tsx's `premiumPill`/`premiumPillText`/
+  // `womenOnlyPill`/`womenOnlyText`.
+  premiumPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
+    backgroundColor: PREMIUM_GOLD_TINT,
+  },
+  premiumPillText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.caption,
+    color: PREMIUM_GOLD,
+  },
+  womenOnlyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(149,9,82,0.10)',
+  },
+  womenOnlyText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.secondary,
+  },
   description: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,

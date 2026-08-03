@@ -152,13 +152,20 @@ export function useEventCard(eventId: string | null) {
   }, [leaveReason, leaveDetail, leaveMutation, resetLeaveFlow]);
 
   // ─── Wishlist toggle for the bookmark chip on the front face ────────────────
+  // Optional onSuccess/onError so the card can show the sheet's old
+  // "Added/Removed from wishlist" / "Couldn't update wishlist" toast off the
+  // real mutation outcome, not just fire-and-forget — see
+  // EventDealtCard.tsx's `handleToggleSave` for why that toast exists at all.
   const { data: savedIds } = useSavedEventIds();
   const saved = !!eventId && !!savedIds?.includes(eventId);
   const saveMutation = useSaveEvent();
-  const toggleSave = useCallback(() => {
-    if (!eventId) return;
-    saveMutation.mutate({ eventId, save: !saved });
-  }, [eventId, saved, saveMutation]);
+  const toggleSave = useCallback(
+    (options?: { onSuccess?: () => void; onError?: () => void }) => {
+      if (!eventId) return;
+      saveMutation.mutate({ eventId, save: !saved }, options);
+    },
+    [eventId, saved, saveMutation]
+  );
 
   // ─── The single primary action — same state machine as the sheet's
   //     `primaryAction` (wrap / manage / open chat / join), collapsed to one

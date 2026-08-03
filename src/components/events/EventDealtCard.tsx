@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
@@ -17,6 +19,7 @@ import {
   Button,
   DealtCard,
   Dialog,
+  Icon,
   IconButton,
   PremiumBadge,
   PressableScale,
@@ -128,6 +131,42 @@ export function EventDealtCard() {
     reject,
     leave,
   } = useEventCard(topId);
+  const insets = useSafeAreaInsets();
+
+  // The wishlist save/unsave toast — ported from EventBottomSheet.tsx's
+  // footer toast (:800-839), which existed specifically because a silently
+  // rolled-back optimistic save "reads as the button does nothing" (that
+  // file's own comment). `useSaveEvent`'s optimistic rollback is still there
+  // (src/hooks/useSwipeDeck.ts) but nothing surfaced its outcome once the
+  // sheet was deleted — this restores that. No `ui/` primitive fit: `Sheet`/
+  // `Dialog` are modal, and `InAppNotification` is a two-line title+body
+  // banner that drops from the TOP and is driven by `uiStore.inAppBanner`
+  // (shared across the whole app for push/system notifications) — forcing a
+  // one-line bottom pill through that shape and store would be a fork, not a
+  // fit. This is a single, local, transient string; built here, same as the
+  // original lived only in the sheet that used it.
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 1900);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // Wraps `toggleSave` with the toast, rather than moving the toast into
+  // `useEventCard` itself: the hook is also reachable from contexts with no
+  // card-shaped surface to float a toast over, so the outcome is surfaced
+  // here, at the one place that has both the mutation and the screen. Used
+  // by both the front face's bookmark chip and the browse-swipe save path
+  // below — both call the same `useSaveEvent` mutation this restores
+  // feedback for.
+  const handleToggleSave = useCallback(() => {
+    const nextSaved = !saved;
+    toggleSave({
+      onSuccess: () =>
+        setToast(nextSaved ? 'Added to wishlist' : 'Removed from wishlist'),
+      onError: () => setToast("Couldn't update wishlist"),
+    });
+  }, [saved, toggleSave]);
 
   // The new-host safety popup's secondary action ("View host profile") was
   // deliberately left out of `QueuedSafetyPopup` — it has no callback slot by
@@ -163,10 +202,10 @@ export function EventDealtCard() {
     if (isSwipeDeck && topId) {
       recordSwipe(topId, 'like');
     } else if (!saved) {
-      toggleSave();
+      handleToggleSave();
     }
     advance();
-  }, [isSwipeDeck, topId, recordSwipe, saved, toggleSave, advance]);
+  }, [isSwipeDeck, topId, recordSwipe, saved, handleToggleSave, advance]);
   const handlePass = useCallback(() => {
     if (isSwipeDeck && topId) {
       recordSwipe(topId, 'pass');
@@ -222,7 +261,7 @@ export function EventDealtCard() {
               />
             ) : undefined
           }
-          onSave={toggleSave}
+          onSave={handleToggleSave}
           onShare={() => shareEvent(event)}
           saved={saved}
         />
@@ -236,6 +275,7 @@ export function EventDealtCard() {
           <EventCardBack
             event={event}
             isMember={isMember}
+            tooFar={gate === 'premiumDistance'}
             onOpenEvent={(openId) => dealCard([openId], 0, null)}
             secondaryActions={
               hasSecondaryActions ? (
@@ -432,6 +472,25 @@ export function EventDealtCard() {
           />
         </View>
       </Sheet>
+
+      {/* Wishlist save/unsave toast — ported from EventBottomSheet.tsx's
+          footer toast. Sits over the card's own dim (this component renders
+          inside the tabs layout's absoluteFill wrapper — see that file's
+          comment on EventDealtCard), so no dim/backdrop of its own is
+          needed. pointerEvents none: it's feedback, never a tap target. */}
+      {toast && (
+        <Animated.View
+          entering={FadeInUp.duration(200)}
+          exiting={FadeOut.duration(160)}
+          style={[styles.toastWrap, { bottom: insets.bottom + SPACING[5] }]}
+          pointerEvents="none"
+        >
+          <View style={styles.toast}>
+            <Icon name="bookmarkFilled" size={15} color="#fff" strokeWidth={2} />
+            <Text style={styles.toastText}>{toast}</Text>
+          </View>
+        </Animated.View>
+      )}
     </>
   );
 }
@@ -504,5 +563,29 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
+  },
+  // ── Wishlist toast — verbatim from EventBottomSheet.tsx's `toast`/
+  // `toastText`, plus `toastWrap` to position it now that there's no
+  // `BottomSheetFooter` to dock it to the screen bottom.
+  toastWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  toast: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[4],
+    height: 42,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.accent,
+    shadowColor: '#0F182C',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  toastText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: '#fff',
   },
 });
