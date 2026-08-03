@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
@@ -93,8 +93,14 @@ function regionRadiusM(region: Region): number {
 export default function MapScreen() {
   const router = useRouter();
   const coords = useLocationStore((s) => s.coords);
-  const { mapFilters, creatingEvent, setCreatingEvent, setSelectedEvent } =
-    useUIStore();
+  // One selector per field. `useUIStore()` with no selector subscribes to the
+  // whole store, so this screen re-rendered on any UI state change anywhere in
+  // the app — a chat sheet opening, a filter changing on another tab. Measured
+  // at 5 MapScreen renders for a single map pan.
+  const mapFilters = useUIStore((s) => s.mapFilters);
+  const creatingEvent = useUIStore((s) => s.creatingEvent);
+  const setCreatingEvent = useUIStore((s) => s.setCreatingEvent);
+  const setSelectedEvent = useUIStore((s) => s.setSelectedEvent);
   const { requestAndStart } = useLocation();
   const { friends } = useFriends();
   const mapRef = useRef<MapView>(null);
@@ -109,7 +115,11 @@ export default function MapScreen() {
           lng: region.longitude,
           radiusM: regionRadiusM(region),
         }
-      : null
+      : null,
+    // The markers are already skipped while creating (see the render below), so
+    // panning to place a pin was fetching events nobody could see — and the 60s
+    // poll kept re-rendering this screen underneath the wizard.
+    { paused: creatingEvent }
   );
 
   const friendIds = useMemo(
@@ -133,6 +143,12 @@ export default function MapScreen() {
   // close routes back into the flow rather than flipping creatingEvent itself,
   // so leaving always goes through the flow's unsaved-draft prompt.
   const flowRef = useRef<CreateEventFlowRef>(null);
+  // Stable identity, or the memo on CreateEventFlow is a no-op: a fresh arrow
+  // every render is a changed prop every render.
+  const exitCreate = useCallback(
+    () => setCreatingEvent(false),
+    [setCreatingEvent]
+  );
   const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
   // 0 = browse chrome, 1 = create chrome (X in, filter out).
   const createProg = useSharedValue(0);
@@ -395,7 +411,7 @@ export default function MapScreen() {
         mapRef={mapRef}
         mapW={mapSize.w}
         mapH={mapSize.h}
-        onExit={() => setCreatingEvent(false)}
+        onExit={exitCreate}
       />
 
       {/* Search + activity filter chips */}

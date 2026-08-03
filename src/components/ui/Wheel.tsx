@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -37,7 +37,14 @@ export const WHEEL_H = WHEEL_ITEM_H * WHEEL_VISIBLE;
 const TICK_MS = 45;
 
 // One row of the drum.
-function WheelRow({
+//
+// Memoised, and it matters more here than anywhere else in the app: there are
+// up to 90 of these in a column, and every re-render of the parent rebuilt all
+// of them. Its props cannot change once mounted — the label and index are fixed
+// for a given row, and `scrollY` is a shared value whose identity is stable
+// while its contents animate on the UI thread. So a parent re-render now costs
+// the wheel itself and nothing below it.
+const WheelRow = memo(function WheelRow({
   label,
   index,
   scrollY,
@@ -73,9 +80,9 @@ function WheelRow({
       </Text>
     </Animated.View>
   );
-}
+});
 
-export function Wheel<T extends string | number>({
+function WheelInner<T extends string | number>({
   options,
   value,
   onChange,
@@ -155,6 +162,16 @@ export function Wheel<T extends string | number>({
     </View>
   );
 }
+
+// `memo` returns a component that has lost the generic parameter, so the cast
+// puts the signature back — callers still infer T from `options` and `value`.
+// The cast is the standard idiom for a memoised generic component; there is no
+// way to express "memo, but still generic" in the type system.
+//
+// Worth having on top of the memo on WheelRow: with the row list stable, the
+// remaining cost of a parent re-render is building 90 elements to throw away.
+// Callers must pass a stable `options` array and `onChange` for this to bite.
+export const Wheel = memo(WheelInner) as typeof WheelInner;
 
 const styles = StyleSheet.create({
   wrap: { height: WHEEL_H, marginVertical: SPACING[3] },

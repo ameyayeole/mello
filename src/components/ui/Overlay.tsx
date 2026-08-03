@@ -127,6 +127,23 @@ function Overlay({
 
   const done = useCallback(() => setExiting(false), []);
 
+  // Distinguishes "shut because it closed" from "shut because it has never been
+  // opened". Without it the effect below reads a first render as a dismissal
+  // and plays an exit animation for a sheet nobody opened — which is not merely
+  // a wasted animation, because `exiting` is half of `mounted`: every slide
+  // Sheet in the app briefly mounted its full contents on first render to
+  // animate out of a state it was never in.
+  //
+  // Seeded from `visible` so an overlay that mounts already open is not treated
+  // as unopened for its first frame. Once true it stays true: this is a "has
+  // ever been needed" flag, not a mirror of `visible`.
+  const [hasOpened, setHasOpened] = useState(visible);
+  // Adjusted during render rather than from an effect. React re-runs the
+  // component immediately without committing, so the flag is correct on the
+  // very frame the sheet opens — an effect would set it one frame late, which
+  // for a first open is exactly the frame that matters.
+  if (visible && !hasOpened) setHasOpened(true);
+
   useEffect(() => {
     if (visible) {
       // Also resets the offset a drag-dismiss parked at its thrown-out value —
@@ -136,15 +153,18 @@ function Overlay({
       return;
     }
     if (!sliding) return;
-    // Deliberate: this is the bridge between a prop flipping and an animation
-    // that has to finish before the Modal may unmount. There is no render-phase
-    // way to express "stay mounted a moment longer".
+    // Nothing to animate out of if it was never in.
+    if (!hasOpened) return;
+    // The bridge between a prop flipping and an animation that has to finish
+    // before the Modal may unmount. There is no render-phase way to express
+    // "stay mounted a moment longer", which is what the disable is for — unlike
+    // `hasOpened` above, this is not derived state and cannot move into render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setExiting(true);
     dragY.value = withTiming(EXIT_PX, EXIT_TIMING, (finished) => {
       if (finished) runOnJS(done)();
     });
-  }, [visible, sliding, dragY, done]);
+  }, [visible, sliding, hasOpened, dragY, done]);
 
   const dragStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: dragY.value }],
@@ -154,6 +174,24 @@ function Overlay({
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(dragY.value, [0, 260], [1, 0], 'clamp'),
   }));
+
+  // Nothing below this line is built until the overlay has been opened once.
+  //
+  // `Modal` does *not* spare its children when `visible` is false — it
+  // reconciles them anyway — so every Sheet in the app was mounting its full
+  // contents as soon as its parent rendered, whether or not it was ever opened.
+  // The create flow made the cost visible: pressing Create mounted the date,
+  // time and duration wheels — 90 + 48 + 24 rows, each carrying its own
+  // animated-style worklet — before the user had touched a picker.
+  //
+  // The condition is "has never been opened", NOT `!mounted`. Gating on
+  // `mounted` looks equivalent and is not: `exiting` is set from an effect, so
+  // it is still false on the render where `visible` first goes false. That one
+  // render unmounted the sheet, the effect then flipped `exiting` and mounted
+  // it again to animate out, and the sheet visibly closed, flashed back, and
+  // closed again. Once opened, an overlay stays mounted exactly as it did
+  // before — this only ever needed to skip the sheets nobody has touched.
+  if (!visible && !exiting && !hasOpened) return null;
 
   const card = (
     <View
@@ -194,17 +232,26 @@ function Overlay({
           anchor === 'bottom' ? styles.alignBottom : styles.alignCenter,
         ]}
       >
+        {/* Two views, not one. A layout animation and an animated style cannot
+            share a property: `entering` drives opacity, `scrimStyle` drives
+            opacity, and Reanimated warned on every open that one would
+            overwrite the other — which is the drag-to-lighten scrim losing to
+            the fade-in. The wrapper owns the entrance, the inner view owns the
+            drag response, and neither touches the other's property. */}
         <Animated.View
-          style={[styles.backdrop, sliding && scrimStyle]}
+          style={StyleSheet.absoluteFill}
           entering={sliding ? FadeIn.duration(220) : undefined}
+          pointerEvents="box-none"
         >
-          {dismissOnBackdropPress ? (
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={onClose}
-              accessibilityLabel="Dismiss"
-            />
-          ) : null}
+          <Animated.View style={[styles.backdrop, sliding && scrimStyle]}>
+            {dismissOnBackdropPress ? (
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={onClose}
+                accessibilityLabel="Dismiss"
+              />
+            ) : null}
+          </Animated.View>
         </Animated.View>
         {sliding ? (
           <Animated.View

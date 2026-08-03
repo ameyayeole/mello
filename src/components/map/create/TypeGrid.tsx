@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -14,15 +14,19 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { ActivityId } from '@/types/models';
-import { GLIDE, SQUASH } from './motion';
+import { GLIDE, SQUASH, TAP_SCALE } from './motion';
 
-const TAP_SCALE = 0.96;
 // Columns in the grid, and the emoji plate the indicator is sized to. Both have
 // to agree with the layout below.
 const GRID_COLS = 4;
 const TILE = 58;
 
-export function TypeGrid({
+// Memoised because it is 52 tiles hanging off a component that re-renders for
+// reasons that have nothing to do with the grid. Measured at 9 renders — 468
+// tile renders — for one map pan, none of which changed a single activity.
+// The props are already stable: `onChange` is a setState, `value` a primitive,
+// and `activities` is memoised by the caller.
+export const TypeGrid = memo(function TypeGrid({
   activities,
   value,
   onChange,
@@ -90,7 +94,10 @@ export function TypeGrid({
   return (
     <View style={styles.typeGrid}>
       {/* Behind the tiles, so it can never take a tap. */}
-      <Animated.View style={[styles.typeIndicator, indicator]} pointerEvents="none" />
+      <Animated.View
+        style={[styles.typeIndicator, indicator]}
+        pointerEvents="none"
+      />
       {activities.map((a) => {
         const sel = value === a.id;
         return (
@@ -135,7 +142,7 @@ export function TypeGrid({
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   typeGrid: {

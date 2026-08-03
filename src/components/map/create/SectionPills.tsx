@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Text, StyleSheet, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -11,14 +11,12 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { SectionId } from '@/constants/activities';
-import { GLIDE } from './motion';
+import { GLIDE, TAP_SCALE } from './motion';
 
-// One tap depth for every control in the create flow. PressableScale's spring
-// overshoots in proportion to how far the press went down, so a shallow dip
-// keeps the release from reading as a bounce.
-const TAP_SCALE = 0.96;
-
-export function SectionPills({
+// Memoised for the same reason as TypeGrid — it sits in the same step and rode
+// along on every unrelated re-render of the flow. Its `sections` prop has to be
+// a stable reference for this to bite, which is why the caller hoists it.
+export const SectionPills = memo(function SectionPills({
   sections,
   value,
   onChange,
@@ -27,9 +25,9 @@ export function SectionPills({
   value: SectionId | 'all';
   onChange: (id: SectionId | 'all') => void;
 }) {
-  const [frames, setFrames] = useState<Record<string, { x: number; w: number }>>(
-    {}
-  );
+  const [frames, setFrames] = useState<
+    Record<string, { x: number; w: number }>
+  >({});
   const x = useSharedValue(0);
   const w = useSharedValue(0);
   // The first measurement positions without animating, or the indicator flies
@@ -91,7 +89,10 @@ export function SectionPills({
             accessibilityState={{ selected: sel }}
           >
             <Text
-              style={[styles.sectionPillText, sel && styles.sectionPillTextActive]}
+              style={[
+                styles.sectionPillText,
+                sel && styles.sectionPillTextActive,
+              ]}
             >
               {s.label}
             </Text>
@@ -100,7 +101,7 @@ export function SectionPills({
       })}
     </ScrollView>
   );
-}
+});
 
 // The activity grid, with the same travelling selection as the category row.
 

@@ -43,6 +43,27 @@ So, in order:
 | Category | `CategoryTile`, `CategoryPill`, `ActivityGlyph` |
 | Small uppercase heading | `SectionLabel` |
 
+### The create wizard
+
+It reached 1,846 lines and 26 `useState` hooks because nothing said not to,
+and by then every field re-rendered every other field — one map pan cost 12
+renders of the whole tree and 468 tile renders. It is now a store plus one file
+per step. Three rules keep it that way:
+
+- **A new field goes in `createEventStore`, not a `useState`.** The store is
+  what lets each step subscribe to only what it reads.
+- **The steps in `create/steps/` take no props.** That is what makes `memo`
+  hold them against the flow's re-renders. Adding a single prop undoes it, with
+  no error and no failing test — just the old behaviour back.
+- **A persisted field must be added to both `draftInputFrom` and
+  `draftStateFrom`.** Missing one produces no type error, no crash and no test
+  failure — just a draft that quietly forgets that field. Extend the round-trip
+  test in `stores/__tests__/createEventStore.test.ts` when you add one.
+
+Sheets are lazy now: `Overlay` renders nothing until it has been opened once,
+so a `<Sheet>` that never opens costs nothing. Don't reintroduce a mount guard
+based on `visible` — see the comment in `Overlay.tsx` for why that flashes.
+
 ---
 
 ## Hardcoding
@@ -121,7 +142,7 @@ Prefer the boring, obvious solution. Before a non-trivial change:
 ```sh
 npm run typecheck   # must stay at 0
 npm test            # must stay green
-npm run lint        # 95 errors / 16 warnings are pre-existing; don't add
+npm run lint        # 0 errors / 65 warnings are pre-existing; don't add
 ```
 
 There is no snapshot or screen-test coverage, so **`tsc` passing does not mean
