@@ -12,17 +12,28 @@ import { useEventParticipation } from '@/hooks/useEventParticipation';
 import { useSaveEvent, useSavedEventIds } from '@/hooks/useSwipeDeck';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import {
-  joinGate,
-  safetyFlagsFor,
-  safetyPopup,
-  type QueuedSafetyPopup,
-} from '@/utils/eventCardGates';
+  buildSafetyQueue,
+  confirmSafetyQueue,
+  dismissSafetyQueue,
+} from '@/utils/safetyQueue';
+import { joinGate, safetyFlagsFor, type QueuedSafetyPopup } from '@/utils/eventCardGates';
+
+// Copied verbatim from EventBottomSheet.tsx — these strings are written to
+// `event_leave_feedback` as-is, so a rewording here would silently change
+// what's stored for every leave from this point on.
+export const LEAVE_REASONS = [
+  "Can't make it anymore",
+  'My plans changed',
+  'Not comfortable / feels unsafe',
+  'Something else',
+] as const;
 
 // One event's worth of state for the dealt card's top (interactive) face:
 // the fetched detail, the join gate, the primary action, the pre-join safety
-// queue and the wishlist toggle. Everything here composes existing pieces —
-// `useEventParticipation` for the mutations, `eventCardGates` for the pure
-// gate/queue logic — rather than re-implementing any of them.
+// queue, the leave flow, the host's approve/reject rows and the wishlist
+// toggle. Everything here composes existing pieces — `useEventParticipation`
+// for the mutations, `eventCardGates`/`safetyQueue` for the pure gate/queue
+// logic — rather than re-implementing any of them.
 //
 // Ported from EventBottomSheet's per-event state (that file computed all of
 // this inline); this is the same logic, pulled out so the dealt card can use
@@ -67,39 +78,78 @@ export function useEventCard(eventId: string | null) {
       })
     : 'none';
 
-  const { join, leave } = useEventParticipation(eventId, user ?? null, event);
+  const {
+    join,
+    leave: leaveMutation,
+    approve,
+    reject,
+  } = useEventParticipation(eventId, user ?? null, event);
+
+  // Mello+ members' requests surface first for the host — same sort
+  // EventBottomSheet.tsx:897-899 used.
+  const pending = (event?.participants ?? [])
+    .filter((p) => p.status === 'pending')
+    .sort((a, b) => Number(isPremium(b)) - Number(isPremium(a)));
 
   // ─── Pre-join safety queue (#3 first join, #10 women-only, #5 new host,
-  //     #8 party/alcohol) — lifted verbatim from
-  //     EventBottomSheet.tsx:1030-1042. Confirming the current popup marks it
-  //     seen and pops the queue; the join fires only once the queue is empty.
-  //     Dismissing clears the queue and cancels the join outright.
+  //     #8 party/alcohol). The state transitions (build/confirm/dismiss) are
+  //     pure and live in `safetyQueue.ts`, tested there directly; this hook
+  //     owns only the impure step — the SecureStore seen-flag reads/writes —
+  //     and the join mutation itself. Confirming the current popup marks it
+  //     seen and pops the queue; the join fires only once the queue is
+  //     empty. Dismissing clears the queue and cancels the join outright.
   const [queue, setQueue] = useState<QueuedSafetyPopup[]>([]);
 
   const startJoin = useCallback(async () => {
     if (!event || !user) return;
-    const unseen: QueuedSafetyPopup[] = [];
+    const seen = new Set<string>();
     for (const flag of safetyFlagsFor(event)) {
-      if (await hasSeenSafetyFlag(user.id, flag)) continue;
-      const popup = safetyPopup(flag, event);
-      if (popup) unseen.push(popup);
+      if (await hasSeenSafetyFlag(user.id, flag)) seen.add(flag);
     }
-    if (unseen.length > 0) setQueue(unseen);
-    else join.mutate();
+    const next = buildSafetyQueue(event, seen);
+    setQueue(next);
+    if (next.length === 0) join.mutate();
   }, [event, user, join]);
 
-  // Reads `queue` directly rather than via a `setQueue` updater — the join
-  // fire is a side effect, and a state updater is expected to stay pure (React
-  // may invoke it more than once to check that). Mirrors the original
-  // `confirmQueuedPopup`, which reads `joinQueue[0]` the same way.
   const confirmQueued = useCallback(() => {
-    const [head, ...rest] = queue;
-    if (head && user) markSafetyFlagSeen(user.id, head.flag);
-    setQueue(rest);
-    if (rest.length === 0) join.mutate();
+    const step = confirmSafetyQueue(queue);
+    if (step.seenFlag && user) markSafetyFlagSeen(user.id, step.seenFlag);
+    setQueue(step.queue);
+    if (step.join) join.mutate();
   }, [queue, join, user]);
 
-  const dismissQueue = useCallback(() => setQueue([]), []);
+  const dismissQueue = useCallback(() => {
+    setQueue(dismissSafetyQueue().queue);
+  }, []);
+
+  // ─── Leave flow: confirm → reason, ported from EventBottomSheet.tsx's
+  //     `leaveStep`/`leaveReason`/`leaveDetail`/`confirmLeave`. The reason
+  //     (one of `LEAVE_REASONS`, plus optional free text) is recorded in
+  //     `event_leave_feedback` — `leaveEvent()` only inserts a feedback row
+  //     when a reason is present (events.service.ts:307), so skipping this
+  //     flow and calling `leaveMutation.mutate()` bare (as the pending-request
+  //     cancel path below does, deliberately — there's no membership to leave
+  //     feedback about) would silently drop that row for a real leave too.
+  const [leaveStep, setLeaveStep] = useState<'idle' | 'confirm' | 'reason'>(
+    'idle'
+  );
+  const [leaveReason, setLeaveReason] = useState<string | null>(null);
+  const [leaveDetail, setLeaveDetail] = useState('');
+
+  const resetLeaveFlow = useCallback(() => {
+    setLeaveStep('idle');
+    setLeaveReason(null);
+    setLeaveDetail('');
+  }, []);
+
+  const confirmLeave = useCallback(() => {
+    if (!leaveReason) return;
+    leaveMutation.mutate({
+      reason: leaveReason,
+      detail: leaveDetail.trim() || undefined,
+    });
+    resetLeaveFlow();
+  }, [leaveReason, leaveDetail, leaveMutation, resetLeaveFlow]);
 
   // ─── Wishlist toggle for the bookmark chip on the front face ────────────────
   const { data: savedIds } = useSavedEventIds();
@@ -158,7 +208,11 @@ export function useEventCard(eventId: string | null) {
       return;
     }
     if (isPending) {
-      leave.mutate();
+      // Withdrawing a request, not leaving a membership — no feedback row to
+      // record (there's nothing to leave feedback about), so this bypasses
+      // the reason flow on purpose. Same as EventBottomSheet's primary
+      // button: `onPress={() => (isPending ? leave.mutate() : ...)}`.
+      leaveMutation.mutate();
       return;
     }
     if (gate === 'premiumDistance') {
@@ -175,7 +229,7 @@ export function useEventCard(eventId: string | null) {
     isParticipant,
     isPending,
     gate,
-    leave,
+    leaveMutation,
     router,
     closeDealtCard,
     startJoin,
@@ -192,6 +246,21 @@ export function useEventCard(eventId: string | null) {
     dismissQueue,
     saved,
     toggleSave,
-    leave,
+    isHost,
+    pending,
+    approve,
+    reject,
+    leave: {
+      isPending: leaveMutation.isPending,
+      step: leaveStep,
+      reason: leaveReason,
+      detail: leaveDetail,
+      start: () => setLeaveStep('confirm'),
+      stay: resetLeaveFlow,
+      proceedToReason: () => setLeaveStep('reason'),
+      setReason: setLeaveReason,
+      setDetail: setLeaveDetail,
+      confirm: confirmLeave,
+    },
   };
 }

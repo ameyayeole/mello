@@ -1,16 +1,29 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { SPACING } from '@/constants/spacing';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useUIStore } from '@/stores/uiStore';
-import { useEventCard } from '@/hooks/useEventCard';
+import { useEventCard, LEAVE_REASONS } from '@/hooks/useEventCard';
 import { shareEvent } from '@/utils/shareEvent';
+import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
-import { Button, DealtCard, Dialog, STACK_DEPTH } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  DealtCard,
+  Dialog,
+  IconButton,
+  PremiumBadge,
+  PressableScale,
+  STACK_DEPTH,
+  Sheet,
+  SectionLabel,
+  TextField,
+} from '@/components/ui';
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
 import type { EventParticipant, NearbyEvent } from '@/types/models';
@@ -95,7 +108,6 @@ export function EventDealtCard() {
   const advance = useUIStore((s) => s.advanceDealtCard);
   const close = useUIStore((s) => s.closeDealtCard);
   const dealCard = useUIStore((s) => s.dealCard);
-  const [confirmLeave, setConfirmLeave] = useState(false);
 
   const topId = deal?.ids[deal.index] ?? null;
   const {
@@ -108,6 +120,10 @@ export function EventDealtCard() {
     dismissQueue,
     saved,
     toggleSave,
+    isHost,
+    pending,
+    approve,
+    reject,
     leave,
   } = useEventCard(topId);
 
@@ -148,6 +164,7 @@ export function EventDealtCard() {
   // exactly that condition (see useEventCard's primaryLabel derivation).
   const canLeave = primaryLabel === 'Open chat';
   const isMember = gate === 'none';
+  const hasSecondaryActions = (isHost && pending.length > 0) || canLeave;
 
   if (!deal) return null;
 
@@ -197,13 +214,55 @@ export function EventDealtCard() {
             isMember={isMember}
             onOpenEvent={(openId) => dealCard([openId], 0, null)}
             secondaryActions={
-              canLeave ? (
-                <Button
-                  label="Leave event"
-                  variant="tertiary"
-                  onPress={() => setConfirmLeave(true)}
-                  disabled={leave.isPending}
-                />
+              hasSecondaryActions ? (
+                <>
+                  {/* Host: pending join requests to approve/reject — ported
+                      from EventBottomSheet.tsx:1407-1446, Mello+ ranked first
+                      (useEventCard's `pending` sort). `EventCardBack`'s
+                      `secondaryActions` slot stays opaque — these rows are
+                      built here, not inside that component. */}
+                  {isHost && pending.length > 0 && (
+                    <View style={styles.pendingSection}>
+                      <SectionLabel>Requests · {pending.length}</SectionLabel>
+                      {pending.map((p) => (
+                        <View key={p.id} style={styles.pendingRow}>
+                          <Avatar name={p.name} photoUrl={p.photo_url} size={38} />
+                          <View style={styles.pendingNameWrap}>
+                            <Text style={styles.pendingName} numberOfLines={1}>
+                              {p.name}
+                            </Text>
+                            {isPremium(p) && <PremiumBadge size={13} />}
+                          </View>
+                          <Button
+                            label="Approve"
+                            size="sm"
+                            variant="primary"
+                            onPress={() => approve.mutate(p.id)}
+                            disabled={approve.isPending}
+                          />
+                          <IconButton
+                            icon="close"
+                            variant="plain"
+                            size={34}
+                            iconSize={16}
+                            accessibilityLabel="Decline request"
+                            onPress={() => {
+                              if (!reject.isPending) reject.mutate(p.id);
+                            }}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {canLeave && (
+                    <Button
+                      label="Leave event"
+                      variant="tertiary"
+                      onPress={leave.start}
+                      disabled={leave.isPending}
+                    />
+                  )}
+                </>
               ) : undefined
             }
           />
@@ -246,12 +305,10 @@ export function EventDealtCard() {
       )}
 
       {/* Leave, step 1: confirm. Backdrop-tap can't dismiss a destructive
-          action — same rule the old sheet's leave dialog used. This card
-          skips the sheet's second step (a free-text reason) — a scope cut
-          for this task, not a design decision; see the task report. */}
+          action — same rule the old sheet's leave dialog used. */}
       <Dialog
-        visible={confirmLeave}
-        onClose={() => setConfirmLeave(false)}
+        visible={leave.step === 'confirm'}
+        onClose={leave.stay}
         dismissOnBackdropPress={false}
       >
         <Text style={styles.leaveTitle}>Leave this event?</Text>
@@ -264,20 +321,64 @@ export function EventDealtCard() {
             variant="tertiary"
             size="md"
             style={styles.leaveButton}
-            onPress={() => setConfirmLeave(false)}
+            onPress={leave.stay}
           />
           <Button
             label="Yes, leave"
             variant="secondary"
             size="md"
             style={styles.leaveButton}
-            onPress={() => {
-              leave.mutate();
-              setConfirmLeave(false);
-            }}
+            onPress={leave.proceedToReason}
           />
         </View>
       </Dialog>
+
+      {/* Leave, step 2: the reason, recorded in event_leave_feedback — ported
+          from EventBottomSheet.tsx:1702-1746. */}
+      <Sheet
+        visible={leave.step === 'reason'}
+        onClose={leave.stay}
+        grabber
+        keyboardAvoiding
+        animation="slide"
+      >
+        <View style={styles.reasonSheet}>
+          <Text style={styles.leaveTitle}>Why are you leaving?</Text>
+          <View style={styles.reasonChips}>
+            {LEAVE_REASONS.map((r) => {
+              const selected = leave.reason === r;
+              return (
+                <PressableScale
+                  key={r}
+                  scaleTo={0.97}
+                  onPress={() => leave.setReason(r)}
+                  style={[styles.reasonChip, selected && styles.reasonChipOn]}
+                >
+                  <Text
+                    style={[
+                      styles.reasonChipText,
+                      selected && styles.reasonChipTextOn,
+                    ]}
+                  >
+                    {r}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </View>
+          <TextField
+            value={leave.detail}
+            onChangeText={leave.setDetail}
+            placeholder="Anything the host should know? (optional)"
+            multiline
+          />
+          <Button
+            label="Leave event"
+            onPress={leave.confirm}
+            disabled={!leave.reason || leave.isPending}
+          />
+        </View>
+      </Sheet>
     </>
   );
 }
@@ -310,4 +411,45 @@ const styles = StyleSheet.create({
     marginTop: SPACING[4],
   },
   leaveButton: { flex: 1 },
+  reasonSheet: { padding: SPACING[5], gap: SPACING[3] },
+  reasonChips: { gap: SPACING[2] },
+  reasonChip: {
+    paddingHorizontal: SPACING[4],
+    paddingVertical: SPACING[3],
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderSoft,
+    backgroundColor: COLORS.surface,
+  },
+  reasonChipOn: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.background,
+  },
+  reasonChipText: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textSecondary,
+  },
+  reasonChipTextOn: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
+  pendingSection: { gap: SPACING[2] },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2.5],
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    padding: SPACING[2.5],
+  },
+  pendingNameWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1],
+  },
+  pendingName: {
+    flexShrink: 1,
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.textPrimary,
+  },
 });
