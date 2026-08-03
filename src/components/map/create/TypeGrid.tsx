@@ -15,9 +15,8 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { ActivityId } from '@/types/models';
 import { useRenderCount } from '@/hooks/useRenderCount';
-import { GLIDE, SQUASH } from './motion';
+import { GLIDE, SQUASH , TAP_SCALE } from './motion';
 
-const TAP_SCALE = 0.96;
 // Columns in the grid, and the emoji plate the indicator is sized to. Both have
 // to agree with the layout below.
 const GRID_COLS = 4;

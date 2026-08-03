@@ -11,12 +11,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { SectionId } from '@/constants/activities';
-import { GLIDE } from './motion';
-
-// One tap depth for every control in the create flow. PressableScale's spring
-// overshoots in proportion to how far the press went down, so a shallow dip
-// keeps the release from reading as a bounce.
-const TAP_SCALE = 0.96;
+import { GLIDE , TAP_SCALE } from './motion';
 
 // Memoised for the same reason as TypeGrid — it sits in the same step and rode
 // along on every unrelated re-render of the flow. Its `sections` prop has to be

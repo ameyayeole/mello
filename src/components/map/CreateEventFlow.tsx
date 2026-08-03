@@ -1,39 +1,9 @@
-import {
-  forwardRef,
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { Image } from 'expo-image';
+import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Keyboard } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
-import {
-  TITLE_MAX,
-  DESCRIPTION_MAX,
-  MIN_PEOPLE,
-  MAX_PEOPLE,
-  STEP_COUNT,
-  clampMaxPeople,
-  canAdvanceFrom,
-  eventEndTime,
-  isStartInPast,
-} from '@/utils/eventDraft';
+import { clampMaxPeople, draftHasWork } from '@/utils/eventDraft';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import MapView, { Region } from 'react-native-maps';
 import { useRouter } from 'expo-router';
@@ -43,8 +13,6 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
-  SlideInDown,
-  SlideOutDown,
   ZoomIn,
   cancelAnimation,
   useAnimatedStyle,
@@ -55,56 +23,27 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
+import { useCreateEventStore } from '@/stores/createEventStore';
 import { createEvent } from '@/services/events.service';
 import { uploadEventPhoto } from '@/services/storage.service';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
-import {
-  clearEventDraft,
-  loadEventDraft,
-  saveEventDraft,
-} from '@/services/eventDraftStore';
-import { SafetyPopup, FemaleOnlyConfirmModal } from '@/components/safety';
-import {
-  roundUpTo30,
-  fmtTime,
-  fmtDayLong,
-} from '@/components/DateTimeField';
-import {
-  dayLabel,
-  dayOptions,
-  dayValueOf,
-  minuteValueOf,
-  timeOptions,
-} from '@/utils/eventSchedule';
+import { clearEventDraft } from '@/services/eventDraftStore';
+import { SafetyPopup } from '@/components/safety';
 import { PlaceResult } from '@/components/PlaceSearch';
-import {
-  ACTIVITIES,
-  ACTIVITY_MAP,
-  SECTIONS,
-  SectionId,
-} from '@/constants/activities';
+import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { ActivityId } from '@/types/models';
-import {
-  Avatar,
-  Button,
-  Dialog,
-  Icon,
-  NavButton,
-  PressableScale,
-  Sheet,
-  Toggle,
-  Wheel,
-} from '@/components/ui';
+import { Avatar, Icon } from '@/components/ui';
 import { showError } from '@/utils/errors';
 import { useRenderCount } from '@/hooks/useRenderCount';
-import { SectionPills } from './create/SectionPills';
-import { StepProgress } from './create/StepProgress';
-import { TypeGrid } from './create/TypeGrid';
+import { GLYPH_STROKE } from './create/motion';
+import { CreateCard } from './create/CreateCard';
+import { DiscardDialog } from './create/DiscardDialog';
+import { LocationPill } from './create/LocationPill';
+import { useDraftPersistence } from './create/useDraftPersistence';
 
 // ─── In-map event creation ───────────────────────────────────────────────────
-// Replaces the old full-screen create form. The map itself is the canvas:
+// The map itself is the canvas:
 //   drop  → "tap anywhere" prompt; a tap plants the pin
 //   form  → the pin is a FIXED overlay centred in the map area above the card;
 //           panning the map moves the location under it (Uber-style), and the
@@ -114,6 +53,12 @@ import { TypeGrid } from './create/TypeGrid';
 //           into the host's avatar with a spinning ring, then a green check.
 // The MapView stays owned by map.tsx; it forwards taps / region settles / place
 // searches here through the imperative ref.
+//
+// This file is the orchestrator only. The draft lives in `createEventStore`,
+// the steps are in `create/steps/`, and the persistence is in
+// `create/useDraftPersistence`. It used to be all of that at once, in 1,800
+// lines and 26 useState hooks, which meant every field re-rendered every other
+// field — measured at 12 renders of this tree for a single map pan.
 
 export interface CreateEventFlowRef {
   handleMapPress: (coord: { latitude: number; longitude: number }) => void;
@@ -135,28 +80,13 @@ interface Props {
 
 const PIN_SIZE = 60;
 const CIRCLE = 52;
-// One tap depth for every control in the flow. It used to range 0.88–0.97 with
-// no pattern, and the deepest ones read as a bounce: PressableScale's spring is
-// underdamped, so the release overshoots past 1 in proportion to how far the
-// press went down. Shallow dip, small overshoot.
-const TAP_SCALE = 0.96;
-// One glyph weight too. Icon defaults to 1.8 and NavButton draws at 2.1, so the
-// back arrow came out heavier than everything beside it. 2.1 is the nav weight
-// and the one that reads correctly at this size, so the rest match it.
-const GLYPH_STROKE = 2.1;
-// Off the RADIUS scale, which stops at 24. The profile sheet — the app's only
-// other full-bleed pane rising from the bottom edge — is also 32, and matching
-// it matters more here than landing on a rung: these are the same object. If a
-// third one appears, this belongs in RADIUS.
-const CARD_RADIUS = 32;
 // First-frame fallback only. The card reports its real height through onLayout
 // and `anchorY` uses that from the next frame on — this is just what to assume
 // for the one frame before the measurement lands.
 //
 // It used to be the only source of truth, which made the pin's position (and
 // therefore the coordinate the event is created at) depend on a number nobody
-// re-derived when the card's chrome changed. Measuring removes both the drift
-// and the per-device guesswork.
+// re-derived when the card's chrome changed.
 const CARD_EST_FALLBACK = 503;
 // Bottom of the search row, below the safe area: SPACING[3] of top padding plus
 // a 44pt control. Added to `insets.top`, so it lands correctly on every device
@@ -169,63 +99,6 @@ const ZOOM_LNG_DELTA = 0.0022;
 // settled does the pin travel to centre. Running them together read as drift.
 const ZOOM_MS = 950;
 const PIN_DROP_MS = 420;
-// Built once. This used to be mapped to {value,label} inline in the JSX, which
-// handed the duration wheel a brand-new options array on every render of the
-// flow — including every render caused by scrolling one of the other two.
-const DURATION_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
-  value: i + 1,
-  label: `${i + 1} ${i === 0 ? 'hour' : 'hours'}`,
-}));
-
-// Headings live out here rather than inside each step's own JSX, so the title
-// line stays put while the content below it swaps. It used to sit in a dark
-// heading sheet; the sheet is gone but the reason for hoisting the strings is
-// the same.
-// Hoisted so `SectionPills` gets the same array every render — built inline it
-// was a new reference each time, which silently defeats the memo on it.
-const SECTION_OPTIONS = [{ id: 'all' as const, label: 'All' }, ...SECTIONS];
-
-// Steps come in on a short rise as well as a fade. A pure cross-fade at 150/80
-// was the most abrupt thing left in the flow — content simply replaced itself,
-// with nothing to say a step had been completed. The durations are longer and
-// the exit is quicker than the entrance, so the outgoing step is gone before
-// the incoming one is legible and the two never read as overlapping.
-//
-// Module scope, not the render body: these are builder objects, and rebuilding
-// them every render handed Reanimated a new animation identity each time.
-const STEP_ENTERING = FadeInDown.duration(260)
-  .easing(Easing.out(Easing.cubic))
-  .withInitialValues({ transform: [{ translateY: 14 }] });
-const STEP_EXITING = FadeOut.duration(120).easing(Easing.in(Easing.quad));
-
-const STEP_HEADS = [
-  "What's the plan?",
-  'Name your event',
-  'When, and how many?',
-  'Add a cover photo',
-  'Keep it safe',
-];
-
-function defaultStart() {
-  return roundUpTo30(new Date(Date.now() + 60 * 60 * 1000));
-}
-
-// Progress across the top edge of the pane. It replaced a ring in the heading
-// row, which went when the heading row did — there is no chrome left to hang a
-// 24pt dial in. Still animated for the reason the ring was: the fill moving is
-// the main "you just finished that" feedback, and a bar that snapped between
-// fifths would read as a redraw rather than as progress.
-//
-// The category filter row, with a selection that travels rather than a
-// background that fades in and out per pill — the same idea as the tab bar's
-// chip, and for the same reason: the eye can follow a thing that moves, so the
-// row reads as one object instead of six.
-//
-// The tab bar can compute its chip's position from a fixed item width. These
-// pills are label-width, so each one reports its own frame and the indicator
-// interpolates between measured values.
-// Straight to the target on both axes — see DESIGN.md §8.
-
 
 const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
   function CreateEventFlow({ active, mapRef, mapW, mapH, onExit }, ref) {
@@ -235,41 +108,18 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const user = useAuthStore((s) => s.user);
     const insets = useSafeAreaInsets();
 
-    const [phase, setPhase] = useState<'drop' | 'form' | 'submit'>('drop');
-    const [step, setStep] = useState(0);
-    const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
-    const [locationName, setLocationName] = useState('');
+    // Only what this file actually draws. Everything else the wizard holds is
+    // read by the step that owns it, or through getState() in the handlers
+    // below — neither of which re-renders this tree.
+    const phase = useCreateEventStore((s) => s.phase);
+    const activity = useCreateEventStore((s) => s.activity);
+    const cardH = useCreateEventStore((s) => s.cardH);
 
-    const [activity, setActivity] = useState<ActivityId | null>(null);
-    const [sectionFilter, setSectionFilter] = useState<SectionId | 'all'>('all');
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [photoUri, setPhotoUri] = useState<string | null>(null);
-    const [startDate, setStartDate] = useState<Date>(defaultStart);
-    const [durationH, setDurationH] = useState(2);
-    // Kept as text so the value can be typed over directly; the steppers and
-    // submit path go through the clamped number.
-    const [maxPeople, setMaxPeople] = useState('4');
-    const [isPublic, setIsPublic] = useState(true);
-    const [requiresApproval, setRequiresApproval] = useState(false);
-    const [womenOnly, setWomenOnly] = useState(false);
-
-    const [submitState, setSubmitState] = useState<'loading' | 'success'>('loading');
+    const [submitState, setSubmitState] = useState<'loading' | 'success'>(
+      'loading'
+    );
     const [firstHostVisible, setFirstHostVisible] = useState(false);
-    const [womenOnlyConfirmVisible, setWomenOnlyConfirmVisible] = useState(false);
     const [discardVisible, setDiscardVisible] = useState(false);
-    const [durationOpen, setDurationOpen] = useState(false);
-    const [startOpen, setStartOpen] = useState(false);
-    const [editingPeople, setEditingPeople] = useState(false);
-    // The card's measured height, which is what the pin is centred against.
-    const [cardH, setCardH] = useState(0);
-    // True while the current form came back from storage rather than being
-    // started here — drives the "draft restored" affordance.
-    const [restored, setRestored] = useState(false);
-    // Autosave must not run until the restore has had its turn. Otherwise the
-    // debounced save of the still-blank form can beat a slow keychain read,
-    // find no work, and clear the very draft that is about to be restored.
-    const [draftLoaded, setDraftLoaded] = useState(false);
 
     const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -292,10 +142,10 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     // of the search row and the top of the card.
     //
     // Both ends are real measurements rather than constants, which is what makes
-    // this land identically on every device: the top comes from the live safe-area
-    // inset, the bottom from the card's own onLayout. The old version divided by
-    // a hardcoded card height, so the pin sat differently depending on how far
-    // that estimate had drifted from the card actually on screen.
+    // this land identically on every device: the top comes from the live
+    // safe-area inset, the bottom from the card's own onLayout. The old version
+    // divided by a hardcoded card height, so the pin sat differently depending
+    // on how far that estimate had drifted from the card actually on screen.
     const anchorX = mapW / 2;
     const topChrome = insets.top + TOP_CHROME;
     const cardTop = mapH - (cardH || CARD_EST_FALLBACK);
@@ -315,85 +165,93 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       transform: [{ rotate: `${ringDeg.value}deg` }],
     }));
 
-    // Reset to a blank draft. Split out from the entry effect so "start fresh"
-    // can reuse it without re-running the restore or the safety popup.
-    function resetDraft() {
-      setPhase('drop');
-      setStep(0);
-      setCoord(null);
-      setLocationName('');
-      setActivity(null);
-      setSectionFilter('all');
-      setTitle('');
-      setDescription('');
-      setPhotoUri(null);
-      setStartDate(defaultStart());
-      setDurationH(2);
-      setMaxPeople('4');
-      setIsPublic(true);
-      setRequiresApproval(false);
-      setWomenOnly(false);
-      setSubmitState('loading');
-      setRestored(false);
-      pinScale.value = 0;
-      pinY.value = anchorY;
+    // Region whose visible centre puts (lat,lng) exactly under the pin anchor.
+    // The displayed latitude span follows from the longitude span and the map's
+    // aspect ratio (Mercator-corrected), so the offset math matches what the
+    // camera actually shows.
+    function regionForAnchor(lat: number, lng: number, lngDelta: number): Region {
+      const latDelta =
+        lngDelta * (mapH / Math.max(mapW, 1)) * Math.cos((lat * Math.PI) / 180);
+      const latOffset = ((mapH / 2 - anchorY) / mapH) * latDelta;
+      return {
+        latitude: lat - latOffset,
+        longitude: lng,
+        latitudeDelta: latDelta,
+        longitudeDelta: lngDelta,
+      };
     }
 
-    // Entering create mode starts blank, then restores a stored draft if there
-    // is one. Blank-first matters: the restore is async, so without it the form
-    // would briefly show the *previous* session's fields before this one's.
+    async function reverseGeocode(lat: number, lng: number) {
+      const { setLocationName } = useCreateEventStore.getState();
+      try {
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lng,
+        });
+        setLocationName(
+          [place?.name, place?.street, place?.city].filter(Boolean).join(', ') ||
+            'Dropped pin'
+        );
+      } catch {
+        setLocationName('Dropped pin');
+      }
+    }
+
+    function plantPin(lat: number, lng: number, name?: string) {
+      const store = useCreateEventStore.getState();
+      store.setCoord({ lat, lng });
+      if (name) store.setLocationName(name);
+      else reverseGeocode(lat, lng);
+      mapRef.current?.animateToRegion(
+        regionForAnchor(lat, lng, PLACE_LNG_DELTA),
+        550
+      );
+      if (store.phase === 'drop') {
+        store.setPhase('form');
+        pinY.value = anchorY;
+        pinScale.value = 0.4;
+        pinScale.value = withTiming(1, {
+          duration: 320,
+          easing: Easing.out(Easing.cubic),
+        });
+      }
+    }
+
+    // Entering create mode starts blank; the persistence hook below then
+    // restores a stored draft over the top. Blank-first matters: the restore is
+    // async, so without it the form would briefly show the *previous* session's
+    // fields before this one's.
     useEffect(() => {
       if (!active) return;
-      resetDraft();
-      setDraftLoaded(false);
-      if (!user) {
-        setDraftLoaded(true);
-        return;
-      }
-
+      useCreateEventStore.getState().reset();
+      setSubmitState('loading');
+      pinScale.value = 0;
+      pinY.value = anchorY;
+      if (!user) return;
       hasSeenSafetyFlag(user.id, 'first_host').then((seen) => {
         if (!seen) setFirstHostVisible(true);
       });
+      // anchorY deliberately absent: this is entry, and re-running it because
+      // the card was measured would blank a form the user is already filling in.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, user]);
 
-      // Guards against a draft landing after the user has already left, or
-      // after they hit "start fresh" while the read was in flight.
-      let cancelled = false;
-      loadEventDraft(user.id).then((d) => {
-        if (cancelled) return;
-        // Arms autosave either way — a miss is as conclusive as a hit.
-        setDraftLoaded(true);
-        if (!d) return;
-        setActivity(d.activity as ActivityId | null);
-        setTitle(d.title);
-        setDescription(d.description);
-        setPhotoUri(d.photoUri);
-        setStartDate(new Date(d.startsAt));
-        setDurationH(d.durationH);
-        setMaxPeople(d.maxPeople);
-        setIsPublic(d.isPublic);
-        setRequiresApproval(d.requiresApproval);
-        setWomenOnly(d.womenOnly);
-        setLocationName(d.locationName);
-        setStep(d.step);
-        setRestored(true);
-        // Only a draft that got as far as a pin can reopen the form; without a
-        // coordinate there is nothing to hang it on, so it resumes at the drop
-        // prompt with the fields already filled.
-        if (d.coord) {
-          setCoord(d.coord);
-          setPhase('form');
-          pinScale.value = 1;
-          pinY.value = anchorY;
-          mapRef.current?.animateToRegion(
-            regionForAnchor(d.coord.lat, d.coord.lng, PLACE_LNG_DELTA),
-            550
-          );
-        }
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [active]);
+    const { restored, discard } = useDraftPersistence({
+      active,
+      userId: user?.id,
+      // Only a draft that got as far as a pin can reopen the form; without a
+      // coordinate there is nothing to hang it on, so it resumes at the drop
+      // prompt with the fields already filled.
+      onRestoredCoord: (c) => {
+        useCreateEventStore.getState().setPhase('form');
+        pinScale.value = 1;
+        pinY.value = anchorY;
+        mapRef.current?.animateToRegion(
+          regionForAnchor(c.lat, c.lng, PLACE_LNG_DELTA),
+          550
+        );
+      },
+    });
 
     // The pin is parked at whatever anchorY was when it was planted, so when the
     // measurement lands (or the card's height changes — the restored-draft row
@@ -414,64 +272,31 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
       } else {
         cancelAnimation(ringDeg);
       }
-    }, [phase, submitState]);
+    }, [phase, submitState, ringDeg]);
 
     function dismissFirstHost() {
       setFirstHostVisible(false);
       if (user) markSafetyFlagSeen(user.id, 'first_host');
     }
 
-    // Region whose visible centre puts (lat,lng) exactly under the pin anchor.
-    // The displayed latitude span follows from the longitude span and the map's
-    // aspect ratio (Mercator-corrected), so the offset math matches what the
-    // camera actually shows.
-    function regionForAnchor(lat: number, lng: number, lngDelta: number): Region {
-      const latDelta =
-        lngDelta * (mapH / Math.max(mapW, 1)) * Math.cos((lat * Math.PI) / 180);
-      const latOffset = ((mapH / 2 - anchorY) / mapH) * latDelta;
-      return {
-        latitude: lat - latOffset,
-        longitude: lng,
-        latitudeDelta: latDelta,
-        longitudeDelta: lngDelta,
-      };
-    }
-
-    async function reverseGeocode(lat: number, lng: number) {
-      try {
-        const [place] = await Location.reverseGeocodeAsync({
-          latitude: lat,
-          longitude: lng,
-        });
-        setLocationName(
-          [place?.name, place?.street, place?.city].filter(Boolean).join(', ') ||
-            'Dropped pin'
-        );
-      } catch {
-        setLocationName('Dropped pin');
-      }
-    }
-
-    function plantPin(lat: number, lng: number, name?: string) {
-      setCoord({ lat, lng });
-      if (name) setLocationName(name);
-      else reverseGeocode(lat, lng);
-      mapRef.current?.animateToRegion(regionForAnchor(lat, lng, PLACE_LNG_DELTA), 550);
-      if (phase === 'drop') {
-        setPhase('form');
-        pinY.value = anchorY;
-        pinScale.value = 0.4;
-        pinScale.value = withTiming(1, {
-          duration: 320,
-          easing: Easing.out(Easing.cubic),
-        });
-      }
+    function requestExit() {
+      const s = useCreateEventStore.getState();
+      // The event is already on its way and the zoom is mid-flight; there is
+      // nothing to cancel and no draft left to ask about.
+      if (s.phase === 'submit') return;
+      // Only the fields the user had to type or choose count as work worth
+      // protecting. The date, duration and toggles all arrive pre-filled, so a
+      // draft carrying nothing but defaults exits without a prompt.
+      if (draftHasWork(s)) setDiscardVisible(true);
+      else onExit();
     }
 
     useImperativeHandle(ref, () => ({
       handleMapPress(c) {
         // Only the first tap plants the pin; afterwards the map pans under it.
-        if (phase === 'drop') plantPin(c.latitude, c.longitude);
+        if (useCreateEventStore.getState().phase === 'drop') {
+          plantPin(c.latitude, c.longitude);
+        }
       },
       handlePlace(r) {
         plantPin(r.lat, r.lng, r.name);
@@ -480,113 +305,28 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         requestExit();
       },
       handleRegionSettled(region) {
-        if (phase !== 'form') return;
+        // Read through getState rather than a subscribed value: this handler is
+        // called imperatively from the map, and a stale closure here would plant
+        // the event at the wrong coordinate.
+        if (useCreateEventStore.getState().phase !== 'form') return;
         // The pin is glued to the anchor point, so whatever coordinate now sits
         // under it becomes the event location.
         const latOffset = ((mapH / 2 - anchorY) / mapH) * region.latitudeDelta;
         const lat = region.latitude + latOffset;
         const lng = region.longitude;
-        setCoord({ lat, lng });
+        useCreateEventStore.getState().setCoord({ lat, lng });
         if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
         geocodeTimer.current = setTimeout(() => reverseGeocode(lat, lng), 450);
       },
     }));
 
-    async function pickPhoto() {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
-      });
-      if (!result.canceled) setPhotoUri(result.assets[0].uri);
-    }
-
-    function next() {
-      setStep((s) => Math.min(s + 1, STEP_COUNT - 1));
-    }
-    function back() {
-      setStep((s) => Math.max(s - 1, 0));
-    }
-
-    const maxPeopleNum = clampMaxPeople(maxPeople);
-
-    // Only the fields the user had to type or choose count as work worth
-    // protecting. The date, duration and toggles all arrive pre-filled, so a
-    // draft carrying nothing but defaults exits without a prompt.
-    const hasWork =
-      activity !== null ||
-      title.trim().length > 0 ||
-      description.trim().length > 0 ||
-      photoUri !== null;
-
-    function requestExit() {
-      // The event is already on its way and the zoom is mid-flight; there is
-      // nothing to cancel and no draft left to ask about.
-      if (phase === 'submit') return;
-      if (hasWork) setDiscardVisible(true);
-      else onExit();
-    }
-
-    function discardDraft() {
-      if (user) clearEventDraft(user.id);
-      setDiscardVisible(false);
-      resetDraft();
-    }
-
-    // Autosave, debounced so a keystroke does not hit the keychain on every
-    // character. Every user-entered field is a dependency; nothing derived is,
-    // so the draft is only rewritten when something actually changed.
-    //
-    // Skipped once submitting: from that point the event either exists (and the
-    // draft is cleared) or failed (and the form is still standing, so the next
-    // edit saves it again).
-    useEffect(() => {
-      if (!active || !user || phase === 'submit' || !draftLoaded) return;
-      const t = setTimeout(() => {
-        saveEventDraft(user.id, {
-          step,
-          coord,
-          locationName,
-          activity,
-          title,
-          description,
-          photoUri,
-          startsAt: startDate.getTime(),
-          durationH,
-          maxPeople,
-          isPublic,
-          requiresApproval,
-          womenOnly,
-        });
-      }, 600);
-      return () => clearTimeout(t);
-    }, [
-      active,
-      user,
-      phase,
-      draftLoaded,
-      step,
-      coord,
-      locationName,
-      activity,
-      title,
-      description,
-      photoUri,
-      startDate,
-      durationH,
-      maxPeople,
-      isPublic,
-      requiresApproval,
-      womenOnly,
-    ]);
-
     async function handleHost() {
-      if (!user || !activity || !coord) return;
+      const s = useCreateEventStore.getState();
+      if (!user || !s.activity || !s.coord) return;
+      const { coord, activity: act } = s;
       Keyboard.dismiss();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      setPhase('submit');
+      s.setPhase('submit');
       setSubmitState('loading');
 
       // Beat one: the camera closes in on the pin, which holds still at its
@@ -633,23 +373,28 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           // photo of this event" or "a photo of the host" with no way to tell,
           // and the copy pointed at a dead file the moment that host changed
           // their avatar.
-          const imageUrl = photoUri
-            ? await uploadEventPhoto(user.id, photoUri)
+          const imageUrl = s.photoUri
+            ? await uploadEventPhoto(user.id, s.photoUri)
             : undefined;
           return createEvent({
             hostId: user.id,
-            activity,
-            title: title.trim(),
-            description: description.trim() || undefined,
+            activity: act,
+            title: s.title.trim(),
+            description: s.description.trim() || undefined,
             lat: coord.lat,
             lng: coord.lng,
-            locationName: locationName || undefined,
-            startsAt: startDate,
-            endsAt: new Date(startDate.getTime() + durationH * 60 * 60 * 1000),
-            requiresApproval,
-            womenOnly,
-            maxPeople: maxPeopleNum,
-            isPublic,
+            locationName: s.locationName || undefined,
+            startsAt: s.startDate,
+            endsAt: new Date(
+              s.startDate.getTime() + s.durationH * 60 * 60 * 1000
+            ),
+            requiresApproval: s.requiresApproval,
+            womenOnly: s.womenOnly,
+            // Clamped, not parsed. The field is free text, and the edit screen
+            // once shipped its own unclamped parseInt that could save a party
+            // size the create flow rejects — this is the shared rule.
+            maxPeople: clampMaxPeople(s.maxPeople),
+            isPublic: s.isPublic,
             imageUrl,
           });
         })();
@@ -657,6 +402,8 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         // The event exists now, so the draft has nothing left to protect.
         // Before navigation, so a slow write cannot outlive the screen.
         await clearEventDraft(user.id);
+        // All four. Dropping one produces no error — just a feed that quietly
+        // stops showing the event that was just created.
         queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.exploreFeed.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.myEvents.all });
@@ -675,63 +422,20 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         if (recentreTimer.current) clearTimeout(recentreTimer.current);
         // Fall back into the form with the pin back at its editing anchor, and
         // pull the camera back out to the span the form is composed against —
-        // without this the card returns over a map still zoomed to ZOOM_LNG_DELTA.
+        // without this the card returns over a map still zoomed to
+        // ZOOM_LNG_DELTA.
         mapRef.current?.animateToRegion(
           regionForAnchor(coord.lat, coord.lng, PLACE_LNG_DELTA),
           400
         );
         pinY.value = withTiming(anchorY, { duration: 400 });
-        setPhase('form');
+        useCreateEventStore.getState().setPhase('form');
       }
     }
-
-    // Keyed on the day itself, not on the sheet opening: the 90-entry list only
-    // goes stale when midnight passes, and that is exactly when this changes.
-    const todayMs = new Date().setHours(0, 0, 0, 0);
-    const days = useMemo(() => dayOptions(new Date(todayMs)), [todayMs]);
-    const times = useMemo(() => timeOptions(), []);
-
-    // The two start wheels write back through the updater form rather than
-    // closing over `startDate`, which is what lets these have no dependencies
-    // and therefore a stable identity for the whole session. Closing over the
-    // date would give each wheel a new handler every time the *other* one
-    // moved, and a changed prop re-renders 90 rows.
-    const setStartDay = useCallback((ms: number) => {
-      setStartDate((prev) => {
-        const d = new Date(ms);
-        const next = new Date(prev);
-        next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-        return next;
-      });
-    }, []);
-    const setStartMinute = useCallback((mins: number) => {
-      setStartDate((prev) => {
-        const next = new Date(prev);
-        next.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
-        return next;
-      });
-    }, []);
-    // Above the early return because it is a hook, and memoised because it is
-    // `TypeGrid`'s only unstable prop — a fresh array here re-renders 52 tiles
-    // no matter what memo the grid carries.
-    const visibleActivities = useMemo(
-      () =>
-        sectionFilter === 'all'
-          ? ACTIVITIES
-          : ACTIVITIES.filter((a) => a.section === sectionFilter),
-      [sectionFilter]
-    );
 
     if (!active || mapW === 0 || mapH === 0) return null;
 
     const emoji = activity ? ACTIVITY_MAP[activity].emoji : null;
-    const startInPast = isStartInPast(startDate);
-    // The wheels address day and minute-of-day separately; `startDate` is the
-    // single source of truth both are read back out of.
-    const startDayValue = dayValueOf(startDate);
-    const startMinuteValue = minuteValueOf(startDate);
-    const nextDisabled = !canAdvanceFrom(step, { activity, title, startDate });
-    const endDate = eventEndTime(startDate, durationH);
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -744,36 +448,22 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             pointerEvents="none"
           >
             <View style={styles.promptPill}>
-              <Icon name="pin" size={15} color={COLORS.primary} strokeWidth={GLYPH_STROKE} />
+              <Icon
+                name="pin"
+                size={15}
+                color={COLORS.primary}
+                strokeWidth={GLYPH_STROKE}
+              />
               <Text style={styles.promptText}>Tap anywhere to drop a pin</Text>
             </View>
           </Animated.View>
         )}
 
-        {/* Live location under the pin. Sits directly beneath the map's search
-            bar (TOP_CHROME spans that strip) rather than riding above the card,
-            so the address reads next to the field you'd retype it in. */}
-        {phase === 'form' && (
-          <Animated.View
-            entering={FadeIn.duration(220)}
-            exiting={FadeOut.duration(160)}
-            style={[
-              styles.locationPillWrap,
-              { top: insets.top + TOP_CHROME + 10 },
-            ]}
-            pointerEvents="none"
-          >
-            <View style={styles.locationPill}>
-              <Icon name="location" size={13} color={COLORS.white} strokeWidth={GLYPH_STROKE} />
-              <Text style={styles.locationText} numberOfLines={1}>
-                {locationName || 'Locating…'}
-              </Text>
-            </View>
-          </Animated.View>
-        )}
+        {phase === 'form' && <LocationPill top={insets.top + TOP_CHROME + 10} />}
 
         {/* The pin: a bare white circle fixed to the anchor point. The map moves
-            underneath it, and every edit (type, submit states) plays out inside it. */}
+            underneath it, and every edit (type, submit states) plays out inside
+            it. */}
         {phase !== 'drop' && (
           <Animated.View
             pointerEvents="none"
@@ -799,10 +489,13 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       entering={FadeIn.duration(320).easing(Easing.out(Easing.cubic))}
                       style={styles.successFill}
                     >
-                      <Animated.View
-                        entering={FadeIn.delay(180).duration(280)}
-                      >
-                        <Icon name="check" size={26} color={COLORS.white} strokeWidth={3} />
+                      <Animated.View entering={FadeIn.delay(180).duration(280)}>
+                        <Icon
+                          name="check"
+                          size={26}
+                          color={COLORS.white}
+                          strokeWidth={3}
+                        />
                       </Animated.View>
                     </Animated.View>
                   )}
@@ -820,452 +513,14 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           </Animated.View>
         )}
 
-        {/* Wizard card */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.cardWrap}
-          pointerEvents="box-none"
-        >
-          {phase === 'form' && (
-            <Animated.View
-              entering={SlideInDown.duration(380).easing(Easing.out(Easing.cubic))}
-              exiting={SlideOutDown.duration(280).easing(Easing.in(Easing.cubic))}
-            >
-              {/* Solid, not glass. A translucent pane takes the colour of
-                  whatever it is over, and over a map that is a different colour
-                  every time you pan — which is what read as "orange here, grey
-                  there". Going to `chrome` only reduced it. The card is opaque
-                  white now, matching the page surfaces elsewhere; it keeps the
-                  bright top edge and the rounded top corners, and gives up the
-                  blur. That is the trade: a stable colour or a see-through one.
-
-                  `edge="top"` reasoning still applies — the card runs off the
-                  bottom of the screen, where a corner would read as the surface
-                  stopping short, so only the top corners round. */}
-              <View
-                style={styles.card}
-                onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
-              >
-                <View style={styles.cardBody}>
-                  {/* Glyph and title on one line. Bare glyph, no chip —
-                      AGENTS.md assigns back/close/dismiss to NavButton, and its
-                      default colour is already the ink this pane wants. Step 0
-                      has nothing to go back to, so it carries the close. */}
-                  <View style={styles.titleRow}>
-                    <NavButton
-                      icon={step > 0 ? 'back' : 'close'}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        if (step > 0) back();
-                        else requestExit();
-                      }}
-                      accessibilityLabel={
-                        step > 0 ? 'Previous step' : 'Cancel event creation'
-                      }
-                      style={styles.navSlot}
-                    />
-                    <Text style={styles.stepTitle} numberOfLines={1}>
-                      {STEP_HEADS[step]}
-                    </Text>
-                  </View>
-                  <StepProgress step={step} />
-                  {/* A form that fills itself in is alarming without a reason.
-                      Sits above the steps so it reads before the fields do, and
-                      offers the way out in the same breath. */}
-                  {restored && (
-                    <Animated.View
-                      entering={FadeIn.duration(220)}
-                      style={styles.restoredRow}
-                    >
-                      <Text style={styles.restoredText}>
-                        Picked up where you left off
-                      </Text>
-                      <PressableScale
-                        scaleTo={TAP_SCALE}
-                        onPress={discardDraft}
-                        accessibilityRole="button"
-                        accessibilityLabel="Start a fresh event"
-                        hitSlop={8}
-                      >
-                        <Text style={styles.restoredAction}>Start fresh</Text>
-                      </PressableScale>
-                    </Animated.View>
-                  )}
-                  {/* Steps (absolute-fill so enter/exit slides overlap cleanly) */}
-                  <View style={styles.stepArea}>
-                    {step === 0 && (
-                      <Animated.View
-                        key="s0"
-                        entering={STEP_ENTERING}
-                        exiting={STEP_EXITING}
-                        style={styles.step}
-                      >
-                        {/* Category pills narrow the grid down; "All" is the
-                            default so nothing is hidden until you choose. */}
-                        <SectionPills
-                          sections={SECTION_OPTIONS}
-                          value={sectionFilter}
-                          onChange={setSectionFilter}
-                        />
-                        <ScrollView
-                          style={styles.typeScroll}
-                          contentContainerStyle={styles.typeScrollContent}
-                          showsVerticalScrollIndicator={false}
-                        >
-                          <TypeGrid
-                            activities={visibleActivities}
-                            value={activity}
-                            onChange={setActivity}
-                          />
-                        </ScrollView>
-                      </Animated.View>
-                    )}
-
-                    {step === 1 && (
-                      <Animated.View
-                        key="s1"
-                        entering={STEP_ENTERING}
-                        exiting={STEP_EXITING}
-                        style={styles.step}
-                      >
-                        <TextInput
-                          style={styles.input}
-                          placeholder="e.g. Sunset rooftop drinks"
-                          placeholderTextColor={COLORS.placeholder}
-                          value={title}
-                          onChangeText={setTitle}
-                          maxLength={TITLE_MAX}
-                          autoFocus
-                          returnKeyType="done"
-                        />
-                        <Text style={styles.charCount}>
-                          {title.length}/{TITLE_MAX}
-                        </Text>
-                        <TextInput
-                          style={[styles.input, styles.multiline]}
-                          placeholder="Short and inviting works best."
-                          placeholderTextColor={COLORS.placeholder}
-                          value={description}
-                          onChangeText={setDescription}
-                          multiline
-                          maxLength={DESCRIPTION_MAX}
-                        />
-                        {/* The field silently stops accepting input at the cap.
-                            The title above it has always said so; this one only
-                            shows the count once it is close enough to matter,
-                            so an empty box is not pre-loaded with "0/500". */}
-                        {description.length > DESCRIPTION_MAX * 0.8 && (
-                          <Text style={styles.charCount}>
-                            {description.length}/{DESCRIPTION_MAX}
-                          </Text>
-                        )}
-                      </Animated.View>
-                    )}
-
-                    {step === 2 && (
-                      <Animated.View
-                        key="s2"
-                        entering={STEP_ENTERING}
-                        exiting={STEP_EXITING}
-                        style={styles.step}
-                      >
-                        <Text style={styles.label}>STARTS</Text>
-                        {/* Non-compact datetime: one full-width row reading
-                            "Saturday 3 August · 7:00 PM", opening one picker.
-                            Two half-width fields side by side made the user
-                            think about date and time as separate decisions. */}
-                        <PressableScale
-                          scaleTo={TAP_SCALE}
-                          style={styles.summaryRow}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setStartOpen(true);
-                          }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Starts ${fmtDayLong(startDate)} at ${fmtTime(startDate)}. Change`}
-                        >
-                          <Text style={styles.summaryValue}>
-                            {dayLabel(startDate, new Date(todayMs))}
-                          </Text>
-                          <Text style={styles.summaryMeta}>
-                            {fmtTime(startDate)}
-                          </Text>
-                          <Icon
-                            name="chevronRight"
-                            size={16}
-                            color={COLORS.textMuted}
-                            strokeWidth={GLYPH_STROKE}
-                          />
-                        </PressableScale>
-                        {/* The Next button goes dead on a past start; say why,
-                            or the step reads as broken. */}
-                        {startInPast && (
-                          <Text style={styles.warning}>
-                            That start time has already passed — pick a later
-                            one.
-                          </Text>
-                        )}
-
-                        <Text style={styles.label}>LASTS FOR</Text>
-                        {/* A summary row, not 24 chips in a horizontal
-                            scroller. The scroller put every option on screen at
-                            once and made the common ones as hard to reach as
-                            the rare ones; this shows the answer and hides the
-                            choosing until it is asked for. */}
-                        <PressableScale
-                          scaleTo={TAP_SCALE}
-                          style={styles.summaryRow}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setDurationOpen(true);
-                          }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Lasts ${durationH} hours. Change`}
-                        >
-                          <Text style={styles.summaryValue}>
-                            {durationH}
-                            {durationH === 1 ? ' hour' : ' hours'}
-                          </Text>
-                          <Text style={styles.summaryMeta}>
-                            until {fmtTime(endDate)}
-                          </Text>
-                          <Icon
-                            name="chevronRight"
-                            size={16}
-                            color={COLORS.textMuted}
-                            strokeWidth={GLYPH_STROKE}
-                          />
-                        </PressableScale>
-
-                        <Text style={styles.label}>PEOPLE</Text>
-                        {/* Steppers only. The free-text field it replaces took
-                            any two digits and silently rewrote them on blur,
-                            which is why it needed a hint explaining the clamp;
-                            a control that cannot go out of range needs no
-                            explanation. */}
-                        <View style={styles.peopleRow}>
-                          <PressableScale
-                            scaleTo={TAP_SCALE}
-                            style={[
-                              styles.stepperBtn,
-                              maxPeopleNum <= MIN_PEOPLE && styles.stepperBtnOff,
-                            ]}
-                            disabled={maxPeopleNum <= MIN_PEOPLE}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              setMaxPeople(String(maxPeopleNum - 1));
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel="One fewer person"
-                          >
-                            <Icon name="minus" size={20} color={COLORS.white} strokeWidth={2.6} />
-                          </PressableScale>
-                          {/* Tap the number to type it. The steppers are right
-                              for nudging by one and wrong for going from 4 to
-                              30, which is why the free-text field this replaced
-                              existed at all — but it is only a field while it
-                              is being edited, so the clamp still cannot bite
-                              silently: it applies on blur, in view. */}
-                          <PressableScale
-                            scaleTo={TAP_SCALE}
-                            style={styles.peopleValueWrap}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              setEditingPeople(true);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${maxPeopleNum} people. Tap to type a number`}
-                          >
-                            {editingPeople ? (
-                              <TextInput
-                                style={styles.peopleInput}
-                                value={maxPeople}
-                                onChangeText={(t) =>
-                                  setMaxPeople(t.replace(/[^0-9]/g, '').slice(0, 2))
-                                }
-                                onBlur={() => {
-                                  setMaxPeople(String(maxPeopleNum));
-                                  setEditingPeople(false);
-                                }}
-                                keyboardType="number-pad"
-                                returnKeyType="done"
-                                selectTextOnFocus
-                                autoFocus
-                              />
-                            ) : (
-                              <Text style={styles.peopleValue}>{maxPeopleNum}</Text>
-                            )}
-                            <Text style={styles.peopleUnit}>people incl. you</Text>
-                          </PressableScale>
-                          <PressableScale
-                            scaleTo={TAP_SCALE}
-                            style={[
-                              styles.stepperBtn,
-                              maxPeopleNum >= MAX_PEOPLE && styles.stepperBtnOff,
-                            ]}
-                            disabled={maxPeopleNum >= MAX_PEOPLE}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              setMaxPeople(String(maxPeopleNum + 1));
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel="One more person"
-                          >
-                            <Icon name="plus" size={20} color={COLORS.white} strokeWidth={2.6} />
-                          </PressableScale>
-                        </View>
-                      </Animated.View>
-                    )}
-
-                    {step === 3 && (
-                      <Animated.View
-                        key="s3"
-                        entering={STEP_ENTERING}
-                        exiting={STEP_EXITING}
-                        style={styles.step}
-                      >
-                        {photoUri ? (
-                          <View style={styles.photoWrap}>
-                            <Image
-                              source={{ uri: photoUri }}
-                              style={styles.photoPreview}
-                              contentFit="cover"
-                            />
-                            <PressableScale
-                              scaleTo={TAP_SCALE}
-                              style={styles.photoRemove}
-                              onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                setPhotoUri(null);
-                              }}
-                              accessibilityLabel="Remove photo"
-                            >
-                              <Icon name="close" size={14} color={COLORS.white} strokeWidth={2.5} />
-                            </PressableScale>
-                          </View>
-                        ) : null}
-                        {/* The X on the corner removes; swapping one photo for
-                            another had meant removing first and then finding
-                            the picker again. This is the action people actually
-                            want after seeing the preview. */}
-                        {photoUri ? (
-                          <Button
-                            variant="tertiary"
-                            size="md"
-                            label="Replace photo"
-                            onPress={pickPhoto}
-                          />
-                        ) : null}
-                        {!photoUri ? (
-                          <PressableScale
-                            scaleTo={TAP_SCALE}
-                            style={styles.photoEmpty}
-                            onPress={pickPhoto}
-                            accessibilityRole="button"
-                            accessibilityLabel="Add a cover photo"
-                          >
-                            <View style={styles.photoEmptyIcon}>
-                              <Icon name="camera" size={22} color={COLORS.primary} strokeWidth={GLYPH_STROKE} />
-                            </View>
-                            <Text style={styles.photoEmptyTitle}>Choose a photo</Text>
-                            <Text style={styles.photoEmptySub}>
-                              Adding a photo increases the chances of people
-                              joining your event.
-                            </Text>
-                          </PressableScale>
-                        ) : null}
-                        {!photoUri && (
-                          <View style={styles.photoFallback}>
-                            <Avatar
-                              name={user?.name}
-                              photoUrl={user?.photo_url}
-                              size={34}
-                            />
-                            <Text style={styles.photoFallbackText}>
-                              If you skip this, we&apos;ll use your profile picture
-                              as the event photo.
-                            </Text>
-                          </View>
-                        )}
-                      </Animated.View>
-                    )}
-
-                    {step === 4 && (
-                      <Animated.View
-                        key="s4"
-                        entering={STEP_ENTERING}
-                        exiting={STEP_EXITING}
-                        style={styles.step}
-                      >
-                        <View style={styles.safetyRow}>
-                          <View style={{ flex: 1, paddingRight: SPACING[3] }}>
-                            <Text style={styles.safetyLabel}>Public event</Text>
-                            <Text style={styles.safetySub}>
-                              {isPublic
-                                ? 'Visible to everyone on the map'
-                                : 'Only friends can see'}
-                            </Text>
-                          </View>
-                          <Toggle
-                            value={isPublic}
-                            onValueChange={setIsPublic}
-                            accessibilityLabel="Public event"
-                          />
-                        </View>
-                        <View style={styles.safetyRow}>
-                          <View style={{ flex: 1, paddingRight: SPACING[3] }}>
-                            <Text style={styles.safetyLabel}>Approve who joins</Text>
-                            <Text style={styles.safetySub}>
-                              {requiresApproval
-                                ? 'You approve each person'
-                                : 'Anyone can join instantly'}
-                            </Text>
-                          </View>
-                          <Toggle
-                            value={requiresApproval}
-                            onValueChange={setRequiresApproval}
-                            accessibilityLabel="Approve who joins"
-                          />
-                        </View>
-                        {/* Female-only hosting is offered to female profiles only. */}
-                        {user?.gender === 'female' && (
-                          <View style={styles.safetyRow}>
-                            <View style={{ flex: 1, paddingRight: SPACING[3] }}>
-                              <Text style={styles.safetyLabel}>Female-only event</Text>
-                              <Text style={styles.safetySub}>
-                                {womenOnly
-                                  ? 'Only women can see and join'
-                                  : 'Anyone can see and join'}
-                              </Text>
-                            </View>
-                            <Toggle
-                              value={womenOnly}
-                              onValueChange={(on) =>
-                                on ? setWomenOnlyConfirmVisible(true) : setWomenOnly(false)
-                              }
-                              accessibilityLabel="Female-only event"
-                            />
-                          </View>
-                        )}
-                      </Animated.View>
-                    )}
-                  </View>
-
-                  <Button
-                    variant="primary"
-                    label={step === STEP_COUNT - 1 ? 'Host event' : 'Next'}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      if (step === STEP_COUNT - 1) handleHost();
-                      else next();
-                    }}
-                    disabled={nextDisabled}
-                  />
-                </View>
-              </View>
-            </Animated.View>
-          )}
-        </KeyboardAvoidingView>
+        {/* Always mounted — it gates on `phase` internally so the card can
+            animate out rather than disappear. */}
+        <CreateCard
+          restored={restored}
+          onStartFresh={discard}
+          onExit={requestExit}
+          onHost={handleHost}
+        />
 
         {/* Safety popup #2: hosting your first event (once ever). */}
         <SafetyPopup
@@ -1282,123 +537,17 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           onClose={dismissFirstHost}
         />
 
-        {/* Every hour still selectable — the horizontal scroller was the
-            problem, not the range. Wrapped into a grid, all 24 are reachable
-            without dragging and the short ones are where the thumb already is. */}
-        {/* Date and time as two columns of the same wheel, so picking a start
-            is one gesture language rather than a calendar plus a grid. Day and
-            minute-of-day are kept apart and recombined on change — a single
-            list of every slot in 90 days would be 4,320 rows. */}
-        <Sheet
-          visible={startOpen}
-          animation="slide"
-          grabber
-          onClose={() => setStartOpen(false)}
-        >
-          <View style={styles.sheetBody}>
-            <Text style={styles.sheetTitle}>Starts</Text>
-            <View style={styles.wheelRow}>
-              <Wheel
-                style={styles.wheelFlex}
-                options={days}
-                value={startDayValue}
-                onChange={setStartDay}
-              />
-              <Wheel
-                style={styles.wheelFlex}
-                options={times}
-                value={startMinuteValue}
-                onChange={setStartMinute}
-              />
-            </View>
-            {startInPast && (
-              <Text style={styles.warning}>
-                That start time has already passed — pick a later one.
-              </Text>
-            )}
-            <Button
-              variant="secondary"
-              label="Done"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setStartOpen(false);
-              }}
-            />
-          </View>
-        </Sheet>
-
-        <Sheet
-          visible={durationOpen}
-          animation="slide"
-          grabber
-          onClose={() => setDurationOpen(false)}
-        >
-          {/* Sheet supplies no horizontal padding — callers own their own
-              gutters — so the content sets them here. */}
-          <View style={styles.sheetBody}>
-            <Text style={styles.sheetTitle}>Lasts for</Text>
-            <Wheel
-              options={DURATION_OPTIONS}
-              value={durationH}
-              onChange={setDurationH}
-            />
-            <Button
-              variant="secondary"
-              label="Done"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setDurationOpen(false);
-              }}
-            />
-          </View>
-        </Sheet>
-
-        {/* Leaving now keeps the draft, so the question is no longer "lose this
-            work?" but "which did you mean?" — the destructive option has to be
-            the explicit one. Kept local rather than promoted to ui/: one caller. */}
-        <Dialog visible={discardVisible} onClose={() => setDiscardVisible(false)}>
-          <Text style={styles.discardTitle}>Leave this event?</Text>
-          <Text style={styles.discardBody}>
-            We&apos;ll keep your draft so you can pick it up later.
-          </Text>
-          <View style={styles.discardRow}>
-            <PressableScale
-              scaleTo={TAP_SCALE}
-              style={[styles.discardBtn, styles.discardKeep]}
-              onPress={() => {
-                setDiscardVisible(false);
-                onExit();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Save for later"
-            >
-              <Text style={styles.discardKeepLabel}>Save for later</Text>
-            </PressableScale>
-            <PressableScale
-              scaleTo={TAP_SCALE}
-              style={[styles.discardBtn, styles.discardGo]}
-              onPress={() => {
-                discardDraft();
-                onExit();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Discard draft"
-            >
-              <Text style={styles.discardGoLabel}>Discard</Text>
-            </PressableScale>
-          </View>
-        </Dialog>
-
-        {/* Safety popup #9: confirm creating a female-only event (every time). */}
-        <FemaleOnlyConfirmModal
-          visible={womenOnlyConfirmVisible}
-          onConfirm={() => {
-            setWomenOnly(true);
-            setWomenOnlyConfirmVisible(false);
+        <DiscardDialog
+          visible={discardVisible}
+          onClose={() => setDiscardVisible(false)}
+          onKeep={() => {
+            setDiscardVisible(false);
+            onExit();
           }}
-          onBack={() => {
-            setWomenOnly(false);
-            setWomenOnlyConfirmVisible(false);
+          onDiscard={() => {
+            discard();
+            setDiscardVisible(false);
+            onExit();
           }}
         />
       </View>
@@ -1426,24 +575,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2],
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.full,
     paddingHorizontal: SPACING[4],
-    height: 40,
+    paddingVertical: SPACING[2.5],
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
     shadowColor: COLORS.ink,
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    elevation: 6,
   },
   promptText: {
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
+    fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
   pinHolder: {
     position: 'absolute',
-    top: -PIN_SIZE / 2,
+    top: 0,
     width: PIN_SIZE,
     height: PIN_SIZE,
     alignItems: 'center',
@@ -1453,25 +602,24 @@ const styles = StyleSheet.create({
     width: CIRCLE,
     height: CIRCLE,
     borderRadius: CIRCLE / 2,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     shadowColor: COLORS.ink,
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
   },
   pinEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 34 },
   ring: {
     position: 'absolute',
-    width: PIN_SIZE + 6,
-    height: PIN_SIZE + 6,
-    borderRadius: (PIN_SIZE + 6) / 2,
+    width: PIN_SIZE,
+    height: PIN_SIZE,
+    borderRadius: PIN_SIZE / 2,
     borderWidth: 3,
-    borderColor: COLORS.primaryTrack,
-    borderTopColor: COLORS.primary,
+    borderColor: COLORS.primary,
+    borderTopColor: 'transparent',
   },
   successFill: {
     position: 'absolute',
@@ -1483,364 +631,5 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cardWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  // The shadow throws upward: SHADOWS.glass throws down, and this card's only
-  // exposed edge is its top.
-  card: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: CARD_RADIUS,
-    borderTopRightRadius: CARD_RADIUS,
-    borderTopWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: COLORS.glassBorder,
-    paddingBottom: SPACING[7],
-    shadowColor: COLORS.ink,
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: -8 },
-    elevation: 12,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-    marginTop: SPACING[1],
-    marginBottom: SPACING[2],
-  },
-  // Pulled left so the glyph's optical edge lines up with the content column
-  // below it rather than with its own 40pt touch box.
-  navSlot: { marginLeft: -SPACING[2.5] },
-  cardBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[2] },
-  // Floats free under the search bar; `top` is supplied at render from the
-  // safe-area inset so it clears the notch on every device.
-  locationPillWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  locationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1.5],
-    maxWidth: '86%',
-    height: 34,
-    paddingHorizontal: SPACING[3.5],
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.accent,
-    shadowColor: COLORS.ink,
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-  },
-  locationText: {
-    flexShrink: 1,
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.white,
-  },
-  // Sized to the tallest step (the when-step: three labelled groups).
-  // It was 268, which the when-step overran — the people row was being
-  // cut off by the Next button sitting under it.
-  stepArea: { height: 316, marginBottom: SPACING[3] },
-  step: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  // Ordinary content now rather than a label on a dark band: left-aligned and
-  // ink, sharing the glyph's line. Same size as before so the step-to-step
-  // rhythm is unchanged.
-  stepTitle: {
-    flex: 1,
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.sectionLg,
-    color: COLORS.textPrimary,
-  },
-  typeScroll: { flex: 1, marginTop: SPACING[3], marginHorizontal: -4 },
-  // The top padding is not decoration. PressableScale springs back underdamped,
-  // so a tile briefly scales *past* 1 on release; without headroom the scroll
-  // view clips that overshoot and the first row's tiles lose their top edge
-  // mid-bounce. The padding is the room the overshoot needs.
-  typeScrollContent: {
-    paddingHorizontal: SPACING[1],
-    paddingTop: SPACING[1],
-    paddingBottom: SPACING[2],
-  },
-  input: {
-    height: 50,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING[3.5],
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.body,
-    color: COLORS.textPrimary,
-    marginTop: SPACING[4],
-  },
-  multiline: {
-    height: undefined,
-    minHeight: 88,
-    paddingVertical: SPACING[3],
-    textAlignVertical: 'top',
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodyMd,
-    marginTop: SPACING[3],
-  },
-  charCount: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
-    textAlign: 'right',
-    marginTop: SPACING[1.5],
-  },
-  label: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.micro,
-    letterSpacing: 0.3,
-    color: COLORS.inkLabel,
-    // Generous above, tight below: the gap separates one group from the last,
-    // while the label stays visually attached to the control it names.
-    marginTop: SPACING[5],
-    marginBottom: SPACING[1],
-  },
-  warning: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.error,
-    marginTop: SPACING[1.5],
-  },
-  restoredRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: SPACING[2],
-    marginBottom: SPACING[3],
-  },
-  restoredText: {
-    flex: 1,
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
-  },
-  restoredAction: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.primary,
-  },
-
-  // Discard confirm — same shape and tokens as the community delete confirm, so
-  // the two destructive prompts in the app read identically.
-  discardTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.section,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
-  discardBody: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginTop: SPACING[2],
-  },
-  discardRow: {
-    flexDirection: 'row',
-    gap: SPACING[2],
-    alignSelf: 'stretch',
-    marginTop: SPACING[4],
-  },
-  discardBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  discardKeep: { backgroundColor: COLORS.inkSubtle },
-  discardKeepLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
-  discardGo: { backgroundColor: COLORS.error },
-  discardGoLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.white,
-  },
-  // A value the user can read at a glance with the choosing tucked behind it.
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[2],
-    height: 52,
-    paddingHorizontal: SPACING[4],
-    borderRadius: RADIUS.md,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginTop: SPACING[1],
-  },
-  summaryValue: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
-  summaryMeta: {
-    flex: 1,
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textMuted,
-  },
-  // No tray. The two buttons carry the weight on their own, so the row reads as
-  // a control rather than as another filled field stacked under the two above.
-  peopleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 52,
-    marginTop: SPACING[1],
-  },
-  peopleValueWrap: { alignItems: 'center', minWidth: 96 },
-  // Same metrics as the label it replaces, so swapping between them does not
-  // shift the row.
-  peopleInput: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.title,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    padding: 0,
-    minWidth: 60,
-  },
-  // Bigger now that there is no tray holding the row together — the number is
-  // what carries it, so it has to be the thing the eye lands on.
-  peopleValue: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.title,
-    color: COLORS.textPrimary,
-  },
-  peopleUnit: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
-  },
-  sheetBody: { paddingHorizontal: SPACING[5], paddingTop: SPACING[5] },
-  sheetTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.sectionLg,
-    color: COLORS.textPrimary,
-  },
-  // The two date/time columns share the sheet's width.
-  wheelFlex: { flex: 1 },
-  // Two wheels abreast for date + time; the band spans each column separately
-  // so the pair reads as one control rather than two stacked lists.
-  wheelRow: { flexDirection: 'row', gap: SPACING[3] },
-  // The app black, per the button rule: this is a workhorse control, not a
-  // primary action, and coral here would compete with Next.
-  stepperBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperBtnOff: { opacity: 0.4 },
-  photoWrap: {
-    marginTop: SPACING[4],
-    marginBottom: SPACING[3],
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-  },
-  photoPreview: { width: '100%', height: 180 },
-  photoRemove: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.glassOnPhoto,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoEmpty: {
-    alignItems: 'center',
-    gap: SPACING[1],
-    marginTop: SPACING[4],
-    paddingVertical: SPACING[7],
-    paddingHorizontal: SPACING[7],
-    borderRadius: RADIUS.xl,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  photoEmptyIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING[2],
-  },
-  photoEmptyTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
-  photoEmptySub: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    lineHeight: 17,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  // Pinned to the bottom of the step area and run 24pt past it, so the Next
-  // button (a later sibling, painted on top) covers the square bottom edge and
-  // the notice reads as one tray tucked behind it.
-  photoFallback: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[2.5],
-    paddingHorizontal: SPACING[3],
-    paddingTop: SPACING[3],
-    paddingBottom: SPACING[8],
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    backgroundColor: COLORS.inkFaint,
-  },
-  photoFallbackText: {
-    flex: 1,
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    lineHeight: 17,
-    color: COLORS.textSecondary,
-  },
-  safetyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING[3.5],
-  },
-  safetyLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
-  safetySub: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
-    marginTop: SPACING[0.5],
   },
 });
