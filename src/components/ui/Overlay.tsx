@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -133,11 +133,19 @@ function Overlay({
   // a wasted animation, because `exiting` is half of `mounted`: every slide
   // Sheet in the app briefly mounted its full contents on first render to
   // animate out of a state it was never in.
-  const hasOpened = useRef(false);
+  //
+  // Seeded from `visible` so an overlay that mounts already open is not treated
+  // as unopened for its first frame. Once true it stays true: this is a "has
+  // ever been needed" flag, not a mirror of `visible`.
+  const [hasOpened, setHasOpened] = useState(visible);
+  // Adjusted during render rather than from an effect. React re-runs the
+  // component immediately without committing, so the flag is correct on the
+  // very frame the sheet opens — an effect would set it one frame late, which
+  // for a first open is exactly the frame that matters.
+  if (visible && !hasOpened) setHasOpened(true);
 
   useEffect(() => {
     if (visible) {
-      hasOpened.current = true;
       // Also resets the offset a drag-dismiss parked at its thrown-out value —
       // without which the next open renders the card off the bottom of the
       // screen and the sheet appears not to open at all.
@@ -146,20 +154,17 @@ function Overlay({
     }
     if (!sliding) return;
     // Nothing to animate out of if it was never in.
-    if (!hasOpened.current) return;
-    hasOpened.current = false;
+    if (!hasOpened) return;
     // The bridge between a prop flipping and an animation that has to finish
     // before the Modal may unmount. There is no render-phase way to express
-    // "stay mounted a moment longer".
-    //
-    // This used to need an eslint-disable for `set-state-in-effect`. It no
-    // longer does, and that is the point: the rule was objecting to a state
-    // write that ran on mount, which is exactly the bug the guard above fixes.
+    // "stay mounted a moment longer", which is what the disable is for — unlike
+    // `hasOpened` above, this is not derived state and cannot move into render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExiting(true);
     dragY.value = withTiming(EXIT_PX, EXIT_TIMING, (finished) => {
       if (finished) runOnJS(done)();
     });
-  }, [visible, sliding, dragY, done]);
+  }, [visible, sliding, hasOpened, dragY, done]);
 
   const dragStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: dragY.value }],
@@ -170,7 +175,7 @@ function Overlay({
     opacity: interpolate(dragY.value, [0, 260], [1, 0], 'clamp'),
   }));
 
-  // Nothing below this line is built while the overlay is shut.
+  // Nothing below this line is built until the overlay has been opened once.
   //
   // `Modal` does *not* spare its children when `visible` is false — it
   // reconciles them anyway — so every Sheet in the app was mounting its full
@@ -179,13 +184,14 @@ function Overlay({
   // time and duration wheels — 90 + 48 + 24 rows, each carrying its own
   // animated-style worklet — before the user had touched a picker.
   //
-  // `mounted`, not `visible`, so a closing sheet keeps its content through the
-  // exit animation. Reopening remounts, which is the correct behaviour rather
-  // than merely an acceptable one: `Wheel` seeds its scroll offset from `value`
-  // at mount, so it now opens centred on the current selection every time.
-  // Callers hold their draft state outside their `<Sheet>`, so there is nothing
-  // to lose on the way down.
-  if (!mounted) return null;
+  // The condition is "has never been opened", NOT `!mounted`. Gating on
+  // `mounted` looks equivalent and is not: `exiting` is set from an effect, so
+  // it is still false on the render where `visible` first goes false. That one
+  // render unmounted the sheet, the effect then flipped `exiting` and mounted
+  // it again to animate out, and the sheet visibly closed, flashed back, and
+  // closed again. Once opened, an overlay stays mounted exactly as it did
+  // before — this only ever needed to skip the sheets nobody has touched.
+  if (!visible && !exiting && !hasOpened) return null;
 
   const card = (
     <View
