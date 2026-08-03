@@ -121,7 +121,7 @@ Prefer the boring, obvious solution. Before a non-trivial change:
 ```sh
 npm run typecheck   # must stay at 0
 npm test            # must stay green
-npm run lint        # 95 errors / 16 warnings are pre-existing; don't add
+npm run lint        # 0 errors / 65 warnings are pre-existing; don't add
 ```
 
 There is no snapshot or screen-test coverage, so **`tsc` passing does not mean
