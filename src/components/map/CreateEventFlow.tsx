@@ -34,7 +34,7 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Icon } from '@/components/ui';
-import { showError } from '@/utils/errors';
+import { errorMessage } from '@/utils/errors';
 import { GLYPH_STROKE } from './create/motion';
 import { CreateCard } from './create/CreateCard';
 import { DiscardDialog } from './create/DiscardDialog';
@@ -98,6 +98,17 @@ const ZOOM_LNG_DELTA = 0.0022;
 // settled does the pin travel to centre. Running them together read as drift.
 const ZOOM_MS = 950;
 const PIN_DROP_MS = 420;
+// Shortest the whole submit can take, success or failure. The two beats above
+// account for 1,370ms of it; the remainder is a held beat so the result does
+// not arrive the instant the pin stops moving. A write that takes longer than
+// this is waited for rather than cut off — the tick means the row exists.
+const MIN_CEREMONY_MS = 1800;
+// How long a failure holds before the form comes back. Long enough to read one
+// short line without stranding someone in a state they cannot act on.
+const ERROR_HOLD_MS = 2000;
+// The success tick holds a little less: it is a confirmation, not something to
+// read, and the screen it pushes to says the same thing at length.
+const SUCCESS_HOLD_MS = 1300;
 
 const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
   function CreateEventFlow({ active, mapRef, mapW, mapH, onExit }, ref) {
@@ -113,15 +124,16 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const activity = useCreateEventStore((s) => s.activity);
     const cardH = useCreateEventStore((s) => s.cardH);
 
-    const [submitState, setSubmitState] = useState<'loading' | 'success'>(
-      'loading'
-    );
+    const [submitState, setSubmitState] = useState<
+      'loading' | 'success' | 'error'
+    >('loading');
     const [firstHostVisible, setFirstHostVisible] = useState(false);
     const [discardVisible, setDiscardVisible] = useState(false);
 
     const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const recentreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Every timer here outlives the frame that set it, and two of them navigate
     // or drive the camera. Leaving them armed through an unmount pushes a route
@@ -131,6 +143,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
         if (successTimer.current) clearTimeout(successTimer.current);
         if (recentreTimer.current) clearTimeout(recentreTimer.current);
+        if (errorTimer.current) clearTimeout(errorTimer.current);
       },
       []
     );
@@ -359,10 +372,20 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         );
       }, ZOOM_MS);
 
-      // Let both beats land even when the network is instant.
-      const minWait = new Promise((r) =>
-        setTimeout(r, ZOOM_MS + PIN_DROP_MS + 250)
-      );
+      // The floor, for whichever way this goes. The two beats above take
+      // ZOOM_MS + PIN_DROP_MS = 1,370ms and the rest is a beat of stillness, so
+      // the result does not land the instant the pin stops moving.
+      //
+      // Applied to the failure path too, which is why it is a helper rather
+      // than a promise raced against the write: `Promise.all` rejects the
+      // moment the write does, so a failure at 200ms used to put its result on
+      // screen while the camera was still flying.
+      const startedAt = Date.now();
+      const settleCeremony = async () => {
+        const remaining = MIN_CEREMONY_MS - (Date.now() - startedAt);
+        if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+      };
+
       try {
         const create = (async () => {
           // No cover photo? The column stays null and the cards fall back to
@@ -396,7 +419,11 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
             imageUrl,
           });
         })();
-        const [eventId] = await Promise.all([create, minWait]);
+        // The tick means the row exists. Waiting on the write first and the
+        // floor second is what makes that true: a slower database holds the
+        // spinner for as long as it takes rather than going green on a promise.
+        const eventId = await create;
+        await settleCeremony();
         // The event exists now, so the draft has nothing left to protect.
         // Before navigation, so a slow write cannot outlive the screen.
         await clearEventDraft(user.id);
@@ -411,23 +438,39 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
         successTimer.current = setTimeout(() => {
           router.push(`/events/created/${eventId}`);
           onExit();
-        }, 1300);
+        }, SUCCESS_HOLD_MS);
       } catch (e) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        showError(e, 'Could not host event');
-        // The recentre beat is still pending on the failure path; letting it
+        // The user is told "try again later" and nothing more, so this is the
+        // only place the actual reason survives. Swallowing it entirely would
+        // make a broken host path undiagnosable — same pattern as the other
+        // non-fatal failures in services/.
+        console.warn('host event failed:', errorMessage(e));
+        // Same ceremony as success, so a failure reads as an answer to the
+        // question rather than as the animation breaking.
+        await settleCeremony();
+        // The recentre beat is still pending if the write outran it; letting it
         // fire would drive the camera for an event that was never created.
         if (recentreTimer.current) clearTimeout(recentreTimer.current);
-        // Fall back into the form with the pin back at its editing anchor, and
-        // pull the camera back out to the span the form is composed against —
-        // without this the card returns over a map still zoomed to
-        // ZOOM_LNG_DELTA.
-        mapRef.current?.animateToRegion(
-          regionForAnchor(coord.lat, coord.lng, PLACE_LNG_DELTA),
-          400
-        );
-        pinY.value = withTiming(anchorY, { duration: 400 });
-        useCreateEventStore.getState().setPhase('form');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setSubmitState('error');
+        // Holds long enough to read, then puts the form back with everything
+        // still filled in, so "try again" is one tap and not a re-entry.
+        //
+        // No alert. The pin is already saying it, and an Alert on top would
+        // cover the thing it is explaining and need a second dismissal.
+        errorTimer.current = setTimeout(() => {
+          // Pull the camera back out to the span the form is composed against —
+          // without this the card returns over a map still zoomed to
+          // ZOOM_LNG_DELTA.
+          mapRef.current?.animateToRegion(
+            regionForAnchor(coord.lat, coord.lng, PLACE_LNG_DELTA),
+            400
+          );
+          pinY.value = withTiming(anchorY, { duration: 400 });
+          useCreateEventStore.getState().setPhase('form');
+          // Back to the starting state, or the next attempt opens on the X.
+          setSubmitState('loading');
+        }, ERROR_HOLD_MS);
       }
     }
 
@@ -497,6 +540,25 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                       </Animated.View>
                     </Animated.View>
                   )}
+                  {/* Failure fills the same circle the same way, in the same
+                      time. The two outcomes are one answer with two values, so
+                      making the bad one louder would only make it feel like a
+                      malfunction rather than a result. */}
+                  {submitState === 'error' && (
+                    <Animated.View
+                      entering={FadeIn.duration(320).easing(Easing.out(Easing.cubic))}
+                      style={styles.errorFill}
+                    >
+                      <Animated.View entering={FadeIn.delay(180).duration(280)}>
+                        <Icon
+                          name="close"
+                          size={26}
+                          color={COLORS.white}
+                          strokeWidth={3}
+                        />
+                      </Animated.View>
+                    </Animated.View>
+                  )}
                 </>
               ) : emoji ? (
                 <Animated.Text
@@ -507,6 +569,23 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                   {emoji}
                 </Animated.Text>
               ) : null}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Sits under the pin, which by now has finished its drop to mapH / 2 —
+            the ceremony floor guarantees that, so this can be positioned
+            against the pin's resting place rather than chasing it. */}
+        {phase === 'submit' && submitState === 'error' && (
+          <Animated.View
+            entering={FadeIn.delay(200).duration(280)}
+            style={[styles.errorNoteWrap, { top: mapH / 2 + PIN_SIZE + SPACING[4] }]}
+            pointerEvents="none"
+          >
+            <View style={styles.errorNote}>
+              <Text style={styles.errorNoteText}>
+                Couldn&apos;t create your event. Try again later.
+              </Text>
             </View>
           </Animated.View>
         )}
@@ -629,5 +708,44 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Deliberately identical to successFill but for the colour — see the comment
+  // at the render site.
+  errorFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: CIRCLE / 2,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorNoteWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: SPACING[6],
+  },
+  // Same surface and shadow as the "tap anywhere" prompt: both are the flow
+  // talking to you over the map, so they are the same object.
+  errorNote: {
+    paddingHorizontal: SPACING[4],
+    paddingVertical: SPACING[2.5],
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+    shadowColor: COLORS.ink,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  errorNoteText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
   },
 });
