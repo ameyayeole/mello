@@ -32,7 +32,6 @@ import HotEventsSheet from '@/components/map/HotEventsSheet';
 import CreateEventFlow, {
   CreateEventFlowRef,
 } from '@/components/map/CreateEventFlow';
-import { useRenderCount } from '@/hooks/useRenderCount';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { FALLBACK_MAP_CENTER } from '@/utils/eventDraft';
 import { COLORS } from '@/constants/colors';
@@ -92,7 +91,6 @@ function regionRadiusM(region: Region): number {
 }
 
 export default function MapScreen() {
-  useRenderCount('MapScreen');
   const router = useRouter();
   const coords = useLocationStore((s) => s.coords);
   // One selector per field. `useUIStore()` with no selector subscribes to the

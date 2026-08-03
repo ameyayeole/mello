@@ -35,7 +35,6 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Icon } from '@/components/ui';
 import { showError } from '@/utils/errors';
-import { useRenderCount } from '@/hooks/useRenderCount';
 import { GLYPH_STROKE } from './create/motion';
 import { CreateCard } from './create/CreateCard';
 import { DiscardDialog } from './create/DiscardDialog';
@@ -102,7 +101,6 @@ const PIN_DROP_MS = 420;
 
 const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
   function CreateEventFlow({ active, mapRef, mapW, mapH, onExit }, ref) {
-    useRenderCount('CreateEventFlow');
     const router = useRouter();
     const queryClient = useQueryClient();
     const user = useAuthStore((s) => s.user);

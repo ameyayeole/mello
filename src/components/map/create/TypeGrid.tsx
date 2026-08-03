@@ -14,8 +14,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { ActivityId } from '@/types/models';
-import { useRenderCount } from '@/hooks/useRenderCount';
-import { GLIDE, SQUASH , TAP_SCALE } from './motion';
+import { GLIDE, SQUASH, TAP_SCALE } from './motion';
 
 // Columns in the grid, and the emoji plate the indicator is sized to. Both have
 // to agree with the layout below.
@@ -36,7 +35,6 @@ export const TypeGrid = memo(function TypeGrid({
   value: ActivityId | null;
   onChange: (id: ActivityId) => void;
 }) {
-  useRenderCount('TypeGrid');
   const [frames, setFrames] = useState<
     Record<string, { x: number; y: number; w: number }>
   >({});
@@ -96,7 +94,10 @@ export const TypeGrid = memo(function TypeGrid({
   return (
     <View style={styles.typeGrid}>
       {/* Behind the tiles, so it can never take a tap. */}
-      <Animated.View style={[styles.typeIndicator, indicator]} pointerEvents="none" />
+      <Animated.View
+        style={[styles.typeIndicator, indicator]}
+        pointerEvents="none"
+      />
       {activities.map((a) => {
         const sel = value === a.id;
         return (

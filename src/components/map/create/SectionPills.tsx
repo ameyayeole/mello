@@ -11,7 +11,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { SectionId } from '@/constants/activities';
-import { GLIDE , TAP_SCALE } from './motion';
+import { GLIDE, TAP_SCALE } from './motion';
 
 // Memoised for the same reason as TypeGrid — it sits in the same step and rode
 // along on every unrelated re-render of the flow. Its `sections` prop has to be
@@ -25,9 +25,9 @@ export const SectionPills = memo(function SectionPills({
   value: SectionId | 'all';
   onChange: (id: SectionId | 'all') => void;
 }) {
-  const [frames, setFrames] = useState<Record<string, { x: number; w: number }>>(
-    {}
-  );
+  const [frames, setFrames] = useState<
+    Record<string, { x: number; w: number }>
+  >({});
   const x = useSharedValue(0);
   const w = useSharedValue(0);
   // The first measurement positions without animating, or the indicator flies
@@ -89,7 +89,10 @@ export const SectionPills = memo(function SectionPills({
             accessibilityState={{ selected: sel }}
           >
             <Text
-              style={[styles.sectionPillText, sel && styles.sectionPillTextActive]}
+              style={[
+                styles.sectionPillText,
+                sel && styles.sectionPillTextActive,
+              ]}
             >
               {s.label}
             </Text>

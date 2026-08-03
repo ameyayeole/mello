@@ -19,7 +19,6 @@ import type { SharedValue } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { useRenderCount } from '@/hooks/useRenderCount';
 
 // A picker wheel, in the shape of the system timer: a column of options
 // scrolling under a fixed selection band. Duration, date and time are the same
@@ -94,9 +93,6 @@ function WheelInner<T extends string | number>({
   onChange: (v: T) => void;
   style?: StyleProp<ViewStyle>;
 }) {
-  // The option count is in the name on purpose: it is the number the windowing
-  // fix is measured against. The Starts sheet mounts two of these, 90 and 48.
-  useRenderCount(`Wheel(${options.length})`);
   // Opening scrolled to the current value is most of the point of a wheel — it
   // shows where you sit in the range, not just what you picked.
   const index = Math.max(0, options.findIndex((o) => o.value === value));
