@@ -58,9 +58,6 @@ import {
   PressableScale,
   VerifiedBadge,
 } from '@/components/ui';
-import EventSheetStack, {
-  EventSheetStackRef,
-} from '@/components/events/EventSheetStack';
 import EventRow from '@/components/events/EventRow';
 import {
   ProfilePosts,
@@ -122,7 +119,6 @@ export default function UserProfileScreen() {
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const sheetRef = useRef<EventSheetStackRef>(null);
   // One measurable wrapper per hosted-event row, keyed by event id — measured
   // at tap time for the dealt card's origin.
   const eventRowRefs = useRef<Record<string, View | null>>({});
@@ -768,8 +764,6 @@ export default function UserProfileScreen() {
         }}
         onCancel={() => setBlockConfirmVisible(false)}
       />
-
-      <EventSheetStack ref={sheetRef} />
     </View>
   );
 }

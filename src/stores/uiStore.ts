@@ -103,7 +103,6 @@ export interface DealtCardState {
 }
 
 interface UIState {
-  selectedEventId: string | null;
   activeFilter: ActivityId | null;
   // Map-tab filters (activity chips + the filter sheet). Separate from
   // activeFilter, which belongs to the Explore feed's chips.
@@ -137,7 +136,6 @@ interface UIState {
   overlayMounted: boolean;
   handoff: Handoff | null;
   dealtCard: DealtCardState | null;
-  setSelectedEvent: (id: string | null) => void;
   setInAppBanner: (banner: InAppBanner | null) => void;
   setActiveChat: (key: string | null) => void;
   setFilter: (activity: ActivityId | null) => void;
@@ -174,7 +172,6 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  selectedEventId: null,
   activeFilter: null,
   mapFilters: DEFAULT_MAP_FILTERS,
   searchRadius: CONFIG.defaultRadiusMeters,
@@ -187,7 +184,6 @@ export const useUIStore = create<UIState>((set) => ({
   overlayMounted: false,
   handoff: null,
   dealtCard: null,
-  setSelectedEvent: (selectedEventId) => set({ selectedEventId }),
   setInAppBanner: (inAppBanner) => set({ inAppBanner }),
   setActiveChat: (activeChat) => set({ activeChat }),
   setFilter: (activeFilter) => set({ activeFilter }),

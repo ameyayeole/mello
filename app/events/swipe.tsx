@@ -26,9 +26,6 @@ import { useSwipeDeck } from '@/hooks/useSwipeDeck';
 import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import SwipeCard from '@/components/events/SwipeCard';
 import WishlistButton from '@/components/events/WishlistButton';
-import EventSheetStack, {
-  EventSheetStackRef,
-} from '@/components/events/EventSheetStack';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
@@ -59,7 +56,6 @@ const FEEDBACK_META: Record<
 export default function SwipeDeckScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const sheetRef = useRef<EventSheetStackRef>(null);
   // The top card's own measurable wrapper — only the top card is tappable
   // (the two behind it are peeking, not pressable), so a single ref is enough.
   const topCardRef = useRef<View>(null);
@@ -472,8 +468,6 @@ export default function SwipeDeckScreen() {
           </PressableScale>
         </View>
       </View>
-
-      <EventSheetStack ref={sheetRef} />
     </View>
   );
 }

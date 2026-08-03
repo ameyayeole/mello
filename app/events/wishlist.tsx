@@ -14,9 +14,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSavedEvents, unsaveEvent } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import EventSheetStack, {
-  EventSheetStackRef,
-} from '@/components/events/EventSheetStack';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
@@ -162,7 +159,6 @@ export default function WishlistScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
-  const sheetRef = useRef<EventSheetStackRef>(null);
   // One measurable wrapper per card, keyed by event id — measured at tap time
   // for the dealt card's origin.
   const cardRefs = useRef<Record<string, View | null>>({});
@@ -265,7 +261,6 @@ export default function WishlistScreen() {
           }
         />
       )}
-      <EventSheetStack ref={sheetRef} />
     </Screen>
   );
 }

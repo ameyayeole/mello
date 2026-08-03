@@ -137,7 +137,7 @@ A scale that does not describe the app is not a scale, it is a wish.
 ### 3e. Large files 📄
 
 - [ ] **`CreateEventFlow.tsx` — 1375 lines.** Rules extracted and tested; the rest is **deliberately left alone**. `phase`/`step`/`coord`/`locationName` are entangled with the pin animation and the `useImperativeHandle` contract `map.tsx` calls into, and `handleHost` interleaves its network call with a two-beat camera choreography. Needs a device to verify, not a refactor.
-- [ ] **`EventBottomSheet.tsx` — 934 lines** (was 1045). Mutations extracted, deduplicated, bug-fixed, covered. Remainder is JSX volume.
+- [x] ~~`EventBottomSheet.tsx` — 934 lines (was 1045). Mutations extracted, deduplicated, bug-fixed, covered. Remainder is JSX volume.~~ — moot: the file (plus `EventSheetStack.tsx`, `RevealingText.tsx`, `useEnterOnScroll.ts`) was deleted outright when the dealt-card replacement shipped, so there is nothing left to split.
 - [x] ~~`edit/[eventId].tsx` — duplicated limits, unclamped party size, `onMapPress(e: any)`, hardcoded Mumbai coords~~ — all fixed.
 - [ ] **`edit/[eventId].tsx` — the 12-setState `useEffect` with the `seeded` guard** (`:109`). The fix is not to tidy the effect but to delete it: split the form into a child component keyed by `event.id`, so its `useState` initialisers run once with the event already loaded. No effect, no `seeded` flag, no cascading render. **Deferred on purpose** — it means moving ~450 lines of JSX on a screen with no test coverage and no device verification. Do it as its own isolated batch.
 

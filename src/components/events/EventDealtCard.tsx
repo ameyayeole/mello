@@ -101,8 +101,9 @@ function BackgroundFace({ id }: { id: string }) {
 // just calls `dealCard(ids, index, origin)` and this renders whatever that
 // produced.
 //
-// Replaces `GlobalEventSheet` as the app's one event surface. The old sheet
-// still exists side by side until Task 9 deletes it.
+// Replaces the old `EventBottomSheet`/`EventSheetStack` as the app's one
+// event surface (deleted; see git history for the gorhom-based original this
+// design ported from).
 export function EventDealtCard() {
   const router = useRouter();
   const deal = useUIStore((s) => s.dealtCard);
@@ -174,12 +175,20 @@ export function EventDealtCard() {
   }, [isSwipeDeck, topId, recordSwipe, advance]);
 
   // A non-host approved participant of an event that hasn't wrapped — the one
-  // state that offers "Leave event". Reusing `primaryLabel` rather than
-  // re-deriving isHost/isParticipant/wrapped here: "Open chat" is already
-  // exactly that condition (see useEventCard's primaryLabel derivation).
+  // state that offers "Leave event" and "Check in". Reusing `primaryLabel`
+  // rather than re-deriving isHost/isParticipant/wrapped here: "Open chat" is
+  // already exactly that condition (see useEventCard's primaryLabel
+  // derivation).
   const canLeave = primaryLabel === 'Open chat';
+  // The host's equivalent secondary action — ported from EventBottomSheet.tsx's
+  // actions block, which offered "Open chat" alongside "Manage event" so a
+  // host didn't have to go through the management screen just to reach the
+  // event's chat. "Manage event" only shows for a host whose event hasn't
+  // wrapped, so this is that same condition without re-deriving `wrapped`.
+  const canHostChat = isHost && primaryLabel === 'Manage event';
   const isMember = gate === 'none';
-  const hasSecondaryActions = (isHost && pending.length > 0) || canLeave;
+  const hasSecondaryActions =
+    canHostChat || canLeave || (isHost && pending.length > 0);
 
   if (!deal) return null;
 
@@ -231,6 +240,35 @@ export function EventDealtCard() {
             secondaryActions={
               hasSecondaryActions ? (
                 <>
+                  {/* Host: chat, so managing an event doesn't require a trip
+                      through the host screen just to reach its thread —
+                      ported from EventBottomSheet.tsx:1381-1390. */}
+                  {canHostChat && (
+                    <Button
+                      label="Open chat"
+                      variant="tertiary"
+                      onPress={() => {
+                        close();
+                        router.push(`/(tabs)/chats/${event.id}`);
+                      }}
+                    />
+                  )}
+
+                  {/* Approved guest scans to check in (hosts run the door via
+                      their own management screen) — ported from
+                      EventBottomSheet.tsx:1392-1402. `/events/scan/[eventId]`
+                      has no other entry point in the app. */}
+                  {canLeave && (
+                    <Button
+                      label="Check in"
+                      variant="tertiary"
+                      onPress={() => {
+                        close();
+                        router.push(`/events/scan/${event.id}`);
+                      }}
+                    />
+                  )}
+
                   {/* Host: pending join requests to approve/reject — ported
                       from EventBottomSheet.tsx:1407-1446, Mello+ ranked first
                       (useEventCard's `pending` sort). `EventCardBack`'s
