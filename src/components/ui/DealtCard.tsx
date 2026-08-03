@@ -175,6 +175,13 @@ export function DealtCard({
     });
   }
 
+  // Set in `onEnd` the instant a commit (swipe past threshold) or a
+  // decisive-down dismiss has been kicked off, so `onFinalize` below knows
+  // not to re-snap `dx`/`dy` on top of an animation already in flight. Reset
+  // the moment `onFinalize` reads it — it only needs to survive the one
+  // onEnd → onFinalize hop RNGH makes for a single gesture attempt.
+  const settling = useSharedValue(false);
+
   // Disabled while the back is showing: on that face vertical is the
   // `ScrollView`'s to own, and a swipe-to-pass/save is a front-face-only
   // action anyway (the back has no join/pass affordance to trigger). Without
@@ -183,6 +190,11 @@ export function DealtCard({
   // claim the touch stream ahead of a nested scroll on every drag.
   const pan = Gesture.Pan()
     .enabled(!backShowing)
+    .onStart(() => {
+      // Defensive: guarantees a clean flag at the start of every new drag
+      // even if some prior attempt's onFinalize somehow didn't run.
+      settling.value = false;
+    })
     .onUpdate((e) => {
       dx.value = e.translationX;
       // Up rubber-bands: it has no job, and letting it travel freely would
@@ -191,14 +203,30 @@ export function DealtCard({
     })
     .onEnd((e) => {
       if (isPastThreshold(e.translationX, e.velocityX, width)) {
+        settling.value = true;
         runOnJS(commit)(e.translationX > 0 ? 1 : -1);
         return;
       }
       // A decisive downward drag sends it home.
       if (e.translationY > height * 0.18 || e.velocityY > 1100) {
+        settling.value = true;
         dx.value = withTiming(0, { duration: 160 });
         dy.value = withTiming(0, { duration: 160 });
         runOnJS(sendHome)();
+        return;
+      }
+      // The plain "released below both thresholds" reset used to live here,
+      // but `onEnd` only fires on a real completed gesture — RNGH force-ends
+      // an *active* pan when `.enabled(false)` flips it off mid-drag (exactly
+      // what happens here when a flip crosses 0.5 while dragging), and that
+      // termination path skips `onEnd` entirely. Moved to `onFinalize`, which
+      // RNGH guarantees runs on every termination — success, failure,
+      // cancellation, or a forced disable — so a drag interrupted by the
+      // flip can no longer leave `dx`/`dy` frozen at a stale offset.
+    })
+    .onFinalize(() => {
+      if (settling.value) {
+        settling.value = false;
         return;
       }
       dx.value = withTiming(0, { duration: 220 });
