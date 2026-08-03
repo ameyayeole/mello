@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -20,6 +20,7 @@ import {
   DEAL_MS,
   DISMISS_MS,
   FLIP_MS,
+  PROMOTE_MS,
   STACK_DEPTH,
   isPastThreshold,
   stackLayer,
@@ -126,13 +127,19 @@ export function DealtCard({
     }
   );
 
+  // `deal` is read above in a `useAnimatedReaction` selector, so writing it
+  // here trips react-hooks/immutability. Tried moving the write into a
+  // `useEffect` behind a counter state — the shape CommentRow/PostActionBar
+  // use for a press-driven shared-value write — but that only clears the
+  // rule for THEIR case, where the value is read solely via
+  // `useAnimatedStyle`. `deal` is read via `useAnimatedReaction` (required
+  // here so the landing haptic fires off the animation's own progress, not a
+  // timer), and that specific read/write shape still trips the rule from
+  // inside an effect. Routing through state would also add a render round
+  // trip between the gesture ending and the send-home animation starting, a
+  // real latency regression for no gain. Left as a direct write; the rule is
+  // `warn` by design for exactly this reason (see eslint.config.js).
   function sendHome() {
-    // `deal` is read above in a `useAnimatedReaction` selector; the linter's
-    // react-compiler-oriented immutability check flags writes to it from
-    // elsewhere, but a mutable shared value written from multiple call sites
-    // is exactly how Reanimated is meant to be driven (see the same accepted
-    // pattern in useImpressionTracker.ts's react-hooks/refs disables).
-    // eslint-disable-next-line react-hooks/immutability
     deal.value = withTiming(
       0,
       { duration: DISMISS_MS, easing: Easing.bezier(0.5, 0, 0.75, 0.3) },
@@ -177,10 +184,10 @@ export function DealtCard({
       dy.value = withTiming(0, { duration: 220 });
     });
 
+  // Same rule, same reason, same fallback as `sendHome` above — `flip` is
+  // also read via `useAnimatedReaction` (for the flip haptic), so a
+  // `useEffect` detour would not clear the warning either. Direct write.
   const tap = Gesture.Tap().maxDuration(400).onEnd(() => {
-    // Same false positive as `sendHome` above — `flip` is read in the
-    // `useAnimatedReaction` selector, written here from the tap gesture.
-    // eslint-disable-next-line react-hooks/immutability
     flip.value = withTiming(flip.value > 0.5 ? 0 : 1, {
       duration: FLIP_MS,
       easing: Easing.bezier(0.5, 0.05, 0.2, 1),
@@ -254,6 +261,35 @@ function CardLayer({
   const layer = stackLayer(depth);
   const isTop = depth === 0;
 
+  // The animated resting place for this layer, seeded at mount to exactly
+  // `layer`'s values so the initial `deal` arc below (start -> this) is
+  // unopposed. When `depth` changes later — the card above this one was
+  // swiped away, promoting this one up a place — the effect below re-targets
+  // these over PROMOTE_MS instead of the transform recomputing instantly from
+  // the new `stackLayer(depth)`, which would make every card behind the top
+  // one snap to its new position the instant the swipe completes.
+  const targetX = useSharedValue(layer.x);
+  const targetY = useSharedValue(layer.y);
+  const targetRotate = useSharedValue(layer.rotate);
+  const targetScale = useSharedValue(layer.scale);
+  const targetOpacity = useSharedValue(layer.opacity);
+  const targetShade = useSharedValue(layer.shade);
+
+  // Guards the very first run: a depth prop is present on mount too, and
+  // that arrival is the `deal` animation's job, not a promotion.
+  const mountedDepth = useRef(depth);
+  useEffect(() => {
+    if (mountedDepth.current === depth) return;
+    mountedDepth.current = depth;
+    const next = stackLayer(depth);
+    targetX.value = withTiming(next.x, { duration: PROMOTE_MS });
+    targetY.value = withTiming(next.y, { duration: PROMOTE_MS });
+    targetRotate.value = withTiming(next.rotate, { duration: PROMOTE_MS });
+    targetScale.value = withTiming(next.scale, { duration: PROMOTE_MS });
+    targetOpacity.value = withTiming(next.opacity, { duration: PROMOTE_MS });
+    targetShade.value = withTiming(next.shade, { duration: PROMOTE_MS });
+  }, [depth, targetOpacity, targetRotate, targetScale, targetShade, targetX, targetY]);
+
   const boxStyle = useAnimatedStyle(() => {
     // The deal interpolates from the origin to this layer's resting place, so
     // the whole stack arrives together rather than the top card arriving and
@@ -261,13 +297,13 @@ function CardLayer({
     const p = deal.value;
     const arc = interpolate(p, [0, 0.45, 1], [0, -ARC_LIFT, 0], Extrapolation.CLAMP);
     const scale =
-      interpolate(p, [0, 0.82, 1], [start.scale, layer.scale * OVERSHOOT, layer.scale], Extrapolation.CLAMP);
-    const rotate = interpolate(p, [0, 1], [start.rotate, layer.rotate], Extrapolation.CLAMP);
-    const x = interpolate(p, [0, 1], [start.x, layer.x], Extrapolation.CLAMP);
-    const y = interpolate(p, [0, 1], [start.y, layer.y], Extrapolation.CLAMP);
+      interpolate(p, [0, 0.82, 1], [start.scale, targetScale.value * OVERSHOOT, targetScale.value], Extrapolation.CLAMP);
+    const rotate = interpolate(p, [0, 1], [start.rotate, targetRotate.value], Extrapolation.CLAMP);
+    const x = interpolate(p, [0, 1], [start.x, targetX.value], Extrapolation.CLAMP);
+    const y = interpolate(p, [0, 1], [start.y, targetY.value], Extrapolation.CLAMP);
 
     return {
-      opacity: layer.opacity * interpolate(p, [0, 0.12], [0.15, 1], Extrapolation.CLAMP),
+      opacity: targetOpacity.value * interpolate(p, [0, 0.12], [0.15, 1], Extrapolation.CLAMP),
       transform: [
         { translateX: x + (isTop ? dx.value : 0) },
         { translateY: y + arc + (isTop ? dy.value : 0) },
@@ -295,6 +331,13 @@ function CardLayer({
   const backStyle = useAnimatedStyle(() => ({
     opacity: flip.value < 0.5 ? 0 : 1,
   }));
+  // Animated rather than a plain `layer.shade` opacity, so a promotion (this
+  // card moving from depth 2's shade to depth 1's, or depth 1's to the top
+  // card's zero) fades over PROMOTE_MS instead of the overlay jumping — or,
+  // for a promotion straight to the top, disappearing outright.
+  const shadeStyle = useAnimatedStyle(() => ({
+    opacity: targetShade.value,
+  }));
 
   const body = (
     <Animated.View
@@ -319,13 +362,10 @@ function CardLayer({
         )}
       </Animated.View>
       {/* No CSS filter in React Native — the "dimmer further back" is a real
-          overlay. Behind the top card only, so it never tints what you read. */}
-      {layer.shade > 0 && (
-        <View
-          pointerEvents="none"
-          style={[styles.shade, { opacity: layer.shade }]}
-        />
-      )}
+          overlay, always mounted (rather than gated on `layer.shade > 0`) so
+          it can animate rather than pop in or out when a promotion crosses
+          the top-card boundary. */}
+      <Animated.View pointerEvents="none" style={[styles.shade, shadeStyle]} />
     </Animated.View>
   );
 
