@@ -1,6 +1,7 @@
 import {
   forwardRef,
   memo,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -168,7 +169,13 @@ const ZOOM_LNG_DELTA = 0.0022;
 // settled does the pin travel to centre. Running them together read as drift.
 const ZOOM_MS = 950;
 const PIN_DROP_MS = 420;
-const DURATIONS = Array.from({ length: 24 }, (_, i) => i + 1);
+// Built once. This used to be mapped to {value,label} inline in the JSX, which
+// handed the duration wheel a brand-new options array on every render of the
+// flow — including every render caused by scrolling one of the other two.
+const DURATION_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
+  value: i + 1,
+  label: `${i + 1} ${i === 0 ? 'hour' : 'hours'}`,
+}));
 
 // Headings live out here rather than inside each step's own JSX, so the title
 // line stays put while the content below it swaps. It used to sit in a dark
@@ -683,6 +690,27 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
     const todayMs = new Date().setHours(0, 0, 0, 0);
     const days = useMemo(() => dayOptions(new Date(todayMs)), [todayMs]);
     const times = useMemo(() => timeOptions(), []);
+
+    // The two start wheels write back through the updater form rather than
+    // closing over `startDate`, which is what lets these have no dependencies
+    // and therefore a stable identity for the whole session. Closing over the
+    // date would give each wheel a new handler every time the *other* one
+    // moved, and a changed prop re-renders 90 rows.
+    const setStartDay = useCallback((ms: number) => {
+      setStartDate((prev) => {
+        const d = new Date(ms);
+        const next = new Date(prev);
+        next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+        return next;
+      });
+    }, []);
+    const setStartMinute = useCallback((mins: number) => {
+      setStartDate((prev) => {
+        const next = new Date(prev);
+        next.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+        return next;
+      });
+    }, []);
     // Above the early return because it is a hook, and memoised because it is
     // `TypeGrid`'s only unstable prop — a fresh array here re-renders 52 tiles
     // no matter what memo the grid carries.
@@ -1274,27 +1302,13 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
                 style={styles.wheelFlex}
                 options={days}
                 value={startDayValue}
-                onChange={(ms: number) => {
-                  const d = new Date(ms);
-                  const next = new Date(startDate);
-                  next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                  setStartDate(next);
-                }}
+                onChange={setStartDay}
               />
               <Wheel
                 style={styles.wheelFlex}
                 options={times}
                 value={startMinuteValue}
-                onChange={(mins: number) => {
-                  const next = new Date(startDate);
-                  next.setHours(
-                    Math.floor(mins / 60),
-                    mins % 60,
-                    0,
-                    0
-                  );
-                  setStartDate(next);
-                }}
+                onChange={setStartMinute}
               />
             </View>
             {startInPast && (
@@ -1324,10 +1338,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
           <View style={styles.sheetBody}>
             <Text style={styles.sheetTitle}>Lasts for</Text>
             <Wheel
-              options={DURATIONS.map((h) => ({
-                value: h,
-                label: `${h} ${h === 1 ? 'hour' : 'hours'}`,
-              }))}
+              options={DURATION_OPTIONS}
               value={durationH}
               onChange={setDurationH}
             />
