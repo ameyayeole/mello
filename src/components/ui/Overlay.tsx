@@ -155,6 +155,23 @@ function Overlay({
     opacity: interpolate(dragY.value, [0, 260], [1, 0], 'clamp'),
   }));
 
+  // Nothing below this line is built while the overlay is shut.
+  //
+  // `Modal` does *not* spare its children when `visible` is false — it
+  // reconciles them anyway — so every Sheet in the app was mounting its full
+  // contents as soon as its parent rendered, whether or not it was ever opened.
+  // The create flow made the cost visible: pressing Create mounted the date,
+  // time and duration wheels — 90 + 48 + 24 rows, each carrying its own
+  // animated-style worklet — before the user had touched a picker.
+  //
+  // `mounted`, not `visible`, so a closing sheet keeps its content through the
+  // exit animation. Reopening remounts, which is the correct behaviour rather
+  // than merely an acceptable one: `Wheel` seeds its scroll offset from `value`
+  // at mount, so it now opens centred on the current selection every time.
+  // Callers hold their draft state outside their `<Sheet>`, so there is nothing
+  // to lose on the way down.
+  if (!mounted) return null;
+
   const card = (
     <View
       style={[anchor === 'bottom' ? styles.sheetCard : styles.dialogCard, style]}
@@ -194,17 +211,26 @@ function Overlay({
           anchor === 'bottom' ? styles.alignBottom : styles.alignCenter,
         ]}
       >
+        {/* Two views, not one. A layout animation and an animated style cannot
+            share a property: `entering` drives opacity, `scrimStyle` drives
+            opacity, and Reanimated warned on every open that one would
+            overwrite the other — which is the drag-to-lighten scrim losing to
+            the fade-in. The wrapper owns the entrance, the inner view owns the
+            drag response, and neither touches the other's property. */}
         <Animated.View
-          style={[styles.backdrop, sliding && scrimStyle]}
+          style={StyleSheet.absoluteFill}
           entering={sliding ? FadeIn.duration(220) : undefined}
+          pointerEvents="box-none"
         >
-          {dismissOnBackdropPress ? (
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={onClose}
-              accessibilityLabel="Dismiss"
-            />
-          ) : null}
+          <Animated.View style={[styles.backdrop, sliding && scrimStyle]}>
+            {dismissOnBackdropPress ? (
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={onClose}
+                accessibilityLabel="Dismiss"
+              />
+            ) : null}
+          </Animated.View>
         </Animated.View>
         {sliding ? (
           <Animated.View
