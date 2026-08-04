@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { updateProfile } from '@/services/auth.service';
@@ -33,6 +26,11 @@ import {
   TextField,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+
+// 18 is the product floor (and the copy users see). The ceiling only exists to
+// catch a typo'd year of birth — it is not a real limit on anyone.
+const MIN_AGE = 18;
+const MAX_AGE = 120;
 
 const GENDERS: { id: Gender; label: string }[] = [
   { id: 'male', label: 'Male' },
@@ -63,6 +61,8 @@ export default function EditProfileScreen() {
     new Set(user?.interests ?? [])
   );
   const [loading, setLoading] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [ageError, setAgeError] = useState<string | null>(null);
 
   // Debounced availability check; the user's current handle is always "free".
   useEffect(() => {
@@ -106,6 +106,18 @@ export default function EditProfileScreen() {
   // it once KYC is approved (migration 036 enforces this server-side too).
   const identityLocked = user.kyc_status === 'approved';
 
+  // One test, driving both the `disabled` prop and the greyed style. They used
+  // to be written separately — `disabled` checked five conditions and the style
+  // checked only `!name.trim()` — so with a name typed but no photos added the
+  // Save button rendered in full coral and did nothing when tapped.
+  const canSave =
+    !loading &&
+    !!name.trim() &&
+    photos.length > 0 &&
+    usernameStatus !== 'taken' &&
+    usernameStatus !== 'invalid' &&
+    usernameStatus !== 'checking';
+
   function toggleInterest(id: ActivityId) {
     setInterests((prev) => {
       const next = new Set(prev);
@@ -115,25 +127,36 @@ export default function EditProfileScreen() {
     });
   }
 
+  // Validation lands on the field that failed. The username field already had
+  // an inline error slot, and two of these four alerts were *about the username
+  // field* — so the screen was answering the same question in two different
+  // places depending on which check tripped.
   async function handleSave() {
+    setNameError(null);
+    setAgeError(null);
+
     if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter your name.');
+      setNameError('Please enter your name.');
       return;
     }
-    const ageNum = age ? parseInt(age) : null;
-    if (age && (isNaN(ageNum!) || ageNum! < 18)) {
-      Alert.alert('Invalid age', 'You must be 18 or older to use MELLO.');
+    const ageNum = age ? parseInt(age, 10) : null;
+    if (age && (isNaN(ageNum!) || ageNum! < MIN_AGE)) {
+      setAgeError(`You must be ${MIN_AGE} or older to use Mello.`);
+      return;
+    }
+    if (ageNum != null && ageNum > MAX_AGE) {
+      setAgeError('Please enter a real age.');
       return;
     }
     const usernameChanged = username !== (user!.username ?? '');
     if (usernameChanged) {
       const formatError = validateUsername(username);
       if (formatError) {
-        Alert.alert('Invalid username', formatError);
+        setUsernameError(formatError);
         return;
       }
       if (usernameStatus === 'taken') {
-        Alert.alert('Username taken', `The username @${username} isn't available.`);
+        setUsernameError(`The username @${username} isn't available.`);
         return;
       }
     }
@@ -161,32 +184,31 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <Screen modal>
+    // keyboardAvoiding: BIO is a multiline field at the bottom of the scroll,
+    // and without this the keyboard covered it. Every other text-entry screen
+    // in this cluster already passed it; this one was the exception.
+    <Screen modal keyboardAvoiding>
       <ScreenHeader
         title="Edit profile"
         backIcon="close"
         onBack={() => router.back()}
         right={
-          <TouchableOpacity
+          <PressableScale
+            scaleTo={canSave ? 0.92 : 1}
             onPress={handleSave}
-            disabled={
-              loading ||
-              !name.trim() ||
-              photos.length === 0 ||
-              usernameStatus === 'taken' ||
-              usernameStatus === 'invalid' ||
-              usernameStatus === 'checking'
-            }
+            disabled={!canSave}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Save profile"
           >
             {loading ? (
               <Loader inline />
             ) : (
-              <Text style={[styles.save, !name.trim() && styles.saveDisabled]}>
+              <Text style={[styles.save, !canSave && styles.saveDisabled]}>
                 Save
               </Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
         }
       />
 
@@ -208,8 +230,12 @@ export default function EditProfileScreen() {
             trailingLabel={identityLocked ? 'VERIFIED · LOCKED' : undefined}
             placeholder="Your name"
             value={name}
-            onChangeText={setName}
+            onChangeText={(t) => {
+              setName(t);
+              setNameError(null);
+            }}
             locked={identityLocked}
+            error={nameError}
           />
 
           <View>
@@ -244,9 +270,13 @@ export default function EditProfileScreen() {
             trailingLabel={identityLocked ? 'VERIFIED · LOCKED' : undefined}
             placeholder="18+"
             value={age}
-            onChangeText={setAge}
+            onChangeText={(t) => {
+              setAge(t);
+              setAgeError(null);
+            }}
             keyboardType="numeric"
             locked={identityLocked}
+            error={ageError}
           />
 
           <View>
@@ -320,7 +350,7 @@ export default function EditProfileScreen() {
                   <ActivityGlyph
                     activity={a.id}
                     size={17}
-                    color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
+                    color={sel ? cat.accent : COLORS.textSecondary}
                   />
                   <Text
                     style={[styles.pillLabel, sel && { color: cat.accent }]}
@@ -345,7 +375,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
-    color: 'rgba(15,24,44,0.5)',
+    color: COLORS.inkLabel,
     marginBottom: SPACING[1.5],
   },
   hint: {
@@ -419,7 +449,7 @@ const styles = StyleSheet.create({
   pillLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.7)',
+    color: COLORS.textSecondary,
   },
   pillLabelSel: { color: COLORS.primary },
 });
