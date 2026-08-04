@@ -51,7 +51,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { ExploreEvent, NearbyEvent, ParticipantStatus } from '@/types/models';
 import { formatEventWhen } from '@/utils/time';
-import { featuredHostedEvent } from '@/utils/events';
+import { eventImageUri, featuredHostedEvent } from '@/utils/events';
 import { hasWrapped } from '@/services/wrap.service';
 import { formatDistance } from '@/utils/distance';
 import { shareEvent } from '@/utils/shareEvent';
@@ -170,12 +170,13 @@ function NearbyCard({
   const joined = status === 'approved';
   const requested = status === 'pending';
   const label = joined ? 'Going' : requested ? 'Requested' : 'Join';
+  const imageUri = eventImageUri(event);
 
   return (
     <PressableScale style={styles.nearbyCard} onPress={onPress} scaleTo={0.98}>
-      {event.image_url && (
+      {imageUri && (
         <Image
-          source={{ uri: event.image_url }}
+          source={{ uri: imageUri }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           transition={150}

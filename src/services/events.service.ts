@@ -63,7 +63,7 @@ export async function searchEvents(query: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, host_id, activity, title, description, image_url, location_name, starts_at, ends_at, max_people, is_public, requires_approval, boosted_until'
+      'id, host_id, activity, title, description, image_url, location_name, starts_at, ends_at, max_people, is_public, requires_approval, boosted_until, host:profiles!host_id(name, photo_url)'
     )
     .eq('is_active', true)
     .eq('is_public', true)
@@ -77,7 +77,11 @@ export async function searchEvents(query: string): Promise<NearbyEvent[]> {
     .limit(20);
 
   if (error) throw error;
-  return (data ?? []) as unknown as NearbyEvent[];
+  // Flattened like every other row so the cards see one shape. There is no
+  // participant-count join here, so the count lands at 0 — the rows already
+  // arrived without one, and a row reads "0 going" the same as it read no
+  // count at all.
+  return ((data ?? []) as any[]).map(withParticipantCount);
 }
 
 export async function getEventDetail(eventId: string): Promise<EventDetail> {
@@ -497,14 +501,19 @@ function withParticipantCount(row: any): NearbyEvent {
     // callers never have to care which query an event arrived from. Only
     // present when the caller asked for the join.
     ...(hostRow?.name ? { host_name: hostRow.name } : {}),
+    // The photo has to come along too: it is the cover an event without one of
+    // its own falls back to (`eventImageUri`), and these two queries feed every
+    // list where a host looks at their own event.
+    ...(hostRow?.photo_url ? { host_photo_url: hostRow.photo_url } : {}),
   } as NearbyEvent;
 }
 
 export async function getMyEvents(userId: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    // The host join feeds the Inbox's "X is hosting this event" line.
-    .select('*, event_participants(count), host:profiles!host_id(name)')
+    // The host join feeds the Inbox's "X is hosting this event" line and the
+    // cover fallback for an event with no photo of its own.
+    .select('*, event_participants(count), host:profiles!host_id(name, photo_url)')
     .eq('host_id', userId)
     .eq('is_active', true)
     .order('starts_at', { ascending: true });
@@ -588,7 +597,7 @@ export async function getJoinedEvents(userId: string): Promise<NearbyEvent[]> {
   const { data, error } = await supabase
     .from('event_participants')
     .select(
-      'event:events(*, event_participants(count), host:profiles!host_id(name))'
+      'event:events(*, event_participants(count), host:profiles!host_id(name, photo_url))'
     )
     .eq('user_id', userId)
     // Only approved participants belong in chats — pending join requests

@@ -19,6 +19,7 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
+import { eventImageUri } from '@/utils/events';
 import { shortLocation } from '@/utils/location';
 import { NearbyEvent, SavedEventItem } from '@/types/models';
 import {
@@ -42,15 +43,16 @@ function WishlistCard({
 }) {
   const activity = ACTIVITY_MAP[event.activity];
   const cat = categoryStyle(event.activity);
+  const imageUri = eventImageUri(event);
 
   return (
     <PressableScale style={styles.card} onPress={onPress} scaleTo={0.98}>
       {/* Media tile · title + time · remove bookmark */}
       <View style={styles.cardTop}>
         <View style={[styles.mediaTile, { backgroundColor: cat.tint }]}>
-          {event.image_url ? (
+          {imageUri ? (
             <Image
-              source={{ uri: event.image_url }}
+              source={{ uri: imageUri }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={150}

@@ -49,6 +49,7 @@ import {
   WrapNote,
 } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
+import { eventImageUri } from '@/utils/events';
 import {
   Avatar,
   CategoryTile,
@@ -268,11 +269,12 @@ function EventThumb({
   event: NearbyEvent;
   last?: LastMessage;
 }) {
+  const imageUri = eventImageUri(event);
   return (
     <View>
-      {event.image_url ? (
+      {imageUri ? (
         <Image
-          source={{ uri: event.image_url }}
+          source={{ uri: imageUri }}
           style={styles.eventPhoto}
           contentFit="cover"
           transition={150}
@@ -313,9 +315,9 @@ function EventThumb({
           shadow={false}
           style={styles.typeBadge}
           backdrop={
-            event.image_url ? (
+            imageUri ? (
               <Image
-                source={{ uri: event.image_url }}
+                source={{ uri: imageUri }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 blurRadius={28}

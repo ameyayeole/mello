@@ -5,8 +5,14 @@ import { hasWrapped, wrapEndAt } from '@/services/wrap.service';
 // in a test without building a whole event fixture.
 type Timed = { starts_at: string; ends_at: string | null };
 
-// Same reasoning — the two fields, not the whole event.
-type Illustrated = { image_url?: string | null; host_photo_url?: string | null };
+// Same reasoning — the fields, not the whole event. `host_photo_url` is what
+// the feed RPCs flatten onto a row; `host` is what a PostgREST join returns
+// (`getEventDetail`). Both shapes reach the cards, so both are accepted.
+type Illustrated = {
+  image_url?: string | null;
+  host_photo_url?: string | null;
+  host?: { photo_url?: string | null } | null;
+};
 
 /**
  * What to draw for an event: its own photo, or the host's face when it has
@@ -22,11 +28,17 @@ type Illustrated = { image_url?: string | null; host_photo_url?: string | null }
  * no query (`host_photo_url` has ridden along on the feed RPCs since migration
  * 017) and fixes rows written before any of this existed.
  *
- * Lives here rather than in each card because five components draw an event
- * image, and five copies of the same `??` chain is how they drift apart.
+ * Reads both host shapes on purpose. Reading only the flat one meant the
+ * fallback worked on exactly the rows a host never sees — the discovery feeds —
+ * and nowhere they do: `getEventDetail` joins the host as a nested object, so
+ * the dealt card and the host panel both drew the glyph for an event whose host
+ * has a perfectly good avatar.
+ *
+ * Lives here rather than in each card because eleven places draw an event
+ * image, and eleven copies of the same `||` chain is how they drift apart.
  */
 export function eventImageUri(event: Illustrated): string | null {
-  return event.image_url || event.host_photo_url || null;
+  return event.image_url || event.host_photo_url || event.host?.photo_url || null;
 }
 
 /**

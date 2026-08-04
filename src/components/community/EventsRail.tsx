@@ -11,6 +11,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { formatEventWhen } from '@/utils/time';
+import { eventImageUri } from '@/utils/events';
 
 const MAX_CARDS = 8;
 
@@ -44,6 +45,7 @@ export function EventsRail() {
         {cards.map((e) => {
           const cat = categoryStyle(e.activity);
           const emoji = ACTIVITY_MAP[e.activity]?.emoji ?? '📍';
+          const imageUri = eventImageUri(e);
           return (
             <View
               key={e.id}
@@ -73,9 +75,9 @@ export function EventsRail() {
                 accessibilityLabel={e.title}
               >
                 <View style={[styles.media, { backgroundColor: cat.tint }]}>
-                  {e.image_url ? (
+                  {imageUri ? (
                     <Image
-                      source={{ uri: e.image_url }}
+                      source={{ uri: imageUri }}
                       style={StyleSheet.absoluteFill}
                       contentFit="cover"
                       transition={150}

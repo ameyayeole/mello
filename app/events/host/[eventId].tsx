@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
+import { eventImageUri } from '@/utils/events';
 import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import BoostCard from '@/components/events/BoostCard';
@@ -57,6 +58,7 @@ export default function HostPanelScreen() {
   });
 
   const isHost = !!event && event.host_id === user?.id;
+  const coverUri = event ? eventImageUri(event) : null;
   const premium = isPremium(user);
   const ended = !!event && hasWrapped(event);
 
@@ -153,9 +155,12 @@ export default function HostPanelScreen() {
 
         {/* Event info */}
         <Animated.View entering={FadeInDown.duration(350)} style={styles.card}>
-          {event.image_url && (
+          {/* The host's own face when the event has no photo — this is the
+              first screen after publishing, and it was the one place a
+              photo-less event looked like it had failed to save one. */}
+          {coverUri && (
             <Image
-              source={{ uri: event.image_url }}
+              source={{ uri: coverUri }}
               style={styles.cover}
               contentFit="cover"
               transition={200}
