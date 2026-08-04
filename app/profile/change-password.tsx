@@ -1,20 +1,13 @@
 import { useState } from 'react';
 import { SPACING } from '@/constants/spacing';
-import { Text, StyleSheet, Alert } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { verifyCurrentPassword, updatePassword } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import {
-  Button,
-  Icon,
-  PressableScale,
-  Screen,
-  ScreenHeader,
-  TextField,
-} from '@/components/ui';
+import { Button, Icon, PressableScale, TextField } from '@/components/ui';
+import { SettingsPanel } from '@/components/profile/SettingsPanel';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -86,9 +79,8 @@ export default function ChangePasswordScreen() {
   );
 
   return (
-    <Screen modal keyboardAvoiding>
-      <ScreenHeader title="Change password" />
-      <Animated.View entering={FadeInDown.duration(350)} style={styles.form}>
+    <SettingsPanel title="Change password" keyboardAvoiding>
+      <View style={styles.form}>
         {done ? (
           <>
             <Text style={styles.hint}>
@@ -151,8 +143,8 @@ export default function ChangePasswordScreen() {
             />
           </>
         )}
-      </Animated.View>
-    </Screen>
+      </View>
+    </SettingsPanel>
   );
 }
 

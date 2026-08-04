@@ -30,14 +30,24 @@ import {
   SectionLabel,
   Toggle,
 } from '@/components/ui';
+import {
+  CHIP_RADIUS,
+  CHIP_SIZE,
+  CHIP_TOP_OFFSET,
+  CHIP_X,
+} from '@/components/profile/settingsChrome';
 import { showError } from '@/utils/errors';
 
 // The chip flies at the size the profile screen drew it — it *is* that chip,
 // not a copy sized to this screen's taste. Profile's `topGlyph` is 46/23, the
 // same as the home screen's header chips and the back button notifications
 // lands: one chip size across the app.
-const CHIP = 46;
-const CHIP_RADIUS = 23;
+//
+// Imported rather than written out here because the five screens this one opens
+// each draw a chip that has to land on exactly the same pixel — that is what
+// makes the button look like it is holding still while their contents slide in
+// underneath. See settingsChrome.
+const CHIP = CHIP_SIZE;
 
 // The gear hands over to the chevron across the middle of the flight, so the
 // chip is visibly turning into the back button while it moves rather than
@@ -143,8 +153,8 @@ export default function SettingsScreen() {
     return () => clearTimeout(t);
   }, []);
 
-  const destX = SPACING[5];
-  const destY = insets.top + SPACING[3];
+  const destX = CHIP_X;
+  const destY = insets.top + CHIP_TOP_OFFSET;
   const hasOrigin = !!handoff;
   const fromX = handoff?.x ?? destX;
   const fromY = handoff?.y ?? destY;

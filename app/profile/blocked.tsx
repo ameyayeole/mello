@@ -18,9 +18,8 @@ import {
   ConfirmDialog,
   EmptyState,
   Loader,
-  Screen,
-  ScreenHeader,
 } from '@/components/ui';
+import { SettingsPanel } from '@/components/profile/SettingsPanel';
 import { showError } from '@/utils/errors';
 
 export default function BlockedUsersScreen() {
@@ -77,8 +76,7 @@ export default function BlockedUsersScreen() {
   }
 
   return (
-    <Screen>
-      <ScreenHeader title="Blocked users" />
+    <SettingsPanel title="Blocked users">
 
       {isLoading ? (
         <Loader />
@@ -108,7 +106,7 @@ export default function BlockedUsersScreen() {
         onConfirm={() => pending && unblock.mutate(pending.id)}
         loading={unblock.isPending}
       />
-    </Screen>
+    </SettingsPanel>
   );
 }
 

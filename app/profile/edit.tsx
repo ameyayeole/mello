@@ -11,7 +11,6 @@ import Animated, {
 import { GLIDE, SQUASH } from '@/constants/motion';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { updateProfile } from '@/services/auth.service';
 import {
@@ -29,17 +28,15 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
 import {
   ActivityGlyph,
-  AppBackground,
   ConfirmDialog,
   Glass,
   IconButton,
   Loader,
   PressableScale,
-  Screen,
-  ScreenHeader,
   SectionLabel,
   TextField,
 } from '@/components/ui';
+import { SettingsPanel } from '@/components/profile/SettingsPanel';
 import { showError } from '@/utils/errors';
 
 // 18 is the product floor (and the copy users see). The ceiling only exists to
@@ -224,7 +221,6 @@ function InterestChip({
 }
 
 export default function EditProfileScreen() {
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
 
@@ -248,6 +244,9 @@ export default function EditProfileScreen() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [ageError, setAgeError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Set once the screen has decided it is leaving — a discard confirmed, or a
+  // save landed. The panel plays its exit and pops the route.
+  const [leaving, setLeaving] = useState(false);
 
   // Debounced availability check; the user's current handle is always "free".
   useEffect(() => {
@@ -324,11 +323,6 @@ export default function EditProfileScreen() {
     interests.size !== (original.interests?.length ?? 0) ||
     (original.interests ?? []).some((i) => !interests.has(i));
 
-  function handleClose() {
-    if (dirty) setConfirmDiscard(true);
-    else router.back();
-  }
-
   function toggleInterest(id: ActivityId) {
     setInterests((prev) => {
       const next = new Set(prev);
@@ -386,7 +380,8 @@ export default function EditProfileScreen() {
         interests: Array.from(interests),
       });
       setUser(updated);
-      router.back();
+      // Saved, so there is nothing left to discard.
+      setLeaving(true);
     } catch (e) {
       showError(e);
     } finally {
@@ -395,47 +390,36 @@ export default function EditProfileScreen() {
   }
 
   return (
-    // This screen is launched from Settings, which is frosted glass over the
-    // drifting background — and it used to land on flat white, which is most of
-    // why it read as the old screen. It is a modal route outside the tabs, so
-    // it does not inherit the AppBackground mounted behind the tab navigator
-    // and has to bring its own, the same way Settings does.
-    //
-    // Behind <Screen> rather than inside it: Screen's SafeAreaView pads the top
-    // edge on Android, and an absoluteFill child would stop at that padding and
-    // leave a bare strip under the status bar.
-    <View style={styles.root}>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <AppBackground />
-      </View>
-
-      {/* keyboardAvoiding: BIO is a multiline field at the bottom of the
-          scroll, and without this the keyboard covered it. Every other
-          text-entry screen in this cluster already passed it. */}
-      <Screen modal keyboardAvoiding background="transparent">
-      <ScreenHeader
-        title="Edit profile"
-        backIcon="close"
-        onBack={handleClose}
-        right={
-          loading ? (
-            // Same 40pt box the button occupies, so the header doesn't reflow
-            // when the save starts.
-            <View style={styles.saveBusy}>
-              <Loader inline />
-            </View>
-          ) : (
-            <IconButton
-              icon="check"
-              variant="tint"
-              onPress={handleSave}
-              disabled={!canSave}
-              accessibilityLabel="Save profile"
-            />
-          )
-        }
-      />
-
+    // keyboardAvoiding: BIO is a multiline field at the bottom of the scroll,
+    // and without this the keyboard covered it.
+    <SettingsPanel
+      title="Edit profile"
+      keyboardAvoiding
+      leaving={leaving}
+      // Returning false holds the panel open while the discard confirm decides.
+      onBack={() => {
+        if (!dirty) return true;
+        setConfirmDiscard(true);
+        return false;
+      }}
+      right={
+        loading ? (
+          // Same 40pt box the button occupies, so the title row doesn't reflow
+          // when the save starts.
+          <View style={styles.saveBusy}>
+            <Loader inline />
+          </View>
+        ) : (
+          <IconButton
+            icon="check"
+            variant="tint"
+            onPress={handleSave}
+            disabled={!canSave}
+            accessibilityLabel="Save profile"
+          />
+        )
+      }
+    >
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -569,7 +553,6 @@ export default function EditProfileScreen() {
           </Glass>
         </View>
       </ScrollView>
-      </Screen>
 
       <ConfirmDialog
         visible={confirmDiscard}
@@ -582,10 +565,12 @@ export default function EditProfileScreen() {
         confirmLabel="Discard"
         onConfirm={() => {
           setConfirmDiscard(false);
-          router.back();
+          // Leave through the panel's own exit, not router.back() — popping
+          // straight would skip the slide the arrival promised.
+          setLeaving(true);
         }}
       />
-    </View>
+    </SettingsPanel>
   );
 }
 

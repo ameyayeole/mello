@@ -87,6 +87,21 @@ Ordered by risk, not by feature.
 | 9.12 | Section heading → content gap is even across Photos / Gender / Interests (Photos is the one with a hint line under its heading) | ☐ | ☐ |
 | 9.13 | **Create flow regression:** category grid and section pills still animate identically — their motion constants moved to `@/constants/motion` | ☐ | ☐ |
 
+| **10. Settings navigation — sub-screens slide, chip holds still** ||||
+| 10.1 | **The whole point:** open any row — the back chip does **not** move, twitch or double up while the contents slide in from the right **(reasoned — two screens each draw their own chip at the same pixel)** | ☐ | ☐ |
+| 10.2 | Same on the way out: chip holds, contents slide right, then the route pops | ☐ | ☐ |
+| 10.3 | All five rows behave identically (Edit profile, Change password, Change email, Blocked users, Verify identity) | ☐ | ☐ |
+| 10.4 | Nothing rises from the bottom edge any more — no row is still a modal sheet | ☐ | ☐ |
+| 10.5 | Chip position is identical between Settings and every sub-screen — flip back and forth watching only the chip | ☐ | ☐ |
+| 10.6 | Double-tapping back does not pop twice or leave a half-slid panel | ☐ | ☐ |
+| 10.7 | Edit profile with unsaved changes: back → discard dialog; "Discard" then plays the **slide out**, it doesn't just vanish | ☐ | ☐ |
+| 10.8 | Edit profile save → panel slides out rather than popping instantly | ☐ | ☐ |
+| 10.9 | **Edit profile opened from the Profile tab** (not from Settings) still works — same slide, back returns to Profile | ☐ | ☐ |
+| 10.10 | Keyboard screens (change password/email): the panel is settled before the field focuses; no jump | ☐ | ☐ |
+| 10.11 | Blocked users list scrolls, and the unblock confirm still works inside the panel | ☐ | ☐ |
+| 10.12 | Verify identity opens the Didit browser and comes back to a settled panel | ☐ | ☐ |
+| 10.13 | Settings' own gear-chip flight from Profile is unchanged (its constants moved to settingsChrome) | ☐ | ☐ |
+
 ## Android specifically
 
 `react-native`'s `SafeAreaView` is a no-op on Android, and this cluster was only
@@ -97,6 +112,8 @@ ever checked on iOS.
 | A.1 | `ConfirmDialog` scrim covers the status bar (Overlay sets `statusBarTranslucent`) | ☐ |
 | A.2 | Settings screen's own `AppBackground` still reaches the top edge | ☐ |
 | A.3 | Hardware back closes each dialog rather than the screen behind it | ☐ |
+| A.4 | Hardware back on a settings sub-screen. **Known gap:** it pops the route directly, so the slide-out does not play and the edit form's discard guard is bypassed. Confirm how bad it looks — it may need an explicit `BackHandler` | ☐ |
+| A.5 | The sliding panel covers the full height including under the status bar | ☐ |
 
 ## Known not covered
 

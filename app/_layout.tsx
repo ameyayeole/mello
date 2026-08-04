@@ -88,20 +88,23 @@ function RootLayoutInner() {
           name="profile/settings"
           options={OVERLAY_SCREEN_OPTIONS}
         />
-        <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
+        {/* The settings sub-screens. Transparent with the native animation off,
+            like the overlays below, but for a different reason: each one slides
+            its own contents in from the right while the back chip stays put, so
+            the whole list reads as one place you move around inside rather than
+            five cards thrown up from the bottom edge. A native slide would
+            carry the chip along with everything else — see SettingsPanel. */}
+        <Stack.Screen name="profile/edit" options={OVERLAY_SCREEN_OPTIONS} />
         <Stack.Screen
           name="profile/change-password"
-          options={{ presentation: 'modal' }}
+          options={OVERLAY_SCREEN_OPTIONS}
         />
         <Stack.Screen
           name="profile/change-email"
-          options={{ presentation: 'modal' }}
+          options={OVERLAY_SCREEN_OPTIONS}
         />
-        <Stack.Screen
-          name="profile/verify"
-          options={{ presentation: 'modal' }}
-        />
-        <Stack.Screen name="profile/blocked" />
+        <Stack.Screen name="profile/verify" options={OVERLAY_SCREEN_OPTIONS} />
+        <Stack.Screen name="profile/blocked" options={OVERLAY_SCREEN_OPTIONS} />
         {/* The two overlays. Full screen and transparent, not modal cards: the
             page underneath stays mounted so it can recede as they come in, and
             so it can hand an element over — the bell chip becomes the back

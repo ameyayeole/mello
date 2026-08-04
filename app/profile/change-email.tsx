@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { SPACING } from '@/constants/spacing';
-import { Text, StyleSheet, Alert } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { changeEmail } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Button, Screen, ScreenHeader, TextField } from '@/components/ui';
+import { Button, TextField } from '@/components/ui';
+import { SettingsPanel } from '@/components/profile/SettingsPanel';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -47,9 +47,10 @@ export default function ChangeEmailScreen() {
   }
 
   return (
-    <Screen modal keyboardAvoiding>
-      <ScreenHeader title="Change email" />
-      <Animated.View entering={FadeInDown.duration(350)} style={styles.form}>
+    <SettingsPanel title="Change email" keyboardAvoiding>
+      {/* No entering animation any more — the panel itself is the entrance, and
+          a second one underneath it fought the slide. */}
+      <View style={styles.form}>
         {sentTo ? (
           <>
             <Text style={styles.hint}>
@@ -96,8 +97,8 @@ export default function ChangeEmailScreen() {
             />
           </>
         )}
-      </Animated.View>
-    </Screen>
+      </View>
+    </SettingsPanel>
   );
 }
 

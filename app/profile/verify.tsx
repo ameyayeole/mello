@@ -7,12 +7,12 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { startKycVerification, pollKycStatus } from '@/services/kyc.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Button, Icon, Screen, ScreenHeader, VerifiedBadge } from '@/components/ui';
+import { Button, Icon, VerifiedBadge } from '@/components/ui';
+import { SettingsPanel } from '@/components/profile/SettingsPanel';
 
 const STATUS_COPY: Record<
   string,
@@ -80,11 +80,9 @@ export default function VerifyIdentityScreen() {
   }
 
   return (
-    <Screen modal>
-      <ScreenHeader title="Identity verification" />
-
+    <SettingsPanel title="Verify identity">
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
+        <View style={styles.hero}>
           {status === 'approved' ? (
             <VerifiedBadge size={64} />
           ) : (
@@ -94,10 +92,10 @@ export default function VerifyIdentityScreen() {
           )}
           <Text style={styles.title}>{copy.title}</Text>
           <Text style={styles.body}>{copy.body}</Text>
-        </Animated.View>
+        </View>
 
         {copy.cta ? (
-          <Animated.View entering={FadeInDown.delay(70).duration(350)}>
+          <View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>How it works</Text>
               <Text style={styles.cardBody}>
@@ -123,10 +121,10 @@ export default function VerifyIdentityScreen() {
               By continuing you agree to share your ID document and selfie with
               Didit for identity verification.
             </Text>
-          </Animated.View>
+          </View>
         ) : null}
       </ScrollView>
-    </Screen>
+    </SettingsPanel>
   );
 }
 

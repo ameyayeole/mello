@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -10,12 +10,16 @@ import Animated, {
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants/colors';
-import { RADIUS } from '@/constants/spacing';
+import { RADIUS, SPACING } from '@/constants/spacing';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import type { DealtOrigin } from '@/stores/uiStore';
 import {
   DEAL_MS,
@@ -56,21 +60,23 @@ export const DEALT_CARD_WIDTH_RATIO = 0.78;
 export const DEALT_CARD_ASPECT = 1.55;
 
 // How far the card lifts off the straight line between its origin and the
-// centre, at the midpoint. This is what makes it an arc rather than a slide.
+// centre, at the midpoint. Small on purpose: a card flicked onto a table skims,
+// it does not loft. A big arc reads as a card FLYING, which is a different
+// motion entirely and was what made this feel wrong.
 //
-// And how far it swings sideways on the way. Cards all leave from the same
-// small fan, so without a lateral spread they trace the same line and you only
-// ever see the front one — the swing is what separates them in flight, each
-// taking its own path out and curving back into the stack.
-const ARC_LIFT = 78;
+// A small lateral spread so cards leaving the same fan do not trace exactly the
+// same line. Deliberately slight — the spin below is what separates them now,
+// not a wide detour.
+const ARC_LIFT = 16;
 // The overshoot: it passes 3% past its resting size before settling. Cheap,
 // and the difference between "a view appeared" and "an object landed".
-const DEAL_SWING = 62;
-// How much extra a card turns mid-flight, over and above the difference
-// between where it was lying and where it lands. A card thrown onto a table
-// turns as it travels; going straight from one angle to the other looks like a
-// slide.
-const DEAL_TUMBLE = 14;
+const DEAL_SWING = 20;
+// The spin. This is the signature of a dealt card and the thing that was
+// missing: a card flicked out of a hand turns most of a half-revolution on its
+// way and arrives flat. Front-loaded by the easing below, so it spins hardest
+// as it leaves and is already settling into its final angle by the time it
+// lands.
+const DEAL_SPIN = 155;
 
 const OVERSHOOT = 1.03;
 
@@ -115,6 +121,41 @@ function haptic(kind: 'land' | 'settle' | 'flip' | 'threshold' | 'save') {
   else if (kind === 'flip') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   else if (kind === 'threshold') Haptics.selectionAsync();
   else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+}
+
+// "Tap for details", floating above the stack.
+//
+// It belongs to the presentation, not to the card's content: whether a thing
+// can be turned over is a fact about how it is being shown, and a card in a
+// feed has no back to promise. It also used to sit ON the card — first across
+// the photo, then hanging off a corner — and both put it in front of the
+// picture you are meant to be looking at. Above the stack it is legible on the
+// dim and out of the way of everything.
+//
+// Breathes by lifting rather than fading; a label changing opacity reads as a
+// glitch, one that moves reads as alive.
+function FlipHint({ bottom }: { bottom: number }) {
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withDelay(1600, withTiming(1, { duration: 900 })),
+        withTiming(0, { duration: 900 })
+      ),
+      -1,
+      false
+    );
+  }, [pulse]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: -pulse.value * 3 }, { scale: 1 + pulse.value * 0.03 }],
+  }));
+  return (
+    <Animated.View style={[styles.hintWrap, { bottom }, style]} pointerEvents="none">
+      <View style={styles.hint}>
+        <Text style={styles.hintText}>Tap for details</Text>
+      </View>
+    </Animated.View>
+  );
 }
 
 /**
@@ -178,7 +219,9 @@ export function DealtCard({
   useEffect(() => {
     deal.value = withTiming(1, {
       duration: dealMs,
-      easing: Easing.bezier(0.2, 0.7, 0.3, 1),
+      // A flick, not a glide: almost all the distance is covered early and the
+      // last stretch is the card skidding to a stop.
+      easing: Easing.bezier(0.12, 0.85, 0.25, 1),
     });
   }, [deal, dealMs]);
 
@@ -451,6 +494,10 @@ export function DealtCard({
           rather than laid out in the stage, whose children are all absolute so
           the deck can overlap. pointerEvents none — it is a label, not a
           control, and it sits over the dim, which owns tap-to-dismiss. */}
+      {/* Only while the front is up and there is something to turn to. */}
+      {!backShowing && cards[0]?.back != null && (
+        <FlipHint bottom={height / 2 + cardH / 2 + SPACING[4]} />
+      )}
       {footer && (
         <View style={styles.footer} pointerEvents="box-none">
           {footer}
@@ -551,7 +598,8 @@ function CardLayer({
   // as they land.
   const swingDir = depth % 2 === 0 ? 1 : -1;
   const swingAmount = DEAL_SWING * (0.55 + depth * 0.3) * swingDir;
-  const tumble = DEAL_TUMBLE * swingDir;
+  // Alternating so consecutive cards spin opposite ways out of the hand.
+  const spin = DEAL_SPIN * swingDir;
 
   const boxStyle = useAnimatedStyle(() => {
     const p = progress.value;
@@ -595,9 +643,13 @@ function CardLayer({
         { translateX: x + swing + (isTop ? dx.value : 0) },
         { translateY: y + arc + (isTop ? dy.value : 0) },
         {
+          // The spin decays across the flight rather than peaking in the
+          // middle: the card leaves the hand already turning and is close to
+          // its landing angle well before it stops moving, which is how a
+          // flicked card actually behaves.
           rotateZ: `${
             rotate +
-            interpolate(p, [0, 0.5, 1], [0, tumble, 0], Extrapolation.CLAMP) +
+            interpolate(p, [0, 1], [spin, 0], Extrapolation.CLAMP) +
             (isTop ? dx.value / 22 : 0)
           }deg`,
         },
@@ -675,6 +727,21 @@ const styles = StyleSheet.create({
   // both are box-none so only their own controls take touches and the dim
   // behind them still dismisses.
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
+  hintWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 2 },
+  // White pill on the dim, matching the map teaser's "Up for it?" bubble —
+  // those are the app's only two "this does something" tags and one shape is
+  // cheaper to learn than two.
+  hint: {
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  hintText: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textPrimary,
+  },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 2 },
   card: {
     position: 'absolute',
