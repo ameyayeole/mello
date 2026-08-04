@@ -33,6 +33,7 @@ import {
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
 import { DeckActions, DeckCounter } from './DeckChrome';
+import { DeckEmptyCard, type DeckEmptyReason } from './DeckEmptyCard';
 import type { EventParticipant, NearbyEvent } from '@/types/models';
 
 // Some of these are plain-array queries, some are `useInfiniteQuery` pages —
@@ -266,23 +267,35 @@ export function EventDealtCard() {
   // swiping finishes the one card you opened and puts you back where you were.
   // Advancing would drop you on a stranger's event you never asked for, with no
   // deck on screen to explain where it came from.
+  // Swiping the last card away must not close the deck: it lands on the
+  // "check again later" card instead, so the surface never vanishes under your
+  // thumb. `advanceDealtCard` still closes when it runs off the end (its own
+  // tested contract, and the right one for every other opener), so the last
+  // card is intercepted here rather than in the store.
+  const [exhausted, setExhausted] = useState(false);
+  const onLastCard = isSwipeDeck && deal != null && deal.index >= deal.ids.length - 1;
+  const advanceOrExhaust = useCallback(() => {
+    if (onLastCard) setExhausted(true);
+    else advance();
+  }, [onLastCard, advance]);
+
   const handleSave = useCallback(() => {
     if (isSwipeDeck) {
       if (!spendSwipe('like')) return;
-      advance();
+      advanceOrExhaust();
       return;
     }
     if (!saved) handleToggleSave();
     close();
-  }, [isSwipeDeck, spendSwipe, saved, handleToggleSave, advance, close]);
+  }, [isSwipeDeck, spendSwipe, saved, handleToggleSave, advanceOrExhaust, close]);
   const handlePass = useCallback(() => {
     if (isSwipeDeck) {
       if (!spendSwipe('pass')) return;
-      advance();
+      advanceOrExhaust();
       return;
     }
     close();
-  }, [isSwipeDeck, spendSwipe, advance, close]);
+  }, [isSwipeDeck, spendSwipe, advanceOrExhaust, close]);
 
   // A non-host approved participant of an event that hasn't wrapped — the one
   // state that offers "Leave event" and "Check in". Reusing `primaryLabel`
@@ -301,6 +314,45 @@ export function EventDealtCard() {
     canHostChat || canLeave || (isHost && pending.length > 0);
 
   if (!deal) return null;
+
+  // Nothing left to show. Three ways to get here, and each says something
+  // different, so the reason travels with it rather than one generic blank.
+  // Out of swipes is checked first: the cap is why you cannot see the rest,
+  // and telling someone they are "all caught up" when there is a queue waiting
+  // behind a paywall would be a lie.
+  const emptyReason: DeckEmptyReason | null = !isSwipeDeck
+    ? null
+    : outOfSwipes
+      ? 'outOfSwipes'
+      : exhausted || deal.ids.length === 0
+        ? 'caughtUp'
+        : null;
+
+  if (emptyReason) {
+    return (
+      <CardPortal>
+        <DealtCard
+          key={`${deal.token}:empty`}
+          cards={[
+            {
+              key: 'empty',
+              front: <DeckEmptyCard reason={emptyReason} />,
+              // No back: there is nothing to turn this over to, and a card
+              // that flips to a blank face is worse than one that does not
+              // flip at all.
+              back: null,
+            },
+          ]}
+          origin={deal.origin}
+          // Swiping it away is just closing it — there is no next card to
+          // reach and nothing to record.
+          onPass={close}
+          onSave={close}
+          onDismiss={close}
+        />
+      </CardPortal>
+    );
+  }
 
   // The messy stack belongs to the swipe deck and nowhere else.
   //

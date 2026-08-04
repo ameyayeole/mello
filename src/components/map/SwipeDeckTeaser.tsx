@@ -143,7 +143,10 @@ export default function SwipeDeckTeaser() {
           const ids = deck.map((e) => e.id);
           const open = (origin: DealtOrigin | null) =>
             useUIStore.getState().dealCard(ids, 0, origin, 'swipeDeck');
-          if (!node || ids.length === 0) {
+          // An empty deck still opens: the card that lands says "check again
+          // later" rather than the tap doing nothing. Only a missing node
+          // (nothing to measure) drops the origin.
+          if (!node) {
             open(null);
             return;
           }
