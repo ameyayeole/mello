@@ -104,32 +104,29 @@ export function useSaveEvent() {
  * Records one swipe: the permanent pass/like (spends one of the day's free
  * swipes for non-premium users via the DB trigger), plus — for a like — the
  * wishlist save. This is the swipe deck's real contract, lifted out of
- * `useSwipeDeck` the same way `useSaveEvent` was: `EventDealtCard` needs this
- * exact behaviour for a dealt card sourced from the swipe deck screen, but
- * mounting the whole deck (its `useInfiniteQuery` feed, swiped-ids query,
- * swipe-count query) just to reach a `swipe()` closure would run that machinery
- * globally, in the tabs layout, even when nobody is looking at the deck.
+ * `useSwipeDeck` the same way `useSaveEvent` was: `EventDeck` calls this
+ * directly rather than going through the rest of `useSwipeDeck`'s state (the
+ * live `deck` array already tells it which card is on top; it needs no local
+ * index of its own — see that component's own comment on why).
  *
- * Everywhere else a dealt card's swipe is 'browse' — no quota, no permanent
- * pass — precisely so browsing the map or a feed can never quietly burn a
- * user's daily swipes; see uiStore's `DealtCardSource`.
+ * `EventDealtCard` used to be a caller too, for a dealt card sourced from the
+ * swipe deck's own ids — deleted along with that branch. A map pin's card has
+ * no queue and no quota now; a swipe there just closes the card.
  */
 /**
  * The daily-cap half of `useSwipeDeck`, on its own, for the same reason
- * `useRecordSwipe` above is: `EventDealtCard` has to know whether a swipe is
+ * `useRecordSwipe` above is: `EventDeck` has to know whether a swipe is
  * allowed before it records one, and mounting the whole deck to read a number
- * would run the explore-feed and swiped-ids queries on every screen.
+ * would run the explore-feed and swiped-ids queries on every screen that reads
+ * it.
  *
- * `useRecordSwipe` carries no cap of its own — the swipe SCREEN guards its
- * gesture (`swipe.tsx`'s `.enabled(!!topId && !outOfSwipes)`), its buttons and
- * its deck separately. So anything else driving `recordSwipe` has to guard for
- * itself or the cap is simply not enforced there: the optimistic bump commits,
- * the DB trigger rejects, `onError` logs to the console and invalidates, and
- * the user has already watched the card advance. For a 'like' the wishlist save
- * is uncapped and still lands, so the two halves of one swipe diverge.
- *
- * `enabled` is off unless a swipe-deck-sourced card is actually open, so a
- * browse card — which cannot spend quota at all — costs no query.
+ * `useRecordSwipe` carries no cap of its own — the deck component guards its
+ * gesture and its buttons itself (see `EventDeck`'s `commitSwipe`). So
+ * anything else driving `recordSwipe` has to guard for itself or the cap is
+ * simply not enforced there: the optimistic bump commits, the DB trigger
+ * rejects, `onError` logs to the console and invalidates, and the user has
+ * already watched the card advance. For a 'like' the wishlist save is uncapped
+ * and still lands, so the two halves of one swipe diverge.
  */
 export function useSwipeQuota(enabled = true) {
   const user = useAuthStore((s) => s.user);

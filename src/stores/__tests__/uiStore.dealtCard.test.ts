@@ -46,7 +46,6 @@ describe('uiStore dealt card', () => {
       ids: ['a', 'b', 'c'],
       index: 0,
       origin: ORIGIN,
-      source: 'browse',
       token: expect.any(Number),
     });
   });
@@ -73,38 +72,21 @@ describe('uiStore dealt card', () => {
       ids: ['a', 'b', 'c'],
       index: 1,
       origin: null,
-      source: 'browse',
       token: expect.any(Number),
     });
   });
 
-  // `source` says what a swipe on the card should DO (generic advance/save vs
-  // the swipe deck's real quota-spending swipe()) — every opener except the
-  // swipe deck screen omits it and gets 'browse' for free.
-  it('defaults source to browse when not given', () => {
-    useUIStore.getState().dealCard(['a'], 0, null);
-    expect(useUIStore.getState().dealtCard?.source).toBe('browse');
-  });
-
-  it('records an explicit source', () => {
-    useUIStore.getState().dealCard(['a', 'b'], 0, ORIGIN, 'swipeDeck');
-    expect(useUIStore.getState().dealtCard?.source).toBe('swipeDeck');
-  });
-
-  // Unlike origin, neither of these is tied to the first card. `source`: the
-  // swipe deck screen dealt the whole deck, and every card in it should still
-  // delegate to its swipe() after advancing. `token`: it keys the mounted
-  // card, and an advance is a depth promotion — remounting on it would throw
-  // away the very animation the promotion exists for.
-  it('source and the deal token survive advanceDealtCard, unlike origin', () => {
-    useUIStore.getState().dealCard(['a', 'b', 'c'], 0, ORIGIN, 'swipeDeck');
+  // Unlike origin, the deal token is not tied to the first card: it keys the
+  // mounted card, and an advance is a depth promotion — remounting on it would
+  // throw away the very animation the promotion exists for.
+  it('the deal token survives advanceDealtCard, unlike origin', () => {
+    useUIStore.getState().dealCard(['a', 'b', 'c'], 0, ORIGIN);
     const { token } = useUIStore.getState().dealtCard!;
     useUIStore.getState().advanceDealtCard();
     expect(useUIStore.getState().dealtCard).toEqual({
       ids: ['a', 'b', 'c'],
       index: 1,
       origin: null,
-      source: 'swipeDeck',
       token,
     });
   });

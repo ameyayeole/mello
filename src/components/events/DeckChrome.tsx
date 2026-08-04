@@ -8,24 +8,28 @@ import { useSwipeDeck } from '@/hooks/useSwipeDeck';
 import { PREMIUM_GOLD } from '@/utils/premium';
 import { Icon, PressableScale } from '@/components/ui';
 
-// The swipe deck's furniture, laid over the dealt card's dim.
+// The swipe deck's furniture, laid over its dim.
 //
 // This used to be the chrome of a whole screen (`app/events/swipe.tsx`, now
 // deleted): a dark header with the swipes-left count, a pass/save/undo row
 // under the deck, and a paywall card in place of the deck once the daily cap
-// was hit. The deck is a dealt card now — the same object the map's pins open —
-// so the screen is gone and only its furniture survives, restyled to float over
-// the dim rather than sit in a layout.
+// was hit. It then became part of the map pin's dealt card for one deal
+// (`EventDealtCard`'s now-deleted `isSwipeDeck` branch), and is `EventDeck`'s
+// alone now — the deck reads live from `useSwipeDeck()` rather than a snapshot
+// of ids, so this furniture, the deck's stack and its quota all live in one
+// component instead of being split across a screen or a second dealt card.
 //
-// It is deliberately its own component rather than something `DealtCard` knows
-// about: the card takes `header`/`footer` as opaque nodes, so a deck can bring
-// controls and a pin can bring none, and neither has to know about the other.
+// It stayed its own component through both moves rather than something the
+// underlying card primitive knows about: `DealtCard` takes `header`/`footer`
+// as opaque nodes, so whatever renders it can bring controls or bring none,
+// and neither has to know about the other.
 //
-// `useSwipeDeck` is called HERE rather than in the card that renders it,
-// because that hook owns real queries — the deck, the day's swipe count — and
-// mounting it globally would run them for every dealt card, including the
-// eleven openers that have nothing to do with swiping. Rendering this component
-// only for a `'swipeDeck'` deal keeps the hook's cost where it belongs.
+// `useSwipeDeck` is called HERE rather than threaded down as props, because
+// that hook owns real queries — the deck, the day's swipe count — and mounting
+// it any higher than where it is actually rendered would run those queries
+// even when the deck isn't visible. `EventDeck` mirrors this same discipline
+// one level up: see its own comment on why it is split into a visibility gate
+// and a body.
 
 // The counter, top-centre. Premium has no cap, so it says nothing at all
 // rather than an infinity glyph that has to be explained.

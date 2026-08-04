@@ -72,20 +72,6 @@ export interface DealtOrigin {
   height: number;
 }
 
-// What a swipe on the dealt card should DO, not who opened it — the card
-// itself has no idea which screen dealt it. Every opener except the swipe
-// deck is 'browse': right saves to the wishlist, left just advances, no quota
-// and no permanent pass. The swipe deck is the one place that contract is
-// wrong — there, a swipe is the real thing, spending one of the day's free
-// swipes and recording a permanent pass — so its dealt card carries
-// 'swipeDeck' and EventDealtCard delegates to that screen's own swipe()
-// instead of the generic handler.
-//
-// A discriminant, not a stored callback: a function in zustand state can't be
-// serialised and silently goes stale the moment the component that created it
-// unmounts. A string survives `advanceDealtCard` exactly like `ids` does.
-export type DealtCardSource = 'browse' | 'swipeDeck';
-
 // The open card and the deck behind it. `ids` is the whole deck; `index` is
 // which one is face up.
 //
@@ -94,19 +80,15 @@ export type DealtCardSource = 'browse' | 'swipeDeck';
 // and flying back to the original pin would claim you are looking at an event
 // you are not.
 //
-// `source` survives every advance, unlike `origin` — which screen dealt the
-// deck doesn't change as you move through it.
+// There used to be a `source: 'browse' | 'swipeDeck'` discriminant here,
+// carrying whether a swipe should spend one of the day's swipes (the deck) or
+// just advance (everywhere else). Deleted along with the swipe deck's branch
+// of `EventDealtCard` (see `EventDeck`) — a pin's card only ever advances, so
+// there was nothing left for the discriminant to distinguish.
 export interface DealtCardState {
   ids: string[];
   index: number;
   origin: DealtOrigin | null;
-  // Where each card of the deck was lying, when the thing you tapped was itself
-  // a stack of cards — the map's "Up for it?" fan. Indexed by depth, so card N
-  // lifts off from mini N. Without this every card starts from the fan's
-  // overall box, which means they all leave from one point on top of each other
-  // and the deal never reads as those cards coming up.
-  origins?: DealtOrigin[];
-  source: DealtCardSource;
   // Bumped by every `dealCard`, never by `advanceDealtCard`. `EventDealtCard`
   // keys the card component on it, so a fresh deal remounts and a swipe does
   // not.
@@ -177,26 +159,9 @@ interface UIState {
   // The route is gone — the handed-over element comes back. The handoff itself
   // survives, so a second visit flies from the same place.
   clearOverlay: () => void;
-  // `source` defaults to 'browse' — every opener except the swipe deck screen
-  // wants the generic save/advance contract, so only that one call site needs
-  // to say so explicitly.
-  dealCard: (
-    ids: string[],
-    index: number,
-    origin: DealtOrigin | null,
-    source?: DealtCardSource,
-    origins?: DealtOrigin[]
-  ) => void;
+  dealCard: (ids: string[], index: number, origin: DealtOrigin | null) => void;
   advanceDealtCard: () => void;
   closeDealtCard: () => void;
-  // Where the map's swipe-deck teaser sat when it was tapped, in window
-  // coordinates. The deck screen is a route, not an overlay, so the element the
-  // cards fly out of lives on the screen you just left — its rect has to be
-  // carried across. Same idea as `Handoff` above, and measured for the same
-  // reason. Null when the deck was opened from anywhere else, which the screen
-  // reads as "just appear".
-  swipeDeckOrigin: DealtOrigin | null;
-  setSwipeDeckOrigin: (origin: DealtOrigin | null) => void;
 
   // Settings and the screens it opens share one background: the sub-screens are
   // transparent and slide only their *contents* over the backdrop Settings is
@@ -259,19 +224,17 @@ export const useUIStore = create<UIState>((set) => ({
   // would). A store action causing a side effect is a small impurity, but
   // it's the cheaper trade against twelve copies of the same haptic call
   // that would silently drift out of sync with each other.
-  dealCard: (ids, index, origin, source = 'browse', origins) => {
+  dealCard: (ids, index, origin) => {
     Haptics.selectionAsync();
     dealToken += 1;
-    set({ dealtCard: { ids, index, origin, origins, source, token: dealToken } });
+    set({ dealtCard: { ids, index, origin, token: dealToken } });
   },
   advanceDealtCard: () =>
     set((s) => {
       if (!s.dealtCard) return s;
       const next = s.dealtCard.index + 1;
       if (next >= s.dealtCard.ids.length) return { dealtCard: null };
-      return { dealtCard: { ...s.dealtCard, index: next, origin: null, origins: undefined } };
+      return { dealtCard: { ...s.dealtCard, index: next, origin: null } };
     }),
   closeDealtCard: () => set({ dealtCard: null }),
-  swipeDeckOrigin: null,
-  setSwipeDeckOrigin: (swipeDeckOrigin) => set({ swipeDeckOrigin }),
 }));
