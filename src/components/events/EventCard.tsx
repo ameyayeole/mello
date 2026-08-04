@@ -147,71 +147,82 @@ export function EventCard({
           </View>
         )}
 
-        <View style={styles.paneWrap}>
-          <Glass
-            tier="onPhoto"
-            radius={RADIUS.lg}
-            shadow={false}
-            style={styles.pane}
-            // Only the top card of a dealt stack (blurred=true) pays for a real
-            // BlurView. Android has no backdrop blur at all, so this only changes
-            // anything on iOS — which is exactly where the cost is.
-            flat={!blurred}
-          >
-            <View style={styles.hostRow}>
-              <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
-              {/* Name, badges, then "is hosting" — the same order the sheet and
-                  the home rail use, so the badges read as belonging to the person
-                  rather than floating at the end of the row. The name is the only
-                  part that shrinks. */}
-              <Text style={styles.hostName} numberOfLines={1}>
-                {hostName ?? 'Someone'}
-              </Text>
-              {/* Both ported from EventBottomSheet.tsx:1257-1258, where they sat on
-                  the same host row. They survived the sheet's deletion on the
-                  BROWSE cards (app/(tabs)/index.tsx:246) but not
-                  on the detail surface — so the two signals that most change a join
-                  decision were missing from the one screen where that decision is
-                  made. `host_verified` is a flattened feed field; `host` is only
-                  on `EventDetail`, so a background card in a dealt stack shows the
-                  tick and no crown, which is correct rather than a gap. */}
-              {event.host_verified && <VerifiedBadge size={13} />}
-              {isPremium(event.host) && <PremiumBadge size={12} />}
-              <Text style={styles.hostText} numberOfLines={1}>
-                is hosting
-              </Text>
-            </View>
-            <Text style={styles.title} numberOfLines={2}>
-              {event.title}
+        {/* Directly inside `furniture`, with NO absoluteFill wrapper around
+            it. There used to be one, and it broke the two chips above: a
+            full-bleed wrapper as the LAST child covers its siblings, RN
+            hit-tests subviews topmost-first, and a wrapper with no
+            `pointerEvents` defaults to 'auto' — so a tap on the save or share
+            chip landed on the wrapper and stopped there. It looked
+            chip-specific because the Join CTA (inside the pane, so a real hit)
+            and the flip (an RNGH gesture on an ancestor, which does not use
+            the JS responder system) both still worked. `pane` is
+            `position: absolute` and resolves against `furniture` exactly as it
+            did against the wrapper, so nothing about the layout changes; the
+            `emerge` fade still covers it because `furniture` is the animated
+            view. */}
+        <Glass
+          tier="onPhoto"
+          radius={RADIUS.lg}
+          shadow={false}
+          style={styles.pane}
+          // Only the top card of a dealt stack (blurred=true) pays for a real
+          // BlurView. Android has no backdrop blur at all, so this only changes
+          // anything on iOS — which is exactly where the cost is.
+          flat={!blurred}
+        >
+          <View style={styles.hostRow}>
+            <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
+            {/* Name, badges, then "is hosting" — the same order the sheet and
+                the home rail use, so the badges read as belonging to the person
+                rather than floating at the end of the row. The name is the only
+                part that shrinks. */}
+            <Text style={styles.hostName} numberOfLines={1}>
+              {hostName ?? 'Someone'}
             </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {[
-                formatEventWhen(event.starts_at),
-                event.location_name ? neighbourhood(event.location_name) : null,
-                event.distance_m != null ? formatDistance(event.distance_m) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
+            {/* Both ported from EventBottomSheet.tsx:1257-1258, where they sat on
+                the same host row. They survived the sheet's deletion on the
+                BROWSE cards (app/(tabs)/index.tsx:246) but not
+                on the detail surface — so the two signals that most change a join
+                decision were missing from the one screen where that decision is
+                made. `host_verified` is a flattened feed field; `host` is only
+                on `EventDetail`, so a background card in a dealt stack shows the
+                tick and no crown, which is correct rather than a gap. */}
+            {event.host_verified && <VerifiedBadge size={13} />}
+            {isPremium(event.host) && <PremiumBadge size={12} />}
+            <Text style={styles.hostText} numberOfLines={1}>
+              is hosting
             </Text>
-            <View style={styles.goingRow}>
-              <AttendeeStack
-                people={event.participants ?? []}
-                count={going}
-                max={3}
-                size={20}
-                // The row's own "N going" text (right below) already covers the
-                // zero case; the stack's default "Be the first to join" bubble
-                // would double up with it right next to it.
-                emptyLabel={null}
-              />
-              <Text style={styles.meta}>
-                {going} going{spots != null ? ` · ${spots} spots` : ''}
-              </Text>
-            </View>
+          </View>
+          <Text style={styles.title} numberOfLines={2}>
+            {event.title}
+          </Text>
+          <Text style={styles.meta} numberOfLines={1}>
+            {[
+              formatEventWhen(event.starts_at),
+              event.location_name ? neighbourhood(event.location_name) : null,
+              event.distance_m != null ? formatDistance(event.distance_m) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+          <View style={styles.goingRow}>
+            <AttendeeStack
+              people={event.participants ?? []}
+              count={going}
+              max={3}
+              size={20}
+              // The row's own "N going" text (right below) already covers the
+              // zero case; the stack's default "Be the first to join" bubble
+              // would double up with it right next to it.
+              emptyLabel={null}
+            />
+            <Text style={styles.meta}>
+              {going} going{spots != null ? ` · ${spots} spots` : ''}
+            </Text>
+          </View>
 
-            {action}
-          </Glass>
-        </View>
+          {action}
+        </Glass>
       </Animated.View>
     </View>
   );
@@ -224,12 +235,11 @@ const styles = StyleSheet.create({
   fallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   // Everything `emerge` fades together — see the comment above where it's
   // used. Fills the card exactly like `pane` used to as a direct absolute
-  // child of it, so `pill`/`chips`/`paneWrap` position relative to the full
-  // card exactly as they did before this wrapper existed.
+  // child of it, so `pill`/`chips`/`pane` position relative to the full card
+  // exactly as they did before this wrapper existed.
   furniture: { ...StyleSheet.absoluteFill },
   pill: { position: 'absolute', top: SPACING[2.5], left: SPACING[2.5] },
   chips: { position: 'absolute', top: SPACING[2.5], right: SPACING[2.5], flexDirection: 'row', gap: SPACING[1.5] },
-  paneWrap: { ...StyleSheet.absoluteFill },
   pane: {
     position: 'absolute',
     left: SPACING[2],
