@@ -52,6 +52,11 @@ const ARC_LIFT = 26;
 // and the difference between "a view appeared" and "an object landed".
 const OVERSHOOT = 1.03;
 
+// The card's resting shadow. Named because the flip animates it (see
+// `boxStyle`) and a literal in two places would drift.
+const CARD_SHADOW_OPACITY = 0.42;
+const CARD_ELEVATION = 18;
+
 // The card has no origin (a deep link, or a notification whose banner has
 // already gone). It comes up off the bottom edge instead — a real motion
 // rather than a shrug.
@@ -107,10 +112,10 @@ export function DealtCard({
   const dx = useSharedValue(0);
   const dy = useSharedValue(0);
 
-  // Mirrors `flip` onto the JS thread — only so the pan gesture below can be
-  // disabled while the back is showing (see the flip-crossing reaction and
-  // `pan.enabled` below). Nothing else reads this; `flip` itself remains the
-  // single source of truth for anything worklet-side.
+  // Mirrors `flip` onto the JS thread — only so the pan gesture below can pick
+  // its axis config for the face that is showing (see the gesture block).
+  // Nothing else reads this; `flip` itself remains the single source of truth
+  // for anything worklet-side.
   const [backShowing, setBackShowing] = useState(false);
 
   // Where the card starts, relative to its landed position at screen centre.
@@ -145,10 +150,9 @@ export function DealtCard({
 
   // The click of the card going through edge-on. Also mirrors which face is
   // showing onto `backShowing` (JS thread) — the one thing `pan` below needs
-  // that a worklet read of `flip.value` can't give it: RNGH's `.enabled()`
-  // is a JS-side switch, not a shared value, so disabling the pan gesture for
-  // the back face (rule: the back only taps-to-return, its `ScrollView` owns
-  // vertical) has to be driven from here rather than read live in a worklet.
+  // that a worklet read of `flip.value` can't give it: a gesture's axis config
+  // is fixed when the gesture object is built, not read live, so which axes the
+  // pan claims has to be decided on the JS side from here.
   useAnimatedReaction(
     () => flip.value,
     (now, before) => {
@@ -450,6 +454,7 @@ function CardLayer({
     // the whole stack arrives together rather than the top card arriving and
     // the rest appearing under it.
     const p = deal.value;
+    const flipValue = isTop ? flip.value : 0;
     const arc = interpolate(p, [0, 0.45, 1], [0, -ARC_LIFT, 0], Extrapolation.CLAMP);
     const scale =
       interpolate(p, [0, 0.82, 1], [start.scale, targetScale.value * OVERSHOOT, targetScale.value], Extrapolation.CLAMP);
@@ -457,8 +462,25 @@ function CardLayer({
     const x = interpolate(p, [0, 1], [start.x, targetX.value], Extrapolation.CLAMP);
     const y = interpolate(p, [0, 1], [start.y, targetY.value], Extrapolation.CLAMP);
 
+    // The shadow has to fade out through the turn.
+    //
+    // A shadow is drawn from the layer's own rectangle, and a 3D rotation
+    // foreshortens the card without narrowing that rectangle to match — so
+    // from about 30° onward the shadow spills out past both edges as two dark
+    // bands, worst at edge-on where the card is a sliver and its shadow is
+    // still full width. sin() is 0 at both rest positions and 1 at 90°, which
+    // is exactly the shape of the problem: full shadow when the card is flat
+    // and facing you, none at the moment it is on its edge and has no face to
+    // cast one anyway.
+    const edgeOn = Math.sin(flipValue * Math.PI);
+    const shadow = 1 - edgeOn;
+
     return {
       opacity: targetOpacity.value * interpolate(p, [0, 0.12], [0.15, 1], Extrapolation.CLAMP),
+      shadowOpacity: CARD_SHADOW_OPACITY * shadow,
+      // Android draws no shadow from `shadowOpacity`; `elevation` is its knob,
+      // and it has the same spill.
+      elevation: CARD_ELEVATION * shadow,
       // `perspective` first, and the whole lot on the CARD — not on an inner
       // wrapper. The rotateY used to live one view further in, which meant the
       // card's own fill, radius and shadow sat perfectly still while its
@@ -473,7 +495,7 @@ function CardLayer({
         {
           rotateZ: `${rotate + (isTop ? dx.value / 22 : 0)}deg`,
         },
-        { rotateY: `${isTop ? flip.value * 180 : 0}deg` },
+        { rotateY: `${flipValue * 180}deg` },
         { scale },
       ],
     };
@@ -544,9 +566,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     shadowColor: COLORS.shadowWarm,
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.42,
     shadowRadius: 30,
-    elevation: 18,
+    // shadowOpacity and elevation are set by `boxStyle`, which fades them out
+    // through the flip — see the comment there.
   },
   face: { borderRadius: RADIUS['2xl'], overflow: 'hidden' },
   // The back face is counter-rotated so its content is not mirrored once the
