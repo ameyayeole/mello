@@ -57,9 +57,21 @@ export const DEALT_CARD_ASPECT = 1.55;
 
 // How far the card lifts off the straight line between its origin and the
 // centre, at the midpoint. This is what makes it an arc rather than a slide.
-const ARC_LIFT = 26;
+//
+// And how far it swings sideways on the way. Cards all leave from the same
+// small fan, so without a lateral spread they trace the same line and you only
+// ever see the front one — the swing is what separates them in flight, each
+// taking its own path out and curving back into the stack.
+const ARC_LIFT = 78;
 // The overshoot: it passes 3% past its resting size before settling. Cheap,
 // and the difference between "a view appeared" and "an object landed".
+const DEAL_SWING = 62;
+// How much extra a card turns mid-flight, over and above the difference
+// between where it was lying and where it lands. A card thrown onto a table
+// turns as it travels; going straight from one angle to the other looks like a
+// slide.
+const DEAL_TUMBLE = 14;
+
 const OVERSHOOT = 1.03;
 
 // The card's resting shadow. Named because the flip animates it (see
@@ -69,10 +81,11 @@ const OVERSHOOT = 1.03;
 // the only thing you are looking at.
 const DIM_OPACITY = 0.9;
 
-// The beat between one card leaving the fan and the next. Long enough to read
-// as separate cards, short enough that the whole deal stays under a second and
-// a half.
-const DEAL_STAGGER_MS = 110;
+// The beat between one card leaving the fan and the next. Long enough that a
+// card is most of the way home before the one behind it lifts, which is what
+// makes them read as three cards being dealt rather than one thick card
+// arriving — at 110ms they overlapped into a single moving blob.
+const DEAL_STAGGER_MS = 360;
 const DISMISS_STAGGER_MS = 70;
 
 const CARD_SHADOW_OPACITY = 0.42;
@@ -531,10 +544,20 @@ function CardLayer({
     }
   );
 
+  // Each card takes its own path out of the fan: alternating sides, widening
+  // with depth, so three cards leaving the same small stack are three separate
+  // objects in the air rather than one line of overlapping ones. Peaks at the
+  // midpoint and closes back to zero, so they converge into the stack exactly
+  // as they land.
+  const swingDir = depth % 2 === 0 ? 1 : -1;
+  const swingAmount = DEAL_SWING * (0.55 + depth * 0.3) * swingDir;
+  const tumble = DEAL_TUMBLE * swingDir;
+
   const boxStyle = useAnimatedStyle(() => {
     const p = progress.value;
     const flipValue = isTop ? flip.value : 0;
     const arc = interpolate(p, [0, 0.45, 1], [0, -ARC_LIFT, 0], Extrapolation.CLAMP);
+    const swing = interpolate(p, [0, 0.5, 1], [0, swingAmount, 0], Extrapolation.CLAMP);
     const scale =
       interpolate(p, [0, 0.82, 1], [start.scale, targetScale.value * OVERSHOOT, targetScale.value], Extrapolation.CLAMP);
     const rotate = interpolate(p, [0, 1], [start.rotate, targetRotate.value], Extrapolation.CLAMP);
@@ -569,10 +592,14 @@ function CardLayer({
       // rotates.
       transform: [
         { perspective: 1200 },
-        { translateX: x + (isTop ? dx.value : 0) },
+        { translateX: x + swing + (isTop ? dx.value : 0) },
         { translateY: y + arc + (isTop ? dy.value : 0) },
         {
-          rotateZ: `${rotate + (isTop ? dx.value / 22 : 0)}deg`,
+          rotateZ: `${
+            rotate +
+            interpolate(p, [0, 0.5, 1], [0, tumble, 0], Extrapolation.CLAMP) +
+            (isTop ? dx.value / 22 : 0)
+          }deg`,
         },
         { rotateY: `${flipValue * 180}deg` },
         { scale },
