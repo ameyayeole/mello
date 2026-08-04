@@ -79,6 +79,13 @@ export const queryKeys = {
     all: ['savedEvents'] as const,
     of: (userId: Id) => ['savedEvents', userId] as const,
   },
+  // Free-text event search. Only `app/search.tsx` reads it, but the dealt
+  // card's deck looks a search result up in this cache by prefix
+  // (EVENT_SUMMARY_CACHE_KEYS below), which is the second file the rule wants.
+  searchEvents: {
+    all: ['searchEvents'] as const,
+    of: (query: string) => ['searchEvents', query] as const,
+  },
   savedEventIds: {
     all: ['savedEventIds'] as const,
     of: (userId: Id) => ['savedEventIds', userId] as const,
@@ -187,4 +194,31 @@ export const DISCOVERY_FEED_KEYS = [
   queryKeys.swipeDeck.all,
   queryKeys.community.feed.all,
   queryKeys.community.userPosts.all,
+] as const;
+
+// Every cache a dealt deck's cards could have come from.
+//
+// A dealt card's background layers (everything but the top of the stack) look
+// themselves up in whichever of these already holds them instead of firing a
+// detail query each — the design's "only the visible top card should fetch".
+// A deck opened from a screen whose feed is NOT on this list still renders,
+// which is exactly the problem: every background card falls through to a blank
+// placeholder, and the "visible messy stack" becomes four empty rectangles. No
+// error, no type failure, nothing a test can see — the same silent-drift shape
+// `DISCOVERY_FEED_KEYS` above exists for, which is why this list lives here
+// next to it rather than in the component that reads it. It was already
+// incomplete when it did: search, a friend's profile and the Profile tab all
+// deal decks and none of their three keys were on it.
+//
+// These are prefixes, not full keys — TanStack matches a query by prefix, the
+// same way `invalidateQueries` does.
+export const EVENT_SUMMARY_CACHE_KEYS = [
+  queryKeys.events.nearby,
+  queryKeys.exploreFeed.all,
+  queryKeys.dashboardNearby.all,
+  queryKeys.swipeDeck.all,
+  queryKeys.savedEvents.all,
+  queryKeys.searchEvents.all,
+  queryKeys.myEvents.all,
+  queryKeys.joinedEvents.all,
 ] as const;

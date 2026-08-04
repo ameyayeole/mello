@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FullWindowOverlay } from 'react-native-screens';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -9,7 +9,7 @@ import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { queryKeys } from '@/constants/queryKeys';
+import { EVENT_SUMMARY_CACHE_KEYS } from '@/constants/queryKeys';
 import { useUIStore } from '@/stores/uiStore';
 import { useEventCard, LEAVE_REASONS } from '@/hooks/useEventCard';
 import { useRecordSwipe, useSwipeQuota } from '@/hooks/useSwipeDeck';
@@ -34,21 +34,6 @@ import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
 import type { EventParticipant, NearbyEvent } from '@/types/models';
 
-// The feeds a deck's ids could have come from — the map's nearby query, the
-// explore/dashboard/swipe feeds, the wishlist. A background card (everything
-// but the top of the stack) looks itself up in whichever of these already has
-// it instead of firing its own detail query — see the brief's "only the
-// visible top card should fetch": the stack must cost no extra requests.
-// These are prefixes (`.all`/the bare nearby key), not full keys — TanStack
-// matches a query's key by prefix, same as `invalidateQueries` does.
-const FEED_CACHE_PREFIXES: readonly QueryKey[] = [
-  queryKeys.events.nearby,
-  queryKeys.exploreFeed.all,
-  queryKeys.dashboardNearby.all,
-  queryKeys.swipeDeck.all,
-  queryKeys.savedEvents.all,
-];
-
 // Some of these are plain-array queries, some are `useInfiniteQuery` pages —
 // flattened the same way regardless of which.
 function flattenCacheEntry(data: unknown): unknown[] {
@@ -72,7 +57,7 @@ function useCachedEventSummary(
 ): (NearbyEvent & { participants?: EventParticipant[] }) | undefined {
   const qc = useQueryClient();
   return useMemo(() => {
-    for (const prefix of FEED_CACHE_PREFIXES) {
+    for (const prefix of EVENT_SUMMARY_CACHE_KEYS) {
       const entries = qc.getQueriesData<unknown>({ queryKey: prefix });
       for (const [, data] of entries) {
         const match = flattenCacheEntry(data).find(

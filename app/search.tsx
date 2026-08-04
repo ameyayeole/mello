@@ -148,7 +148,7 @@ export default function SearchScreen() {
   const enabled = debounced.length >= MIN_QUERY;
 
   const eventsQuery = useQuery({
-    queryKey: ['searchEvents', debounced],
+    queryKey: queryKeys.searchEvents.of(debounced),
     queryFn: () => searchEvents(debounced),
     enabled: enabled && !chatMode,
   });
