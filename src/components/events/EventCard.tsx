@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -41,6 +42,25 @@ export interface EventCardProps {
   onSave?: () => void;
   onShare?: () => void;
   saved?: boolean;
+  // How much of the card's furniture is showing. 0 = the bare photo, which is
+  // what a card looks like parked in the map's corner; 1 = the full card. The
+  // deck drives this from its own expand progress so the pane fades in over
+  // the last part of the growth, and the photo element never swaps — that is
+  // what makes it read as one object getting bigger rather than a small card
+  // being replaced by a large one.
+  //
+  // A `SharedValue`, not a plain number: the deck updates this every frame of
+  // the expand gesture, off the same shared value that also drives every
+  // card's position and scale. A plain number would make that a prop change
+  // on every frame, re-rendering the whole card (host row, title, going
+  // count) for a fade only the pane needs — the per-frame-JS-work this
+  // codebase avoids elsewhere (see DealtCard.tsx). Read through
+  // `useAnimatedStyle` instead, the fade stays on the UI thread and
+  // `EventCard` never re-renders because of it.
+  //
+  // Optional and defaulting to fully shown: every other caller renders a
+  // finished card and never passes this.
+  emerge?: SharedValue<number>;
 }
 
 
@@ -51,6 +71,7 @@ export function EventCard({
   onSave,
   onShare,
   saved,
+  emerge,
 }: EventCardProps) {
   const activity = ACTIVITY_MAP[event.activity];
   const cat = categoryStyle(event.activity);
@@ -63,6 +84,13 @@ export function EventCard({
   // "undefined is hosting" on the rare row with neither.
   const hostName = event.host_name ?? event.host?.name;
   const hostPhoto = event.host_photo_url ?? event.host?.photo_url;
+
+  // Undefined `emerge` (every caller today) reads as 1 here, not via a
+  // fallback `useSharedValue` — matching the `revealX` prop on
+  // `MessageBubble`, the codebase's other optional-shared-value prop.
+  const emergeStyle = useAnimatedStyle(() => ({
+    opacity: emerge ? emerge.value : 1,
+  }));
 
   return (
     <View style={styles.card}>
@@ -104,69 +132,76 @@ export function EventCard({
         </View>
       )}
 
-      <Glass
-        tier="onPhoto"
-        radius={RADIUS.lg}
-        shadow={false}
-        style={styles.pane}
-        // Only the top card of a dealt stack (blurred=true) pays for a real
-        // BlurView. Android has no backdrop blur at all, so this only changes
-        // anything on iOS — which is exactly where the cost is.
-        flat={!blurred}
-      >
-        <View style={styles.hostRow}>
-          <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
-          {/* Name, badges, then "is hosting" — the same order the sheet and
-              the home rail use, so the badges read as belonging to the person
-              rather than floating at the end of the row. The name is the only
-              part that shrinks. */}
-          <Text style={styles.hostName} numberOfLines={1}>
-            {hostName ?? 'Someone'}
+      {/* `emerge` wraps the pane, not the fill inside `Glass` itself: `Glass`
+          renders a plain RN `View`, and a Reanimated style only keeps
+          updating a component created through `Animated.View` /
+          `createAnimatedComponent` — handing it to a plain `View` would just
+          paint whatever `emerge` was on the render that mounted it. */}
+      <Animated.View style={[styles.paneWrap, emergeStyle]}>
+        <Glass
+          tier="onPhoto"
+          radius={RADIUS.lg}
+          shadow={false}
+          style={styles.pane}
+          // Only the top card of a dealt stack (blurred=true) pays for a real
+          // BlurView. Android has no backdrop blur at all, so this only changes
+          // anything on iOS — which is exactly where the cost is.
+          flat={!blurred}
+        >
+          <View style={styles.hostRow}>
+            <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
+            {/* Name, badges, then "is hosting" — the same order the sheet and
+                the home rail use, so the badges read as belonging to the person
+                rather than floating at the end of the row. The name is the only
+                part that shrinks. */}
+            <Text style={styles.hostName} numberOfLines={1}>
+              {hostName ?? 'Someone'}
+            </Text>
+            {/* Both ported from EventBottomSheet.tsx:1257-1258, where they sat on
+                the same host row. They survived the sheet's deletion on the
+                BROWSE cards (app/(tabs)/index.tsx:246) but not
+                on the detail surface — so the two signals that most change a join
+                decision were missing from the one screen where that decision is
+                made. `host_verified` is a flattened feed field; `host` is only
+                on `EventDetail`, so a background card in a dealt stack shows the
+                tick and no crown, which is correct rather than a gap. */}
+            {event.host_verified && <VerifiedBadge size={13} />}
+            {isPremium(event.host) && <PremiumBadge size={12} />}
+            <Text style={styles.hostText} numberOfLines={1}>
+              is hosting
+            </Text>
+          </View>
+          <Text style={styles.title} numberOfLines={2}>
+            {event.title}
           </Text>
-          {/* Both ported from EventBottomSheet.tsx:1257-1258, where they sat on
-              the same host row. They survived the sheet's deletion on the
-              BROWSE cards (app/(tabs)/index.tsx:246) but not
-              on the detail surface — so the two signals that most change a join
-              decision were missing from the one screen where that decision is
-              made. `host_verified` is a flattened feed field; `host` is only
-              on `EventDetail`, so a background card in a dealt stack shows the
-              tick and no crown, which is correct rather than a gap. */}
-          {event.host_verified && <VerifiedBadge size={13} />}
-          {isPremium(event.host) && <PremiumBadge size={12} />}
-          <Text style={styles.hostText} numberOfLines={1}>
-            is hosting
+          <Text style={styles.meta} numberOfLines={1}>
+            {[
+              formatEventWhen(event.starts_at),
+              event.location_name ? neighbourhood(event.location_name) : null,
+              event.distance_m != null ? formatDistance(event.distance_m) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
-        </View>
-        <Text style={styles.title} numberOfLines={2}>
-          {event.title}
-        </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {[
-            formatEventWhen(event.starts_at),
-            event.location_name ? neighbourhood(event.location_name) : null,
-            event.distance_m != null ? formatDistance(event.distance_m) : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
-        <View style={styles.goingRow}>
-          <AttendeeStack
-            people={event.participants ?? []}
-            count={going}
-            max={3}
-            size={20}
-            // The row's own "N going" text (right below) already covers the
-            // zero case; the stack's default "Be the first to join" bubble
-            // would double up with it right next to it.
-            emptyLabel={null}
-          />
-          <Text style={styles.meta}>
-            {going} going{spots != null ? ` · ${spots} spots` : ''}
-          </Text>
-        </View>
+          <View style={styles.goingRow}>
+            <AttendeeStack
+              people={event.participants ?? []}
+              count={going}
+              max={3}
+              size={20}
+              // The row's own "N going" text (right below) already covers the
+              // zero case; the stack's default "Be the first to join" bubble
+              // would double up with it right next to it.
+              emptyLabel={null}
+            />
+            <Text style={styles.meta}>
+              {going} going{spots != null ? ` · ${spots} spots` : ''}
+            </Text>
+          </View>
 
-        {action}
-      </Glass>
+          {action}
+        </Glass>
+      </Animated.View>
     </View>
   );
 }
@@ -206,6 +241,10 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
+  // Fills the card exactly like `pane` used to as a direct absolute child of
+  // `card` — `pane`'s own left/right/bottom insets still do the positioning,
+  // this only exists so `emerge` has an `Animated.View` to land on.
+  paneWrap: { ...StyleSheet.absoluteFill },
   pane: {
     position: 'absolute',
     left: SPACING[2],
