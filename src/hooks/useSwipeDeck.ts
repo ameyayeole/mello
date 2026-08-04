@@ -114,6 +114,41 @@ export function useSaveEvent() {
  * pass — precisely so browsing the map or a feed can never quietly burn a
  * user's daily swipes; see uiStore's `DealtCardSource`.
  */
+/**
+ * The daily-cap half of `useSwipeDeck`, on its own, for the same reason
+ * `useRecordSwipe` above is: `EventDealtCard` has to know whether a swipe is
+ * allowed before it records one, and mounting the whole deck to read a number
+ * would run the explore-feed and swiped-ids queries on every screen.
+ *
+ * `useRecordSwipe` carries no cap of its own — the swipe SCREEN guards its
+ * gesture (`swipe.tsx`'s `.enabled(!!topId && !outOfSwipes)`), its buttons and
+ * its deck separately. So anything else driving `recordSwipe` has to guard for
+ * itself or the cap is simply not enforced there: the optimistic bump commits,
+ * the DB trigger rejects, `onError` logs to the console and invalidates, and
+ * the user has already watched the card advance. For a 'like' the wishlist save
+ * is uncapped and still lands, so the two halves of one swipe diverge.
+ *
+ * `enabled` is off unless a swipe-deck-sourced card is actually open, so a
+ * browse card — which cannot spend quota at all — costs no query.
+ */
+export function useSwipeQuota(enabled = true) {
+  const user = useAuthStore((s) => s.user);
+  const premium = isPremium(user);
+  // Free users get CONFIG.freeDailySwipes per day. The DB trigger from
+  // migration 024 is the source of truth; this mirrors it for the UI.
+  const swipeCountQuery = useQuery({
+    queryKey: ['todaySwipes', user?.id],
+    queryFn: () => getTodaySwipeCount(user!.id),
+    enabled: enabled && !!user && !premium,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const swipesLeft = premium
+    ? Infinity
+    : Math.max(0, CONFIG.freeDailySwipes - (swipeCountQuery.data ?? 0));
+  return { premium, swipesLeft, outOfSwipes: !premium && swipesLeft <= 0 };
+}
+
 export function useRecordSwipe() {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
@@ -204,20 +239,10 @@ export function useSwipeDeck() {
 
   const savedQuery = useSavedEventIds();
 
-  // Mello+ swipe cap: free users get CONFIG.freeDailySwipes per day (the DB
-  // trigger from migration 024 is the source of truth; this mirrors it for
-  // the UI). Undo refunds a swipe.
-  const premium = isPremium(user);
-  const swipeCountQuery = useQuery({
-    queryKey: ['todaySwipes', user?.id],
-    queryFn: () => getTodaySwipeCount(user!.id),
-    enabled: !!user && !premium,
-    staleTime: 60_000,
-    retry: 1,
-  });
-  const swipesLeft = premium
-    ? Infinity
-    : Math.max(0, CONFIG.freeDailySwipes - (swipeCountQuery.data ?? 0));
+  // Mello+ swipe cap — the same hook `EventDealtCard` reads, so the deck and a
+  // card dealt out of it can never disagree about whether a swipe is allowed.
+  // Undo refunds a swipe.
+  const { premium, swipesLeft, outOfSwipes } = useSwipeQuota();
 
   const bumpTodaySwipes = (delta: number) => {
     queryClient.setQueryData<number>(
@@ -290,7 +315,7 @@ export function useSwipeDeck() {
     canUndo: history.length > 0,
     premium,
     swipesLeft,
-    outOfSwipes: !premium && swipesLeft <= 0,
+    outOfSwipes,
     toggleSave: (eventId: string, save: boolean) =>
       saveMutation.mutate({ eventId, save }),
   };

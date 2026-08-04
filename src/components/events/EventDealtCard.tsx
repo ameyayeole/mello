@@ -12,7 +12,7 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useUIStore } from '@/stores/uiStore';
 import { useEventCard, LEAVE_REASONS } from '@/hooks/useEventCard';
-import { useRecordSwipe } from '@/hooks/useSwipeDeck';
+import { useRecordSwipe, useSwipeQuota } from '@/hooks/useSwipeDeck';
 import { shareEvent } from '@/utils/shareEvent';
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
@@ -249,20 +249,46 @@ export function EventDealtCard() {
   // is likewise always a save, never a toggle, for the same reason.
   const recordSwipe = useRecordSwipe();
   const isSwipeDeck = deal?.source === 'swipeDeck';
+  // The cap the swipe SCREEN enforces on its own gesture and buttons
+  // (swipe.tsx:125, :156) but which `useRecordSwipe` carries none of. Without
+  // this a dealt card could swipe past it: the optimistic bump commits, the DB
+  // trigger rejects, `onError` only logs — and the user has already watched the
+  // card advance. For a 'like' the wishlist save is uncapped and still lands,
+  // so the two halves of one swipe diverge. Only queried for a swipe-deck card,
+  // since a 'browse' swipe cannot spend quota at all.
+  const { outOfSwipes } = useSwipeQuota(isSwipeDeck);
+
+  // Returns false when the swipe was refused, so the caller does not advance.
+  // The card has to close as well as redirect: by the time this runs
+  // `DealtCard` has already flung the card off screen, so leaving it open would
+  // snap the same event back to centre — and the paywall is a pushed route,
+  // which on iOS renders UNDER the card's own window layer (see `CardPortal`).
+  // Same exit the deck screen's own buttons take (swipe.tsx:156-159).
+  const spendSwipe = useCallback(
+    (direction: 'like' | 'pass') => {
+      if (outOfSwipes) {
+        close();
+        router.push('/premium?reason=swipes');
+        return false;
+      }
+      if (topId) recordSwipe(topId, direction);
+      return true;
+    },
+    [outOfSwipes, close, router, topId, recordSwipe]
+  );
+
   const handleSave = useCallback(() => {
-    if (isSwipeDeck && topId) {
-      recordSwipe(topId, 'like');
+    if (isSwipeDeck) {
+      if (!spendSwipe('like')) return;
     } else if (!saved) {
       handleToggleSave();
     }
     advance();
-  }, [isSwipeDeck, topId, recordSwipe, saved, handleToggleSave, advance]);
+  }, [isSwipeDeck, spendSwipe, saved, handleToggleSave, advance]);
   const handlePass = useCallback(() => {
-    if (isSwipeDeck && topId) {
-      recordSwipe(topId, 'pass');
-    }
+    if (isSwipeDeck && !spendSwipe('pass')) return;
     advance();
-  }, [isSwipeDeck, topId, recordSwipe, advance]);
+  }, [isSwipeDeck, spendSwipe, advance]);
 
   // A non-host approved participant of an event that hasn't wrapped — the one
   // state that offers "Leave event" and "Check in". Reusing `primaryLabel`
