@@ -91,11 +91,19 @@ import { MINI_W, FAN_W, deckVisible, expandedSlot, miniSlot } from './deckSlots'
 const CARD_WIDTH_RATIO = DEALT_CARD_WIDTH_RATIO;
 const CARD_ASPECT = DEALT_CARD_ASPECT;
 
-// Where the parked fan sits: `left` and the tuck under the floating tab bar,
-// both carried over verbatim from SwipeDeckTeaser so the fan does not move
-// when this replaces it.
+// Where the parked fan sits.
+//
+// `SwipeDeckTeaser` had a `TUCK = 26` that pulled the fan DOWN so its lower
+// edge disappeared behind the floating tab bar. That worked because the teaser
+// lived inside the map screen's tree, underneath the bar.
+//
+// This component lives in the root portal, above everything — so there is
+// nothing left to tuck under, and the same 26pt became 26pt of cards sitting
+// ON TOP of the tab bar. The tuck is now a clearance instead: the fan sits
+// above the bar rather than behind it, which is the only relationship
+// available from up here.
 const FAN_LEFT = 4;
-const TUCK = 26;
+const FAN_CLEARANCE = 10;
 // Headroom above the cards inside the fan's tap target, for the "Up for it?"
 // pill and the count badge — the teaser's 138pt box minus its 110pt cards.
 const FAN_LABEL_ROOM = 28;
@@ -556,7 +564,7 @@ function DeckBody({
   // the corner and this is what has to have its bottom edge tucked under the
   // tab bar.
   const miniCardH = cardH * miniScale;
-  const fanBottom = tabBarInset - TUCK;
+  const fanBottom = tabBarInset + FAN_CLEARANCE;
   const miniCentreY = height - fanBottom - miniCardH / 2 - height / 2;
 
   // ─── Faces ────────────────────────────────────────────────────────────────
