@@ -52,7 +52,6 @@ anything specific was observed going wrong.
 | --- | --- | --- | --- | :-: | :-: |
 | A1 | Tap a map pin (or any card) to deal a card, then tap it once to flip | The flip cross-fades smoothly through the edge-on point, no stutter | Visible frame drop, a stall at the 90° crossing, or momentarily seeing both faces overlaid ("ghosting") — the cross-fade exists specifically to avoid the `backfaceVisibility` version of this bug, so ghosting here would mean the fix itself is broken | ☐ | ☐ |
 | A2 | With a full deck dealt, flip the top card several times in a row, then swipe through 3-4 cards | Consistently smooth, no dropped frames, no lag between touch and response | Visible jank, a noticeable delay between your swipe and the card responding, or the app feeling "heavy" specifically once a full deck is mounted (vs. feeling fine with 1 card) | ☐ | ☐ |
-| A3 | Scroll the back face's vertical description all the way down through the "Happening near you" rail, then scroll that rail horizontally | Both scroll smoothly; no stutter where the horizontal rail sits inside the vertical scroll | Jank specifically at the rail, or the vertical scroll "catching" when your finger crosses into the rail's horizontal area | ☐ | ☐ |
 | A4 | Open the deck fresh and watch the first card deal in | Arcs in with a lift at the midpoint and a small overshoot at the end — reads as thrown, not slid | Looks like a slide/fade instead of an arc, or the overshoot is invisible/absent | ☐ | ☐ |
 
 **A1 and A2 are the two highest-risk *framerate* rows on this sheet** (O and P
@@ -61,21 +60,26 @@ full-bleed `expo-image`, times the cards mounted simultaneously, is exactly the
 kind of cost that shows up on mid-range Android and not on a new iPhone. If
 either is bad, that is a real product problem, not a nitpick.
 
-**How much is actually mounted, corrected.** A2 used to say "5 cards, all with
-photos". It is more than that:
+**How much is actually mounted, corrected twice.** A2 originally said "5 cards,
+all with photos". Two later changes moved the number in opposite directions:
 
-- **Six** card faces, not five. The top card plus four visible behind it, plus
-  one more parked at opacity 0 so it can fade in as the stack shortens rather
-  than popping in (design §6; `dealtCardGeometry.ts:55`, made reachable in the
-  fix wave). Six `expo-image`s, five of them rotated and scaled.
-- **`EventCardBack` mounts as soon as a card is dealt, not on flip.** It is
-  cross-faded, not conditionally rendered — so its "Happening near you" rail,
-  up to eight more `expo-image`s, is live and laying out behind a face you
-  cannot see, from the first frame of the deal.
+- **The stack is now the swipe deck's alone.** Tapping a pin, a feed card or a
+  search result opens a single card with nothing behind it. So off the swipe
+  deck, A1–A3 are measuring **one** card face and one photo, and any framerate
+  problem there is a problem with the flip itself, not with stacking.
+- **On the swipe deck it is six faces, not five** — the top card, four visible
+  behind it, plus one parked at opacity 0 so it can fade in as the stack
+  shortens rather than popping in (design §6; `dealtCardGeometry.ts:55`, made
+  reachable in the fix wave). Six `expo-image`s, five rotated and scaled.
+- **`EventCardBack` still mounts as soon as a card is dealt, not on flip.** It
+  is cross-faded, not conditionally rendered, so it is laying out behind a face
+  you cannot see from the first frame of the deal. Since the "happening near
+  you" rail was cut it no longer carries a second row of photos — the back is
+  now text, avatars and buttons.
 
-So the worst case is ~14 images mounted for one dealt card, most of them
-invisible. That is the number A2 is really measuring. If A2 fails, the first
-thing to try is gating `EventCardBack`'s mount on the flip having started.
+So the worst case is six images on the swipe deck and one everywhere else. If
+A2 still fails, the first thing to try is gating `EventCardBack`'s mount on the
+flip having started.
 
 ## B · The glass panel's Android degradation — reasoning, partially observed
 
@@ -325,7 +329,7 @@ Android.
 `DealtCard` puts `Gesture.Exclusive(pan, tap)` on the whole top card, both
 faces. Every control on those faces — the front's Join CTA and its save/share
 chips, the back's Open chat / Check in / Approve / decline / Leave, and the
-nearby rail's cards — is an RN `Pressable` (`Button` and `IconButton` both go
+the roster rows — is an RN `Pressable` (`Button` and `IconButton` both go
 through `PressableScale`, which is one), i.e. the JS responder system, not
 RNGH.
 
@@ -356,7 +360,6 @@ not to shrink the tap: design §5 is "tap the card, anywhere".
 | O3 | Tap the **share chip** next to it | Share sheet opens, no flip | Either failure mode above | ☐ | ☐ |
 | O4 | Flip to the back and tap **Leave event** (as a joined non-host) | The confirm dialog opens and the card stays on its back face | Dialog opens and the card flips to the front underneath it, or the tap only flips | ☐ | ☐ |
 | O5 | As a host with a pending request, tap **Approve**, then the decline ✕ on another row | Each acts on that row; the card stays on the back face | Either failure mode above | ☐ | ☐ |
-| O6 | Tap a card in the back face's **"Happening near you"** rail | That event is dealt as a new card, front face up, with a full deal animation | The rail card only flips the current card back to its front, or the new event appears instantly with no animation and already showing its back (that second one is the bug commit `1516457` fixed — report it if it is still there) | ☐ | ☐ |
 | O7 | Start dragging the card sideways, release **before** the swipe threshold so it springs back | It springs back and stays on the same face | It also flips — meaning `maxDistance` is not doing its job | ☐ | ☐ |
 
 ## P · Opening the card from a route above the tabs — reasoning, a fix for a total no-op

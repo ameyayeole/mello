@@ -136,8 +136,8 @@ function CardPortal({ children }: { children: ReactNode }) {
 // The dealt card for one event, driven entirely by `uiStore.dealtCard` — no
 // props, so one instance mounted in the root layout serves every opener (the
 // map, the home rail, a friend's profile, the wishlist, the swipe deck): each
-// just calls `dealCard(ids, index, origin)` and this renders whatever that
-// produced. `CardPortal` above is what makes one mount enough — see its
+// just calls `uiStore.dealCard(ids, index, origin)` and this renders whatever
+// that produced. `CardPortal` above is what makes one mount enough — see its
 // comment for the three screens that proved it wasn't.
 //
 // Replaces the old `EventBottomSheet`/`EventSheetStack` as the app's one
@@ -148,7 +148,6 @@ export function EventDealtCard() {
   const deal = useUIStore((s) => s.dealtCard);
   const advance = useUIStore((s) => s.advanceDealtCard);
   const close = useUIStore((s) => s.closeDealtCard);
-  const dealCard = useUIStore((s) => s.dealCard);
 
   const topId = deal?.ids[deal.index] ?? null;
   const {
@@ -360,7 +359,6 @@ export function EventDealtCard() {
             event={event}
             isMember={isMember}
             tooFar={gate === 'premiumDistance'}
-            onOpenEvent={(openId) => dealCard([openId], 0, null)}
             secondaryActions={
               hasSecondaryActions ? (
                 <>

@@ -77,8 +77,14 @@ the Android degradation (see §7).
 
 ### `EventCardBack` — `src/components/events/`
 
-Description, full roster, "happening near you" rail, secondary actions. This is
-the only scrolling surface in the design.
+Description, full roster, secondary actions. This is the only scrolling surface
+in the design.
+
+**Amended 2026-08-04 — the "happening near you" rail is cut.** It was built and
+then removed on review of the first device run: a card you opened to decide
+about *one* event should not be advertising four others underneath it. Cutting
+it also removes the only horizontal scroll nested inside the back face's
+vertical scroll, which was one of the sheet's Android risk rows.
 
 ### `useEventCard` — `src/hooks/`
 

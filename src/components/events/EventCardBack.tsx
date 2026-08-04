@@ -1,24 +1,14 @@
 import { type ReactNode } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Image } from 'expo-image';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { ACTIVITY_MAP } from '@/constants/activities';
-import { categoryStyle } from '@/constants/categoryStyle';
-import { eventImageUri } from '@/utils/events';
-import { formatEventWhen } from '@/utils/time';
-import { formatDistance } from '@/utils/distance';
-import { useNearbyEvents } from '@/hooks/useNearbyEvents';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
-import type { EventDetail, NearbyEvent } from '@/types/models';
+import type { EventDetail } from '@/types/models';
 import {
-  ActivityGlyph,
   AttendeeStack,
   Avatar,
-  CategoryPill,
   Icon,
-  PressableScale,
   SectionLabel,
   Tag,
 } from '@/components/ui';
@@ -37,9 +27,6 @@ export interface EventCardBackProps {
   // in rather than recomputed here: the distance query and premium check
   // both live in `useEventCard`, not this face.
   tooFar: boolean;
-  // "Happening near you" tap — opens that event. What that means (a new dealt
-  // card, a push) is the composing screen's call, not this face's.
-  onOpenEvent: (id: string) => void;
   // The non-pinned actions (Open chat, Check in, pending requests, Leave…).
   // This face renders them; it owns none of the mutations behind them — see
   // EventBottomSheet.tsx's "Actions" block for the set this replaces.
@@ -49,81 +36,18 @@ export interface EventCardBackProps {
 // The roster row's avatar size — matches the sheet's `GOING_AVATAR`.
 const ROSTER_AVATAR = 36;
 
-// A compact card for the "happening near you" rail: photo on top with the
-// category pill on it, then title + when/distance on a white body below. A
-// pared-down cousin of the home screen's NearbyCard — no join/save affordances,
-// since the whole card is a tap that opens the event. Text sits on white (not
-// over a scrim) so it's always legible and the photo reads cleanly.
-//
-// Ported verbatim from EventBottomSheet.tsx — self-contained, no dependency on
-// the sheet's drag axis.
-function NearbyMini({
-  event,
-  onPress,
-}: {
-  event: NearbyEvent;
-  onPress: () => void;
-}) {
-  const activity = ACTIVITY_MAP[event.activity];
-  const cat = categoryStyle(event.activity);
-  // The event's own photo, or the host's face when it has none — see
-  // `eventImageUri`. The glyph below is now genuinely the last resort.
-  const imageUri = eventImageUri(event);
-  return (
-    <PressableScale style={styles.nearbyMini} onPress={onPress} scaleTo={0.97}>
-      <View style={[styles.nearbyMiniImage, { backgroundColor: cat.tint }]}>
-        {imageUri ? (
-          <Image
-            source={{ uri: imageUri }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            transition={150}
-            // Stable key so expo-image doesn't blank when the row recycles
-            // inside the nested horizontal scroll.
-            recyclingKey={event.id}
-          />
-        ) : (
-          // Photoless event: the activity glyph on its category tint, so the
-          // card reads as intentional rather than a blank/broken image.
-          <View style={styles.nearbyMiniPlaceholder}>
-            <ActivityGlyph
-              activity={event.activity}
-              size={34}
-              color={cat.accent}
-            />
-          </View>
-        )}
-        <View style={styles.nearbyMiniPill}>
-          <CategoryPill
-            emoji={activity?.emoji ?? '📍'}
-            label={activity?.label}
-            color={cat.accent}
-          />
-        </View>
-      </View>
-      <View style={styles.nearbyMiniBody}>
-        <Text style={styles.nearbyMiniTitle} numberOfLines={1}>
-          {event.title}
-        </Text>
-        <Text style={styles.nearbyMiniMeta} numberOfLines={1}>
-          {formatEventWhen(event.starts_at)}
-          {event.distance_m != null
-            ? ` · ${formatDistance(event.distance_m)}`
-            : ''}
-        </Text>
-      </View>
-    </PressableScale>
-  );
-}
 
 // The card's back — the only scrolling surface in the whole dealt-card design.
-// Description, the full roster (gated behind membership), the nearby rail,
-// then whatever secondary actions the composing screen hands in.
+// Description, the full roster (gated behind membership), then whatever
+// secondary actions the composing screen hands in.
+//
+// It carried a "Happening near you" rail until 2026-08-04. Cut on review of the
+// first device run: a card you opened to decide about ONE event should not be
+// advertising four others underneath it.
 export function EventCardBack({
   event,
   isMember,
   tooFar,
-  onOpenEvent,
   secondaryActions,
 }: EventCardBackProps) {
   const approved = event.participants.filter((p) => p.status === 'approved');
@@ -138,20 +62,6 @@ export function EventCardBack({
   const goingRows = [...approved].sort(
     (a, b) => Number(b.id === event.host_id) - Number(a.id === event.host_id)
   );
-
-  // "Happening near you" rail. Reuses the map/home nearby query (keyed on the
-  // user's location + radius), drops the event you're already looking at, and
-  // floats same-activity events to the front so the rail reads as "more like
-  // this". Empty until location is on — the section hides itself then.
-  const { data: nearbyRaw } = useNearbyEvents();
-  const nearbyEvents = (nearbyRaw ?? [])
-    .filter((e) => e.id !== event.id)
-    .sort(
-      (a, b) =>
-        Number(b.activity === event.activity) -
-        Number(a.activity === event.activity)
-    )
-    .slice(0, 8);
 
   return (
     <ScrollView
@@ -244,22 +154,6 @@ export function EventCardBack({
         )}
       </View>
 
-      {nearbyEvents.length > 0 && (
-        <View style={styles.section}>
-          <SectionLabel>Happening near you</SectionLabel>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            nestedScrollEnabled
-            contentContainerStyle={styles.nearbyRail}
-          >
-            {nearbyEvents.map((e) => (
-              <NearbyMini key={e.id} event={e} onPress={() => onOpenEvent(e.id)} />
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
       {secondaryActions && (
         <View style={styles.actions}>{secondaryActions}</View>
       )}
@@ -333,48 +227,6 @@ const styles = StyleSheet.create({
   },
   rosterGate: { gap: SPACING[2] },
   rosterHint: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
-  },
-  // ── Happening near you rail ─────────────────────────────────────────────────
-  // Bleeds a touch past the content padding so a card can sit half-off the right
-  // edge, hinting there's more to swipe. Trailing padding keeps the last card
-  // clear of the edge.
-  nearbyRail: { gap: SPACING[3], paddingRight: SPACING[5] },
-  nearbyMini: {
-    width: 180,
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-  },
-  // No backgroundColor: every use sets one inline from the event's category
-  // tint, so the `#E3E1E4` this carried over from the deleted sheet was a dead
-  // literal that never painted a pixel.
-  nearbyMiniImage: { height: 104 },
-  nearbyMiniPlaceholder: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nearbyMiniPill: {
-    position: 'absolute',
-    top: SPACING[2],
-    left: SPACING[2],
-  },
-  nearbyMiniBody: { padding: SPACING[3], gap: SPACING[0.5] },
-  nearbyMiniTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: COLORS.textPrimary,
-  },
-  nearbyMiniMeta: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textSecondary,
