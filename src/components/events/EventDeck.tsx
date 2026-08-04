@@ -60,7 +60,6 @@ import {
 import type { ExploreEvent, NearbyEvent, EventParticipant } from '@/types/models';
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
-import { CardPortal } from './EventDealtCard';
 import { DeckActions, DeckCounter } from './DeckChrome';
 import { DeckEmptyCard, type DeckEmptyReason } from './DeckEmptyCard';
 import { MINI_W, FAN_W, deckVisible, expandedSlot, miniSlot } from './deckSlots';
@@ -97,13 +96,13 @@ const CARD_ASPECT = DEALT_CARD_ASPECT;
 // edge disappeared behind the floating tab bar. That worked because the teaser
 // lived inside the map screen's tree, underneath the bar.
 //
-// This component lives in the root portal, above everything — so there is
-// nothing left to tuck under, and the same 26pt became 26pt of cards sitting
-// ON TOP of the tab bar. The tuck is now a clearance instead: the fan sits
-// above the bar rather than behind it, which is the only relationship
-// available from up here.
+// The fan is pulled DOWN so its lower edge disappears behind the floating tab
+// bar. That only works because this component lives inside the tabs tree,
+// below the bar — see the note on where it is mounted. A spell in the root
+// portal put the same 26pt on TOP of the bar instead, which is what the tuck
+// looks like when there is nothing above you to hide under.
 const FAN_LEFT = 4;
-const FAN_CLEARANCE = 10;
+const TUCK = 26;
 // Headroom above the cards inside the fan's tap target, for the "Up for it?"
 // pill and the count badge — the teaser's 138pt box minus its 110pt cards.
 const FAN_LABEL_ROOM = 28;
@@ -158,14 +157,18 @@ export function EventDeck() {
   const overlayOpen = useUIStore((s) => s.overlayOpen);
   const [expanded, setExpanded] = useState(false);
 
-  // Not a nicety — a constraint. `CardPortal` puts this in a
-  // `FullWindowOverlay`, which attaches to the key window the moment it mounts
-  // and therefore sits above modal routes, the create-event flow and every
-  // pushed screen. The parked fan lives in that portal, so an overlay is
-  // mounted for as long as the fan shows, and the fan has to get out of the
-  // way of anything that takes the screen. Nothing in `tsc` or the test suite
-  // can see this going wrong; `deckVisible` is a pure function precisely so
-  // the rule itself is testable.
+  // This lives inside the tabs tree — below the floating tab bar, which is
+  // what lets the parked fan tuck behind it. A spell in a root
+  // `FullWindowOverlay` put it above everything instead, which cost the tuck
+  // and made this rule load-bearing against the create flow and every pushed
+  // route.
+  //
+  // From in here those cases largely handle themselves: the create flow and a
+  // pushed screen both cover the map, and this with it. The rule stays anyway
+  // — `creatingEvent` hides the map's own chrome rather than replacing the
+  // screen, so without it the fan would still be sitting on top of the create
+  // flow. `deckVisible` is a pure function so the rule itself is testable;
+  // nothing in `tsc` or the suite can see it going wrong in the app.
   if (
     !deckVisible({
       onMap: pathname === '/map',
@@ -188,6 +191,7 @@ function DeckBody({
   setExpanded: (next: boolean) => void;
 }) {
   const router = useRouter();
+  const setDeckExpanded = useUIStore((st) => st.setDeckExpanded);
   const { width, height } = useWindowDimensions();
   const tabBarInset = useTabBarInset();
   const insets = useSafeAreaInsets();
@@ -355,19 +359,30 @@ function DeckBody({
     // flight.
     if (isError) retry();
     setExpanded(true);
-  }, [isError, retry, setExpanded]);
+    // The tab bar steps aside for the open deck, the same way it does for the
+    // create flow. This component sits INSIDE the tabs tree so its parked fan
+    // can tuck behind the bar; the bar getting out of the way is what lets it
+    // still fill the screen when open.
+    setDeckExpanded(true);
+  }, [isError, retry, setExpanded, setDeckExpanded]);
+
+  // If this unmounts while open — a route change, a fast tab switch — the bar
+  // must not be left hidden with nothing on screen explaining why.
+  useEffect(() => () => setDeckExpanded(false), [setDeckExpanded]);
 
   const minimize = useCallback(() => {
     setExpanded(false);
     setBackMounted(false);
-  }, [setExpanded]);
+    setDeckExpanded(false);
+  }, [setExpanded, setDeckExpanded]);
 
   // Records the swipe and lets the live deck drop the card. The quota guard is
   // belt-and-braces rather than a route to the paywall: `outOfSwipes` turns
   // the whole deck into `DeckEmptyCard`'s paywall face on the very render it
-  // becomes true, so there is no card left to swipe past the cap — and pushing
-  // a route from in here would put the paywall UNDER this component's own
-  // window layer (see `CardPortal`).
+  // becomes true, so there is no card left to swipe past the cap. The deck
+  // still minimizes before it sends anyone to the paywall — see
+  // `onBeforeNavigate` below — so the route is never pushed under an open
+  // deck that has not got out of the way first.
   const commitSwipe = useCallback(
     (direction: 'like' | 'pass') => {
       if (!topId || outOfSwipes) return;
@@ -564,7 +579,7 @@ function DeckBody({
   // the corner and this is what has to have its bottom edge tucked under the
   // tab bar.
   const miniCardH = cardH * miniScale;
-  const fanBottom = tabBarInset + FAN_CLEARANCE;
+  const fanBottom = tabBarInset - TUCK;
   const miniCentreY = height - fanBottom - miniCardH / 2 - height / 2;
 
   // ─── Faces ────────────────────────────────────────────────────────────────
@@ -661,11 +676,11 @@ function DeckBody({
               isMember={gate === 'none'}
               tooFar={gate === 'premiumDistance'}
               // No secondary actions here on purpose. Leave / check in /
-              // approve all open a `Dialog` or `Sheet`, and a `Modal`
-              // presented from inside `CardPortal`'s overlay is a silent
-              // no-op (see that component's comment). They belong to the
-              // pin's dealt card, which is the surface for an event you are
-              // already in; the deck is for events you are deciding about.
+              // approve belong to the pin's dealt card, which is the surface
+              // for an event you are already in; the deck is for events you
+              // are still deciding about. (They were also impossible while
+              // this lived in a `FullWindowOverlay`, where a `Modal` never
+              // opens — that constraint is gone, the reasoning is not.)
             />
           ) : null,
       }));
@@ -695,7 +710,6 @@ function DeckBody({
 
   return (
     <>
-      <CardPortal>
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           {/* The dim gets its own wrapper and the stage an explicit zIndex
               above it, because the two fight over DEPTH rather than paint
@@ -863,7 +877,6 @@ function DeckBody({
             </Animated.View>
           )}
         </View>
-      </CardPortal>
 
       {/* Outside the portal: `SafetyPopup` is `Modal`-based, and a `Modal`
           presented from inside a `FullWindowOverlay` never opens — the

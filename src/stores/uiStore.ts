@@ -167,6 +167,12 @@ interface UIState {
   clearOverlay: () => void;
   dealCard: (id: string, origin: DealtOrigin | null) => void;
   closeDealtCard: () => void;
+  // True while the map's event deck is expanded. The tab bar reads it and
+  // steps aside, the same way it does for the create flow — which is what
+  // lets the deck live INSIDE the tabs tree (so its parked fan tucks behind
+  // the bar, as the teaser's did) and still cover the whole screen when open.
+  deckExpanded: boolean;
+  setDeckExpanded: (deckExpanded: boolean) => void;
 
   // Settings and the screens it opens share one background: the sub-screens are
   // transparent and slide only their *contents* over the backdrop Settings is
@@ -235,4 +241,6 @@ export const useUIStore = create<UIState>((set) => ({
     set({ dealtCard: { id, origin, token: dealToken } });
   },
   closeDealtCard: () => set({ dealtCard: null }),
+  deckExpanded: false,
+  setDeckExpanded: (deckExpanded) => set({ deckExpanded }),
 }));

@@ -20,7 +20,6 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
 import InAppNotification from '@/components/InAppNotification';
 import { EventDealtCard } from '@/components/events/EventDealtCard';
-import { EventDeck } from '@/components/events/EventDeck';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -154,7 +153,6 @@ function RootLayoutInner() {
           is therefore an internal rule (`deckVisible`, gated on the route, the
           create-event flow and any open overlay) rather than this being
           conditionally rendered by whoever is on screen. */}
-      <EventDeck />
       <InAppNotification />
     </>
   );

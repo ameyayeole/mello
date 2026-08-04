@@ -405,7 +405,12 @@ export default function TabLayout() {
   // routes, so unlike every other push the bar would otherwise still be sitting
   // there: visible but inert, since the screen above swallows the touches.
   const overlayOpen = useUIStore((s) => s.overlayOpen);
-  const hidden = creatingEvent || inConversation || overlayOpen;
+  // The map's event deck expands to fill the screen from inside this tree, so
+  // the bar steps aside for it the same way it does for the create flow. That
+  // is what buys the deck its parked fan tucking BEHIND the bar: it can live
+  // below the bar and still be unobstructed when open.
+  const deckExpanded = useUIStore((s) => s.deckExpanded);
+  const hidden = creatingEvent || inConversation || overlayOpen || deckExpanded;
 
   // Live index while a finger is down on TabBarDragOverlay; null the rest of
   // the time, when the indicator just follows the route as usual.
