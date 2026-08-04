@@ -293,7 +293,10 @@ export function EventDealtCard() {
 
   if (!deal) return null;
 
-  const visibleIds = deal.ids.slice(deal.index, deal.index + STACK_DEPTH + 1);
+  // STACK_DEPTH + 2: four visible behind the top card, plus one more parked at
+  // opacity 0 so the stack always has something ready to fade in as it
+  // shortens. `DealtCard` slices to the same bound — see its comment.
+  const visibleIds = deal.ids.slice(deal.index, deal.index + STACK_DEPTH + 2);
   const cards = visibleIds.map((id, i) => {
     const isTop = i === 0;
     return {
@@ -438,6 +441,10 @@ export function EventDealtCard() {
           key={deal.token}
           cards={cards}
           origin={deal.origin}
+          // The whole deck's remainder, not the drawn part's — the label
+          // counts what is left to swipe through, which is usually more than
+          // the five cards on screen.
+          remaining={deal.ids.length - deal.index - 1}
           onPass={handlePass}
           onSave={handleSave}
           onDismiss={close}

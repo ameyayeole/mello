@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -14,7 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants/colors';
-import { RADIUS } from '@/constants/spacing';
+import { FONTS, TYPE_SIZE } from '@/constants/typography';
+import { RADIUS, SPACING } from '@/constants/spacing';
 import type { DealtOrigin } from '@/stores/uiStore';
 import {
   DEAL_MS,
@@ -28,8 +29,14 @@ import {
 
 export interface DealtCardProps {
   // One entry per card in the deck, front to back. index 0 is face up.
+  // Only the first STACK_DEPTH + 2 are drawn (see the slice below), so a caller
+  // may hand over more than that and let this decide.
   cards: { key: string; front: ReactNode; back: ReactNode }[];
   origin: DealtOrigin | null;
+  // How many cards are left behind the top one across the WHOLE deck, not just
+  // the drawn part — the "N more behind" count under the stack (design §6). A
+  // number, not content: this stays content-agnostic.
+  remaining?: number;
   onPass: () => void;
   onSave: () => void;
   onDismiss: () => void;
@@ -78,6 +85,7 @@ function haptic(kind: 'land' | 'flip' | 'threshold' | 'save') {
 export function DealtCard({
   cards,
   origin,
+  remaining = 0,
   onPass,
   onSave,
   onDismiss,
@@ -277,6 +285,9 @@ export function DealtCard({
   const dimStyle = useAnimatedStyle(() => ({
     opacity: deal.value * 0.8,
   }));
+  // Fades in with the deal rather than being there from frame one — it belongs
+  // to the stack that is still arriving.
+  const countStyle = useAnimatedStyle(() => ({ opacity: deal.value }));
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -285,9 +296,14 @@ export function DealtCard({
         onTouchEnd={sendHome}
       />
       <View style={styles.stage} pointerEvents="box-none">
-        {/* Deepest first so DOM order paints correctly without z-index games. */}
+        {/* Deepest first so DOM order paints correctly without z-index games.
+            STACK_DEPTH + 2, not + 1: the extra layer is the one parked at
+            opacity 0 on `stackLayer`'s deeper-than-STACK_DEPTH branch, so that
+            when the stack shortens there is always a card already mounted to
+            fade in rather than one popping into existence at full opacity.
+            With + 1 that branch — and the test covering it — was unreachable. */}
         {cards
-          .slice(0, STACK_DEPTH + 1)
+          .slice(0, STACK_DEPTH + 2)
           .map((c, depth) => ({ c, depth }))
           .reverse()
           .map(({ c, depth }) => (
@@ -307,6 +323,22 @@ export function DealtCard({
             />
           ))}
       </View>
+      {/* "N more behind" (design §6). Positioned off the card's own height
+          rather than laid out in the stage, whose children are all absolute so
+          the deck can overlap. pointerEvents none — it is a label, not a
+          control, and it sits over the dim, which owns tap-to-dismiss. */}
+      {remaining > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.countWrap,
+            { top: height / 2 + cardH / 2 + SPACING[4] },
+            countStyle,
+          ]}
+        >
+          <Text style={styles.countText}>{remaining} more behind</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -454,6 +486,14 @@ function CardLayer({
 const styles = StyleSheet.create({
   dim: { backgroundColor: COLORS.ink },
   stage: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  countWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  // White at 72% on an 80% ink dim: present, and clearly subordinate to the
+  // card it is counting.
+  countText: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textOnDark,
+  },
   card: {
     position: 'absolute',
     borderRadius: RADIUS['2xl'],
