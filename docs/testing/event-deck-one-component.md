@@ -1,9 +1,11 @@
 # The event deck as one component — device test sheet
 
-Covers all four tasks of `2026-08-04-event-deck-one-component`: `EventDeck`
+Covers all four tasks of `2026-08-04-event-deck-one-component` — `EventDeck`
 (new), its mount in `app/_layout.tsx`, the removal of `SwipeDeckTeaser` and
 `EventDealtCard`'s `isSwipeDeck` branch, and the `emerge`/`FlipHint`
-carry-forwards from task 3's review. **None of this has been run on a device.**
+carry-forwards from task 3's review — **and the whole-branch review's fix wave
+on top of them**, which is where most of the new rows come from.
+**None of this has been run on a device.**
 Nothing here is reachable under Jest — Reanimated 4 throws on import — and
 `tsc`/`eslint` cannot see a mis-set `pointerEvents` gate, a portal mounted over
 the wrong route, or an animation that reads as two things instead of one.
@@ -14,9 +16,18 @@ path is a plain sibling of `<Stack>`, not `FullWindowOverlay` (that's iOS-only)
 bar on its own.
 
 Tick each row on each platform. A row that cannot be run is **BLOCKED**, not
-passed — note it and come back. Rows marked **(reasoning)** are checking a
-conclusion from reading the code, not something already observed on a
-simulator; they're the ones most worth someone's time.
+passed — note it and come back.
+
+**What (reasoning) means here.** Nothing on this sheet has been observed
+running, so "not yet seen on a simulator" would describe every row and mark
+none of them. It is scoped tighter: a **(reasoning)** row is one where the
+*expected result itself* is inferred rather than specified — nobody decided it
+should look like that, it is what reading the code says should happen, so the
+row is as likely to be wrong about the expectation as the code is to be wrong
+about the behaviour. If one fails, question the row before filing the bug.
+Rows without the tag have an expectation taken from the design doc, from the
+behaviour being deliberately preserved, or from a bug whose symptom is already
+written down.
 
 **What changed, so you know where to look:**
 
@@ -29,13 +40,22 @@ simulator; they're the ones most worth someone's time.
 | `EventCard.tsx` | `emerge` now fades the category pill and the save/share chips along with the pane, not just the pane (task 3 review item a). |
 | `DealtCard.tsx` | `FlipHint` ("Tap for details") exported and reused by `EventDeck` (task 3 review item b). |
 
-**Known, not fixed here:** `DeckActions`' undo button is inert (task 3 review
-item c, confirmed by grep — ticketed separately, out of scope for this batch).
-It always reads `canUndo: false` because `useSwipeDeck()`'s `history` is local
-per call site, and the deck's own swipes go through `useRecordSwipe()` instead.
-Free users are unaffected (they hit the paywall either way); a premium user
-tapping undo on the deck is the row to reproduce it on, if anyone wants to see
-it happen rather than take the grep's word for it.
+**Then the whole-branch review's fixes, which is most of what is new here:**
+
+| Area | Change |
+| --- | --- |
+| `EventCard.tsx` | **Regression fix.** `paneWrap` was an `absoluteFill` last child with no `pointerEvents`, covering the pill and the save/share chips — a tap on the bookmark hit the wrapper and stopped. Wrapper deleted. Affects the **pin's card** as much as the deck's; see E9/E10. |
+| `DeckEmptyCard.tsx`, `DeckChrome.tsx` | Both pushed `/premium` from inside `CardPortal`'s window overlay, so the paywall mounted *underneath* the deck. Both now take `onBeforeNavigate`, which `EventDeck` wires to `minimize`. See C10/C11. |
+| `EventDeck.tsx` | "Tap to retry" now actually refetches, and the error card gained a "Try again" button (C12). The wishlist save/unsave toast is back on the deck (C13). The top card's BlurView is gated on `expanded`, so a parked fan composites no blur (B8). The fan's entrance animation is restored (B9). |
+| `dealtCardGeometry.ts` | `DIM_OPACITY`, `TAP_SLOP`, `CARD_SHADOW_OPACITY`, `CARD_ELEVATION` and `haptic()` were copied into both `DealtCard` and `EventDeck`; they are shared now. `expandedSlot` also silently dropped `stackLayer`'s `shade`, which `EventDeck` re-typed as a literal — both surfaces read the same value now (B10). |
+| `uiStore.ts` | `advanceDealtCard` deleted and `dealtCard.ids`/`index` collapsed to a single `id`. Fifteen call sites across ten opener files changed — E4 is now load-bearing rather than a formality. |
+
+**Known, not fixed here:** `DeckActions`' undo button is inert for **premium**
+users (task 3 review item c, confirmed by grep — ticketed separately, out of
+scope for this batch). It always reads `canUndo: false` because
+`useSwipeDeck()`'s `history` is local per call site, and the deck's own swipes
+go through `useRecordSwipe()` instead. The *free* user's undo path was a
+separate bug and is fixed (C11).
 
 ---
 
@@ -58,12 +78,32 @@ dim) over screens that should never see it.
 | A6 | Push any modal route (wishlist, premium, a friend's profile) from the map tab | Fan does not float above it | ☐ | ☐ |
 | A7 | With the deck **expanded**, background the app and reopen | Dim + open deck are still there, nothing behind them leaked through | ☐ | ☐ |
 | A8 | While the dim is up (deck expanded), try tapping the map behind it | Nothing responds until you minimize | ☐ | ☐ |
-| A9 | While the fan is **parked** (not expanded), tap the map underneath/around it | Map pans and responds normally — the parked dim must not be eating touches | ☐ | ☐ |
+| A9 **(reasoning)** | While the fan is **parked** (not expanded), tap the map underneath/around it | Map pans and responds normally — the parked dim must not be eating touches | ☐ | ☐ |
 
 **A9 is the one to watch closely.** The dim is a full-screen view at opacity 0
 while parked, gated `pointerEvents={expanded ? 'auto' : 'none'}`. If that gate
 is backwards the map stops responding entirely and nothing on screen explains
 why.
+
+### A′ · What the parked fan actually looks like
+
+Nothing above checks the fan's own appearance — only where it is and what it
+covers. The fan is now made of the same full-size `EventCard`s the open deck
+uses, scaled down, rather than the deleted teaser's bare `<Image>`s, so its
+contents are worth a look in their own right.
+
+| # | Step | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| A10 | Look at the parked fan with events available | Three minis, leaning different ways, each showing its **event photo**. A white edge and a rounded corner on each, "Up for it?" pill top-left, count badge top-right | ☐ | ☐ |
+| A11 | Find or create an event with **no photo**, and get it to the front of the deck | The mini shows the `ActivityGlyph` fallback on its category tint — not a blank or black rectangle | ☐ | ☐ |
+| A12 **(reasoning)** | Look closely at a parked mini for any card furniture | **No** category pill, host row, title or glass pane on the mini itself — `emerge` holds all of it at 0 while parked, and it should be a bare photo. The "Up for it?" pill is separate chrome and *should* be there | ☐ | ☐ |
+| A13 | Use up the day's swipes as a free user, then leave the deck parked | Fan is still there in the same place, showing the placeholder emoji faces, labelled **"Out of swipes"** | ☐ | ☐ |
+| A14 | Swipe through everything until genuinely caught up, then minimize | Fan still there, emoji faces, labelled **"All caught up"**, and the count badge is gone | ☐ | ☐ |
+| A15 | Kill the network and open the map | Fan shows, labelled **"Tap to retry"** (see C12 for what the tap must do) | ☐ | ☐ |
+
+A13–A15 matter because the fan is the app's only entry point to the deck. The
+teaser it replaced deliberately never vanished — an entry point that disappears
+when there is nothing behind it teaches people to stop looking there.
 
 ## B · Expand and minimize — the whole point of the merge
 
@@ -75,8 +115,19 @@ why.
 | B4 | Drag the top card down (don't cross the swipe threshold) | Deck shrinks back into the fan — it does not close/dismiss | ☐ | ☐ |
 | B5 | Tap the dim while expanded | Same minimize-to-fan behaviour as B4 | ☐ | ☐ |
 | B6 | Minimize and immediately re-expand a few times | No stutter, no card left mid-transform, no double fan | ☐ | ☐ |
+| B7 **(reasoning)** | Watch the corners through a full expand — the `borderRadius` animates from parked `RADIUS.md` to open `RADIUS['2xl']` on six card layers at once | Smooth on both platforms, corners round out with the growth | ☐ | ☐ |
+| B8 **(reasoning)** | Expand, then minimize, and watch the glass pane's frostiness as it goes each way | The pane's blur is only present while open. Going down it may visibly flatten — that is the gate working, and it should happen while the pane is already near-invisible, not as a pop on a legible pane | ☐ | ☐ |
+| B9 | Arrive on the map tab (from another tab, and from a cold start) | The fan **fades in and rises** into place after a short beat, rather than appearing instantly fully formed | ☐ | ☐ |
+| B10 **(reasoning)** | Expand the deck and compare the shading of the cards behind the top one against the pin's card stack | Same darkness on both surfaces. They read the same `shade` value now; before, the deck used a hardcoded copy | ☐ | ☐ |
+| B11 | Tap the fan **during** its entrance (within the first second of arriving on the map) | Expands normally from wherever it currently is — no jump back down, no fighting between the entrance and the growth | ☐ | ☐ |
 
-**(reasoning)** B7 | The animated `borderRadius` (parked `RADIUS.md`, open `RADIUS['2xl']`) across six cards animating in `expand` | Smooth on both platforms — Reanimated animating `borderRadius` on six layers at once is untested | ☐ | ☐ |
+**B9 and B11 go together.** The entrance is a shared value multiplied into the
+cards' opacity and translateY, not an `entering` prop — because both views that
+could carry one remount for reasons that are not "the map opened" (the label
+unmounts on every expand, and each card is keyed by event id, so every swipe
+would replay it). B11 is what proves the multiply is right; if the entrance
+replays on every swipe or every minimize, that is the same bug from the other
+side.
 
 ## C · Gestures on the open deck
 
@@ -91,7 +142,16 @@ why.
 | C7 | Tap a `Button`/`IconButton` on the front face (Join, save, share) | Fires its own action; does not also flip the card (carried-over risk from `DealtCard`, section O of `dealt-event-card.md`) | ☐ | ☐ |
 | C8 | Swipe through most of a page (15+ cards) | Next page loads invisibly; deck never visibly empties or stalls mid-swipe | ☐ | ☐ |
 | C9 | Swipe until genuinely out of events | `DeckEmptyCard`'s "all caught up" face appears, deck stays on screen | ☐ | ☐ |
-| C10 | As a free user, use up the day's swipes | `DeckEmptyCard`'s paywall face appears; tapping its CTA reaches `/premium` | ☐ | ☐ |
+| C10 | As a free user, use up the day's swipes, then tap the paywall card's "Get Mello+" CTA | **The deck minimizes back to the fan and `/premium` is on screen.** This is the fix: the paywall is a pushed route and the deck sits in a window-level overlay, so without minimizing first the route mounted *underneath* and the tap looked dead — then the paywall appeared from nowhere when you later tapped the dim | ☐ | ☐ |
+| C11 | As a **free** user with the deck open, tap the undo button | Same as C10 — deck comes home, `/premium` is visible. Same bug, second entry point | ☐ | ☐ |
+| C12 | Kill the network, open the map, tap the fan (label reads "Tap to retry"), then restore the network and tap "Try again" on the error card | The tap on the fan refetches *and* expands; the error card has a working "Try again" that reloads the deck. Previously the label promised a retry, the tap only expanded, and the error card had no button at all | ☐ | ☐ |
+| C13 | With the deck open, tap the top card's bookmark chip — once to save, again to unsave | A toast appears above the pass/save/undo row: "Added to wishlist" / "Removed from wishlist". Turn the network off and try again: "Couldn't update wishlist" | ☐ | ☐ |
+| C14 **(reasoning)** | After C13's toast appears, minimize the deck before it times out | Toast goes with the deck rather than being left floating over the map | ☐ | ☐ |
+
+**C13 is not cosmetic.** The save is optimistic and rolls back silently on
+failure, so without the toast a failed save flips the bookmark on and then off
+and "reads as the button does nothing" — the reason the pin's card has had this
+toast all along. The deck's chip had been exactly that case.
 
 ## D · "Tap for details" (task 3 review item b)
 
@@ -100,7 +160,7 @@ why.
 | D1 | Expand the deck, wait for the top card's detail to load | "Tap for details" appears above the stack, breathing gently | ☐ | ☐ |
 | D2 | Flip to the back | Hint disappears | ☐ | ☐ |
 | D3 | Flip back to the front | Hint reappears | ☐ | ☐ |
-| D4 | Swipe to the next card before its detail has loaded | Hint is absent until that card's detail arrives — it should not show for a card with no back yet | ☐ | ☐ |
+| D4 **(reasoning)** | Swipe to the next card before its detail has loaded | Hint is absent until that card's detail arrives — it should not show for a card with no back yet | ☐ | ☐ |
 | D5 | Minimize the deck | Hint is gone (chrome fades with `expand`, same as the counter/buttons) | ☐ | ☐ |
 
 ## E · The pin's card — should behave exactly as before
@@ -109,16 +169,35 @@ why.
 section is regression coverage: nothing here should look any different than it
 did before this batch.
 
+**Every row in this section is (reasoning) by construction** — the expectation
+is "identical to before", which nobody has written down anywhere and which is
+inferred from the change being meant not to touch this surface. Two things make
+that inference weaker than it sounds. The front face's chip bug (E9) was a real
+regression on exactly this card, and it sat in this section's blind spot: every
+row below the line was about the *back* face or about dealing, and none looked
+at the front face's own controls. And the `uiStore` refactor changed all ten
+openers, which is what E4 now covers.
+
 | # | Step | Expect | iOS | Android |
 | --- | --- | --- | :-: | :-: |
 | E1 | Tap a map pin | One card deals in from the pin, no stack behind it | ☐ | ☐ |
 | E2 | Swipe it away (either direction) | Card closes; you're back on the map — it does not advance to another event | ☐ | ☐ |
 | E3 | Open a card, tap the bookmark chip to save, then swipe right | Card closes without un-saving (right always saves, never toggles) | ☐ | ☐ |
-| E4 | Open a card from the home rail, a friend's profile, search, and the wishlist | Same single-card behaviour at each opener | ☐ | ☐ |
+| E4 | Open a card from **each** opener: map pin, home rail ("Happening near you"), the home feed's nearby list, a friend's profile, your own Profile tab, search, the wishlist, the community events rail, a push notification, and a deep link | A card opens showing **the event you tapped** at every one. All ten call `dealCard` with a single id now instead of an array plus an index; picking the wrong element would show a neighbouring event, which looks like a data bug rather than a refactor slip | ☐ | ☐ |
 | E5 | Open a card, flip it, check the back face | Roster, join/approve/leave/check-in actions all still work as before | ☐ | ☐ |
 | E6 | Trigger the new-host safety popup (join a new host's event) | Still appears over the card, both actions still work | ☐ | ☐ |
 | E7 | Leave an event via the card's back face | Confirm dialog → reason sheet flow unchanged | ☐ | ☐ |
 | E8 | Push-notification deep link to an event | Card deals in the same way it did before (no origin, comes up off the bottom edge) | ☐ | ☐ |
+| E9 | **Open a card from a map pin and tap the bookmark chip, then the share chip** | Bookmark fills in / empties; share opens the share sheet | ☐ | ☐ |
+| E10 | On the same card, tap the category pill top-left, and tap the Join CTA | Pill is inert (it is a label, and should swallow nothing); Join does its normal thing | ☐ | ☐ |
+| E11 | Do E9 again on the **deck's** top card | Same — both chips respond there too | ☐ | ☐ |
+
+**E9 is the row this sheet was missing.** Both chips were dead on every card in
+the app: an `absoluteFill` pane wrapper with no `pointerEvents` sat over them as
+the last child, and RN hit-tests topmost-first. It read as chip-specific
+because the Join CTA (inside the pane) and the tap-to-flip (an RNGH gesture on
+an ancestor, which bypasses the responder system) both still worked — which is
+also why E10 is worth doing in the same pass rather than assuming.
 
 ## F · Android specifics
 
