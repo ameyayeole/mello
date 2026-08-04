@@ -391,10 +391,14 @@ export function EventDealtCard() {
                             </Text>
                             {isPremium(p) && <PremiumBadge size={13} />}
                           </View>
+                          {/* secondary, not primary: this renders once per
+                              pending request, so coral here would put three or
+                              four "one per screen" CTAs on one surface —
+                              already spoken for by the front face's Join. */}
                           <Button
                             label="Approve"
                             size="sm"
-                            variant="primary"
+                            variant="secondary"
                             onPress={() => approve.mutate(p.id)}
                             disabled={approve.isPending}
                           />

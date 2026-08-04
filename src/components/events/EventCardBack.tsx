@@ -296,7 +296,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[2.5],
     paddingVertical: SPACING[1.5],
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(149,9,82,0.10)',
+    // Was a bare `rgba(149,9,82,0.10)` ported verbatim from the deleted sheet —
+    // a magenta left over from an older `secondary`, which no longer matched
+    // the `COLORS.secondary` the pill's own text uses. `secondaryTint` is that
+    // colour's named tint.
+    backgroundColor: COLORS.secondaryTint,
   },
   womenOnlyText: {
     fontFamily: FONTS.bold,
@@ -346,7 +350,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.borderSoft,
   },
-  nearbyMiniImage: { height: 104, backgroundColor: '#E3E1E4' },
+  // No backgroundColor: every use sets one inline from the event's category
+  // tint, so the `#E3E1E4` this carried over from the deleted sheet was a dead
+  // literal that never painted a pixel.
+  nearbyMiniImage: { height: 104 },
   nearbyMiniPlaceholder: {
     position: 'absolute',
     top: 0,

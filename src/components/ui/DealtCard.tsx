@@ -58,6 +58,11 @@ const OVERSHOOT = 1.03;
 const NO_ORIGIN_ROTATE = -14;
 const NO_ORIGIN_SCALE = 0.55;
 
+// How far a finger may travel and still count as a tap-to-flip. Matches the
+// slop RN's own Pressable allows before it cancels a press, so the two agree
+// on where a tap stops being a tap.
+const TAP_SLOP = 10;
+
 // Five moments, matching the design doc's haptic table exactly (§3):
 // touch-down and the threshold tick are both a plain selection tick — one
 // fires from uiStore's `dealCard` (see the comment there), the other from the
@@ -270,15 +275,40 @@ export function DealtCard({
       dy.value = withTiming(0, { duration: 220 });
     });
 
-  // Same rule, same reason, same fallback as `sendHome` above — `flip` is
-  // also read via `useAnimatedReaction` (for the flip haptic), so a
+  // `maxDistance` matters more than it looks. Without it a slow drag that
+  // ended under the swipe threshold — so the pan committed nothing — still
+  // satisfied the tap and flipped the card. A flip you did not ask for, from a
+  // gesture you meant as a swipe.
+  //
+  // UNRESOLVED, and the highest-risk interaction on this component: this tap
+  // covers both faces whole, and every control on them (`Button`, `IconButton`,
+  // `PressableScale`) is an RN `Pressable` on the JS responder system, not an
+  // RNGH handler. When any RNGH gesture activates, RNGH cancels RN's in-flight
+  // touches outright — `RNGestureHandlerManager.mm`'s
+  // `didActivateInViewWithTouchHandler:` disables and re-enables
+  // `RCTSurfaceTouchHandler`. A Pan only activates once you move, so it costs
+  // presses nothing; a Tap activates on every clean tap-up, which is the same
+  // instant a `Pressable` would fire `onPress`. Whether the press wins depends
+  // on the order UIKit happens to deliver `touchesEnded:` in, which is not
+  // specified — so this is either "Join is dead and the card flips instead" or
+  // "Join fires and the card also flips", and both are wrong. It cannot be
+  // reproduced under Jest (Reanimated 4 throws on import) and has never been
+  // run. Section O of docs/testing/dealt-event-card.md is the row that settles
+  // it; if it fails, the fix is to make the card's pressables RNGH-aware rather
+  // than to shrink this gesture, because design §5 is "tap the card, anywhere".
+  //
+  // Same immutability rule, same reason, same fallback as `sendHome` above —
+  // `flip` is also read via `useAnimatedReaction` (for the flip haptic), so a
   // `useEffect` detour would not clear the warning either. Direct write.
-  const tap = Gesture.Tap().maxDuration(400).onEnd(() => {
-    flip.value = withTiming(flip.value > 0.5 ? 0 : 1, {
-      duration: FLIP_MS,
-      easing: Easing.bezier(0.5, 0.05, 0.2, 1),
+  const tap = Gesture.Tap()
+    .maxDuration(400)
+    .maxDistance(TAP_SLOP)
+    .onEnd(() => {
+      flip.value = withTiming(flip.value > 0.5 ? 0 : 1, {
+        duration: FLIP_MS,
+        easing: Easing.bezier(0.5, 0.05, 0.2, 1),
+      });
     });
-  });
 
   const gesture = Gesture.Exclusive(pan, tap);
 

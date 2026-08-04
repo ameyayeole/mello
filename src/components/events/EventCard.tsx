@@ -10,6 +10,7 @@ import { eventImageUri } from '@/utils/events';
 import { formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { neighbourhood } from '@/utils/location';
+import { isPremium } from '@/utils/premium';
 import type { EventParticipant, NearbyEvent } from '@/types/models';
 import {
   ActivityGlyph,
@@ -18,6 +19,8 @@ import {
   CategoryPill,
   Glass,
   IconButton,
+  PremiumBadge,
+  VerifiedBadge,
 } from '@/components/ui';
 
 export interface EventCardProps {
@@ -123,8 +126,25 @@ export function EventCard({
       >
         <View style={styles.hostRow}>
           <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
+          {/* Name, badges, then "is hosting" — the same order the sheet and
+              the home rail use, so the badges read as belonging to the person
+              rather than floating at the end of the row. The name is the only
+              part that shrinks. */}
+          <Text style={styles.hostName} numberOfLines={1}>
+            {hostName ?? 'Someone'}
+          </Text>
+          {/* Both ported from EventBottomSheet.tsx:1257-1258, where they sat on
+              the same host row. They survived the sheet's deletion on the
+              BROWSE cards (SwipeCard.tsx:93, app/(tabs)/index.tsx:246) but not
+              on the detail surface — so the two signals that most change a join
+              decision were missing from the one screen where that decision is
+              made. `host_verified` is a flattened feed field; `host` is only
+              on `EventDetail`, so a background card in a dealt stack shows the
+              tick and no crown, which is correct rather than a gap. */}
+          {event.host_verified && <VerifiedBadge size={13} />}
+          {isPremium(event.host) && <PremiumBadge size={12} />}
           <Text style={styles.hostText} numberOfLines={1}>
-            {hostName ?? 'Someone'} is hosting
+            is hosting
           </Text>
         </View>
 
@@ -180,7 +200,10 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
   },
   hostRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
-  hostText: { flex: 1, fontFamily: FONTS.medium, fontSize: TYPE_SIZE.caption, color: COLORS.white, opacity: 0.85 },
+  // The name shrinks; the badges and "is hosting" do not, so a long name
+  // truncates rather than pushing the badges off the row.
+  hostName: { flexShrink: 1, fontFamily: FONTS.medium, fontSize: TYPE_SIZE.caption, color: COLORS.white, opacity: 0.85 },
+  hostText: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.caption, color: COLORS.white, opacity: 0.85 },
   // `title` (job-named, matching TYPE.title) rather than the brief sketch's
   // nonexistent `TYPE_SIZE.lg` — see the task report for why.
   title: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.title, lineHeight: TYPE_SIZE.title * 1.2, letterSpacing: -0.2, color: COLORS.white },
