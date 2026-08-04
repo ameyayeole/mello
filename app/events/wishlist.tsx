@@ -254,9 +254,13 @@ export default function WishlistScreen() {
                 waiting for you here.
               </Text>
               <Button
-                label="Swipe events"
+                label="Find events"
                 height={44}
-                onPress={() => router.push('/events/swipe')}
+                // The swipe deck is no longer a screen of its own — it is the
+                // dealt card, opened from the map's "Up for it?" fan. So this
+                // sends you to the map rather than to a route that no longer
+                // exists.
+                onPress={() => router.push('/(tabs)/map')}
                 style={{ marginTop: SPACING[1.5] }}
               />
             </View>

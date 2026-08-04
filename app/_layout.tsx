@@ -74,18 +74,6 @@ function RootLayoutInner() {
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
-          name="events/swipe"
-          // A transparent overlay route, not a native modal sheet. The deck
-          // deals its cards out of the map's teaser and settles them back into
-          // it (see SwipeDeckTeaser and the entry animation in the screen), and
-          // none of that is visible if the whole screen is itself sliding up
-          // from the bottom as a sheet — the cards animate inside a card that
-          // is already moving, which just reads as the old bottom sheet.
-          // `animation: 'none'` hands the entrance to the screen so the only
-          // thing that moves is the deck.
-          options={OVERLAY_SCREEN_OPTIONS}
-        />
-        <Stack.Screen
           name="events/wishlist"
           options={{ presentation: 'modal' }}
         />
@@ -139,7 +127,7 @@ function RootLayoutInner() {
       </Stack>
       {/* The one event card for the whole app, and the reason it is a sibling
           of <Stack> rather than of <Tabs>: three openers (events/wishlist,
-          events/swipe, friends/[userId]) and every push-notification target
+          friends/[userId]) and every push-notification target
           live on routes stacked ABOVE (tabs), so a card mounted inside the
           tabs layout was dealt into a layer behind the screen that dealt it
           and never appeared at all. From here it is above every pushed route

@@ -2,7 +2,6 @@ import { useEffect, useRef} from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
 import Animated, {
   Easing,
   FadeInUp,
@@ -14,7 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSwipeDeck } from '@/hooks/useSwipeDeck';
-import { useUIStore } from '@/stores/uiStore';
+import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import { ExploreEvent } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
@@ -93,7 +92,6 @@ const CAUGHT_UP_EMOJI = ['✨', '🎉', '👀'];
 // put, showing placeholder cards and an "All caught up" label instead of
 // vanishing.
 export default function SwipeDeckTeaser() {
-  const router = useRouter();
   const fanRef = useRef<View>(null);
   const { deck, isLoading } = useSwipeDeck();
   const tabBarInset = useTabBarInset();
@@ -134,18 +132,24 @@ export default function SwipeDeckTeaser() {
       <PressableScale
         scaleTo={0.9}
         onPress={() => {
+          // Exactly what a map pin does — `dealCard` with this fan's rect as
+          // the origin — except the deck is the swipe queue and the source is
+          // 'swipeDeck', which is what turns on the messy stack behind the top
+          // card and routes a swipe through the day's quota.
+          //
+          // There is no separate swipe screen any more. The deck IS the dealt
+          // card; `app/events/swipe.tsx` and its route are deleted.
           const node = fanRef.current;
-          const { setSwipeDeckOrigin } = useUIStore.getState();
-          if (!node) {
-            // No rect to fly from is not a dead tap — the deck just appears.
-            setSwipeDeckOrigin(null);
-            router.push('/events/swipe');
+          const ids = deck.map((e) => e.id);
+          const open = (origin: DealtOrigin | null) =>
+            useUIStore.getState().dealCard(ids, 0, origin, 'swipeDeck');
+          if (!node || ids.length === 0) {
+            open(null);
             return;
           }
-          node.measureInWindow((x, y, width, height) => {
-            setSwipeDeckOrigin({ x, y, width, height });
-            router.push('/events/swipe');
-          });
+          node.measureInWindow((x, y, width, height) =>
+            open({ x, y, width, height })
+          );
         }}
         accessibilityRole="button"
         accessibilityLabel={

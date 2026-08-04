@@ -32,6 +32,7 @@ import {
 } from '@/components/ui';
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
+import { DeckActions, DeckCounter } from './DeckChrome';
 import type { EventParticipant, NearbyEvent } from '@/types/models';
 
 // Some of these are plain-array queries, some are `useInfiniteQuery` pages —
@@ -89,7 +90,7 @@ function BackgroundFace({ id }: { id: string }) {
 // paints over the whole app — native modal routes included.
 //
 // This is not decoration. `EventDealtCard` is mounted once, in the root
-// layout; three openers (`events/wishlist`, `events/swipe`, `friends/[userId]`)
+// layout; openers like `events/wishlist` and `friends/[userId]`
 // and every push-notification target live on routes stacked ABOVE that mount,
 // two of them `presentation: 'modal'`. Without this the card was dealt into a
 // layer behind the screen that dealt it and simply never appeared — a silent
@@ -324,6 +325,7 @@ export function EventDealtCard() {
       ) : event ? (
         <EventCard
           event={event}
+          flippable
           blurred
           // Empty only for a wrapped event the viewer never joined — the same
           // case the sheet rendered `null` for (no CTA at all, not a
@@ -468,6 +470,20 @@ export function EventDealtCard() {
           // has nothing behind it, so a count would be describing a stack that
           // isn't there.
           remaining={isSwipeDeck ? deal.ids.length - deal.index - 1 : 0}
+          // The deck's furniture, over the dim. Only a swipe-deck deal has any:
+          // a pin opens one event and has nothing to count or undo. Rendering
+          // these conditionally is also what keeps `useSwipeDeck`'s queries out
+          // of every other opener — see DeckChrome's comment.
+          header={isSwipeDeck ? <DeckCounter /> : undefined}
+          footer={
+            isSwipeDeck ? (
+              <DeckActions
+                onPass={handlePass}
+                onSave={handleSave}
+                disabled={!topId}
+              />
+            ) : undefined
+          }
           onPass={handlePass}
           onSave={handleSave}
           onDismiss={close}

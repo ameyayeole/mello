@@ -1,5 +1,13 @@
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -18,6 +26,7 @@ import {
   Avatar,
   CategoryPill,
   Glass,
+  Icon,
   IconButton,
   PremiumBadge,
   VerifiedBadge,
@@ -35,6 +44,10 @@ export interface EventCardProps {
   event: NearbyEvent & { participants?: EventParticipant[] };
   // Only the top card of a dealt stack gets a real blurred pane; see below.
   blurred?: boolean;
+  // Whether this card has a back face to turn to. Off by default: a card in a
+  // feed or behind the top of a stack cannot flip, and promising otherwise is
+  // worse than saying nothing.
+  flippable?: boolean;
   // The primary action. Omitted for the inline feed card, which is a tap
   // target rather than a surface with a CTA on it.
   action?: ReactNode;
@@ -54,9 +67,37 @@ export interface EventCardProps {
 // the top one gets a real BlurView; the four behind get the flat fill, since
 // they are shaded, rotated and mostly occluded and five backdrop blurs is a
 // genuine iOS cost for a difference nobody can see.
+// The hint's own component so its animation lives and dies with it — an
+// always-running loop on a card that cannot flip would be four wasted
+// animations behind every dealt stack.
+function FlipHint() {
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withDelay(1400, withTiming(1, { duration: 900 })),
+        withTiming(0, { duration: 900 })
+      ),
+      -1,
+      false
+    );
+  }, [pulse]);
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.72 + pulse.value * 0.28,
+    transform: [{ scale: 1 + pulse.value * 0.04 }],
+  }));
+  return (
+    <Animated.View style={[styles.flipHint, style]} pointerEvents="none">
+      <Icon name="undo" size={11} color={COLORS.white} strokeWidth={2.4} />
+      <Text style={styles.flipHintText}>Tap for details</Text>
+    </Animated.View>
+  );
+}
+
 export function EventCard({
   event,
   blurred = true,
+  flippable = false,
   action,
   onSave,
   onShare,
@@ -113,6 +154,14 @@ export function EventCard({
           )}
         </View>
       )}
+
+      {/* Tap-to-flip hint. Deliberately quiet: a small glass chip on the photo,
+          just above the pane, that breathes once every few seconds rather than
+          sitting there shouting. It is the only cue that this card has a back
+          at all, and a card you can turn over is not a thing anyone expects —
+          but it also must not compete with the join action a foot below it.
+          Only shown when the card actually has a back to turn to. */}
+      {flippable && <FlipHint />}
 
       <Glass
         tier="onPhoto"
@@ -191,6 +240,29 @@ const styles = StyleSheet.create({
   fallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   pill: { position: 'absolute', top: SPACING[2.5], left: SPACING[2.5] },
   chips: { position: 'absolute', top: SPACING[2.5], right: SPACING[2.5], flexDirection: 'row', gap: SPACING[1.5] },
+  // Sits just above the pane, centred — out of the way of the category pill and
+  // the save/share chips, and reading as part of the photo rather than the
+  // content.
+  flipHint: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: '38%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[2.5],
+    paddingVertical: SPACING[1.5],
+    borderRadius: 100,
+    backgroundColor: COLORS.glassOnPhoto,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorderOnPhoto,
+  },
+  flipHintText: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.white,
+    letterSpacing: 0.2,
+  },
   pane: {
     position: 'absolute',
     left: SPACING[2],

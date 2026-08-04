@@ -37,6 +37,12 @@ export interface DealtCardProps {
   // the drawn part — the "N more behind" count under the stack (design §6). A
   // number, not content: this stays content-agnostic.
   remaining?: number;
+  // Chrome laid over the dim, above and below the card — the swipe deck's
+  // counter and its pass/save/undo row. `ReactNode`, so this stays
+  // content-agnostic: the card knows it has furniture to place, not what the
+  // furniture is for.
+  header?: ReactNode;
+  footer?: ReactNode;
   onPass: () => void;
   onSave: () => void;
   onDismiss: () => void;
@@ -96,6 +102,8 @@ export function DealtCard({
   cards,
   origin,
   remaining = 0,
+  header,
+  footer,
   onPass,
   onSave,
   onDismiss,
@@ -366,6 +374,11 @@ export function DealtCard({
           onTouchEnd={sendHome}
         />
       </View>
+      {header && (
+        <View style={styles.header} pointerEvents="box-none">
+          {header}
+        </View>
+      )}
       <View style={styles.stage} pointerEvents="box-none">
         {/* Deepest first so DOM order paints correctly without z-index games.
             STACK_DEPTH + 2, not + 1: the extra layer is the one parked at
@@ -399,6 +412,11 @@ export function DealtCard({
           rather than laid out in the stage, whose children are all absolute so
           the deck can overlap. pointerEvents none — it is a label, not a
           control, and it sits over the dim, which owns tap-to-dismiss. */}
+      {footer && (
+        <View style={styles.footer} pointerEvents="box-none">
+          {footer}
+        </View>
+      )}
       {remaining > 0 && (
         <Animated.View
           pointerEvents="none"
@@ -592,6 +610,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
+  // Chrome over the dim. `header` hugs the top safe area, `footer` the bottom;
+  // both are box-none so only their own controls take touches and the dim
+  // behind them still dismisses.
+  header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 2 },
   countWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   // White at 72% on an 80% ink dim: present, and clearly subordinate to the
   // card it is counting.

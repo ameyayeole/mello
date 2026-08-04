@@ -8,9 +8,9 @@
 // shortens instead of appearing from nothing.
 export const STACK_DEPTH = 4;
 
-// Matches app/events/swipe.tsx exactly. Horizontal means the same thing on
-// this card as it does on every other card in the app; two thresholds would be
-// two different feels for one gesture.
+// The swipe deck's own threshold, carried over when that screen was folded
+// into this card. Horizontal means the same thing on every card in the app;
+// two thresholds would be two different feels for one gesture.
 export const SWIPE_THRESHOLD_RATIO = 0.28;
 export const SWIPE_VELOCITY = 900;
 
