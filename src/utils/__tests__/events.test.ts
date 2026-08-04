@@ -104,6 +104,18 @@ describe('eventImageUri', () => {
     expect(eventImageUri({ host_photo_url: 'host.jpg' })).toBe('host.jpg');
   });
 
+  it('reads the host photo off the nested host too', () => {
+    // `getEventDetail` returns the host as a joined object, not the flat
+    // `host_photo_url` the feed RPCs return. Reading only the flat one is what
+    // left a freshly created photo-less event with no image on every screen
+    // driven by event detail.
+    expect(eventImageUri({ host: { photo_url: 'host.jpg' } })).toBe('host.jpg');
+    expect(
+      eventImageUri({ image_url: 'event.jpg', host: { photo_url: 'host.jpg' } })
+    ).toBe('event.jpg');
+    expect(eventImageUri({ host: { photo_url: null } })).toBeNull();
+  });
+
   it('returns null when neither exists, so callers draw the glyph', () => {
     expect(eventImageUri({ image_url: null, host_photo_url: null })).toBeNull();
     expect(eventImageUri({})).toBeNull();

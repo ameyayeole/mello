@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { formatEventWhen } from '@/utils/time';
+import { formatDistance } from '@/utils/distance';
+import { neighbourhood } from '@/utils/location';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import type { EventDetail } from '@/types/models';
 import {
@@ -68,12 +71,31 @@ export function EventCardBack({
       style={styles.face}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
-      // The card's own pan is disabled while this face is showing (see
-      // DealtCard) so there is nothing for this to fight on iOS; Android still
-      // needs the nested-scrolling flag for the horizontal rail sitting inside
-      // this vertical one.
+      // The card's pan claims the horizontal axis and fails on vertical while
+      // this face is up (see DealtCard's gesture block), so a swipe still
+      // passes/saves from the back and this scroll owns everything vertical.
       nestedScrollEnabled
     >
+      {/* The back is a face of the same object, not a separate screen, and it
+          has to say which event it belongs to. Without this it opened on a bare
+          "ABOUT" heading over body copy — you had turned the card over and lost
+          all sense of what you were reading about. The front carries the photo,
+          so this is deliberately typographic: the title, then the same
+          when · where · distance line, and nothing else competing. */}
+      <View style={styles.header}>
+        <Text style={styles.title} numberOfLines={3}>
+          {event.title}
+        </Text>
+        <Text style={styles.headerMeta} numberOfLines={2}>
+          {[
+            formatEventWhen(event.starts_at),
+            event.location_name ? neighbourhood(event.location_name) : null,
+            event.distance_m != null ? formatDistance(event.distance_m) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+      </View>
       {/* Both ported verbatim from EventBottomSheet.tsx:1315-1336. Unlike the
           gate messaging in the primary action (which only a non-member ever
           sees, by definition — a host/participant has nothing to join), these
@@ -229,6 +251,20 @@ const styles = StyleSheet.create({
   rosterHint: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
+    color: COLORS.textSecondary,
+  },
+  // The back's own identity block — see the comment at its render site.
+  header: { gap: SPACING[1.5], marginBottom: SPACING[1] },
+  title: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.title,
+    lineHeight: TYPE_SIZE.title * 1.2,
+    letterSpacing: -0.3,
+    color: COLORS.textPrimary,
+  },
+  headerMeta: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
   actions: { gap: SPACING[2.5] },

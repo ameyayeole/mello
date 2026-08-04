@@ -215,14 +215,29 @@ export function DealtCard({
   // crossing again (a hesitation, then a real swipe) ticks again.
   const thresholdArmed = useSharedValue(true);
 
-  // Disabled while the back is showing: on that face vertical is the
-  // `ScrollView`'s to own, and a swipe-to-pass/save is a front-face-only
-  // action anyway (the back has no join/pass affordance to trigger). Without
-  // this, the outer `GestureDetector` — which wraps both faces, since the
-  // flip is a cross-fade rather than a real swap of subtrees — would still
-  // claim the touch stream ahead of a nested scroll on every drag.
-  const pan = Gesture.Pan()
-    .enabled(!backShowing)
+  // Axis gating rather than an on/off switch, so pass/save works on BOTH faces.
+  //
+  // The back was previously dead to the pan entirely, because the outer
+  // `GestureDetector` wraps both faces (the flip is a cross-fade, not a swap of
+  // subtrees) and would otherwise claim the touch stream ahead of the back's
+  // `ScrollView` on every drag. Disabling it fixed the scroll and cost the
+  // swipe.
+  //
+  // Both work if the gesture is told which axis it owns:
+  //   • horizontal always activates the pan — that is pass/save, and it means
+  //     the same thing on either face.
+  //   • on the FRONT, vertical activates it too — drag-down dismiss, and the
+  //     up rubber-band.
+  //   • on the BACK, vertical *fails* it, handing the stream to the scroll.
+  //
+  // The horizontal threshold doubles as tap protection: a press that never
+  // travels 12pt cannot start a pan, so a button press is not competing with a
+  // gesture that already claimed the touch.
+  const pan = (
+    backShowing
+      ? Gesture.Pan().activeOffsetX([-12, 12]).failOffsetY([-10, 10])
+      : Gesture.Pan().activeOffsetX([-12, 12]).activeOffsetY([-12, 12])
+  )
     .onStart(() => {
       // Defensive: guarantees a clean flag at the start of every new drag
       // even if some prior attempt's onFinalize somehow didn't run.
@@ -444,12 +459,21 @@ function CardLayer({
 
     return {
       opacity: targetOpacity.value * interpolate(p, [0, 0.12], [0.15, 1], Extrapolation.CLAMP),
+      // `perspective` first, and the whole lot on the CARD — not on an inner
+      // wrapper. The rotateY used to live one view further in, which meant the
+      // card's own fill, radius and shadow sat perfectly still while its
+      // contents spun inside them: the frame didn't turn, so the flip read as
+      // a cross-fade in a static white box rather than an object being turned
+      // over. Whatever carries the card's surface has to be the thing that
+      // rotates.
       transform: [
+        { perspective: 1200 },
         { translateX: x + (isTop ? dx.value : 0) },
         { translateY: y + arc + (isTop ? dy.value : 0) },
         {
           rotateZ: `${rotate + (isTop ? dx.value / 22 : 0)}deg`,
         },
+        { rotateY: `${isTop ? flip.value * 180 : 0}deg` },
         { scale },
       ],
     };
@@ -459,12 +483,9 @@ function CardLayer({
   // `backfaceVisibility`. That property on a 3D-rotated view is inconsistent
   // on Android and fails by ghosting BOTH faces through each other — visible,
   // strange, and impossible to catch without the device.
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 1200 },
-      { rotateY: `${flip.value * 180}deg` },
-    ],
-  }));
+  //
+  // The rotation itself is up in `boxStyle`, on the card. Only the swap
+  // between the two faces happens here.
   const frontStyle = useAnimatedStyle(() => ({
     opacity: flip.value < 0.5 ? 1 : 0,
   }));
@@ -484,23 +505,16 @@ function CardLayer({
       style={[styles.card, { width, height }, boxStyle]}
       pointerEvents={isTop ? 'auto' : 'none'}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, isTop && spinStyle]}>
-        <Animated.View style={[StyleSheet.absoluteFill, styles.face, isTop && frontStyle]}>
-          {front}
-        </Animated.View>
-        {isTop && (
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFill,
-              styles.face,
-              styles.backFace,
-              backStyle,
-            ]}
-          >
-            {back}
-          </Animated.View>
-        )}
+      <Animated.View style={[StyleSheet.absoluteFill, styles.face, isTop && frontStyle]}>
+        {front}
       </Animated.View>
+      {isTop && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.face, styles.backFace, backStyle]}
+        >
+          {back}
+        </Animated.View>
+      )}
       {/* No CSS filter in React Native — the "dimmer further back" is a real
           overlay, always mounted (rather than gated on `layer.shade > 0`) so
           it can animate rather than pop in or out when a promotion crosses
