@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   AppBackground,
   Button,
+  ConfirmDialog,
   Glass,
   Icon,
   IconName,
@@ -85,7 +86,12 @@ function SettingsRow({
       disabled={!onPress}
       style={[styles.row, !last && styles.rowBorder]}
     >
-      <Icon name={icon} size={20} color={iconColor} />
+      {/* Pinned to `linear`, not left to the icon's own default. `shield` is in
+          Icon's BOLD_DEFAULTS, so the Verify row drew a solid glyph while the
+          eight around it drew outlines — one row visibly from a different set.
+          A settings list is read as a column, so the glyph class is a property
+          of the list rather than of each icon. */}
+      <Icon name={icon} size={20} color={iconColor} variant="linear" />
       <View style={styles.rowText}>
         <Text style={styles.rowTitle}>{title}</Text>
         {subtitle ? <Text style={styles.rowSub}>{subtitle}</Text> : null}
@@ -121,6 +127,15 @@ export default function SettingsScreen() {
   // overlay choreography, shared with notifications and search.
   const { travel, content, handoff, dismiss } = useOverlayScreen();
   const backdropStyle = useOverlayBackdrop();
+
+  // Which confirm is open. Deleting takes two: the first asks, the second makes
+  // you say it again — the action is irreversible and one mis-tap must not be
+  // enough. They are separate dialogs rather than a step counter so each can
+  // word its own buttons ("Delete" vs "Delete forever").
+  const [confirm, setConfirm] = useState<
+    null | 'signOut' | 'delete' | 'deleteFinal'
+  >(null);
+  const [busy, setBusy] = useState(false);
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -178,59 +193,50 @@ export default function SettingsScreen() {
     return { opacity: t, transform: [{ translateY: (1 - t) * 24 }] };
   });
 
+  // Optimistic, then reverted if the write fails. Presence reads this store
+  // immediately, so flipping it first is what makes the switch feel instant —
+  // but leaving it flipped after a failed write would tell the user they are
+  // hidden while the server still has them visible, which is the one lie this
+  // particular setting must not tell.
   async function toggleGhostMode(value: boolean) {
     setGhostMode(value);
-    if (user) {
+    if (!user) return;
+    try {
       await updateProfile(user.id, { is_ghost_mode: value });
+    } catch (e) {
+      setGhostMode(!value);
+      showError(e);
     }
   }
 
-  function handleDeleteAccount() {
-    Alert.alert(
-      'Delete account?',
-      'This permanently deletes your profile, events, chats and photos. It cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () =>
-            // A second confirm — deletion is irreversible, one mis-tap
-            // shouldn't be enough.
-            Alert.alert('Are you absolutely sure?', 'There is no way back.', [
-              { text: 'Keep my account', style: 'cancel' },
-              {
-                text: 'Delete forever',
-                style: 'destructive',
-                onPress: async () => {
-                  try {
-                    await deleteAccount();
-                    clear();
-                    router.replace('/onboarding/welcome');
-                  } catch (e) {
-                    showError(e);
-                  }
-                },
-              },
-            ]),
-        },
-      ]
-    );
+  async function handleDelete() {
+    setBusy(true);
+    try {
+      await deleteAccount();
+      clear();
+      router.replace('/onboarding/welcome');
+    } catch (e) {
+      setConfirm(null);
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSignOut() {
-    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          clear();
-          router.replace('/onboarding/welcome');
-        },
-      },
-    ]);
+    setBusy(true);
+    try {
+      await signOut();
+      clear();
+      router.replace('/onboarding/welcome');
+    } catch (e) {
+      // signOut() throws, and this used to be unhandled: a failed sign-out left
+      // the user on a screen that looked signed in with no idea why.
+      setConfirm(null);
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -276,7 +282,7 @@ export default function SettingsScreen() {
                   onPress={() => router.push('/profile/change-password')}
                 />
                 <SettingsRow
-                  icon="send"
+                  icon="mail"
                   title="Change email"
                   subtitle={email}
                   onPress={() => router.push('/profile/change-email')}
@@ -291,7 +297,7 @@ export default function SettingsScreen() {
               </SectionLabel>
               <SettingsCard>
                 <SettingsRow
-                  icon="lock"
+                  icon="ghost"
                   iconColor={COLORS.verified}
                   title="Ghost mode"
                   subtitle="Hide your online presence from others"
@@ -337,7 +343,7 @@ export default function SettingsScreen() {
                   iconColor={COLORS.error}
                   title="Delete account"
                   subtitle="Permanently erase your account and data"
-                  onPress={handleDeleteAccount}
+                  onPress={() => setConfirm('delete')}
                   last
                 />
               </SettingsCard>
@@ -345,7 +351,7 @@ export default function SettingsScreen() {
                 label="Log out"
                 variant="tertiary"
                 height={46}
-                onPress={handleSignOut}
+                onPress={() => setConfirm('signOut')}
                 style={styles.logout}
               />
             </View>
@@ -392,6 +398,41 @@ export default function SettingsScreen() {
           </View>
         </PressableScale>
       </Animated.View>
+
+      <ConfirmDialog
+        visible={confirm === 'signOut'}
+        onClose={() => setConfirm(null)}
+        icon="logout"
+        title="Log out?"
+        body="You'll need to sign in again to get back to your events and chats."
+        confirmLabel="Log out"
+        onConfirm={handleSignOut}
+        loading={busy}
+      />
+
+      <ConfirmDialog
+        visible={confirm === 'delete'}
+        onClose={() => setConfirm(null)}
+        icon="trash"
+        tone="destructive"
+        title="Delete account?"
+        body="This permanently deletes your profile, events, chats and photos. It cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => setConfirm('deleteFinal')}
+      />
+
+      <ConfirmDialog
+        visible={confirm === 'deleteFinal'}
+        onClose={() => setConfirm(null)}
+        icon="warning"
+        tone="destructive"
+        title="Are you absolutely sure?"
+        body="There is no way back."
+        cancelLabel="Keep my account"
+        confirmLabel="Delete forever"
+        onConfirm={handleDelete}
+        loading={busy}
+      />
     </View>
   );
 }

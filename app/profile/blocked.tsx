@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Text, StyleSheet, FlatList } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import {
@@ -14,11 +15,13 @@ import { Profile } from '@/types/models';
 import {
   Avatar,
   Button,
+  ConfirmDialog,
   EmptyState,
   Loader,
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { showError } from '@/utils/errors';
 
 export default function BlockedUsersScreen() {
   const me = useAuthStore((s) => s.user);
@@ -30,6 +33,11 @@ export default function BlockedUsersScreen() {
     enabled: !!me,
   });
 
+  // Who the confirm is about. Blocking someone asks first
+  // (BlockConfirmDialog), so unblocking — which re-exposes both of you to each
+  // other everywhere — should not have been the one that happened on one tap.
+  const [pending, setPending] = useState<Profile | null>(null);
+
   const unblock = useMutation({
     mutationFn: (blockedId: string) => unblockUser(me!.id, blockedId),
     onSuccess: (_d, blockedId) => {
@@ -40,6 +48,10 @@ export default function BlockedUsersScreen() {
         qc.invalidateQueries({ queryKey });
       }
     },
+    // Without this a failed unblock did nothing at all — the row stayed, no
+    // error was raised, and the only signal was that the list hadn't changed.
+    onError: (e) => showError(e),
+    onSettled: () => setPending(null),
   });
 
   function renderItem({ item, index }: { item: Profile; index: number }) {
@@ -57,7 +69,7 @@ export default function BlockedUsersScreen() {
           label="Unblock"
           size="sm"
           variant="tertiary"
-          onPress={() => unblock.mutate(item.id)}
+          onPress={() => setPending(item)}
           disabled={unblock.isPending}
         />
       </Animated.View>
@@ -85,6 +97,17 @@ export default function BlockedUsersScreen() {
           }
         />
       )}
+
+      <ConfirmDialog
+        visible={!!pending}
+        onClose={() => setPending(null)}
+        icon="userPlus"
+        title={`Unblock ${pending?.name ?? 'this person'}?`}
+        body="You'll be able to see each other's profiles, events and messages again. They won't be told."
+        confirmLabel="Unblock"
+        onConfirm={() => pending && unblock.mutate(pending.id)}
+        loading={unblock.isPending}
+      />
     </Screen>
   );
 }
@@ -99,7 +122,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     padding: SPACING[3],
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: COLORS.inkSubtle,
     shadowColor: COLORS.ink,
     shadowOpacity: 0.05,
     shadowRadius: 8,

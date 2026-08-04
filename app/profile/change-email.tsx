@@ -18,15 +18,21 @@ export default function ChangeEmailScreen() {
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // Both checks are about the one field on this screen, so they belong under
+  // it rather than in an alert over it. The service failure below keeps the
+  // alert — it has no field to point at.
   async function handleSave() {
     const trimmed = email.trim();
+    setError(null);
+
     if (!EMAIL_RE.test(trimmed)) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      setError('That doesn’t look like an email address.');
       return;
     }
     if (trimmed.toLowerCase() === currentEmail?.toLowerCase()) {
-      Alert.alert('Same email', 'That is already your email address.');
+      setError('That’s already your email address.');
       return;
     }
     try {
@@ -53,7 +59,10 @@ export default function ChangeEmailScreen() {
               signing in with {currentEmail}.
             </Text>
             <Button
-  variant="tertiary" label="Done" onPress={() => router.back()} />
+              variant="tertiary"
+              label="Done"
+              onPress={() => router.back()}
+            />
           </>
         ) : (
           <>
@@ -68,10 +77,14 @@ export default function ChangeEmailScreen() {
             <TextField
               placeholder="New email address"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(t) => {
+                setEmail(t);
+                setError(null);
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoFocus
+              error={error}
             />
             <Button
               variant="primary"

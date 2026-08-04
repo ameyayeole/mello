@@ -26,6 +26,17 @@ import { Icon, IconName } from './Icon';
 // All three are rounded rectangles. There are deliberately no pill buttons.
 type Variant = 'primary' | 'secondary' | 'tertiary';
 
+// Valence, deliberately NOT a fourth variant. `variant` answers "how much
+// weight does this action deserve"; `tone` answers "does it destroy something".
+// They are independent questions — a destructive action can be the screen's CTA
+// or a quiet row action — so folding them into one axis would have meant either
+// breaking the three-variant rule or leaving red unavailable.
+//
+// It was unavailable, and it cost: BlockConfirmDialog, DiscardDialog and the
+// community delete confirm each hand-rolled a red PressableScale rather than
+// use Button, which is the fork this prop exists to stop.
+type Tone = 'default' | 'destructive';
+
 // Small buttons use the body font (Plus Jakarta) and larger ones the display
 // font (Bricolage) — matching the distinction the screens already drew by hand.
 const SIZES = {
@@ -65,6 +76,7 @@ export function Button({
   label,
   onPress,
   variant = 'secondary',
+  tone = 'default',
   size = 'lg',
   icon,
   iconPosition = 'leading',
@@ -77,6 +89,7 @@ export function Button({
   label: string;
   onPress?: () => void;
   variant?: Variant;
+  tone?: Tone;
   size?: 'sm' | 'md' | 'lg';
   icon?: IconName;
   iconPosition?: 'leading' | 'trailing';
@@ -94,7 +107,15 @@ export function Button({
   const padding = height != null ? 24 : spec.padding;
   const fontSize = height != null ? TYPE_SIZE.bodyLg : spec.font;
   const fontFamily = height != null ? FONTS.heading : spec.family;
-  const labelColor = disabled ? COLORS.textMuted : LABEL_COLOR[variant];
+  const destructive = tone === 'destructive';
+  // A filled destructive button carries the red; an outline one (tertiary)
+  // keeps its white fill and turns only the label, because a solid red
+  // low-stakes button would out-shout the screen's actual CTA.
+  const labelColor = disabled
+    ? COLORS.textMuted
+    : destructive && variant === 'tertiary'
+      ? COLORS.error
+      : LABEL_COLOR[variant];
 
   const glyph = icon ? (
     <Icon name={icon} size={spec.icon} color={labelColor} />
@@ -115,6 +136,9 @@ export function Button({
         },
         fullWidth && styles.fullWidth,
         styles[variant],
+        // After styles[variant] so it overrides the fill, before `disabled` so
+        // a disabled destructive button still greys out.
+        destructive && variant !== 'tertiary' && styles.destructive,
         disabled && styles.disabled,
         style,
       ]}
@@ -152,6 +176,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+
+  // Also clears `primary`'s coral glow — a red button haloed in coral reads as
+  // two colours arguing rather than as one warning.
+  destructive: {
+    backgroundColor: COLORS.error,
+    shadowColor: COLORS.error,
   },
 
   disabled: {

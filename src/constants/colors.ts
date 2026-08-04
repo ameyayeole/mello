@@ -138,6 +138,10 @@ export const COLORS = {
   attendingTint: '#E8F0FE',
   verified: '#2C5AC7',
   error: '#EF4444',
+  // The wash behind a destructive glyph. Alpha rather than a flat tint so it
+  // works over glass as well as over `surface` — the literal it replaces
+  // (rgba(239,68,68,0.10)) was written out by hand in two confirm dialogs.
+  errorTint: 'rgba(239,68,68,0.10)',
   warning: '#C8791E',
   online: '#22C55E',
   disabled: '#D8D5DA',

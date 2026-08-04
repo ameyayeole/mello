@@ -17,11 +17,24 @@ type SolarComp = ComponentType<{
 
 // App icon name → Solar component name. Linear variant unless the name is in
 // BOLD_DEFAULTS (or the caller passes variant="bold").
-const SOLAR: Record<string, string> = {
+//
+// `as const` rather than `Record<string, string>`: the annotation widened the
+// keys to `string`, and since IconName is built from these keys that made
+// IconName `string` too — every `<Icon name="typo" />` in the app type-checked
+// clean. Same reason `glyphs` below is unannotated.
+const SOLAR = {
   back: 'AltArrowLeft',
   chevronRight: 'AltArrowRight',
   chevronDown: 'AltArrowDown',
   bell: 'Bell',
+  // The circle-slash was the last hand-drawn glyph left on the settings list,
+  // and next to eight Solar rows its lighter stroke read as a different set.
+  block: 'ForbiddenCircle',
+  // Changing your email is not sending a message — `send` is a paper plane.
+  mail: 'Letter',
+  // Ghost mode used `lock`, which is the *same* glyph the Change-password row
+  // two rows above it draws. Two different settings cannot share an icon.
+  ghost: 'Ghost',
   bellOff: 'BellOff',
   bookmark: 'Bookmark',
   bookmarkFilled: 'Bookmark',
@@ -76,7 +89,9 @@ const BOLD_DEFAULTS = new Set([
 
 type Glyph = React.ReactNode;
 
-const glyphs: Record<string, Glyph> = {
+// Deliberately unannotated — see the note on SOLAR. `satisfies` keeps the value
+// checked without widening the keys that IconName is derived from.
+const glyphs = {
   pin: (
     <>
       <Path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
@@ -367,9 +382,11 @@ const glyphs: Record<string, Glyph> = {
       <Circle cx={18} cy={14} r={0.9} />
     </>
   ),
-};
+} satisfies Record<string, Glyph>;
 
-export type IconName = keyof typeof glyphs;
+// Both halves of the set. Solar-only names (gps, mail, ghost…) were not
+// assignable before, because IconName was derived from `glyphs` alone.
+export type IconName = keyof typeof SOLAR | keyof typeof glyphs;
 
 // True when a drawable glyph exists for this name (Solar or hand-drawn).
 // Category tiles use this to fall back to the activity's emoji otherwise.
@@ -390,7 +407,7 @@ export function Icon({
   strokeWidth?: number;
   variant?: 'linear' | 'bold';
 }) {
-  const solarName = SOLAR[name];
+  const solarName = (SOLAR as Record<string, string>)[name];
   if (solarName) {
     const bold = variant ? variant === 'bold' : BOLD_DEFAULTS.has(name);
     const pack = bold ? SB : SL;
@@ -411,7 +428,7 @@ export function Icon({
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {glyphs[name]}
+      {(glyphs as Record<string, Glyph>)[name]}
     </Svg>
   );
 }
