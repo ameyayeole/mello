@@ -97,6 +97,17 @@ behaviour that this branch reuses rather than invents, so it is closer to
 | B4 | Deal a deck from **search results**, from a **friend's profile**, and from your own **Profile** tab, then look at the four cards behind the top one | Each shows a real event card (photo, title, host) | Blank rectangles. Those three screens' feeds were missing from the dealt deck's cache list, so every background card fell through to the placeholder and the "visible messy stack" was four empty boxes. The list moved to `queryKeys.ts` as `EVENT_SUMMARY_CACHE_KEYS` and the three keys were added — this checks that the prefixes actually match at runtime, which is the half a type checker cannot see | ☐ | ☐ |
 | B5 | With a deck of more than five events, look under the stack, then swipe through it | A "N more behind" count sits under the card and counts down as you swipe (design §6). The deepest card in the stack fades in as the stack shortens rather than appearing at full opacity | Count missing, wrong, or still showing at 0; or a card visibly pops into existence behind the stack instead of fading in | ☐ | ☐ |
 
+> **B3, B4 and B5 are superseded — do not run them.** They test a many-deep
+> stack behind the pin's card, and there is no longer one: `EventDealtCard`
+> deals a single card with nothing behind it, and the many-deep stack moved to
+> `EventDeck` (see `event-deck-one-component.md`, section B). B4 in particular
+> tested `EVENT_SUMMARY_CACHE_KEYS`, the prefix list a background card looked
+> itself up in — that list and its one consumer, `useCachedEventSummary`, are
+> both deleted, because the deck's stack now renders straight off the live rows
+> `useSwipeDeck` already holds and nothing scans a cache by prefix. B5's "N more
+> behind" count was cut separately, for its own reasons (see `DealtCard.tsx`).
+> B1 and B2 still stand: the front face's `Glass` pane is unchanged.
+
 ## C · Haptic timing — pure conjecture, against a scheme that was short and is now fixed
 
 This section was originally written against the design spec's five-moment
