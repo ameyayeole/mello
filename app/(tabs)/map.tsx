@@ -370,18 +370,14 @@ export default function MapScreen() {
                     latitude: event.lat,
                     longitude: event.lng,
                   });
-                  // The deck is every event currently rendered as a pin, this
-                  // one first — the same `clusters` the pins themselves came
-                  // from, so opening the card fetches nothing extra.
-                  const ids = [
-                    event.id,
-                    ...clusters
-                      .flatMap((c) => c.items.map((i) => i.id))
-                      .filter((id) => id !== event.id),
-                  ];
+                  // One event — the one whose pin was tapped. This used to
+                  // build a deck of every event currently rendered as a pin,
+                  // by flat-mapping every cluster on the map, on every single
+                  // tap. Nothing past the first entry was ever read: the card
+                  // deals one event and closes on a swipe, and the many-deep
+                  // stack is the fan's `EventDeck`, not this.
                   dealCard(
-                    ids,
-                    0,
+                    event.id,
                     p
                       ? {
                           x: p.x + mapOffset.x - PIN_BUBBLE_SIZE / 2,
@@ -597,11 +593,7 @@ export default function MapScreen() {
           // closing in the same tick, and the map is mid-pan to a new region —
           // unlike the pin tap above, nothing the user just looked at is still
           // where it was. Same null-origin path a deep link takes.
-          const ids = [
-            event.id,
-            ...boostedEvents.map((e) => e.id).filter((id) => id !== event.id),
-          ];
-          dealCard(ids, 0, null);
+          dealCard(event.id, null);
         }}
       />
     </View>

@@ -72,34 +72,40 @@ export interface DealtOrigin {
   height: number;
 }
 
-// The open card and the deck behind it. `ids` is the whole deck; `index` is
-// which one is face up.
+// The open card: one event, and where it flew from.
 //
-// `origin` belongs to the FIRST card only and is dropped on the first advance:
-// once you have swiped, nothing on screen is where the current card came from,
-// and flying back to the original pin would claim you are looking at an event
-// you are not.
+// This used to be `{ ids: string[]; index: number }` — a whole deck plus which
+// card was face up — with an `advanceDealtCard` action to step the index. All
+// three are gone, and the reason is in `EventDealtCard`'s own comment: tapping
+// a pin, a feed card or a search result is asking about a SINGLE event, and
+// dealing strangers' events out behind the one you asked for made the map read
+// like a shuffled pile rather than an answer to the thing you tapped. The
+// many-deep, quota-aware stack is `EventDeck` now, reached from the map's own
+// fan. That is a decision with a rationale, not a pause, so the shape that
+// modelled the old behaviour goes with it.
 //
-// There used to be a `source: 'browse' | 'swipeDeck'` discriminant here,
+// It was not merely dead weight. `advanceDealtCard` had no caller left in the
+// app, so `index` could never be anything but the value passed in and every
+// opener was reading `ids[index]` back out of an array it had just built — and
+// seven of them built that array on every tap. A pin tap ran a `flatMap` over
+// every cluster on the map to fill a field nothing read.
+//
+// There used to be a `source: 'browse' | 'swipeDeck'` discriminant here too,
 // carrying whether a swipe should spend one of the day's swipes (the deck) or
-// just advance (everywhere else). Deleted along with the swipe deck's branch
-// of `EventDealtCard` (see `EventDeck`) — a pin's card only ever advances, so
-// there was nothing left for the discriminant to distinguish.
+// just advance (everywhere else). Deleted along with the swipe deck's branch of
+// `EventDealtCard` (see `EventDeck`), for the same reason.
 export interface DealtCardState {
-  ids: string[];
-  index: number;
+  id: string;
   origin: DealtOrigin | null;
-  // Bumped by every `dealCard`, never by `advanceDealtCard`. `EventDealtCard`
-  // keys the card component on it, so a fresh deal remounts and a swipe does
-  // not.
+  // Bumped by every `dealCard`. `EventDealtCard` keys the card component on
+  // it, so dealing a fresh card remounts.
   //
-  // Replacing a deck in place — the "Happening near you" rail on the back face
+  // Replacing a card in place — the "Happening near you" rail on the back face
   // calls `dealCard` while a card is already open — otherwise reused the same
   // mounted component: its deal effect is mount-only, and nothing reset the
   // flip (the swipe path resets it in `commit`, this path has no swipe). The
   // new event appeared instantly, with no deal animation, already showing its
-  // back. The token must NOT change on advance, or every depth promotion
-  // remounts the stack and the animation the promotion exists for is lost.
+  // back.
   token: number;
 }
 
@@ -159,8 +165,7 @@ interface UIState {
   // The route is gone — the handed-over element comes back. The handoff itself
   // survives, so a second visit flies from the same place.
   clearOverlay: () => void;
-  dealCard: (ids: string[], index: number, origin: DealtOrigin | null) => void;
-  advanceDealtCard: () => void;
+  dealCard: (id: string, origin: DealtOrigin | null) => void;
   closeDealtCard: () => void;
 
   // Settings and the screens it opens share one background: the sub-screens are
@@ -217,24 +222,17 @@ export const useUIStore = create<UIState>((set) => ({
   closeOverlay: () => set({ overlayOpen: false }),
   clearOverlay: () => set({ overlayOpen: false, overlayMounted: false }),
   // The touch-down tick (design doc §3) belongs here rather than in each of
-  // the twelve call sites that can deal a card: this action is the one place
-  // every one of them already goes through, deep link included (where there
-  // was no touch to fire it from — harmless, since a selection tick with
-  // nothing pressed just doesn't register as odd the way a stray impact
-  // would). A store action causing a side effect is a small impurity, but
-  // it's the cheaper trade against twelve copies of the same haptic call
-  // that would silently drift out of sync with each other.
-  dealCard: (ids, index, origin) => {
+  // the fifteen call sites across ten files that can deal a card: this action
+  // is the one place every one of them already goes through, deep link
+  // included (where there was no touch to fire it from — harmless, since a
+  // selection tick with nothing pressed just doesn't register as odd the way a
+  // stray impact would). A store action causing a side effect is a small
+  // impurity, but it's the cheaper trade against fifteen copies of the same
+  // haptic call that would silently drift out of sync with each other.
+  dealCard: (id, origin) => {
     Haptics.selectionAsync();
     dealToken += 1;
-    set({ dealtCard: { ids, index, origin, token: dealToken } });
+    set({ dealtCard: { id, origin, token: dealToken } });
   },
-  advanceDealtCard: () =>
-    set((s) => {
-      if (!s.dealtCard) return s;
-      const next = s.dealtCard.index + 1;
-      if (next >= s.dealtCard.ids.length) return { dealtCard: null };
-      return { dealtCard: { ...s.dealtCard, index: next, origin: null } };
-    }),
   closeDealtCard: () => set({ dealtCard: null }),
 }));

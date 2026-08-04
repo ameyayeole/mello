@@ -682,17 +682,15 @@ export default function DashboardScreen() {
                       })
                     }
                     onPress={() => {
-                      const ids = nearbyQuery.data!.map((e) => e.id);
-                      const index = ids.indexOf(event.id);
                       const node = nearbyRefs.current[event.id];
                       if (!node) {
-                        useUIStore.getState().dealCard(ids, index, null);
+                        useUIStore.getState().dealCard(event.id, null);
                         return;
                       }
                       node.measureInWindow((x, y, width, height) => {
                         useUIStore
                           .getState()
-                          .dealCard(ids, index, { x, y, width, height });
+                          .dealCard(event.id, { x, y, width, height });
                       });
                     }}
                   />

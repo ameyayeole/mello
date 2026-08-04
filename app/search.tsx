@@ -286,8 +286,7 @@ export default function SearchScreen() {
       close(() => router.push(`/(tabs)/chats/${eventId}`));
       return;
     }
-    const ids = events.map((e) => e.id);
-    useUIStore.getState().dealCard(ids, ids.indexOf(eventId), origin);
+    useUIStore.getState().dealCard(eventId, origin);
     close();
   };
 

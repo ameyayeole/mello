@@ -58,17 +58,15 @@ export function EventsRail() {
                 scaleTo={0.96}
                 style={styles.card}
                 onPress={() => {
-                  const ids = cards.map((c) => c.id);
-                  const index = ids.indexOf(e.id);
                   const node = cardRefs.current[e.id];
                   if (!node) {
-                    useUIStore.getState().dealCard(ids, index, null);
+                    useUIStore.getState().dealCard(e.id, null);
                     return;
                   }
                   node.measureInWindow((x, y, width, height) => {
                     useUIStore
                       .getState()
-                      .dealCard(ids, index, { x, y, width, height });
+                      .dealCard(e.id, { x, y, width, height });
                   });
                 }}
                 accessibilityRole="button"

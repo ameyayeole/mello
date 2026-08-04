@@ -93,8 +93,7 @@ export function openNotificationTarget(
   }
 
   if (eventId && type && EVENT_SHEET_TYPES.has(type)) {
-    // A single-entry deck: nothing else is "the list this came from".
-    useUIStore.getState().dealCard([eventId], 0, origin);
+    useUIStore.getState().dealCard(eventId, origin);
   }
 }
 

@@ -25,7 +25,7 @@ export function redirectSystemPath({
     const match = path.match(/(?:^|\/)event\/([^/?#]+)/);
     if (match?.[1]) {
       const eventId = decodeURIComponent(match[1]);
-      useUIStore.getState().dealCard([eventId], 0, null);
+      useUIStore.getState().dealCard(eventId, null);
       return '/(tabs)/map';
     }
   } catch {

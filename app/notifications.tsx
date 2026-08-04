@@ -606,9 +606,7 @@ export default function NotificationsScreen() {
   // of being able to tap a name.
   const openEvent = useCallback(
     (eventId: string, origin: DealtOrigin | null = null) => {
-      // A single-entry deck: nothing else on this list is "the deck the tap
-      // came from" the way a feed's rows are.
-      useUIStore.getState().dealCard([eventId], 0, origin);
+      useUIStore.getState().dealCard(eventId, origin);
       dismiss();
     },
     [dismiss]

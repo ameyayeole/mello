@@ -80,9 +80,9 @@ export function CardPortal({ children }: { children: ReactNode }) {
 // The dealt card for ONE event, driven entirely by `uiStore.dealtCard` — no
 // props, so one instance mounted in the root layout serves every opener (a
 // map pin, the home rail, a friend's profile, the wishlist): each just calls
-// `uiStore.dealCard(ids, index, origin)` and this renders whatever that
-// produced. `CardPortal` above is what makes one mount enough — see its
-// comment for the three screens that proved it wasn't.
+// `uiStore.dealCard(id, origin)` and this renders whatever that produced.
+// `CardPortal` above is what makes one mount enough — see its comment for the
+// three screens that proved it wasn't.
 //
 // The swipe deck is a different surface — `EventDeck`, mounted alongside this
 // one in the root layout — with its own many-deep stack, quota and undo. This
@@ -97,7 +97,7 @@ export function EventDealtCard() {
   const deal = useUIStore((s) => s.dealtCard);
   const close = useUIStore((s) => s.closeDealtCard);
 
-  const topId = deal?.ids[deal.index] ?? null;
+  const topId = deal?.id ?? null;
   const {
     event,
     gate,

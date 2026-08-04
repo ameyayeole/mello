@@ -225,17 +225,15 @@ export default function WishlistScreen() {
                 <WishlistCard
                   event={item}
                   onPress={() => {
-                    const ids = wishlist.map((e) => e.id);
-                    const i = ids.indexOf(item.id);
                     const node = cardRefs.current[item.id];
                     if (!node) {
-                      useUIStore.getState().dealCard(ids, i, null);
+                      useUIStore.getState().dealCard(item.id, null);
                       return;
                     }
                     node.measureInWindow((x, y, width, height) => {
                       useUIStore
                         .getState()
-                        .dealCard(ids, i, { x, y, width, height });
+                        .dealCard(item.id, { x, y, width, height });
                     });
                   }}
                   onRemove={() => remove.mutate(item.id)}
