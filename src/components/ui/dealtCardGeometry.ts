@@ -50,6 +50,9 @@ const LAYERS: readonly StackLayer[] = [
 ];
 
 export function stackLayer(depth: number): StackLayer {
+  // Same reason as `isPastThreshold` below: read from `CardLayer`'s animated
+  // styles, which are worklets.
+  'worklet';
   if (depth <= 0) return LAYERS[0];
   if (depth <= STACK_DEPTH) return LAYERS[depth];
   return { ...LAYERS[STACK_DEPTH], opacity: 0 };
@@ -62,6 +65,12 @@ export function isPastThreshold(
   velocityX: number,
   width: number
 ): boolean {
+  // Called from inside the pan gesture's worklets, which run on the UI thread.
+  // Without this directive Reanimated throws "Tried to synchronously call a
+  // non-worklet function on the UI thread" the first time a finger moves on a
+  // card — and nothing catches it: the function is pure, its unit tests pass,
+  // and `tsc` sees nothing wrong. Only a device does.
+  'worklet';
   return (
     Math.abs(dx) > width * SWIPE_THRESHOLD_RATIO ||
     Math.abs(velocityX) > SWIPE_VELOCITY

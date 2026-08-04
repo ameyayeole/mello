@@ -262,18 +262,27 @@ export function EventDealtCard() {
     [outOfSwipes, close, router, topId, recordSwipe]
   );
 
+  // Off the swipe deck there is no stack, so there is nothing to advance INTO:
+  // swiping finishes the one card you opened and puts you back where you were.
+  // Advancing would drop you on a stranger's event you never asked for, with no
+  // deck on screen to explain where it came from.
   const handleSave = useCallback(() => {
     if (isSwipeDeck) {
       if (!spendSwipe('like')) return;
-    } else if (!saved) {
-      handleToggleSave();
+      advance();
+      return;
     }
-    advance();
-  }, [isSwipeDeck, spendSwipe, saved, handleToggleSave, advance]);
+    if (!saved) handleToggleSave();
+    close();
+  }, [isSwipeDeck, spendSwipe, saved, handleToggleSave, advance, close]);
   const handlePass = useCallback(() => {
-    if (isSwipeDeck && !spendSwipe('pass')) return;
-    advance();
-  }, [isSwipeDeck, spendSwipe, advance]);
+    if (isSwipeDeck) {
+      if (!spendSwipe('pass')) return;
+      advance();
+      return;
+    }
+    close();
+  }, [isSwipeDeck, spendSwipe, advance, close]);
 
   // A non-host approved participant of an event that hasn't wrapped — the one
   // state that offers "Leave event" and "Check in". Reusing `primaryLabel`
@@ -293,10 +302,20 @@ export function EventDealtCard() {
 
   if (!deal) return null;
 
-  // STACK_DEPTH + 2: four visible behind the top card, plus one more parked at
-  // opacity 0 so the stack always has something ready to fade in as it
-  // shortens. `DealtCard` slices to the same bound — see its comment.
-  const visibleIds = deal.ids.slice(deal.index, deal.index + STACK_DEPTH + 2);
+  // The messy stack belongs to the swipe deck and nowhere else.
+  //
+  // Tapping a pin, a feed card or a search result is asking about ONE event, so
+  // that is what it opens: a single card, no deck behind it. Dealing four
+  // strangers' events out behind the one you asked for made the map read like a
+  // shuffled pile rather than an answer to the thing you tapped. The swipe deck
+  // is the opposite — a queue is the whole point there, and seeing how much is
+  // left is what makes you keep going.
+  //
+  // STACK_DEPTH + 2 for the deck: four visible behind the top card, plus one
+  // more parked at opacity 0 so there is always something ready to fade in as
+  // the stack shortens. `DealtCard` slices to the same bound — see its comment.
+  const depth = isSwipeDeck ? STACK_DEPTH + 2 : 1;
+  const visibleIds = deal.ids.slice(deal.index, deal.index + depth);
   const cards = visibleIds.map((id, i) => {
     const isTop = i === 0;
     return {
@@ -447,8 +466,10 @@ export function EventDealtCard() {
           origin={deal.origin}
           // The whole deck's remainder, not the drawn part's — the label
           // counts what is left to swipe through, which is usually more than
-          // the five cards on screen.
-          remaining={deal.ids.length - deal.index - 1}
+          // the five cards on screen. Zero off the swipe deck: a single card
+          // has nothing behind it, so a count would be describing a stack that
+          // isn't there.
+          remaining={isSwipeDeck ? deal.ids.length - deal.index - 1 : 0}
           onPass={handlePass}
           onSave={handleSave}
           onDismiss={close}
