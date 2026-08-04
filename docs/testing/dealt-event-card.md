@@ -7,7 +7,7 @@ swipeable as a deck. Ten tasks, `progress.md` in
 `.superpowers/sdd/2026-08-03-dealt-event-card/` is the full record.
 
 **Nothing in this branch has been run.** `npm run typecheck` (0 errors),
-`npm test` (337 passing) and `npm run lint` (0 errors / 67 warnings) are all
+`npm test` (338 passing) and `npm run lint` (0 errors / 67 warnings) are all
 green, and none of the three can see any of it — Reanimated 4 throws on
 import under Jest, so no component here has a unit test, and this feature has
 no screen-test coverage at all. This sheet is the only record of what was and
@@ -15,6 +15,13 @@ was not verified.
 
 Run on **iOS and Android**. Tick each row on each platform. A row that
 cannot be run is **BLOCKED**, not passed — note it and come back.
+
+**Run sections O and P first.** They were added by the final whole-branch
+review and are the two highest-risk sections here — P is "does the card appear
+at all from three of the screens that open it", O is "do any of the buttons on
+it work". Both are new letters rather than an insert at the top, so that every
+row that has already been referenced elsewhere keeps its name. Letters are
+identity on this sheet, not order.
 
 Ordered by **risk**, not by feature — highest-risk first. Each row says
 explicitly whether it checks **reasoning** (the code was read and traced, but
@@ -44,15 +51,31 @@ anything specific was observed going wrong.
 | # | Step | Expect | Failure looks like | iOS | Android |
 | --- | --- | --- | --- | :-: | :-: |
 | A1 | Tap a map pin (or any card) to deal a card, then tap it once to flip | The flip cross-fades smoothly through the edge-on point, no stutter | Visible frame drop, a stall at the 90° crossing, or momentarily seeing both faces overlaid ("ghosting") — the cross-fade exists specifically to avoid the `backfaceVisibility` version of this bug, so ghosting here would mean the fix itself is broken | ☐ | ☐ |
-| A2 | With a full deck dealt (5 cards, all with photos), flip the top card several times in a row, then swipe through 3-4 cards | Consistently smooth, no dropped frames, no lag between touch and response | Visible jank, a noticeable delay between your swipe and the card responding, or the app feeling "heavy" specifically once 5 photos are mounted (vs. feeling fine with 1) | ☐ | ☐ |
+| A2 | With a full deck dealt, flip the top card several times in a row, then swipe through 3-4 cards | Consistently smooth, no dropped frames, no lag between touch and response | Visible jank, a noticeable delay between your swipe and the card responding, or the app feeling "heavy" specifically once a full deck is mounted (vs. feeling fine with 1 card) | ☐ | ☐ |
 | A3 | Scroll the back face's vertical description all the way down through the "Happening near you" rail, then scroll that rail horizontally | Both scroll smoothly; no stutter where the horizontal rail sits inside the vertical scroll | Jank specifically at the rail, or the vertical scroll "catching" when your finger crosses into the rail's horizontal area | ☐ | ☐ |
 | A4 | Open the deck fresh and watch the first card deal in | Arcs in with a lift at the midpoint and a small overshoot at the end — reads as thrown, not slid | Looks like a slide/fade instead of an arc, or the overshoot is invisible/absent | ☐ | ☐ |
 
-**A1 and A2 are the two highest-risk rows on this whole sheet.** 3D `rotateY`
-work over a full-bleed `expo-image`, times five cards mounted simultaneously
-(four of them rotated and scaled per `dealtCardGeometry.ts`'s stack table),
-is exactly the kind of cost that shows up on mid-range Android and not on a
-new iPhone. If either is bad, that is a real product problem, not a nitpick.
+**A1 and A2 are the two highest-risk *framerate* rows on this sheet** (O and P
+above them are correctness, not performance). 3D `rotateY` work over a
+full-bleed `expo-image`, times the cards mounted simultaneously, is exactly the
+kind of cost that shows up on mid-range Android and not on a new iPhone. If
+either is bad, that is a real product problem, not a nitpick.
+
+**How much is actually mounted, corrected.** A2 used to say "5 cards, all with
+photos". It is more than that:
+
+- **Six** card faces, not five. The top card plus four visible behind it, plus
+  one more parked at opacity 0 so it can fade in as the stack shortens rather
+  than popping in (design §6; `dealtCardGeometry.ts:55`, made reachable in the
+  fix wave). Six `expo-image`s, five of them rotated and scaled.
+- **`EventCardBack` mounts as soon as a card is dealt, not on flip.** It is
+  cross-faded, not conditionally rendered — so its "Happening near you" rail,
+  up to eight more `expo-image`s, is live and laying out behind a face you
+  cannot see, from the first frame of the deal.
+
+So the worst case is ~14 images mounted for one dealt card, most of them
+invisible. That is the number A2 is really measuring. If A2 fails, the first
+thing to try is gating `EventCardBack`'s mount on the flip having started.
 
 ## B · The glass panel's Android degradation — reasoning, partially observed
 
@@ -66,7 +89,9 @@ behaviour that this branch reuses rather than invents, so it is closer to
 | --- | --- | --- | --- | :-: | :-: |
 | B1 | On Android, deal any card and look at the front face's content panel (the `Glass` `onPhoto` pane over the photo) | A flat, translucent dark fill behind the text — no true blur, but legible and not jarring | The panel looks broken (fully opaque, fully transparent, or the wrong colour) rather than merely flatter than iOS's blur | ☐ | ☐ |
 | B2 | On iOS, do the same comparison | A true backdrop blur — visibly softer/frostier than Android's flat fill | *Reference point, not a check* — this row can't fail on its own; it exists only so B1's "flatter than iOS" comparison has something to compare against. Don't hunt for a failure condition here | ☐ | ☐ |
-| B3 | With 5 cards dealt, check the four cards behind the top one | They are a flat dimmed fill (82% brightness per spec §6), not blurred, on **both** platforms — only the top card gets a real `Glass` blur | A background card shows a real blur (wasted cost) or looks undimmed/identical to the top card | ☐ | ☐ |
+| B3 | With a full deck dealt, check the four cards behind the top one | They are a flat dimmed fill (82% brightness per spec §6), not blurred, on **both** platforms — only the top card gets a real `Glass` blur | A background card shows a real blur (wasted cost) or looks undimmed/identical to the top card | ☐ | ☐ |
+| B4 | Deal a deck from **search results**, from a **friend's profile**, and from your own **Profile** tab, then look at the four cards behind the top one | Each shows a real event card (photo, title, host) | Blank rectangles. Those three screens' feeds were missing from the dealt deck's cache list, so every background card fell through to the placeholder and the "visible messy stack" was four empty boxes. The list moved to `queryKeys.ts` as `EVENT_SUMMARY_CACHE_KEYS` and the three keys were added — this checks that the prefixes actually match at runtime, which is the half a type checker cannot see | ☐ | ☐ |
+| B5 | With a deck of more than five events, look under the stack, then swipe through it | A "N more behind" count sits under the card and counts down as you swipe (design §6). The deepest card in the stack fades in as the stack shortens rather than appearing at full opacity | Count missing, wrong, or still showing at 0; or a card visibly pops into existence behind the stack instead of fading in | ☐ | ☐ |
 
 ## C · Haptic timing — pure conjecture, against a scheme that was short and is now fixed
 
@@ -127,6 +152,8 @@ no reviewer's grep happened to catch.
 | D3 | Return to `app/events/swipe.tsx` and check the swipe count | **Unchanged from D1** — a map-dealt swipe must not decrement `swipesLeft` | Count has gone down — this is the exact bug the discriminant exists to prevent | ☐ | ☐ |
 | D4 | Now open the **swipe deck itself** (`app/events/swipe.tsx`) and swipe right on its own top card | Wishlist-save behaves the same, **and** the swipe count decrements this time | Count doesn't move — the deck's own quota-spending is broken | ☐ | ☐ |
 | D5 | Repeat D2-D3 from the wishlist screen and from the home "Tonight near you" card (two more `'browse'` openers) | Same as D3 — no quota change | Quota decrements from either | ☐ | ☐ |
+| D6 | On a non-premium account with **exactly one** swipe left, open the swipe deck, tap its top card to deal it, then swipe the dealt card **twice** | The first swipe records; the second is refused — the card closes and you land on `/premium?reason=swipes`. Nothing is written for the second event, and (for a right swipe) it does **not** appear in your wishlist | The second swipe commits and the deck advances anyway. That was the bug: `useRecordSwipe` carried none of the deck screen's cap, so the optimistic bump went through, the DB trigger rejected it, `onError` only logged — and for a 'like' the uncapped wishlist save still landed, leaving the two halves of one swipe disagreeing | ☐ | ☐ |
+| D7 | Same account, now out of swipes entirely, deal a card from the swipe deck and try to swipe it | Straight to `/premium?reason=swipes`, card closed | The card stays open half-flung off screen, or the swipe silently does nothing and the card snaps back | ☐ | ☐ |
 
 ## E · Origins — mixed: E1-E2 reasoning, E3 pure conjecture
 
@@ -153,20 +180,32 @@ first real exercise.
 | F2 | Repeat F1 several times in a row, varying how far you'd dragged before the flip triggers | Every attempt recovers cleanly — no cumulative drift, no card that ends up permanently offset | Any single repetition leaves the card stuck | ☐ | ☐ |
 | F3 | After F1/F2, flip back to the front and try a normal swipe (pass/save) | Swipe behaves completely normally, as if nothing unusual happened | Swipe threshold feels off, or the card doesn't fully commit/return | ☐ | ☐ |
 
-## G · Restored capability #1 — the women-only badge
+## G · Restored capability #1 — the badges (women-only, host verified, Mello+)
 
-Task 9's review found the sheet's "Female-only event" pill had no equivalent
+G1-G3: Task 9's review found the sheet's "Female-only event" pill had no equivalent
 on the new card at all — a host or member of their own women-only event had
 zero indication of it. Restored unconditionally off `event.women_only`, with
 no membership check. The device row exists because "reads `event.women_only`
 directly" is a one-line diff a reviewer confirmed by reading, but nobody has
 looked at the actual pill rendering for all three roles.
 
+G4-G6: the final whole-branch review found the same shape again with the host's
+verified tick and Mello+ crown — both on the deleted sheet's host row
+(`EventBottomSheet.tsx:1257-1258`), both still rendered on the *browse* cards
+(`SwipeCard.tsx:93`, `app/(tabs)/index.tsx:246`), and neither on the card that
+replaced the sheet. So the two signals that most change a join decision were
+missing from the one surface where that decision is made. Restored on
+`EventCard`'s host row, which is also a layout change to that row (the name is
+now the only part that shrinks) — hence G6.
+
 | # | Step | Expect | Failure looks like | iOS | Android |
 | --- | --- | --- | --- | :-: | :-: |
 | G1 | Open a women-only event as its **host**, flip to the back | "Female-only event" pill visible near the top of the back face | Pill missing for the host | ☐ | ☐ |
 | G2 | Open the same event as an **approved joined member** (not the host) | Same pill, still visible | Pill missing for a member | ☐ | ☐ |
 | G3 | Open the same event as a **non-member** | Same pill, plus (if applicable) the "Beyond your 10 km — join with Mello+" pill when you're far away on a non-premium account and not pending | Either pill missing, or the distance pill wrongly shows for the host/a member | ☐ | ☐ |
+| G4 | Open an event hosted by a **KYC-verified** host, front face | The blue verified tick sits directly after the host's name, before "is hosting" — the same place it appears on the swipe card and the home rail | Tick missing (it was dropped from the detail surface when the sheet was deleted, while surviving on the browse cards — this is the regression the row exists for), or floating at the far right of the row instead of next to the name | ☐ | ☐ |
+| G5 | Open an event hosted by a **Mello+** member | The gold crown badge after the name (and after the tick, if they have both) | Badge missing. Note: a card in the *background* of the stack shows the tick but never the crown — that is correct, not a bug. The verified flag rides on the feed row; premium only comes with the full event detail, which only the top card fetches | ☐ | ☐ |
+| G6 | Open an event whose host has a very long display name | The name truncates with an ellipsis; the badges and "is hosting" stay on the row | Badges pushed off the right edge, or the row wrapping | ☐ | ☐ |
 
 ## H · Restored capability #2 — the wishlist toast, including its failure path
 
@@ -236,7 +275,7 @@ to catch.
 | --- | --- | --- | --- | :-: | :-: |
 | K1 | Leave an event you've joined (not hosting) | A confirm dialog appears first ("Stay" / "Yes, leave") | No dialog, or it mutates immediately with no confirm step | ☐ | ☐ |
 | K2 | Tap "Yes, leave" | A reason-picker sheet appears with four options: "Can't make it anymore", "My plans changed", "Not comfortable / feels unsafe", "Something else" | Sheet doesn't appear, wrong/missing options, or you're left having already left with no chance to give a reason | ☐ | ☐ |
-| K3 | Pick "Something else" | A free-text field appears | Field doesn't appear, or appears for every option instead of just this one | ☐ | ☐ |
+| K3 | Look at the free-text field | It is present for **every** reason, not just "Something else" — placeholder "Anything the host should know? (optional)", and always optional | The field is missing entirely, or submitting is blocked until it is filled. **This row previously claimed the field appears only for "Something else". That was wrong about both the new card and the sheet it was ported from — `EventDealtCard.tsx` renders the `TextField` unconditionally, and so did `EventBottomSheet.tsx`. The row, not the code, was the bug** | ☐ | ☐ |
 | K4 | Type a reason and submit | You are no longer a participant of the event (check the event's roster, or that your primary action reverts to "Join") | You're still listed as a participant, or the app errors/hangs on submit | ☐ | ☐ |
 | K5 | If you can query the database: check `event_leave_feedback` for a new row with your reason | A row exists with the reason and any free text you entered | No row, or the reason field is empty/wrong. **If you cannot query the database, tick this only once K1-K4 all completed without error** — note in the row that the write itself was not directly confirmed | ☐ | ☐ |
 
@@ -256,9 +295,17 @@ tapped.
 
 ## M · Dismiss behaviour and the origin round-trip
 
+M1 used to assert that the pin "fades back in". **No opener has ever hidden its
+own element** — the plan never carried design §3's origin-fade requirement
+across, and on review it was cut rather than built late (the reasoning is
+recorded in the amendment in §3 of the spec: twelve openers, no single home,
+and the 80% dim already knocks the origin element to ~20% brightness across the
+same 620ms). The row below is corrected to test what is actually built.
+
 | # | Step | Expect | Failure looks like | iOS | Android |
 | --- | --- | --- | --- | :-: | :-: |
-| M1 | Deal the **first** card of a fresh deck from a map pin, then drag it down (or tap the dim) without swiping first | Card flies back to the pin; the pin itself, which faded out as the card left it, fades back in | Card exits some other way (straight down off-screen), or the pin never reappears / was never hidden in the first place | ☐ | ☐ |
+| M1 | Deal the **first** card of a fresh deck from a map pin, then drag it down (or tap the dim) without swiping first | Card flies back **to the pin's position** along the reverse of the arc it came in on, accelerating away rather than easing out. The pin itself stays put throughout — it is not hidden and does not need to reappear | Card exits some other way (straight down off-screen), or lands somewhere other than the pin it came from. **Not a failure:** the pin being visible under the dim the whole time — that is the current, deliberate behaviour | ☐ | ☐ |
+| M4 | While the card is out, look at the origin element under the dim | It is there, dimmed to roughly a fifth of its normal brightness by the 80% scrim — dark enough not to compete with the card, not hidden | It reads as a distracting second copy of the thing you are looking at. If it does, §3's cut origin-fade is worth revisiting; that is the judgement this row exists to collect | ☐ | ☐ |
 | M2 | Deal a deck, swipe through **at least one** card, then dismiss | Card now exits as a **plain downward exit** — no flying back to the original pin | Card still tries to fly back to the (now stale) origin after a swipe | ☐ | ☐ |
 | M3 | Drag a card **up** instead of down | Rubber-bands back to centre, no action taken | Card dismisses, flips, or does something on an upward drag | ☐ | ☐ |
 
@@ -272,6 +319,79 @@ Android.
 | --- | --- | --- | --- | :-: | :-: |
 | N1 | Deal a card on Android and check the top of the front face's photo, and the dim itself | Nothing (photo edge, close affordance, top of the stack behind) sits under the status bar | Content tucked under/behind the status bar | ☐ | ☐ |
 | N2 | Flip to the back and scroll to the very top | Back face's own top content clears the status bar the same way | Content clipped by the status bar | ☐ | ☐ |
+
+## O · Do the card's own buttons work at all? — reasoning, unresolved, run this first
+
+`DealtCard` puts `Gesture.Exclusive(pan, tap)` on the whole top card, both
+faces. Every control on those faces — the front's Join CTA and its save/share
+chips, the back's Open chat / Check in / Approve / decline / Leave, and the
+nearby rail's cards — is an RN `Pressable` (`Button` and `IconButton` both go
+through `PressableScale`, which is one), i.e. the JS responder system, not
+RNGH.
+
+When any RNGH gesture activates, RNGH cancels RN's in-flight touches outright:
+`RNGestureHandlerManager.mm`'s `didActivateInViewWithTouchHandler:` disables
+and re-enables `RCTSurfaceTouchHandler`, which terminates the responder. A Pan
+only activates once you move, so it costs presses nothing. **A Tap activates on
+every clean tap-up — the same instant a `Pressable` would fire `onPress`.**
+Whether the press wins comes down to the order UIKit happens to deliver
+`touchesEnded:` in across the two recognisers, which is not specified.
+
+So there are exactly two plausible outcomes and both are wrong:
+
+1. **The button is dead.** The tap wins, the card flips, nothing else happens.
+2. **Both fire.** The button acts *and* the card flips underneath the result.
+
+`maxDistance` has been added to the tap so that a drag can never read as a flip
+— that is a separate, real fix — but it does not touch this. Nothing here can
+be reproduced under Jest (Reanimated 4 throws on import) and none of it has
+ever been run. **This is the first interaction any user performs on the
+feature.** If it fails, the fix is to make the card's pressables RNGH-aware,
+not to shrink the tap: design §5 is "tap the card, anywhere".
+
+| # | Step | Expect | Failure looks like | iOS | Android |
+| --- | --- | --- | --- | :-: | :-: |
+| O1 | Deal a card on an event you have not joined and tap the **Join / primary CTA** once | The join (or its safety queue) fires, and the card does **not** flip | Nothing happens and the card flips to the back (outcome 1), or the join fires **and** the card flips (outcome 2). Report which | ☐ | ☐ |
+| O2 | Tap the **save (bookmark) chip** top-right of the front face | Saves, "Added to wishlist" toast, no flip | Either failure mode above | ☐ | ☐ |
+| O3 | Tap the **share chip** next to it | Share sheet opens, no flip | Either failure mode above | ☐ | ☐ |
+| O4 | Flip to the back and tap **Leave event** (as a joined non-host) | The confirm dialog opens and the card stays on its back face | Dialog opens and the card flips to the front underneath it, or the tap only flips | ☐ | ☐ |
+| O5 | As a host with a pending request, tap **Approve**, then the decline ✕ on another row | Each acts on that row; the card stays on the back face | Either failure mode above | ☐ | ☐ |
+| O6 | Tap a card in the back face's **"Happening near you"** rail | That event is dealt as a new card, front face up, with a full deal animation | The rail card only flips the current card back to its front, or the new event appears instantly with no animation and already showing its back (that second one is the bug commit `1516457` fixed — report it if it is still there) | ☐ | ☐ |
+| O7 | Start dragging the card sideways, release **before** the swipe threshold so it springs back | It springs back and stays on the same face | It also flips — meaning `maxDistance` is not doing its job | ☐ | ☐ |
+
+## P · Opening the card from a route above the tabs — reasoning, a fix for a total no-op
+
+`EventDealtCard` used to be mounted inside `app/(tabs)/_layout.tsx`. Three
+openers live on routes stacked **above** `(tabs)` in the root `<Stack>` —
+`events/wishlist` and `events/swipe` are `presentation: 'modal'`,
+`friends/[userId]` is a plain push — as does any push notification tapped while
+the user is on a pushed route. All of them dealt the card into a layer behind
+the screen that dealt it, and **no card appeared at all**. Silently: no error,
+no type failure, nothing a test could see.
+
+The mount has moved to the root layout, and on iOS the card is lifted over
+native modal routes by `FullWindowOverlay` — the same mechanism
+`InAppNotification` already uses here, and for the same reason (it adds its
+container straight onto the key UIWindow, so it clears anything already
+presented). On Android no portal is needed: a react-native-screens modal is a
+fragment in the same root view, so a sibling of `<Stack>` already covers it.
+
+**Every row here is reasoning.** The mechanism was traced through
+`RNSFullWindowOverlay.mm` and `RCTModalHostViewComponentView.mm`; none of it
+has been watched. The failure to look for is the blunt one — **no card, at
+all** — and the second-order one, that the card appears but its dialogs do not
+(see P5, which is the one residual risk this fix knowingly leaves).
+
+| # | Step | Expect | Failure looks like | iOS | Android |
+| --- | --- | --- | --- | :-: | :-: |
+| P1 | Open the **wishlist** (`events/wishlist`, a modal route) and tap a saved event | Card deals from that row's rect, over the wishlist, with the dim covering the whole screen including the wishlist's own header | No card at all (the original bug), or a card that appears underneath the wishlist screen | ☐ | ☐ |
+| P2 | Open the **swipe deck** (`events/swipe`, a modal route) and tap its top card | Card deals from the deck card's rect, over the deck screen | As P1 | ☐ | ☐ |
+| P3 | Open a **friend's profile** (`friends/[userId]`, a plain push) and tap one of their events | Card deals from that row, over the profile | As P1 | ☐ | ☐ |
+| P4 | With the app open on any **pushed** route (a friend's profile, an event's host screen, a chat), receive a push for an event and tap it | Card deals — bottom-edge arc if the in-app banner has already gone, from the banner's rect if it is still on screen | No card; you are left on the pushed route with nothing having happened | ☐ | ☐ |
+| P5 | From the card dealt in **P1 or P2** (i.e. over a `presentation: 'modal'` route), reach a dialog: trip a safety popup by joining, or open Leave → the reason sheet | The popup/dialog appears over the card | Nothing appears and the action stalls. **This is the known residual risk and the reason this row exists.** `Sheet`/`Dialog`/`SafetyPopup` are RN `Modal`s and deliberately sit outside the card's portal (a `Modal` inside a `FullWindowOverlay` has no view controller to present from and would never open at all); presenting one *while a native modal route is already presented* is the case that has not been proven. Compare with the same action from the map, which is not a modal route — if it works there and not here, this is what you have found | ☐ | ☐ |
+| P6 | Dismiss the card dealt in P1/P2/P3 (drag down or tap the dim) | The card leaves and you are back on the wishlist / deck / profile, still on that route — dismissing the card must not pop the route | The route pops too, or the card leaves and the screen underneath is the wrong one | ☐ | ☐ |
+| P7 | **Android only.** With a card dealt over the wishlist, press the hardware back button | Something sane and consistent — either the card closes or the route pops, but not both, and not a stuck dim with no card | A dim left on screen with nothing on it, or the route popping while the card stays | ☐ | ☐ |
+| P8 | From the map (the case that always worked), deal a card and confirm the dim covers the floating tab bar | Tab bar is under the dim and not tappable | Tab bar sits above the dim, or is still tappable — the card is mounted a level higher than it used to be, so this is the row that checks nothing regressed on the path that was fine | ☐ | ☐ |
 
 ---
 

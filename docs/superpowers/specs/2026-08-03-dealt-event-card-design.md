@@ -127,10 +127,41 @@ that. Every call site measures its own origin with `measureInWindow`.
 The lift at the midpoint is what makes it an arc rather than a slide. The
 overshoot at 0.82 is what gives it mass.
 
-**The origin element scales to 0.6 and fades out as the card leaves it.** They
-are the same object, so both cannot be on screen at once. It returns on
+~~**The origin element scales to 0.6 and fades out as the card leaves it.**
+They are the same object, so both cannot be on screen at once. It returns on
 dismiss. This is not decoration — without it the motion reads as a card
-appearing *near* a pin rather than as the pin opening.
+appearing *near* a pin rather than as the pin opening.~~
+
+**Amended 2026-08-04 — cut, deliberately, and not built.** The implementation
+plan never carried this requirement across; the final review caught that, and
+the call on reviewing it is to drop it rather than build it late. The reasoning,
+recorded so nobody re-derives it:
+
+- **It has no single home.** Nothing subscribes to `uiStore.dealtCard` except
+  `EventDealtCard`, and the origin element belongs to the *opener* — a map
+  marker, a rail item, a wishlist row, a friend-profile row, a notification
+  banner. There are twelve of them. Any version of this is twelve edits plus a
+  shared hook, and every one of the twelve is a place it can silently rot when
+  a thirteenth opener is added — the same failure `DISCOVERY_FEED_KEYS` exists
+  to prevent, reproduced in layout.
+- **The dim already does most of the work.** §3's dim reaches 80% over
+  `COLORS.ink` across the same 620ms, so by the time the card lands the origin
+  element is at ~20% brightness and effectively gone. The fade this asked for
+  is not absent; it is just not a separate animation.
+- **The premise the paragraph rests on is weaker than it reads.** "A card
+  appearing *near* a pin" is what happens when the card starts somewhere
+  arbitrary. It does not: it starts at the origin's exact measured rect, at the
+  origin's own scale, and grows out of it. The continuity that paragraph is
+  protecting is carried by the start transform, not by hiding the element.
+- **Nothing about it is verifiable without a device**, and it would be twelve
+  files of unverifiable layout change in a fix wave.
+
+The device sheet's row M1 is corrected to match — it previously asserted the
+pin "fades back in", which described a feature that was never built.
+
+If this is ever revisited, the mechanism to build is one hook reading the dealt
+event's id out of the store, applied as a one-line style at each opener — not
+twelve hand-rolled fades.
 
 ### Dismiss — 380ms, ease-in
 
@@ -242,9 +273,9 @@ card two would have had to rise from behind card one out of nothing, because its
 own pin may be off screen or not on the map at all. The stack makes the question
 disappear.
 
-Dismiss still splits: the **first** card returns to its origin and the origin
-element fades back in. **Once you have swiped at least once, dismiss is a plain
-downward exit** — there is nothing on screen that the current card came out of,
+Dismiss still splits: the **first** card returns to its origin (the origin
+element itself is not hidden or restored — see the amendment in §3).
+**Once you have swiped at least once, dismiss is a plain downward exit** — there is nothing on screen that the current card came out of,
 and flying back to the original pin would be a lie about which event you are
 looking at.
 
