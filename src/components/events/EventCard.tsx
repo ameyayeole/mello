@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
+  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -48,6 +49,9 @@ export interface EventCardProps {
   // feed or behind the top of a stack cannot flip, and promising otherwise is
   // worse than saying nothing.
   flippable?: boolean;
+  // Stagger the pane's contents in. Only a freshly dealt card should — see
+  // `PaneRow`.
+  animateIn?: boolean;
   // The primary action. Omitted for the inline feed card, which is a tap
   // target rather than a surface with a CTA on it.
   action?: ReactNode;
@@ -70,26 +74,71 @@ export interface EventCardProps {
 // The hint's own component so its animation lives and dies with it — an
 // always-running loop on a card that cannot flip would be four wasted
 // animations behind every dealt stack.
+//
+// Shaped as the map teaser's "Up for it?" bubble on purpose: same white pill,
+// same heavy caption, same tilt and soft shadow. Those two labels are the app's
+// only two "this thing does something" tags, and making them the same object
+// is cheaper to learn than two inventions. It sits ON the card's top-left
+// corner rather than over the photo — the previous version floated across the
+// middle of the image, which put it over whoever was in the picture.
 function FlipHint() {
   const pulse = useSharedValue(0);
   useEffect(() => {
     pulse.value = withRepeat(
       withSequence(
-        withDelay(1400, withTiming(1, { duration: 900 })),
+        withDelay(1600, withTiming(1, { duration: 900 })),
         withTiming(0, { duration: 900 })
       ),
       -1,
       false
     );
   }, [pulse]);
+  // Breathes by lifting and settling rather than by fading: a label that
+  // changes opacity reads as a rendering glitch, one that moves reads as alive.
   const style = useAnimatedStyle(() => ({
-    opacity: 0.72 + pulse.value * 0.28,
-    transform: [{ scale: 1 + pulse.value * 0.04 }],
+    transform: [
+      { rotate: '-4deg' },
+      { translateY: -pulse.value * 2 },
+      { scale: 1 + pulse.value * 0.03 },
+    ],
   }));
   return (
     <Animated.View style={[styles.flipHint, style]} pointerEvents="none">
-      <Icon name="undo" size={11} color={COLORS.white} strokeWidth={2.4} />
+      <Icon name="undo" size={11} color={COLORS.textPrimary} strokeWidth={2.6} />
       <Text style={styles.flipHintText}>Tap for details</Text>
+    </Animated.View>
+  );
+}
+
+// One line of the pane, arriving a beat after the one above it.
+//
+// Opt-in (`animateIn`), because this is only right for a card that was just
+// dealt. A card in a feed, or one sitting behind the top of a stack, should
+// simply BE there — content that assembles itself every time a list scrolls is
+// noise, not delight. `PANE_STAGGER` is deliberately after the deal's own
+// landing: the card arrives as an object first, and only then does what is
+// printed on it settle in.
+const PANE_STAGGER = 90;
+const PANE_START = 260;
+
+function PaneRow({
+  index,
+  animate,
+  children,
+}: {
+  index: number;
+  animate: boolean;
+  children: ReactNode;
+}) {
+  if (!animate) return <>{children}</>;
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(PANE_START + index * PANE_STAGGER)
+        .duration(320)
+        .springify()
+        .damping(16)}
+    >
+      {children}
     </Animated.View>
   );
 }
@@ -98,6 +147,7 @@ export function EventCard({
   event,
   blurred = true,
   flippable = false,
+  animateIn = false,
   action,
   onSave,
   onShare,
@@ -173,6 +223,7 @@ export function EventCard({
         // anything on iOS — which is exactly where the cost is.
         flat={!blurred}
       >
+        <PaneRow index={0} animate={animateIn}>
         <View style={styles.hostRow}>
           <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
           {/* Name, badges, then "is hosting" — the same order the sheet and
@@ -196,11 +247,15 @@ export function EventCard({
             is hosting
           </Text>
         </View>
+        </PaneRow>
 
+        <PaneRow index={1} animate={animateIn}>
         <Text style={styles.title} numberOfLines={2}>
           {event.title}
         </Text>
+        </PaneRow>
 
+        <PaneRow index={2} animate={animateIn}>
         <Text style={styles.meta} numberOfLines={1}>
           {[
             formatEventWhen(event.starts_at),
@@ -210,7 +265,9 @@ export function EventCard({
             .filter(Boolean)
             .join(' · ')}
         </Text>
+        </PaneRow>
 
+        <PaneRow index={3} animate={animateIn}>
         <View style={styles.goingRow}>
           <AttendeeStack
             people={event.participants ?? []}
@@ -226,8 +283,9 @@ export function EventCard({
             {going} going{spots != null ? ` · ${spots} spots` : ''}
           </Text>
         </View>
+        </PaneRow>
 
-        {action}
+        <PaneRow index={4} animate={animateIn}>{action}</PaneRow>
       </Glass>
     </View>
   );
@@ -243,25 +301,30 @@ const styles = StyleSheet.create({
   // Sits just above the pane, centred — out of the way of the category pill and
   // the save/share chips, and reading as part of the photo rather than the
   // content.
+  // Hangs off the card's top-left corner, above the category pill. Negative
+  // insets so it overhangs the card's own edge like a tab rather than sitting
+  // inside the photo.
   flipHint: {
     position: 'absolute',
-    alignSelf: 'center',
-    bottom: '38%',
+    top: SPACING[10],
+    left: -SPACING[1.5],
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[1.5],
     paddingHorizontal: SPACING[2.5],
     paddingVertical: SPACING[1.5],
-    borderRadius: 100,
-    backgroundColor: COLORS.glassOnPhoto,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorderOnPhoto,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+    shadowColor: COLORS.ink,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   flipHintText: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.micro,
-    color: COLORS.white,
-    letterSpacing: 0.2,
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textPrimary,
   },
   pane: {
     position: 'absolute',

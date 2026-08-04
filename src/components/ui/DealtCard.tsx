@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -8,14 +8,14 @@ import Animated, {
   runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants/colors';
-import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { RADIUS, SPACING } from '@/constants/spacing';
+import { RADIUS } from '@/constants/spacing';
 import type { DealtOrigin } from '@/stores/uiStore';
 import {
   DEAL_MS,
@@ -33,14 +33,14 @@ export interface DealtCardProps {
   // may hand over more than that and let this decide.
   cards: { key: string; front: ReactNode; back: ReactNode }[];
   origin: DealtOrigin | null;
-  // How many cards are left behind the top one across the WHOLE deck, not just
-  // the drawn part — the "N more behind" count under the stack (design §6). A
-  // number, not content: this stays content-agnostic.
-  remaining?: number;
   // Chrome laid over the dim, above and below the card — the swipe deck's
   // counter and its pass/save/undo row. `ReactNode`, so this stays
   // content-agnostic: the card knows it has furniture to place, not what the
   // furniture is for.
+  //
+  // There used to be a "N more behind" count under the stack. Cut: the stack
+  // itself already says there is more, and a number under it was one more thing
+  // asking to be read on a surface meant to be looked at.
   header?: ReactNode;
   footer?: ReactNode;
   onPass: () => void;
@@ -60,6 +60,17 @@ const OVERSHOOT = 1.03;
 
 // The card's resting shadow. Named because the flip animates it (see
 // `boxStyle`) and a literal in two places would drift.
+// How dark the world goes behind a dealt card. Raised from 0.8: at that level
+// the map behind stayed legible enough to compete, and the card is meant to be
+// the only thing you are looking at.
+const DIM_OPACITY = 0.9;
+
+// The beat between one card leaving the fan and the next. Long enough to read
+// as separate cards, short enough that the whole deal stays under a second and
+// a half.
+const DEAL_STAGGER_MS = 110;
+const DISMISS_STAGGER_MS = 70;
+
 const CARD_SHADOW_OPACITY = 0.42;
 const CARD_ELEVATION = 18;
 
@@ -81,8 +92,9 @@ const TAP_SLOP = 10;
 // a save (not a pass — see `commit` below) gets the success notification,
 // because a pass is not a success and the threshold tick already told you it
 // took.
-function haptic(kind: 'land' | 'flip' | 'threshold' | 'save') {
+function haptic(kind: 'land' | 'settle' | 'flip' | 'threshold' | 'save') {
   if (kind === 'land') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  else if (kind === 'settle') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   else if (kind === 'flip') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   else if (kind === 'threshold') Haptics.selectionAsync();
   else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -101,7 +113,6 @@ function haptic(kind: 'land' | 'flip' | 'threshold' | 'save') {
 export function DealtCard({
   cards,
   origin,
-  remaining = 0,
   header,
   footer,
   onPass,
@@ -139,22 +150,19 @@ export function DealtCard({
     : NO_ORIGIN_SCALE;
   const startRotate = origin ? -16 : NO_ORIGIN_ROTATE;
 
+  // Cards leave the fan one at a time, deepest first, so the deck reads as a
+  // hand being dealt onto a table rather than a block of cards teleporting.
+  // `deal` still runs 0 -> 1 once; each layer takes its own slice of it (see
+  // `CardLayer`'s `startAt`), so the whole run is one card's arc plus a beat
+  // for every card behind it.
+  const layerCount = Math.min(cards.length, STACK_DEPTH + 2);
+  const dealMs = DEAL_MS + Math.max(0, layerCount - 1) * DEAL_STAGGER_MS;
   useEffect(() => {
     deal.value = withTiming(1, {
-      duration: DEAL_MS,
+      duration: dealMs,
       easing: Easing.bezier(0.2, 0.7, 0.3, 1),
     });
-  }, [deal]);
-
-  // The landing thud, fired from the animation's own progress rather than a
-  // setTimeout — a timer drifts from the frame the card actually settles on,
-  // and a haptic that lands late feels like a different event.
-  useAnimatedReaction(
-    () => deal.value,
-    (now, before) => {
-      if (before != null && before < 0.9 && now >= 0.9) runOnJS(haptic)('land');
-    }
-  );
+  }, [deal, dealMs]);
 
   // The click of the card going through edge-on. Also mirrors which face is
   // showing onto `backShowing` (JS thread) — the one thing `pan` below needs
@@ -189,7 +197,11 @@ export function DealtCard({
   function sendHome() {
     deal.value = withTiming(
       0,
-      { duration: DISMISS_MS, easing: Easing.bezier(0.5, 0, 0.75, 0.3) },
+      // Reversed by construction: running the same staggered timeline backwards
+      // means the top card leaves first and the deck squares itself back into
+      // the fan behind it.
+      { duration: DISMISS_MS + Math.max(0, layerCount - 1) * DISMISS_STAGGER_MS,
+        easing: Easing.bezier(0.5, 0, 0.75, 0.3) },
       (done) => {
         if (done) runOnJS(onDismiss)();
       }
@@ -340,11 +352,10 @@ export function DealtCard({
   const gesture = Gesture.Exclusive(pan, tap);
 
   const dimStyle = useAnimatedStyle(() => ({
-    opacity: deal.value * 0.8,
+    opacity: deal.value * DIM_OPACITY,
   }));
   // Fades in with the deal rather than being there from frame one — it belongs
   // to the stack that is still arriving.
-  const countStyle = useAnimatedStyle(() => ({ opacity: deal.value }));
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -404,6 +415,9 @@ export function DealtCard({
               front={c.front}
               back={c.back}
               backShowing={backShowing}
+              startAt={
+                ((layerCount - 1 - depth) * DEAL_STAGGER_MS) / dealMs
+              }
               gesture={depth === 0 ? gesture : null}
             />
           ))}
@@ -416,18 +430,6 @@ export function DealtCard({
         <View style={styles.footer} pointerEvents="box-none">
           {footer}
         </View>
-      )}
-      {remaining > 0 && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.countWrap,
-            { top: height / 2 + cardH / 2 + SPACING[4] },
-            countStyle,
-          ]}
-        >
-          <Text style={styles.countText}>{remaining} more behind</Text>
-        </Animated.View>
       )}
     </View>
   );
@@ -445,6 +447,7 @@ function CardLayer({
   front,
   back,
   backShowing,
+  startAt,
   gesture,
 }: {
   depth: number;
@@ -460,6 +463,11 @@ function CardLayer({
   // Which face the top card is showing. Drives the mount swap in the render
   // below; only meaningful when `depth === 0`.
   backShowing: boolean;
+  // Where in the shared 0->1 deal this card's own arc begins. Deepest card
+  // starts at 0, the top card starts last — which is what makes the deck deal
+  // one at a time, and (running the same timeline backwards) gather itself up
+  // top-card-first on the way out.
+  startAt: number;
   gesture: ReturnType<typeof Gesture.Exclusive> | null;
 }) {
   const layer = stackLayer(depth);
@@ -494,11 +502,25 @@ function CardLayer({
     targetShade.value = withTiming(next.shade, { duration: PROMOTE_MS });
   }, [depth, targetOpacity, targetRotate, targetScale, targetShade, targetX, targetY]);
 
+  // This card's own slice of the shared deal.
+  const progress = useDerivedValue(() =>
+    interpolate(deal.value, [startAt, 1], [0, 1], Extrapolation.CLAMP)
+  );
+
+  // Each card ticks as it lands. The top one gets the heavier thud — it lands
+  // last and it is the one you are about to look at; the rest are the sound of
+  // the deck settling behind it.
+  useAnimatedReaction(
+    () => progress.value,
+    (now, before) => {
+      if (before != null && before < 0.9 && now >= 0.9) {
+        runOnJS(haptic)(isTop ? 'land' : 'settle');
+      }
+    }
+  );
+
   const boxStyle = useAnimatedStyle(() => {
-    // The deal interpolates from the origin to this layer's resting place, so
-    // the whole stack arrives together rather than the top card arriving and
-    // the rest appearing under it.
-    const p = deal.value;
+    const p = progress.value;
     const flipValue = isTop ? flip.value : 0;
     const arc = interpolate(p, [0, 0.45, 1], [0, -ARC_LIFT, 0], Extrapolation.CLAMP);
     const scale =
@@ -615,14 +637,6 @@ const styles = StyleSheet.create({
   // behind them still dismisses.
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 2 },
-  countWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  // White at 72% on an 80% ink dim: present, and clearly subordinate to the
-  // card it is counting.
-  countText: {
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textOnDark,
-  },
   card: {
     position: 'absolute',
     borderRadius: RADIUS['2xl'],

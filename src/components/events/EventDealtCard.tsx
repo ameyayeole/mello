@@ -378,6 +378,7 @@ export function EventDealtCard() {
         <EventCard
           event={event}
           flippable
+          animateIn
           blurred
           // Empty only for a wrapped event the viewer never joined — the same
           // case the sheet rendered `null` for (no CTA at all, not a
@@ -516,12 +517,6 @@ export function EventDealtCard() {
           key={deal.token}
           cards={cards}
           origin={deal.origin}
-          // The whole deck's remainder, not the drawn part's — the label
-          // counts what is left to swipe through, which is usually more than
-          // the five cards on screen. Zero off the swipe deck: a single card
-          // has nothing behind it, so a count would be describing a stack that
-          // isn't there.
-          remaining={isSwipeDeck ? deal.ids.length - deal.index - 1 : 0}
           // The deck's furniture, over the dim. Only a swipe-deck deal has any:
           // a pin opens one event and has nothing to count or undo. Rendering
           // these conditionally is also what keeps `useSwipeDeck`'s queries out
