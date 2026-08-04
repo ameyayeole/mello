@@ -34,6 +34,7 @@ import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
 import { DeckActions, DeckCounter } from './DeckChrome';
 import { DeckEmptyCard, type DeckEmptyReason } from './DeckEmptyCard';
+import { TEASER_TILTS } from '@/components/map/SwipeDeckTeaser';
 import type { EventParticipant, NearbyEvent } from '@/types/models';
 
 // Some of these are plain-array queries, some are `useInfiniteQuery` pages —
@@ -517,6 +518,10 @@ export function EventDealtCard() {
           key={deal.token}
           cards={cards}
           origin={deal.origin}
+          // The deck came out of the map's fan, so its cards start at the
+          // angles they were lying at in it — the same cards lifting off,
+          // rather than new ones arriving where the old ones happen to be.
+          originTilts={isSwipeDeck ? TEASER_TILTS : undefined}
           // The deck's furniture, over the dim. Only a swipe-deck deal has any:
           // a pin opens one event and has nothing to count or undo. Rendering
           // these conditionally is also what keeps `useSwipeDeck`'s queries out

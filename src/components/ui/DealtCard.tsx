@@ -33,6 +33,10 @@ export interface DealtCardProps {
   // may hand over more than that and let this decide.
   cards: { key: string; front: ReactNode; back: ReactNode }[];
   origin: DealtOrigin | null;
+  // The angle each card starts at, by depth — the tilt it was lying at before
+  // it lifted. Lets a deck leave a fan looking like the cards that were in it.
+  // Falls back to a single lean for anything opened from a flat element.
+  originTilts?: number[];
   // Chrome laid over the dim, above and below the card — the swipe deck's
   // counter and its pass/save/undo row. `ReactNode`, so this stays
   // content-agnostic: the card knows it has furniture to place, not what the
@@ -113,6 +117,7 @@ function haptic(kind: 'land' | 'settle' | 'flip' | 'threshold' | 'save') {
 export function DealtCard({
   cards,
   origin,
+  originTilts,
   header,
   footer,
   onPass,
@@ -411,13 +416,20 @@ export function DealtCard({
               flip={flip}
               dx={dx}
               dy={dy}
-              start={{ x: startX, y: startY, scale: startScale, rotate: startRotate }}
+              start={{
+                x: startX,
+                y: startY,
+                scale: startScale,
+                rotate: originTilts?.[depth] ?? startRotate,
+              }}
               front={c.front}
               back={c.back}
               backShowing={backShowing}
-              startAt={
-                ((layerCount - 1 - depth) * DEAL_STAGGER_MS) / dealMs
-              }
+              // Top card first, the rest following it up. Dealing deepest-first
+              // left the screen empty for the whole stagger before anything you
+              // could see arrived, which read as a stall then a jump rather
+              // than as cards moving.
+              startAt={(depth * DEAL_STAGGER_MS) / dealMs}
               gesture={depth === 0 ? gesture : null}
             />
           ))}

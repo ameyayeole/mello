@@ -28,6 +28,11 @@ const TUCK = 26;
 
 // Front card sits upright-ish; the two behind fan away to the left, like a
 // hand of cards peeking out of a pocket.
+// The fan's own angles. Exported because the dealt deck starts its cards at
+// exactly these, so the cards that lift off are visibly the ones that were
+// lying here.
+export const TEASER_TILTS = [5, -7, -19];
+
 const TILTS = [
   { rotate: '5deg', x: 12, y: 0 }, // front
   { rotate: '-7deg', x: 0, y: 3 },
@@ -92,6 +97,17 @@ const CAUGHT_UP_EMOJI = ['✨', '🎉', '👀'];
 // put, showing placeholder cards and an "All caught up" label instead of
 // vanishing.
 export default function SwipeDeckTeaser() {
+  // The fan is not a button that opens a deck — it IS the deck. So while the
+  // deck is dealt out on screen, the fan must not still be sitting here: the
+  // same three cards cannot be in two places, and leaving them behind is what
+  // made the deal read as a jump between two separate things rather than one
+  // set of cards moving up.
+  //
+  // Hidden instantly rather than faded. A fade would have the fan visibly
+  // dissolve while its own cards are still travelling out of it, which reads
+  // as a third thing happening; the cards leaving IS the transition.
+  const dealtSource = useUIStore((st) => st.dealtCard?.source);
+  const lifted = dealtSource === 'swipeDeck';
   const fanRef = useRef<View>(null);
   const { deck, isLoading } = useSwipeDeck();
   const tabBarInset = useTabBarInset();
@@ -113,6 +129,9 @@ export default function SwipeDeckTeaser() {
   const swayStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${sway.value * 3 - 1.5}deg` }],
   }));
+  // See `lifted` above: gone, not faded, for exactly as long as its cards are
+  // out on the table.
+  const liftedStyle = useAnimatedStyle(() => ({ opacity: lifted ? 0 : 1 }));
 
   if (isLoading) return null;
   const preview = deck.slice(0, 3);
@@ -121,8 +140,8 @@ export default function SwipeDeckTeaser() {
   return (
     <Animated.View
       entering={FadeInUp.delay(350).duration(450)}
-      style={[styles.wrap, { bottom: tabBarInset - TUCK }, swayStyle]}
-      pointerEvents="box-none"
+      style={[styles.wrap, { bottom: tabBarInset - TUCK }, swayStyle, liftedStyle]}
+      pointerEvents={lifted ? 'none' : 'box-none'}
     >
       {/* Plain View around the stack so its rect can be measured: the deck
           screen deals its cards out of exactly this fan and settles them back
