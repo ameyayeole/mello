@@ -75,7 +75,15 @@ function RootLayoutInner() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="events/swipe"
-          options={{ presentation: 'modal' }}
+          // A transparent overlay route, not a native modal sheet. The deck
+          // deals its cards out of the map's teaser and settles them back into
+          // it (see SwipeDeckTeaser and the entry animation in the screen), and
+          // none of that is visible if the whole screen is itself sliding up
+          // from the bottom as a sheet — the cards animate inside a card that
+          // is already moving, which just reads as the old bottom sheet.
+          // `animation: 'none'` hands the entrance to the screen so the only
+          // thing that moves is the deck.
+          options={OVERLAY_SCREEN_OPTIONS}
         />
         <Stack.Screen
           name="events/wishlist"

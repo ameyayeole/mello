@@ -278,6 +278,13 @@ export default function SwipeDeckScreen() {
     };
   }
 
+  // Fades in over the first part of the deck's arrival, so the map is still
+  // visible behind the cards as they leave the fan, and gone by the time they
+  // land.
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(entry.value, [0, 0.55], [0, 1], Extrapolation.CLAMP),
+  }));
+
   const topStyle = useAnimatedStyle(() => {
     const e = entryTransform(0, { x: 0, y: 0, rotate: 0, scale: 1 });
     return {
@@ -374,6 +381,15 @@ export default function SwipeDeckScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      {/* This route is transparent (see app/_layout.tsx), so the screen paints
+          its own backdrop and fades it in with the deck rather than the whole
+          surface sliding up. That is what lets the cards read as coming out of
+          the map's teaser: the map is still there behind them for the moment
+          it takes the deck to arrive. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
+      />
       <View style={styles.container}>
         {/* Header */}
         <ScreenHeader
@@ -611,7 +627,8 @@ export default function SwipeDeckScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
+  root: { flex: 1 },
+  backdrop: { backgroundColor: COLORS.background },
   container: { flex: 1 },
   headerShape: {
     // No safe-area inset here: this screen is presented as a modal, so the card
