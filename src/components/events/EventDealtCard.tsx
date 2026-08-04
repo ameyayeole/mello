@@ -122,7 +122,7 @@ function BackgroundFace({ id }: { id: string }) {
 // The overlay hosts its own native window, so gestures need their own
 // `GestureHandlerRootView` — the app-root one does not reach into it. Same
 // note as `InAppNotification`'s.
-function CardPortal({ children }: { children: ReactNode }) {
+export function CardPortal({ children }: { children: ReactNode }) {
   if (Platform.OS !== 'ios') return <>{children}</>;
   return (
     <FullWindowOverlay>
