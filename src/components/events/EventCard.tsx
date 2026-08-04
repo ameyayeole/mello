@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
-  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -49,9 +48,6 @@ export interface EventCardProps {
   // feed or behind the top of a stack cannot flip, and promising otherwise is
   // worse than saying nothing.
   flippable?: boolean;
-  // Stagger the pane's contents in. Only a freshly dealt card should — see
-  // `PaneRow`.
-  animateIn?: boolean;
   // The primary action. Omitted for the inline feed card, which is a tap
   // target rather than a surface with a CTA on it.
   action?: ReactNode;
@@ -110,44 +106,11 @@ function FlipHint() {
   );
 }
 
-// One line of the pane, arriving a beat after the one above it.
-//
-// Opt-in (`animateIn`), because this is only right for a card that was just
-// dealt. A card in a feed, or one sitting behind the top of a stack, should
-// simply BE there — content that assembles itself every time a list scrolls is
-// noise, not delight. `PANE_STAGGER` is deliberately after the deal's own
-// landing: the card arrives as an object first, and only then does what is
-// printed on it settle in.
-const PANE_STAGGER = 90;
-const PANE_START = 260;
-
-function PaneRow({
-  index,
-  animate,
-  children,
-}: {
-  index: number;
-  animate: boolean;
-  children: ReactNode;
-}) {
-  if (!animate) return <>{children}</>;
-  return (
-    <Animated.View
-      entering={FadeInUp.delay(PANE_START + index * PANE_STAGGER)
-        .duration(320)
-        .springify()
-        .damping(16)}
-    >
-      {children}
-    </Animated.View>
-  );
-}
 
 export function EventCard({
   event,
   blurred = true,
   flippable = false,
-  animateIn = false,
   action,
   onSave,
   onShare,
@@ -223,7 +186,6 @@ export function EventCard({
         // anything on iOS — which is exactly where the cost is.
         flat={!blurred}
       >
-        <PaneRow index={0} animate={animateIn}>
         <View style={styles.hostRow}>
           <Avatar name={hostName} photoUrl={hostPhoto} size={20} />
           {/* Name, badges, then "is hosting" — the same order the sheet and
@@ -247,15 +209,9 @@ export function EventCard({
             is hosting
           </Text>
         </View>
-        </PaneRow>
-
-        <PaneRow index={1} animate={animateIn}>
         <Text style={styles.title} numberOfLines={2}>
           {event.title}
         </Text>
-        </PaneRow>
-
-        <PaneRow index={2} animate={animateIn}>
         <Text style={styles.meta} numberOfLines={1}>
           {[
             formatEventWhen(event.starts_at),
@@ -265,9 +221,6 @@ export function EventCard({
             .filter(Boolean)
             .join(' · ')}
         </Text>
-        </PaneRow>
-
-        <PaneRow index={3} animate={animateIn}>
         <View style={styles.goingRow}>
           <AttendeeStack
             people={event.participants ?? []}
@@ -283,9 +236,8 @@ export function EventCard({
             {going} going{spots != null ? ` · ${spots} spots` : ''}
           </Text>
         </View>
-        </PaneRow>
 
-        <PaneRow index={4} animate={animateIn}>{action}</PaneRow>
+        {action}
       </Glass>
     </View>
   );

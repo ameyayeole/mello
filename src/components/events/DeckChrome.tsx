@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/colors';
@@ -36,17 +35,11 @@ export function DeckCounter() {
   if (premium) return null;
   return (
     <View style={[styles.counterWrap, { paddingTop: insets.top + SPACING[2] }]}>
-      {/* Drops in from above rather than fading: the deck is being laid out,
-          and its furniture should arrive the same way the cards do. Delayed
-          past the first card's landing so it does not compete with the deal. */}
-      <Animated.View
-        entering={FadeInDown.delay(280).duration(360).springify().damping(16)}
-        style={styles.counterPill}
-      >
+      <View style={styles.counterPill}>
         <Text style={styles.counterText}>
           {swipesLeft} free {swipesLeft === 1 ? 'swipe' : 'swipes'} left today
         </Text>
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -85,10 +78,6 @@ export function DeckActions({
       style={[styles.actions, { paddingBottom: insets.bottom + SPACING[5] }]}
       pointerEvents="box-none"
     >
-      {/* The three rise from below, one after another, left to right. The
-          delays sit after the deal so the buttons arrive to a deck that has
-          already landed. */}
-      <Animated.View entering={FadeInUp.delay(340).duration(340).springify().damping(15)}>
       <PressableScale
         scaleTo={0.85}
         style={[styles.actionBtn, disabled && styles.actionDisabled]}
@@ -98,9 +87,6 @@ export function DeckActions({
       >
         <Icon name="close" size={28} color={COLORS.textSecondary} strokeWidth={2.4} />
       </PressableScale>
-      </Animated.View>
-
-      <Animated.View entering={FadeInUp.delay(410).duration(340).springify().damping(15)}>
       <PressableScale
         scaleTo={0.85}
         style={[styles.actionBtn, styles.likeBtn, disabled && styles.actionDisabled]}
@@ -110,9 +96,6 @@ export function DeckActions({
       >
         <Icon name="bookmarkFilled" size={28} color={COLORS.white} strokeWidth={2.4} />
       </PressableScale>
-      </Animated.View>
-
-      <Animated.View entering={FadeInUp.delay(480).duration(340).springify().damping(15)}>
       <PressableScale
         scaleTo={0.85}
         style={[
@@ -132,7 +115,6 @@ export function DeckActions({
           </View>
         )}
       </PressableScale>
-      </Animated.View>
     </View>
   );
 }

@@ -379,7 +379,6 @@ export function EventDealtCard() {
         <EventCard
           event={event}
           flippable
-          animateIn
           blurred
           // Empty only for a wrapped event the viewer never joined — the same
           // case the sheet rendered `null` for (no CTA at all, not a
