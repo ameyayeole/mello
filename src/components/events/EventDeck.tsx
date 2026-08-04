@@ -118,6 +118,14 @@ const EMERGE_START = 0.66;
 // "the current index" is always 0 and "within 5 of the end" is a length test.
 const PREFETCH_AHEAD = 5;
 
+// How far below its resting place the parked fan starts on map entry, in
+// screen points. Approximates the 25pt rise Reanimated's `FadeInUp` — what
+// `SwipeDeckTeaser` used — applies by default. Screen points, not card units:
+// RN composes `transform` as T·S, so a translate is not scaled by a later
+// `scale` in the same array (which is also why `miniCentreX` works the way it
+// does).
+const FAN_ENTRY_RISE = 25;
+
 // The tallest button in `DeckChrome`'s action row (the save circle). Only used
 // to keep the wishlist toast clear of it — see `toastBottom`.
 const DECK_ACTION_ROW_H = 68;
@@ -259,6 +267,25 @@ function DeckBody({
   // The parked fan's breathing. Multiplied by (1 - expand) below, so it stops
   // as soon as the deck starts opening.
   const sway = useSharedValue(0);
+
+  // The fan's arrival on the map, carried over from `SwipeDeckTeaser`'s
+  // `FadeInUp.delay(350).duration(450)`, which this branch dropped — the fan
+  // had been appearing instantly, fully formed, the moment the map rendered.
+  //
+  // A shared value rather than an `entering` prop, and it lives HERE rather
+  // than on the views it affects. `entering` fires on mount, and both places
+  // that would carry it remount for reasons that are not "the map opened":
+  // `fanChrome` is unmounted whenever the deck is expanded, so the label would
+  // replay its entrance every time the deck came home, and each `DeckCardLayer`
+  // is keyed by event id, so every swipe — which promotes the stack and mounts
+  // a fresh card at the deepest depth — would replay it too. One value owned by
+  // `DeckBody` runs exactly once per mount of the deck, and `DeckBody` is
+  // unmounted off-map by `deckVisible`, which is precisely "when the map
+  // opens". A card mounted later reads it already at 1.
+  const entry = useSharedValue(0);
+  useEffect(() => {
+    entry.value = withDelay(350, withTiming(1, { duration: 450 }));
+  }, [entry]);
 
   // Which face is MOUNTED, as opposed to which way the card is facing. Swapped
   // at the edge-on crossing — see the flip gesture for why one face at a time
@@ -564,7 +591,17 @@ function DeckBody({
           i === 0 ? (
             <EventCard
               event={cardEvent ?? row}
-              blurred
+              // Blurred only while the deck is OPEN. The top card's pane is
+              // the one real `expo-blur` BlurView on this surface, and it used
+              // to be live for as long as the map was — compositing a backdrop
+              // blur behind a pane that `emerge` holds at opacity 0, inside an
+              // 82pt card in the corner. Toggling `flat` swaps the fill layer
+              // inside `Glass`'s pane and nothing else: the card, the pane, its
+              // border and its children all stay mounted, so this does not
+              // reintroduce the mount-at-expand the whole branch exists to
+              // remove. The swap lands on the first frame of the growth, while
+              // the pane is still fully transparent.
+              blurred={expanded}
               emerge={emerge}
               action={
                 primaryLabel ? (
@@ -594,8 +631,19 @@ function DeckBody({
               saved={saved}
             />
           ) : (
-            // Background cards pay for no BlurView: five real ones is a
-            // measurable iOS cost and only the top card is being read.
+            // Background cards pay for no BlurView, ever: five real ones is a
+            // measurable iOS cost and only the top card is being read. With
+            // the top card now gated on `expanded` too, a parked fan composites
+            // no backdrop blur at all.
+            //
+            // All STACK_DEPTH + 2 rows stay mounted whether or not the deck is
+            // open, and that is deliberate rather than an oversight. The fan
+            // only ever SHOWS three — `miniSlot` parks everything deeper under
+            // the third — so rendering three while parked is tempting. It is
+            // also exactly the mount-at-expand this component was built to
+            // delete: the extra layers would pop into a stack that is already
+            // growing. The cost is real (six photos and six host rows) and is
+            // paid to keep the transition one interpolation on one element.
             <EventCard event={row} blurred={false} emerge={emerge} />
           ),
         back:
@@ -624,7 +672,7 @@ function DeckBody({
   const headerStyle = useChromeStyle(expand);
   const footerStyle = useChromeStyle(expand);
   const hintStyle = useChromeStyle(expand);
-  const fanChromeStyle = useFanChromeStyle(expand, sway);
+  const fanChromeStyle = useFanChromeStyle(expand, sway, entry);
 
   if (isLoading) return null;
 
@@ -678,6 +726,7 @@ function DeckBody({
                   dx={dx}
                   dy={dy}
                   sway={sway}
+                  entry={entry}
                   miniCentreX={miniCentreX}
                   miniCentreY={miniCentreY}
                   miniScale={miniScale}
@@ -852,10 +901,22 @@ function useChromeStyle(expand: SharedValue<number>) {
   }));
 }
 
-function useFanChromeStyle(expand: SharedValue<number>, sway: SharedValue<number>) {
+function useFanChromeStyle(
+  expand: SharedValue<number>,
+  sway: SharedValue<number>,
+  entry: SharedValue<number>
+) {
   return useAnimatedStyle(() => ({
-    opacity: interpolate(expand.value, [0, 0.25], [1, 0], Extrapolation.CLAMP),
-    transform: [{ rotate: `${(sway.value * 3 - 1.5) * (1 - expand.value)}deg` }],
+    // Multiplied by the entry rather than picking one: the fan fades in on
+    // arrival AND fades out as the deck opens, and both have to be able to
+    // happen at once if someone taps it inside the first 800ms.
+    opacity:
+      interpolate(expand.value, [0, 0.25], [1, 0], Extrapolation.CLAMP) *
+      entry.value,
+    transform: [
+      { translateY: (1 - entry.value) * FAN_ENTRY_RISE },
+      { rotate: `${(sway.value * 3 - 1.5) * (1 - expand.value)}deg` },
+    ],
   }));
 }
 
@@ -875,6 +936,7 @@ function DeckCardLayer({
   dx,
   dy,
   sway,
+  entry,
   miniCentreX,
   miniCentreY,
   miniScale,
@@ -891,6 +953,7 @@ function DeckCardLayer({
   dx: SharedValue<number>;
   dy: SharedValue<number>;
   sway: SharedValue<number>;
+  entry: SharedValue<number>;
   miniCentreX: number;
   miniCentreY: number;
   miniScale: number;
@@ -973,12 +1036,16 @@ function DeckCardLayer({
     const shadow = 1 - Math.sin(flipValue * Math.PI);
 
     return {
-      opacity: interpolate(
-        e,
-        [0, 1],
-        [mini.opacity, openOpacity.value],
-        Extrapolation.CLAMP
-      ),
+      // The fan's arrival, folded into the opacity the card already has rather
+      // than given its own wrapper view. Only bites while parked and only once
+      // — see `entry` in `DeckBody`.
+      opacity:
+        interpolate(
+          e,
+          [0, 1],
+          [mini.opacity, openOpacity.value],
+          Extrapolation.CLAMP
+        ) * interpolate(e, [0, 1], [entry.value, 1], Extrapolation.CLAMP),
       shadowOpacity: CARD_SHADOW_OPACITY * shadow,
       // Android draws no shadow from `shadowOpacity`; `elevation` is its knob
       // and it has the same spill.
@@ -999,7 +1066,15 @@ function DeckCardLayer({
       transform: [
         { perspective: 1200 },
         { translateX: x + (isTop ? dx.value : 0) },
-        { translateY: y + (isTop ? dy.value : 0) },
+        // The rise is scaled by (1 - e) as well as by the entry, so a tap
+        // inside the first 800ms grows the card from where it actually is
+        // rather than fighting the expand.
+        {
+          translateY:
+            y +
+            (isTop ? dy.value : 0) +
+            (1 - entry.value) * (1 - e) * FAN_ENTRY_RISE,
+        },
         { rotateZ: `${rotate + (isTop ? dx.value / 22 : 0)}deg` },
         { rotateY: `${flipValue * 180}deg` },
         { scale },
