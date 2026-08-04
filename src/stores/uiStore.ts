@@ -101,6 +101,18 @@ export interface DealtCardState {
   index: number;
   origin: DealtOrigin | null;
   source: DealtCardSource;
+  // Bumped by every `dealCard`, never by `advanceDealtCard`. `EventDealtCard`
+  // keys the card component on it, so a fresh deal remounts and a swipe does
+  // not.
+  //
+  // Replacing a deck in place — the "Happening near you" rail on the back face
+  // calls `dealCard` while a card is already open — otherwise reused the same
+  // mounted component: its deal effect is mount-only, and nothing reset the
+  // flip (the swipe path resets it in `commit`, this path has no swipe). The
+  // new event appeared instantly, with no deal animation, already showing its
+  // back. The token must NOT change on advance, or every depth promotion
+  // remounts the stack and the animation the promotion exists for is lost.
+  token: number;
 }
 
 interface UIState {
@@ -172,6 +184,11 @@ interface UIState {
   closeDealtCard: () => void;
 }
 
+// A monotonic counter rather than a timestamp: two deals in the same
+// millisecond would collide on `Date.now()`, and "the deck was replaced" is
+// exactly the case where they can.
+let dealToken = 0;
+
 export const useUIStore = create<UIState>((set) => ({
   activeFilter: null,
   mapFilters: DEFAULT_MAP_FILTERS,
@@ -207,7 +224,8 @@ export const useUIStore = create<UIState>((set) => ({
   // that would silently drift out of sync with each other.
   dealCard: (ids, index, origin, source = 'browse') => {
     Haptics.selectionAsync();
-    set({ dealtCard: { ids, index, origin, source } });
+    dealToken += 1;
+    set({ dealtCard: { ids, index, origin, source, token: dealToken } });
   },
   advanceDealtCard: () =>
     set((s) => {

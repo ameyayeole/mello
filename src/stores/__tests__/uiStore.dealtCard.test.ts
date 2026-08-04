@@ -47,7 +47,20 @@ describe('uiStore dealt card', () => {
       index: 0,
       origin: ORIGIN,
       source: 'browse',
+      token: expect.any(Number),
     });
+  });
+
+  // `EventDealtCard` keys the card on this. Replacing a deck in place — the
+  // back face's "Happening near you" rail deals a new one while a card is
+  // already open — otherwise reused the mounted component, whose deal effect
+  // is mount-only and whose flip nothing reset: the new event appeared with no
+  // deal animation, already showing its back.
+  it('gives every deal a fresh token', () => {
+    useUIStore.getState().dealCard(['a'], 0, ORIGIN);
+    const first = useUIStore.getState().dealtCard!.token;
+    useUIStore.getState().dealCard(['b'], 0, null);
+    expect(useUIStore.getState().dealtCard!.token).not.toBe(first);
   });
 
   // The origin belongs to the FIRST card only. Once you have swiped, the
@@ -61,6 +74,7 @@ describe('uiStore dealt card', () => {
       index: 1,
       origin: null,
       source: 'browse',
+      token: expect.any(Number),
     });
   });
 
@@ -77,17 +91,21 @@ describe('uiStore dealt card', () => {
     expect(useUIStore.getState().dealtCard?.source).toBe('swipeDeck');
   });
 
-  // Unlike origin, source is not tied to the first card — the swipe deck
-  // screen dealt the whole deck, and every card in it should still delegate to
-  // its swipe() after advancing.
-  it('source survives advanceDealtCard, unlike origin', () => {
+  // Unlike origin, neither of these is tied to the first card. `source`: the
+  // swipe deck screen dealt the whole deck, and every card in it should still
+  // delegate to its swipe() after advancing. `token`: it keys the mounted
+  // card, and an advance is a depth promotion — remounting on it would throw
+  // away the very animation the promotion exists for.
+  it('source and the deal token survive advanceDealtCard, unlike origin', () => {
     useUIStore.getState().dealCard(['a', 'b', 'c'], 0, ORIGIN, 'swipeDeck');
+    const { token } = useUIStore.getState().dealtCard!;
     useUIStore.getState().advanceDealtCard();
     expect(useUIStore.getState().dealtCard).toEqual({
       ids: ['a', 'b', 'c'],
       index: 1,
       origin: null,
       source: 'swipeDeck',
+      token,
     });
   });
 

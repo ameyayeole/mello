@@ -432,6 +432,10 @@ export function EventDealtCard() {
           its own absoluteFill/box-none root, so no wrapper is needed here. */}
       <CardPortal>
         <DealtCard
+          // A fresh deal remounts the card; an advance does not. See
+          // `DealtCardState.token` for the bug this fixes and the one it must
+          // not cause.
+          key={deal.token}
           cards={cards}
           origin={deal.origin}
           onPass={handlePass}
