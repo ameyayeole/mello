@@ -135,7 +135,7 @@ export function EventCard({
           </Text>
           {/* Both ported from EventBottomSheet.tsx:1257-1258, where they sat on
               the same host row. They survived the sheet's deletion on the
-              BROWSE cards (SwipeCard.tsx:93, app/(tabs)/index.tsx:246) but not
+              BROWSE cards (app/(tabs)/index.tsx:246) but not
               on the detail surface — so the two signals that most change a join
               decision were missing from the one screen where that decision is
               made. `host_verified` is a flattened feed field; `host` is only

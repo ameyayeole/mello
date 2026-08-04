@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef} from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
@@ -14,9 +14,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSwipeDeck } from '@/hooks/useSwipeDeck';
+import { useUIStore } from '@/stores/uiStore';
 import { ExploreEvent } from '@/types/models';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
+import { eventImageUri } from '@/utils/events';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PressableScale, useTabBarInset } from '@/components/ui';
@@ -47,6 +49,7 @@ function MiniCard({
     emojiOverride ??
     (event ? (ACTIVITY_MAP[event.activity]?.emoji ?? '📍') : '📍');
   const t = TILTS[index];
+  const imageUri = event ? eventImageUri(event) : null;
   return (
     <View
       style={[
@@ -61,10 +64,10 @@ function MiniCard({
         },
       ]}
     >
-      {event?.image_url ? (
+      {imageUri ? (
         <>
           <Image
-            source={{ uri: event.image_url }}
+            source={{ uri: imageUri }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
             transition={150}
@@ -91,6 +94,7 @@ const CAUGHT_UP_EMOJI = ['✨', '🎉', '👀'];
 // vanishing.
 export default function SwipeDeckTeaser() {
   const router = useRouter();
+  const fanRef = useRef<View>(null);
   const { deck, isLoading } = useSwipeDeck();
   const tabBarInset = useTabBarInset();
 
@@ -122,9 +126,27 @@ export default function SwipeDeckTeaser() {
       style={[styles.wrap, { bottom: tabBarInset - TUCK }, swayStyle]}
       pointerEvents="box-none"
     >
+      {/* Plain View around the stack so its rect can be measured: the deck
+          screen deals its cards out of exactly this fan and settles them back
+          into it on the way out. `collapsable={false}` because view flattening
+          removes an unstyled wrapper on Android, and the ref cannot go on the
+          `PressableScale` — same constraint `useOpenOverlay` documents. */}
       <PressableScale
         scaleTo={0.9}
-        onPress={() => router.push('/events/swipe')}
+        onPress={() => {
+          const node = fanRef.current;
+          const { setSwipeDeckOrigin } = useUIStore.getState();
+          if (!node) {
+            // No rect to fly from is not a dead tap — the deck just appears.
+            setSwipeDeckOrigin(null);
+            router.push('/events/swipe');
+            return;
+          }
+          node.measureInWindow((x, y, width, height) => {
+            setSwipeDeckOrigin({ x, y, width, height });
+            router.push('/events/swipe');
+          });
+        }}
         accessibilityRole="button"
         accessibilityLabel={
           caughtUp
@@ -133,6 +155,7 @@ export default function SwipeDeckTeaser() {
         }
         style={styles.stack}
       >
+        <View ref={fanRef} style={StyleSheet.absoluteFill} collapsable={false} pointerEvents="none" />
         {caughtUp
           ? CAUGHT_UP_EMOJI.map((emoji, i) => (
               <MiniCard key={emoji} emoji={emoji} index={i} />

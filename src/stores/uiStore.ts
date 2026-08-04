@@ -182,6 +182,14 @@ interface UIState {
   ) => void;
   advanceDealtCard: () => void;
   closeDealtCard: () => void;
+  // Where the map's swipe-deck teaser sat when it was tapped, in window
+  // coordinates. The deck screen is a route, not an overlay, so the element the
+  // cards fly out of lives on the screen you just left — its rect has to be
+  // carried across. Same idea as `Handoff` above, and measured for the same
+  // reason. Null when the deck was opened from anywhere else, which the screen
+  // reads as "just appear".
+  swipeDeckOrigin: DealtOrigin | null;
+  setSwipeDeckOrigin: (origin: DealtOrigin | null) => void;
 }
 
 // A monotonic counter rather than a timestamp: two deals in the same
@@ -235,4 +243,6 @@ export const useUIStore = create<UIState>((set) => ({
       return { dealtCard: { ...s.dealtCard, index: next, origin: null } };
     }),
   closeDealtCard: () => set({ dealtCard: null }),
+  swipeDeckOrigin: null,
+  setSwipeDeckOrigin: (swipeDeckOrigin) => set({ swipeDeckOrigin }),
 }));

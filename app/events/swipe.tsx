@@ -4,6 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Pressable,
   useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -24,7 +25,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSwipeDeck } from '@/hooks/useSwipeDeck';
 import { DealtOrigin, useUIStore } from '@/stores/uiStore';
-import SwipeCard from '@/components/events/SwipeCard';
+import { EventCard } from '@/components/events/EventCard';
 import WishlistButton from '@/components/events/WishlistButton';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -35,7 +36,23 @@ import {
   Loader,
   PressableScale,
   ScreenHeader,
+  stackLayer,
 } from '@/components/ui';
+
+// How long the deck takes to lay itself out of the map's teaser, and how much
+// of that each card behind the top one waits before it starts — the stagger is
+// what makes the fan unfurl rather than three cards moving as one block.
+const DECK_ENTRY_MS = 620;
+const DECK_STAGGER = 0.12;
+// How far a card arcs off the straight line between the teaser and its resting
+// place. Same trick, and roughly the same amount, as the dealt card's deal.
+const DECK_ARC = 34;
+// Leaving is quicker than arriving, and eases IN — it accelerates away rather
+// than drifting to a stop, matching the dealt card's own dismiss.
+const DECK_EXIT_MS = 400;
+// The teaser's own cards sit tilted; a card leaves at that angle and unwinds to
+// the stack's as it arrives, so the two fans agree at the hand-off.
+const TEASER_TILT = -7;
 
 type FeedbackKind = 'like' | 'pass' | 'undo';
 
@@ -55,7 +72,7 @@ const FEEDBACK_META: Record<
 // one leaves, and undo brings the last swiped card back.
 export default function SwipeDeckScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   // The top card's own measurable wrapper — only the top card is tappable
   // (the two behind it are peeking, not pressable), so a single ref is enough.
   const topCardRef = useRef<View>(null);
@@ -181,13 +198,98 @@ export default function SwipeDeckScreen() {
     showFeedback('undo');
   }
 
-  const topStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: tx.value },
-      { translateY: ty.value },
-      { rotate: `${(tx.value / width) * 12}deg` },
-    ],
-  }));
+  // ── The deck arriving from, and returning to, the map's teaser ────────────
+  //
+  // The teaser is a little fan of three tilted cards in the map's bottom-left
+  // corner. Tapping it measures that fan and stores its rect (see
+  // SwipeDeckTeaser); this screen deals its cards out of exactly that spot and
+  // settles them back into it on the way out, so the fan reads as the deck
+  // itself being picked up and put down rather than a screen that replaced it.
+  //
+  // 0 = stowed in the teaser, 1 = laid out on screen.
+  const entry = useSharedValue(0);
+  const origin = useUIStore((st) => st.swipeDeckOrigin);
+  // Read inside `goBack`'s callback, which must not re-create with the store
+  // value — the exit is decided by what opened the screen, not by what the
+  // store says at the moment you press back.
+  const originRef = useRef(origin);
+  useEffect(() => {
+    entry.value = withTiming(1, {
+      duration: DECK_ENTRY_MS,
+      easing: Easing.bezier(0.2, 0.7, 0.3, 1),
+    });
+  }, [entry]);
+
+  // Where a card starts, relative to its resting place at screen centre. With
+  // no origin the deck simply appears — a deep link or a tab jump has nothing
+  // on screen to have come out of.
+  // Leaving: the deck gathers itself back into the fan it came out of, then
+  // the route pops. Reversed stagger — the cards behind lead and the top card
+  // is last to go, so the deck closes the way a hand of cards is squared up
+  // rather than the top card simply vanishing first.
+  //
+  // The origin is cleared on the way out: it belongs to the tap that opened
+  // this, and a later entry from anywhere else must not fly out of a fan that
+  // is no longer under the user's thumb.
+  const goBack = useCallback(() => {
+    const finish = () => {
+      useUIStore.getState().setSwipeDeckOrigin(null);
+      router.back();
+    };
+    if (!originRef.current) {
+      finish();
+      return;
+    }
+    entry.value = withTiming(
+      0,
+      { duration: DECK_EXIT_MS, easing: Easing.bezier(0.5, 0, 0.75, 0.3) },
+      (done) => {
+        if (done) runOnJS(finish)();
+      }
+    );
+  }, [entry, router]);
+
+  const from = useMemo(() => {
+    if (!origin) return null;
+    return {
+      x: origin.x + origin.width / 2 - width / 2,
+      y: origin.y + origin.height / 2 - height / 2,
+      scale: Math.max(origin.width / width, 0.12),
+    };
+  }, [origin, width, height]);
+
+  // One card's arrival. `depth` staggers it: the top card leads and the ones
+  // behind follow a beat later, so the deck unfurls out of the fan instead of
+  // three cards moving as one block. `lift` arcs it off the straight line, the
+  // same shape the dealt card uses.
+  function entryTransform(depth: number, rest: { x: number; y: number; rotate: number; scale: number }) {
+    'worklet';
+    if (!from) return { x: rest.x, y: rest.y, rotate: rest.rotate, scale: rest.scale, opacity: 1 };
+    const start = depth * DECK_STAGGER;
+    const p = interpolate(entry.value, [start, 1], [0, 1], Extrapolation.CLAMP);
+    const lift = interpolate(p, [0, 0.5, 1], [0, -DECK_ARC, 0], Extrapolation.CLAMP);
+    return {
+      x: interpolate(p, [0, 1], [from.x, rest.x], Extrapolation.CLAMP),
+      y: interpolate(p, [0, 1], [from.y, rest.y], Extrapolation.CLAMP) + lift,
+      // Out of the teaser's own tilt and into the resting stack's.
+      rotate: interpolate(p, [0, 1], [TEASER_TILT * (depth + 1), rest.rotate], Extrapolation.CLAMP),
+      scale: interpolate(p, [0, 0.85, 1], [from.scale, rest.scale * 1.03, rest.scale], Extrapolation.CLAMP),
+      opacity: interpolate(p, [0, 0.1], [0, 1], Extrapolation.CLAMP),
+    };
+  }
+
+  const topStyle = useAnimatedStyle(() => {
+    const e = entryTransform(0, { x: 0, y: 0, rotate: 0, scale: 1 });
+    return {
+      opacity: e.opacity,
+      transform: [
+        { translateX: e.x + tx.value },
+        { translateY: e.y + ty.value },
+        { rotate: `${e.rotate + (tx.value / width) * 12}deg` },
+        { scale: e.scale },
+      ],
+    };
+  });
   const likeStampStyle = useAnimatedStyle(() => ({
     opacity: interpolate(tx.value, [14, threshold], [0, 1], Extrapolation.CLAMP),
     transform: [
@@ -226,18 +328,46 @@ export default function SwipeDeckScreen() {
   const rise = useDerivedValue(() =>
     Math.min(Math.abs(tx.value) / threshold, 1)
   );
-  const secondStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: 16 * (1 - rise.value) },
-      { scale: 0.955 + 0.045 * rise.value },
-    ],
-  }));
-  const thirdStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: 32 - 16 * rise.value },
-      { scale: 0.91 + 0.045 * rise.value },
-    ],
-  }));
+  // The two cards behind the top one, on the SAME table the dealt card's stack
+  // uses (`stackLayer`) rather than this screen's own hand-rolled numbers —
+  // one messy stack in the app, not two that drift. `rise` still promotes them
+  // a place as the top card is dragged away, so the deck breathes under your
+  // finger.
+  function restingLayer(depth: number, riseValue: number) {
+    'worklet';
+    const here = stackLayer(depth);
+    const ahead = stackLayer(depth - 1);
+    return {
+      x: here.x + (ahead.x - here.x) * riseValue,
+      y: here.y + (ahead.y - here.y) * riseValue,
+      rotate: here.rotate + (ahead.rotate - here.rotate) * riseValue,
+      scale: here.scale + (ahead.scale - here.scale) * riseValue,
+    };
+  }
+  const secondStyle = useAnimatedStyle(() => {
+    const e = entryTransform(1, restingLayer(1, rise.value));
+    return {
+      opacity: e.opacity,
+      transform: [
+        { translateX: e.x },
+        { translateY: e.y },
+        { rotate: `${e.rotate}deg` },
+        { scale: e.scale },
+      ],
+    };
+  });
+  const thirdStyle = useAnimatedStyle(() => {
+    const e = entryTransform(2, restingLayer(2, rise.value));
+    return {
+      opacity: e.opacity,
+      transform: [
+        { translateX: e.x },
+        { translateY: e.y },
+        { rotate: `${e.rotate}deg` },
+        { scale: e.scale },
+      ],
+    };
+  });
 
   const visible = deck.slice(0, 3);
 
@@ -248,6 +378,7 @@ export default function SwipeDeckScreen() {
         {/* Header */}
         <ScreenHeader
           title="Tonight's picks"
+          onBack={goBack}
           subtitle={
             premium || outOfSwipes
               ? 'Swipe to save the vibe'
@@ -342,8 +473,13 @@ export default function SwipeDeckScreen() {
                             component's ref isn't one to rely on for
                             measureInWindow. */}
                         <View ref={topCardRef} style={{ flex: 1 }} collapsable={false}>
-                          <SwipeCard
-                            event={event}
+                          {/* The tap target is a wrapper, not a prop on
+                              `EventCard`: the card is a presentational object
+                              and the two places that render it want different
+                              things from a tap (here, open the detail; in a
+                              dealt stack, flip). */}
+                          <Pressable
+                            style={styles.cardPress}
                             onPress={() => {
                               // The dealt card's deck is the swipe deck itself,
                               // starting at this card — and its source is
@@ -364,7 +500,9 @@ export default function SwipeDeckScreen() {
                                 openWith({ x, y, width, height })
                               );
                             }}
-                          />
+                          >
+                            <EventCard event={event} />
+                          </Pressable>
                         </View>
                         <Animated.View
                           pointerEvents="none"
@@ -395,7 +533,7 @@ export default function SwipeDeckScreen() {
                     key={event.id}
                     style={[styles.cardWrap, i === 1 ? secondStyle : thirdStyle]}
                   >
-                    <SwipeCard event={event} />
+                    <EventCard event={event} blurred={false} />
                   </Animated.View>
                 );
               })
@@ -492,6 +630,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cardPress: { flex: 1 },
   cardWrap: {
     position: 'absolute',
     top: 0,
