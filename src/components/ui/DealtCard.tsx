@@ -368,6 +368,7 @@ export function DealtCard({
               start={{ x: startX, y: startY, scale: startScale, rotate: startRotate }}
               front={c.front}
               back={c.back}
+              backShowing={backShowing}
               gesture={depth === 0 ? gesture : null}
             />
           ))}
@@ -403,6 +404,7 @@ function CardLayer({
   start,
   front,
   back,
+  backShowing,
   gesture,
 }: {
   depth: number;
@@ -415,6 +417,9 @@ function CardLayer({
   start: { x: number; y: number; scale: number; rotate: number };
   front: ReactNode;
   back: ReactNode;
+  // Which face the top card is showing. Drives the mount swap in the render
+  // below; only meaningful when `depth === 0`.
+  backShowing: boolean;
   gesture: ReturnType<typeof Gesture.Exclusive> | null;
 }) {
   const layer = stackLayer(depth);
@@ -501,19 +506,8 @@ function CardLayer({
     };
   });
 
-  // Two faces, cross-faded at exactly edge-on rather than hidden with
-  // `backfaceVisibility`. That property on a 3D-rotated view is inconsistent
-  // on Android and fails by ghosting BOTH faces through each other — visible,
-  // strange, and impossible to catch without the device.
-  //
-  // The rotation itself is up in `boxStyle`, on the card. Only the swap
-  // between the two faces happens here.
-  const frontStyle = useAnimatedStyle(() => ({
-    opacity: flip.value < 0.5 ? 1 : 0,
-  }));
-  const backStyle = useAnimatedStyle(() => ({
-    opacity: flip.value < 0.5 ? 0 : 1,
-  }));
+  // Only ONE face is mounted at a time — see the render below for why an
+  // opacity cross-fade could not stay.
   // Animated rather than a plain `layer.shade` opacity, so a promotion (this
   // card moving from depth 2's shade to depth 1's, or depth 1's to the top
   // card's zero) fades over PROMOTE_MS instead of the overlay jumping — or,
@@ -527,15 +521,33 @@ function CardLayer({
       style={[styles.card, { width, height }, boxStyle]}
       pointerEvents={isTop ? 'auto' : 'none'}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, styles.face, isTop && frontStyle]}>
-        {front}
-      </Animated.View>
-      {isTop && (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, styles.face, styles.backFace, backStyle]}
-        >
+      {/* One face at a time, swapped at the edge-on crossing — NOT two faces
+          cross-faded by opacity, and not `backfaceVisibility` either.
+
+          Both alternatives fail, for different reasons:
+
+          `backfaceVisibility: 'hidden'` on a 3D-rotated view is inconsistent
+          on Android and fails by ghosting both faces through each other.
+
+          Cross-fading two mounted faces looks correct until the card itself
+          starts rotating in 3D. The faces are coplanar `absoluteFill`
+          siblings and the back carries its own counter-rotation, so once
+          there is a real rotateY on the card the two layers z-fight: a hard
+          vertical seam appears straight down the rotation axis with one half
+          of the card visibly darker than the other, worst mid-turn. An
+          opacity of 0 does not take a layer out of that fight.
+
+          Mounting one face removes the fight by construction. The swap lands
+          at the 0.5 crossing, where the card is edge-on and effectively a
+          line, so nothing is visible to pop. It also means the back's
+          subtree — its ScrollView and everything in it — no longer sits
+          mounted and laying out behind a face nobody is looking at. */}
+      {isTop && backShowing ? (
+        <View style={[StyleSheet.absoluteFill, styles.face, styles.backFace]}>
           {back}
-        </Animated.View>
+        </View>
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.face]}>{front}</View>
       )}
       {/* No CSS filter in React Native — the "dimmer further back" is a real
           overlay, always mounted (rather than gated on `layer.shade > 0`) so
