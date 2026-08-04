@@ -89,6 +89,9 @@ Ordered by risk, not by feature.
 
 | **10. Settings navigation — sub-screens slide, chip holds still** ||||
 | 10.1 | **The whole point:** open any row — the back chip does **not** move, twitch or double up while the contents slide in from the right **(reasoned — two screens each draw their own chip at the same pixel)** | ☐ | ☐ |
+| 10.1a | **The background does not move at all.** Watch the blob in the top-right corner through a whole open-and-back: it must sit perfectly still. If it slides or jumps, the panel is painting its own | ☐ | ☐ |
+| 10.1b | Settings' rows step aside (~48pt, fading) as the new contents arrive — they should read as one handover, not two animations | ☐ | ☐ |
+| 10.1c | Mid-transition the two sets of contents cross without either looking like a solid page over the other | ☐ | ☐ |
 | 10.2 | Same on the way out: chip holds, contents slide right, then the route pops | ☐ | ☐ |
 | 10.3 | All five rows behave identically (Edit profile, Change password, Change email, Blocked users, Verify identity) | ☐ | ☐ |
 | 10.4 | Nothing rises from the bottom edge any more — no row is still a modal sheet | ☐ | ☐ |
@@ -96,7 +99,8 @@ Ordered by risk, not by feature.
 | 10.6 | Double-tapping back does not pop twice or leave a half-slid panel | ☐ | ☐ |
 | 10.7 | Edit profile with unsaved changes: back → discard dialog; "Discard" then plays the **slide out**, it doesn't just vanish | ☐ | ☐ |
 | 10.8 | Edit profile save → panel slides out rather than popping instantly | ☐ | ☐ |
-| 10.9 | **Edit profile opened from the Profile tab** (not from Settings) still works — same slide, back returns to Profile | ☐ | ☐ |
+| 10.9 | **Edit profile opened from the Profile tab** (not from Settings) still works — this is the one case that paints its own backdrop (`settingsRootMounted` is false), so check it is not transparent over the profile photo **(reasoned)** | ☐ | ☐ |
+| 10.9a | Open Edit profile from Settings, go back, then open it from the Profile tab in the same session — the backdrop decision is read per mount, so the second open must still be right | ☐ | ☐ |
 | 10.10 | Keyboard screens (change password/email): the panel is settled before the field focuses; no jump | ☐ | ☐ |
 | 10.11 | Blocked users list scrolls, and the unblock confirm still works inside the panel | ☐ | ☐ |
 | 10.12 | Verify identity opens the Didit browser and comes back to a settled panel | ☐ | ☐ |

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -21,6 +21,7 @@ import { COLORS } from '@/constants/colors';
 import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { AppBackground } from '@/components/ui';
+import { useUIStore } from '@/stores/uiStore';
 import {
   CHIP_SIZE,
   SettingsBackChip,
@@ -38,17 +39,28 @@ import {
  * The obvious fix, a native `slide_from_right`, does not work here: a native
  * stack slides the *whole* screen, so both screens' back buttons travel and you
  * watch two chips cross in the middle. The button can only hold still if it is
- * not part of what moves. So the route is transparent with the native animation
- * off, this component slides only the layer holding the background and the
- * content, and the chip is drawn on top of that layer and never animated at
- * all.
+ * not part of what moves.
  *
- * The screen underneath stays mounted and is simply covered — which is what
- * gives the sliding layer a hard left edge to travel with, and is why there is
- * no cross-fade of two backgrounds to manage. It also means the chip you can
- * see mid-slide is arguably Settings' own; both are drawn at the same pixel
- * from the same constants, so it does not matter which one you are looking at.
- * That is the whole trick.
+ * So the route is transparent with the native animation off, and **only the
+ * contents move**. Two things deliberately do not:
+ *
+ *   the chip     drawn on top of the sliding layer, never animated. Settings
+ *                draws one too, at the same pixel from the same constants, so
+ *                whichever you are looking at mid-slide it has not moved.
+ *
+ *   the backdrop not painted here at all when Settings is underneath — its
+ *                <AppBackground> is the one both screens share. A panel that
+ *                brought its own and slid it in was the whole complaint: a
+ *                travelling background reads as a second page arriving, rather
+ *                than as this page's contents being replaced.
+ *
+ * Settings slides its own rows out as these arrive (it watches
+ * `settingsPanelOpen`), so the two sets of contents change places over a
+ * backdrop that is completely still.
+ *
+ * The exception is Edit profile opened from the Profile tab, where there is no
+ * Settings underneath and nothing to be transparent over — hence
+ * `settingsRootMounted`, and the fallback backdrop below. It is static too.
  */
 export function SettingsPanel({
   title,
@@ -80,6 +92,12 @@ export function SettingsPanel({
   const router = useRouter();
   const { width } = useWindowDimensions();
   const chipTop = useChipTop();
+  // Read once on mount, not subscribed: whether Settings is below us is fixed
+  // for the life of this screen, and re-reading it mid-exit (when Settings has
+  // already begun tearing down) would swap the backdrop in under the slide.
+  const [hasBackdropBelow] = useState(
+    () => useUIStore.getState().settingsRootMounted
+  );
 
   // 1 = parked off the right edge, 0 = home. Expressed as a fraction so it does
   // not have to be re-measured if the window changes mid-flight.
@@ -101,6 +119,7 @@ export function SettingsPanel({
     if (exiting.current) return;
     if (onBack && !onBack()) return;
     exiting.current = true;
+    useUIStore.getState().setSettingsPanelOpen(false);
     // The route pops in the timing callback, not on the tap: with the native
     // animation off, nothing else would play the exit before the screen was
     // torn down.
@@ -108,6 +127,15 @@ export function SettingsPanel({
       if (done) runOnJS(pop)();
     });
   };
+
+  // Tells Settings to move its rows aside. Cleared on unmount as well as on the
+  // way out, so a route torn down some other way — a deep link rebuilding the
+  // stack, Android's hardware back — doesn't leave Settings parked off-screen.
+  useEffect(() => {
+    const { setSettingsPanelOpen } = useUIStore.getState();
+    setSettingsPanelOpen(true);
+    return () => setSettingsPanelOpen(false);
+  }, []);
 
   // Both directions in one effect, not two. `slide` is written here and in
   // `dismiss` above, and that pair is the most the compiler's immutability rule
@@ -121,6 +149,9 @@ export function SettingsPanel({
     }
     if (exiting.current) return;
     exiting.current = true;
+    // Settings starts coming back now rather than when the route finally pops:
+    // the two halves have to overlap or they read as two separate animations.
+    useUIStore.getState().setSettingsPanelOpen(false);
     slide.value = withTiming(1, EXIT, (done) => {
       if (done) runOnJS(pop)();
     });
@@ -130,24 +161,31 @@ export function SettingsPanel({
     transform: [{ translateX: slide.value * width }],
   }));
 
-  // The page behind darkens a little as the panel covers it, so the panel reads
-  // as being *in front* rather than as a second page pasted at the same depth.
-  // Fades out completely at rest, so it costs nothing once the panel has landed.
-  const shade = useAnimatedStyle(() => ({
-    opacity: interpolate(slide.value, [0, 1], [0.18, 0]),
+  // Fades as well as slides, because there is no backdrop of its own to hide
+  // what it is crossing — these contents and the Settings rows are both on the
+  // one background, so they have to trade places rather than one occluding the
+  // other.
+  //
+  // 0.85 rather than a shorter ramp: fading only over the last stretch left the
+  // contents invisible for most of their travel and then arriving in a rush.
+  const fade = useAnimatedStyle(() => ({
+    opacity: interpolate(slide.value, [0, 0.85], [1, 0], 'clamp'),
   }));
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} pointerEvents="box-none">
       <StatusBar style="dark" />
 
-      <Animated.View
-        style={[StyleSheet.absoluteFill, shade, styles.shade]}
-        pointerEvents="none"
-      />
+      {/* Only when there is nothing underneath to be transparent over — see the
+          note above. Outside the sliding layer either way: the backdrop is the
+          one thing on this screen that must never move. */}
+      {!hasBackdropBelow && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <AppBackground />
+        </View>
+      )}
 
-      <Animated.View style={[StyleSheet.absoluteFill, layer]}>
-        <AppBackground />
+      <Animated.View style={[StyleSheet.absoluteFill, layer, fade]}>
         <View style={[styles.content, { paddingTop: chipTop + CHIP_SIZE + SPACING[4] }]}>
           <View style={styles.titleRow}>
             <Text style={styles.title} numberOfLines={1}>
@@ -183,7 +221,6 @@ const EXIT = { duration: 240, easing: Easing.in(Easing.cubic) } as const;
 const styles = StyleSheet.create({
   root: { flex: 1 },
   fill: { flex: 1 },
-  shade: { backgroundColor: COLORS.ink },
   content: { flex: 1 },
   titleRow: {
     flexDirection: 'row',

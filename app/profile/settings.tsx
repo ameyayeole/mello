@@ -4,9 +4,12 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
+  Easing,
   Extrapolation,
   interpolate,
   useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { OVERLAY_TRANSITION } from '@/constants/motion';
@@ -71,6 +74,14 @@ const BODY_IN = [0.2, 0.9] as const;
 // under it, so it switches once that backdrop is most of the way in — dark
 // glyphs any earlier would be dark-on-near-black while profile is still there.
 const STATUS_BAR_FLIP_MS = Math.round(OVERLAY_TRANSITION.sceneOutMs * 0.7);
+
+// How the rows hand over to a sub-screen's contents. Matched to SettingsPanel's
+// own ENTER so the two halves are one movement rather than two that happen to
+// overlap — this list stepping aside *is* the other screen arriving.
+const PANEL_HANDOVER = { duration: 320, easing: Easing.out(Easing.cubic) } as const;
+
+// Far enough to read as making room, short enough not to read as leaving.
+const ASIDE_TRAVEL = 48;
 
 function SettingsRow({
   icon,
@@ -152,6 +163,30 @@ export default function SettingsScreen() {
     const t = setTimeout(() => setSettled(true), STATUS_BAR_FLIP_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // Announces that this screen's <AppBackground> is available to the sub-screens
+  // it opens, so they can be transparent over it instead of each sliding one of
+  // their own in. Edit profile is also reachable from the Profile tab, where
+  // this is false and it has to bring its own.
+  useEffect(() => {
+    const { setSettingsRootMounted } = useUIStore.getState();
+    setSettingsRootMounted(true);
+    return () => setSettingsRootMounted(false);
+  }, []);
+
+  // A sub-screen is holding the foreground: step the rows aside so its contents
+  // can take their place. They travel a *fraction* of the way, not the full
+  // width — the panel is arriving over them, so this only has to read as the
+  // list making room, and a full-width exit would be a second page leaving.
+  const panelOpen = useUIStore((s) => s.settingsPanelOpen);
+  const aside = useSharedValue(0);
+  useEffect(() => {
+    aside.value = withTiming(panelOpen ? 1 : 0, PANEL_HANDOVER);
+  }, [panelOpen, aside]);
+  const asideStyle = useAnimatedStyle(() => ({
+    opacity: 1 - aside.value,
+    transform: [{ translateX: -aside.value * ASIDE_TRAVEL }],
+  }));
 
   const destX = CHIP_X;
   const destY = insets.top + CHIP_TOP_OFFSET;
@@ -265,7 +300,14 @@ export default function SettingsScreen() {
         <AppBackground />
       </Animated.View>
 
-      <View style={[styles.content, { paddingTop: destY + CHIP + SPACING[5] }]}>
+      {/* The whole content column steps aside together — title and rows are one
+          thing being replaced, so animating them separately would pull the
+          screen apart. Wrapped rather than merged into the entry styles below:
+          those already own opacity and translateY, and a second style setting
+          the same properties silently wins. */}
+      <Animated.View
+        style={[styles.content, { paddingTop: destY + CHIP + SPACING[5] }, asideStyle]}
+      >
         <Animated.Text style={[styles.title, titleStyle]}>
           Settings
         </Animated.Text>
@@ -367,7 +409,7 @@ export default function SettingsScreen() {
             </View>
           </ScrollView>
         </Animated.View>
-      </View>
+      </Animated.View>
 
       {/* The travelling chip. Absolutely positioned in *window* coordinates,
           outside the padded content column, because that is the space the
