@@ -19,10 +19,14 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
 import {
   ActivityGlyph,
+  AppBackground,
+  ConfirmDialog,
+  Glass,
   Loader,
   PressableScale,
   Screen,
   ScreenHeader,
+  SectionLabel,
   TextField,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
@@ -38,6 +42,59 @@ const GENDERS: { id: Gender; label: string }[] = [
   { id: 'non-binary', label: 'Non-binary' },
   { id: 'other', label: 'Other' },
 ];
+
+// One selectable chip, replacing the two near-identical `styles.pill` copies
+// this screen used for gender and interests.
+//
+// Local, not a ui/ primitive, and deliberately so: the only two callers are
+// both on this screen. The create flow's SectionPills looks similar but is a
+// different component — a horizontal single-select row with a travelling
+// indicator, not a wrapping grid — so there is no third caller to generalise
+// for. Promote it if one appears; a premature primitive is as bad as a fork.
+//
+// It stays a pill. AGENTS.md's "no pill buttons" rule is about `Button`;
+// selection chips are pills everywhere in this app (SectionPills, CategoryPill)
+// and squaring these off would fight the design language.
+function SelectChip({
+  label,
+  selected,
+  onPress,
+  disabled = false,
+  accent,
+  tint,
+  leading,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+  // Category chips colour themselves; gender chips fall back to coral.
+  accent?: string;
+  tint?: string;
+  leading?: React.ReactNode;
+}) {
+  const on = accent ?? COLORS.primary;
+  return (
+    <PressableScale
+      scaleTo={disabled ? 1 : 0.94}
+      onPress={disabled ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}
+      style={[
+        styles.chip,
+        selected && {
+          backgroundColor: tint ?? COLORS.primaryTint,
+          borderColor: on,
+          borderWidth: 1.5,
+        },
+        disabled && !selected && styles.chipLocked,
+      ]}
+    >
+      {leading}
+      <Text style={[styles.chipLabel, selected && { color: on }]}>{label}</Text>
+    </PressableScale>
+  );
+}
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -63,6 +120,7 @@ export default function EditProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [ageError, setAgeError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   // Debounced availability check; the user's current handle is always "free".
   useEffect(() => {
@@ -117,6 +175,32 @@ export default function EditProfileScreen() {
     usernameStatus !== 'taken' &&
     usernameStatus !== 'invalid' &&
     usernameStatus !== 'checking';
+
+  // The close button used to discard a half-edited profile silently. Compared
+  // against the profile as loaded, so re-typing a value back to what it was
+  // counts as clean rather than trapping the user behind a dialog they can't
+  // clear. Sets are compared by size + membership; order is not meaningful.
+  const original = user!;
+  const dirty =
+    name !== (original.name ?? '') ||
+    username !== (original.username ?? '') ||
+    age !== (original.age ? String(original.age) : '') ||
+    gender !== (original.gender ?? null) ||
+    bio !== (original.bio ?? '') ||
+    photos.join('|') !==
+      (original.photos?.length
+        ? original.photos
+        : original.photo_url
+          ? [original.photo_url]
+          : []
+      ).join('|') ||
+    interests.size !== (original.interests?.length ?? 0) ||
+    (original.interests ?? []).some((i) => !interests.has(i));
+
+  function handleClose() {
+    if (dirty) setConfirmDiscard(true);
+    else router.back();
+  }
 
   function toggleInterest(id: ActivityId) {
     setInterests((prev) => {
@@ -184,14 +268,28 @@ export default function EditProfileScreen() {
   }
 
   return (
-    // keyboardAvoiding: BIO is a multiline field at the bottom of the scroll,
-    // and without this the keyboard covered it. Every other text-entry screen
-    // in this cluster already passed it; this one was the exception.
-    <Screen modal keyboardAvoiding>
+    // This screen is launched from Settings, which is frosted glass over the
+    // drifting background — and it used to land on flat white, which is most of
+    // why it read as the old screen. It is a modal route outside the tabs, so
+    // it does not inherit the AppBackground mounted behind the tab navigator
+    // and has to bring its own, the same way Settings does.
+    //
+    // Behind <Screen> rather than inside it: Screen's SafeAreaView pads the top
+    // edge on Android, and an absoluteFill child would stop at that padding and
+    // leave a bare strip under the status bar.
+    <View style={styles.root}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <AppBackground />
+      </View>
+
+      {/* keyboardAvoiding: BIO is a multiline field at the bottom of the
+          scroll, and without this the keyboard covered it. Every other
+          text-entry screen in this cluster already passed it. */}
+      <Screen modal keyboardAvoiding background="transparent">
       <ScreenHeader
         title="Edit profile"
         backIcon="close"
-        onBack={() => router.back()}
+        onBack={handleClose}
         right={
           <PressableScale
             scaleTo={canSave ? 0.92 : 1}
@@ -216,12 +314,18 @@ export default function EditProfileScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Which groups get a panel and which don't is one rule, not taste: a
+            TextField already draws its own surface, so putting it on glass is a
+            box inside a box. The loose collections — the photo grid and the two
+            chip grids — are the ones that need a container to read as a group. */}
         <View>
-          <Text style={styles.label}>PHOTOS</Text>
+          <SectionLabel>Photos</SectionLabel>
           <Text style={styles.hint}>
             Add up to 6 — the first is your main photo.
           </Text>
-          <PhotoGridPicker photos={photos} onChange={setPhotos} max={6} />
+          <Glass tier="panel" radius={RADIUS['2xl']} style={styles.panel}>
+            <PhotoGridPicker photos={photos} onChange={setPhotos} max={6} />
+          </Glass>
         </View>
 
         <View style={styles.form}>
@@ -281,35 +385,26 @@ export default function EditProfileScreen() {
 
           <View>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>GENDER</Text>
-              {identityLocked && <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>}
+              <SectionLabel>Gender</SectionLabel>
+              {identityLocked && (
+                <Text style={styles.lockedTag}>VERIFIED · LOCKED</Text>
+              )}
             </View>
-            <View style={styles.grid}>
-              {GENDERS.map((g) => {
-                const sel = gender === g.id;
-                return (
-                  <PressableScale
+            <Glass tier="panel" radius={RADIUS['2xl']} style={styles.panel}>
+              <View style={styles.grid}>
+                {GENDERS.map((g) => (
+                  <SelectChip
                     key={g.id}
-                    scaleTo={identityLocked ? 1 : 0.94}
-                    style={[
-                      styles.pill,
-                      sel && styles.pillSelected,
-                      identityLocked && !sel && styles.pillLocked,
-                    ]}
-                    onPress={() => {
-                      if (identityLocked) return;
-                      setGender(sel ? null : g.id);
-                    }}
-                  >
-                    <Text
-                      style={[styles.pillLabel, sel && styles.pillLabelSel]}
-                    >
-                      {g.label}
-                    </Text>
-                  </PressableScale>
-                );
-              })}
-            </View>
+                    label={g.label}
+                    selected={gender === g.id}
+                    disabled={identityLocked}
+                    onPress={() =>
+                      setGender(gender === g.id ? null : g.id)
+                    }
+                  />
+                ))}
+              </View>
+            </Glass>
           </View>
 
           {identityLocked && (
@@ -328,56 +423,62 @@ export default function EditProfileScreen() {
         </View>
 
         <View>
-          <Text style={styles.label}>INTERESTS</Text>
-          <View style={styles.grid}>
-            {ACTIVITIES.map((a) => {
-              const sel = interests.has(a.id);
-              const cat = categoryStyle(a.id);
-              return (
-                <PressableScale
-                  key={a.id}
-                  scaleTo={0.94}
-                  style={[
-                    styles.pill,
-                    sel && {
-                      backgroundColor: cat.tint,
-                      borderColor: cat.accent,
-                      borderWidth: 1.5,
-                    },
-                  ]}
-                  onPress={() => toggleInterest(a.id)}
-                >
-                  <ActivityGlyph
-                    activity={a.id}
-                    size={17}
-                    color={sel ? cat.accent : COLORS.textSecondary}
+          <SectionLabel>Interests</SectionLabel>
+          <Glass tier="panel" radius={RADIUS['2xl']} style={styles.panel}>
+            <View style={styles.grid}>
+              {ACTIVITIES.map((a) => {
+                const sel = interests.has(a.id);
+                const cat = categoryStyle(a.id);
+                return (
+                  <SelectChip
+                    key={a.id}
+                    label={a.label}
+                    selected={sel}
+                    onPress={() => toggleInterest(a.id)}
+                    accent={cat.accent}
+                    tint={cat.tint}
+                    leading={
+                      <ActivityGlyph
+                        activity={a.id}
+                        size={17}
+                        color={sel ? cat.accent : COLORS.textSecondary}
+                      />
+                    }
                   />
-                  <Text
-                    style={[styles.pillLabel, sel && { color: cat.accent }]}
-                  >
-                    {a.label}
-                  </Text>
-                </PressableScale>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </Glass>
         </View>
       </ScrollView>
-    </Screen>
+      </Screen>
+
+      <ConfirmDialog
+        visible={confirmDiscard}
+        onClose={() => setConfirmDiscard(false)}
+        tone="destructive"
+        icon="warning"
+        title="Discard changes?"
+        body="Your edits to this profile won't be saved."
+        cancelLabel="Keep editing"
+        confirmLabel="Discard"
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          router.back();
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   save: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.body, color: COLORS.primary },
   saveDisabled: { color: COLORS.textMuted },
   scroll: { padding: SPACING[5], gap: SPACING[5], paddingBottom: SPACING[8] },
-  label: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.micro,
-    letterSpacing: 0.3,
-    color: COLORS.inkLabel,
-    marginBottom: SPACING[1.5],
-  },
+  // The container for a loose collection. Same tier and radius as Settings'
+  // SettingsCard, so the two screens read as one surface family.
+  panel: { padding: SPACING[4], marginTop: SPACING[2], overflow: 'hidden' },
   hint: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
@@ -429,27 +530,25 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2.5] },
-  pill: {
+  // Was two near-identical `pill` blocks, one for gender and one for interests.
+  // The unselected fill is the ink ramp's faintest rung rather than solid white:
+  // these now sit on a glass panel, and an opaque chip on frosted glass reads as
+  // a sticker on top of it instead of part of it.
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2],
     height: 42,
     paddingHorizontal: SPACING[3.5],
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.inkFaint,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  pillSelected: {
-    borderColor: COLORS.primary,
-    borderWidth: 1.5,
-    backgroundColor: COLORS.primaryTint,
-  },
-  pillLocked: { opacity: 0.5 },
-  pillLabel: {
+  chipLocked: { opacity: 0.5 },
+  chipLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
-  pillLabelSel: { color: COLORS.primary },
 });

@@ -50,6 +50,27 @@ Ordered by risk, not by feature.
 | 6.2 | Confirm unblocks, the row leaves the list, and their events return to the map/Explore | ☐ | ☐ |
 | 6.3 | Unblock offline → error alert, row stays **(reasoned — was silent before)** | ☐ | ☐ |
 
+| **7. Edit profile — correctness (phase 1)** ||||
+| 7.1 | With a name typed and **no photos**, Save is visibly greyed **(reasoned — it rendered full coral and did nothing before)** | ☐ | ☐ |
+| 7.2 | Focus BIO → the field rises above the keyboard **(reasoned — this screen was missing `keyboardAvoiding`)** | ☐ | ☐ |
+| 7.3 | Empty name → inline error under DISPLAY NAME, no OS alert | ☐ | ☐ |
+| 7.4 | Age 17 → inline error under AGE; age 999 → "Please enter a real age" | ☐ | ☐ |
+| 7.5 | Taken username → the error appears under USERNAME **only** (it used to also alert) | ☐ | ☐ |
+| 7.6 | A valid save still writes name/username/age/gender/bio/photos/interests | ☐ | ☐ |
+| **8. Edit profile — redesign (phases 2–4)** ||||
+| 8.1 | **Highest risk:** open Edit profile from Settings and watch the slide — no visible seam or brightness jump between the two backgrounds **(reasoned — two `AppBackground` instances, drift is per-instance)** | ☐ | ☐ |
+| 8.2 | Background reaches the very top edge, under the status bar, on **Android** (the reason it's mounted outside `Screen`) | ☐ | ☐ |
+| 8.3 | Photos / Gender / Interests each sit on a frosted panel; the text fields do **not** (no box-in-a-box) | ☐ | ☐ |
+| 8.4 | Chips are legible on the panel — unselected fill is `inkFaint`, not white | ☐ | ☐ |
+| 8.5 | Gender: tapping the selected chip clears it; tapping another swaps it | ☐ | ☐ |
+| 8.6 | Interests: multi-select still toggles, and each selected chip takes its category's accent | ☐ | ☐ |
+| 8.7 | KYC-approved account: name/age/gender are locked and the gender chips are visibly dimmed and inert | ☐ | ☐ |
+| 8.8 | Edit something, tap X → discard dialog; "Keep editing" returns with edits intact | ☐ | ☐ |
+| 8.9 | Change nothing, tap X → closes immediately with **no** dialog | ☐ | ☐ |
+| 8.10 | Type a value, change it back to the original, tap X → no dialog **(reasoned — dirty compares against loaded values)** | ☐ | ☐ |
+| 8.11 | Toggle an interest on then off again, tap X → no dialog | ☐ | ☐ |
+| 8.12 | Save succeeds → returns without the discard dialog appearing | ☐ | ☐ |
+
 ## Android specifically
 
 `react-native`'s `SafeAreaView` is a no-op on Android, and this cluster was only

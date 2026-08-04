@@ -3,6 +3,19 @@
 Measured on `app/profile/edit.tsx` (425 lines) at `1874f61`. Every count below
 was grepped, not estimated.
 
+> **Status: all four phases implemented.** Phase 1 shipped as its own commit
+> (correctness, no pixels moved); phases 2–4 as the redesign commit. The audit
+> below is kept as written so the reasoning stays checkable — §1 describes the
+> state *before* the fixes. Device rows are in
+> `docs/testing/settings-audit-fixes.md`.
+>
+> One residual risk, reasoned not observed: `edit.tsx` now mounts its own
+> `AppBackground`, and it is presented over Settings which mounts another. The
+> blob drift is per-instance, so during the modal's slide the two are briefly at
+> different phases. At 0.26 peak alpha on a 440px soft blob with a 40px travel,
+> the seam should be imperceptible — but it is the one thing worth looking at
+> first on a device.
+
 ---
 
 ## 0. Why it reads as old
