@@ -100,8 +100,8 @@ function BackgroundFace({ id }: { id: string }) {
 // direct subview of the key UIWindow (`RNSFullWindowOverlay.mm`'s `maybeShow`),
 // so it sits above anything already presented. `addSubview` puts it on top at
 // the moment it mounts, which is why the caller must render this only while a
-// card is actually open (see the `if (!deal) return null` above) rather than
-// keeping it mounted empty.
+// card is actually open — `EventDealtCard` below returns null before it gets
+// here — rather than keeping it mounted empty.
 //
 // Two things deliberately stay OUT of here:
 //
