@@ -34,7 +34,15 @@ const SOLAR = {
   mail: 'Letter',
   // Ghost mode used `lock`, which is the *same* glyph the Change-password row
   // two rows above it draws. Two different settings cannot share an icon.
-  ghost: 'Ghost',
+  //
+  // Incognito, NOT Ghost or GhostSmile: both of those draw their eyes with
+  // <Ellipse> in the linear variant, and this project's react-native-svg build
+  // doesn't provide that primitive — it throws "Property 'Ellipse' doesn't
+  // exist" at render, not at build. Same trap as the community tab glyph above.
+  // Incognito is Path-only in both variants, and "hidden, not absent" is closer
+  // to what the setting does anyway. The test in __tests__/iconGlyphs.test.ts
+  // now enforces this for every mapped name.
+  ghost: 'Incognito',
   bellOff: 'BellOff',
   bookmark: 'Bookmark',
   bookmarkFilled: 'Bookmark',

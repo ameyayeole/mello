@@ -36,7 +36,8 @@ Ordered by risk, not by feature.
 | 3.4 | `ConfirmDialog` on a small phone (SE-class) — title, body and buttons all fit | ☐ | ☐ |
 | **4. Icon uniformity (the reported complaint)** ||||
 | 4.1 | All seven settings glyphs are **outline** — the Verify shield is no longer solid | ☐ | ☐ |
-| 4.2 | Ghost mode shows a ghost, not a padlock; Change email shows an envelope, not a paper plane | ☐ | ☐ |
+| 4.2 | Ghost mode shows the incognito glyph, not a padlock; Change email shows an envelope, not a paper plane | ☐ | ☐ |
+| 4.4 | **Settings opens at all** — the first `ghost` mapping (Solar `Ghost`) drew with `<Ellipse>`, which this react-native-svg build lacks, and red-boxed the screen on render. Now covered by `iconGlyphs.test.ts`, but confirm on device | ☐ | ☐ |
 | 4.3 | Stroke weights look like one set down the column | ☐ | ☐ |
 | **5. Inline validation (replaces 5 OS alerts)** ||||
 | 5.1 | Change password: short password → error under the **New password** field, no alert | ☐ | ☐ |
