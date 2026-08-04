@@ -16,17 +16,25 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import type { DealtOrigin } from '@/stores/uiStore';
+// DIM_OPACITY, TAP_SLOP, CARD_SHADOW_OPACITY, CARD_ELEVATION and `haptic` were
+// all declared in this file and copied verbatim into `EventDeck`. They are
+// shared now — see that module's header for why a copied number is the same
+// silent-drift shape as a hand-typed query key.
 import {
+  CARD_ELEVATION,
+  CARD_SHADOW_OPACITY,
   DEAL_MS,
+  DIM_OPACITY,
   DISMISS_MS,
   FLIP_MS,
   PROMOTE_MS,
   STACK_DEPTH,
+  TAP_SLOP,
+  haptic,
   isPastThreshold,
   stackLayer,
 } from './dealtCardGeometry';
@@ -83,13 +91,6 @@ const DEAL_SPIN = 10;
 
 const OVERSHOOT = 1.03;
 
-// The card's resting shadow. Named because the flip animates it (see
-// `boxStyle`) and a literal in two places would drift.
-// How dark the world goes behind a dealt card. Raised from 0.8: at that level
-// the map behind stayed legible enough to compete, and the card is meant to be
-// the only thing you are looking at.
-const DIM_OPACITY = 0.9;
-
 // The beat between one card leaving the fan and the next. Long enough that a
 // card is most of the way home before the one behind it lifts, which is what
 // makes them read as three cards being dealt rather than one thick card
@@ -97,34 +98,11 @@ const DIM_OPACITY = 0.9;
 const DEAL_STAGGER_MS = 360;
 const DISMISS_STAGGER_MS = 70;
 
-const CARD_SHADOW_OPACITY = 0.42;
-const CARD_ELEVATION = 18;
-
 // The card has no origin (a deep link, or a notification whose banner has
 // already gone). It comes up off the bottom edge instead — a real motion
 // rather than a shrug.
 const NO_ORIGIN_ROTATE = -14;
 const NO_ORIGIN_SCALE = 0.55;
-
-// How far a finger may travel and still count as a tap-to-flip. Matches the
-// slop RN's own Pressable allows before it cancels a press, so the two agree
-// on where a tap stops being a tap.
-const TAP_SLOP = 10;
-
-// Five moments, matching the design doc's haptic table exactly (§3):
-// touch-down and the threshold tick are both a plain selection tick — one
-// fires from uiStore's `dealCard` (see the comment there), the other from the
-// pan gesture below — landing and flip are impacts of different weights, and
-// a save (not a pass — see `commit` below) gets the success notification,
-// because a pass is not a success and the threshold tick already told you it
-// took.
-function haptic(kind: 'land' | 'settle' | 'flip' | 'threshold' | 'save') {
-  if (kind === 'land') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  else if (kind === 'settle') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  else if (kind === 'flip') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  else if (kind === 'threshold') Haptics.selectionAsync();
-  else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-}
 
 // "Tap for details", floating above the stack.
 //

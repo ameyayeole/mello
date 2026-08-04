@@ -60,10 +60,18 @@ export function DeckActions({
   onPass,
   onSave,
   disabled,
+  onBeforeNavigate,
 }: {
   onPass: () => void;
   onSave: () => void;
   disabled?: boolean;
+  // Called immediately before the undo button pushes the paywall, so whoever
+  // renders this row can get out of the way first. Same reason as
+  // `DeckEmptyCard`'s: this sits inside `CardPortal`'s `FullWindowOverlay`,
+  // which paints over pushed routes, so `/premium` would mount underneath the
+  // deck and read as a dead button. A callback rather than a `useSwipeDeck`-
+  // style reach into the deck's state — this row stays dumb.
+  onBeforeNavigate?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -71,6 +79,7 @@ export function DeckActions({
 
   function onUndo() {
     if (!premium) {
+      onBeforeNavigate?.();
       router.push('/premium?reason=swipes');
       return;
     }

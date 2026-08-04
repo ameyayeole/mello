@@ -7,10 +7,13 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   Extrapolation,
+  FadeInUp,
+  FadeOut,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -22,7 +25,6 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -36,12 +38,23 @@ import {
   DEALT_CARD_ASPECT,
   DEALT_CARD_WIDTH_RATIO,
   FlipHint,
+  Icon,
   useTabBarInset,
 } from '@/components/ui';
+// DIM_OPACITY, TAP_SLOP, CARD_SHADOW_OPACITY, CARD_ELEVATION and `haptic` were
+// all copied into this file from `DealtCard`, with a comment on the first of
+// them asking the reader to remember not to let the copies drift. They are
+// shared now — see that module's header. The two components themselves stay
+// separate, deliberately: see the design doc's argument, which still holds.
 import {
+  CARD_ELEVATION,
+  CARD_SHADOW_OPACITY,
+  DIM_OPACITY,
   FLIP_MS,
   PROMOTE_MS,
   STACK_DEPTH,
+  TAP_SLOP,
+  haptic,
   isPastThreshold,
 } from '@/components/ui/dealtCardGeometry';
 import type { ExploreEvent, NearbyEvent, EventParticipant } from '@/types/models';
@@ -93,10 +106,6 @@ const FAN_LABEL_ROOM = 28;
 const MINI_RADIUS = RADIUS.md;
 const MINI_BORDER = 2.5;
 
-// How dark the world goes behind the open deck. Same value as `DealtCard`'s —
-// the two surfaces dim to the same level on purpose.
-const DIM_OPACITY = 0.9;
-
 const EXPAND_MS = 420;
 const MINIMIZE_MS = 300;
 
@@ -109,29 +118,14 @@ const EMERGE_START = 0.66;
 // "the current index" is always 0 and "within 5 of the end" is a length test.
 const PREFETCH_AHEAD = 5;
 
-// How far a finger may travel and still count as a tap. Matches `DealtCard`.
-const TAP_SLOP = 10;
-
-const CARD_SHADOW_OPACITY = 0.42;
-const CARD_ELEVATION = 18;
+// The tallest button in `DeckChrome`'s action row (the save circle). Only used
+// to keep the wishlist toast clear of it — see `toastBottom`.
+const DECK_ACTION_ROW_H = 68;
 
 // The parked fan's placeholder faces when there is nothing to swipe — carried
 // over from SwipeDeckTeaser, which showed these rather than vanishing, so the
 // entry point is always in the same place.
 const CAUGHT_UP_EMOJI = ['✨', '🎉', '👀'];
-
-// The deck's five haptic moments, matching the design's table: a selection
-// tick when you open it, a heavier thud when it lands, a light click as the
-// card passes edge-on through a flip, a selection tick the instant a swipe
-// crosses the threshold, and the success notification only on a save — a pass
-// is not a success, and the threshold tick already said the swipe took.
-function haptic(kind: 'expand' | 'land' | 'flip' | 'threshold' | 'save') {
-  if (kind === 'expand') Haptics.selectionAsync();
-  else if (kind === 'land') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  else if (kind === 'flip') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  else if (kind === 'threshold') Haptics.selectionAsync();
-  else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-}
 
 /**
  * The deck, or nothing.
@@ -180,6 +174,14 @@ function DeckBody({
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const tabBarInset = useTabBarInset();
+  const insets = useSafeAreaInsets();
+
+  // The toast sits ABOVE the pass/save/undo row rather than at the screen
+  // bottom where `EventDealtCard` puts its identical one — that card has no
+  // action row under it and this deck does. `DeckActions` pads itself by
+  // `insets.bottom + SPACING[5]` and its tallest button (the save circle) is
+  // 68pt, so this clears the whole row with one gap to spare.
+  const toastBottom = insets.bottom + SPACING[5] + DECK_ACTION_ROW_H + SPACING[3];
 
   const cardW = Math.round(width * CARD_WIDTH_RATIO);
   const cardH = Math.round(cardW * CARD_ASPECT);
@@ -189,8 +191,15 @@ function DeckBody({
   // optimistically — so a swiped card leaves this list by itself and the next
   // card is always `deck[0]`. That is what lets pages loaded mid-session join
   // the deck you are already holding, which the old id-snapshot could not do.
-  const { deck, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useSwipeDeck();
+  const {
+    deck,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useSwipeDeck();
   const { outOfSwipes } = useSwipeQuota();
   const recordSwipe = useRecordSwipe();
 
@@ -293,10 +302,25 @@ function DeckBody({
     );
   }, [sway]);
 
+  // The one thing "Tap to retry" promises. `refetch` is wrapped rather than
+  // passed straight through because it returns a promise React does not want
+  // as a handler's return value, and because both entry points — the parked
+  // label and the error card's own button — have to mean the same thing.
+  const retry = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   const open = useCallback(() => {
     haptic('expand');
+    // The parked label reads "Tap to retry" when the feed failed, so the tap
+    // has to actually retry — it previously only expanded, onto an error card
+    // whose only button was gated on premium. Still expands as well: the card
+    // is where the "couldn't load" message lives, and a tap that fixed
+    // nothing visible would read as no tap at all while the request is in
+    // flight.
+    if (isError) retry();
     setExpanded(true);
-  }, [setExpanded]);
+  }, [isError, retry, setExpanded]);
 
   const minimize = useCallback(() => {
     setExpanded(false);
@@ -317,9 +341,32 @@ function DeckBody({
     [topId, outOfSwipes, recordSwipe]
   );
 
+  // The wishlist save/unsave toast, same as `EventDealtCard`'s and for the
+  // same reason recorded there: `useSaveEvent`'s optimistic update rolls back
+  // silently on failure, and a bookmark chip that flips on and then quietly
+  // flips back "reads as the button does nothing". The deck's chip is the same
+  // mutation on a different surface, so it needs the same outcome shown. The
+  // strings are `EventDealtCard`'s verbatim — one vocabulary for one action.
+  //
+  // Local state rather than a shared store, matching that file: this is a
+  // single transient string belonging to one surface, and `InAppNotification`
+  // (the app-wide banner) is a title+body drop from the top driven by
+  // `uiStore`, which a one-line bottom pill would have to be forced through.
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 1900);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const handleToggleSave = useCallback(() => {
-    toggleSave();
-  }, [toggleSave]);
+    const nextSaved = !saved;
+    toggleSave({
+      onSuccess: () =>
+        setToast(nextSaved ? 'Added to wishlist' : 'Removed from wishlist'),
+      onError: () => setToast("Couldn't update wishlist"),
+    });
+  }, [saved, toggleSave]);
 
   // "View host profile" — the one safety popup with a navigation side effect.
   // The deck has to come home first: it is in a window-level overlay, so a
@@ -505,6 +552,8 @@ function DeckBody({
             // the fan still being a fan — a stack of three identical "all
             // caught up" cards would read as a rendering fault.
             reason={i === 0 ? emptyReason : null}
+            onBeforeNavigate={minimize}
+            onRetry={retry}
           />
         ),
         back: null,
@@ -660,6 +709,11 @@ function DeckBody({
                   onPass={() => flingOff(-1)}
                   onSave={() => flingOff(1)}
                   disabled={!topId}
+                  // Undo is a Mello+ perk, so a free user taps through to
+                  // `/premium` — a pushed route, which would mount UNDER this
+                  // component's window layer. Same guard as the Join CTA above
+                  // and the empty card's own CTA below.
+                  onBeforeNavigate={minimize}
                 />
               </Animated.View>
             </>
@@ -722,6 +776,32 @@ function DeckBody({
               )}
               <View style={styles.labelPill} pointerEvents="none">
                 <Text style={styles.labelText}>{parkedLabel}</Text>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* The wishlist toast. Inside the portal, like the card it reports
+              on — anywhere else it would render under this component's own
+              window layer and never be seen. Gated on `expanded` because the
+              only thing that can raise it is the open card's bookmark chip,
+              and a pill floating over the map after the deck has gone home
+              would have nothing to belong to. `pointerEvents` none: it is
+              feedback, never a tap target. */}
+          {expanded && toast && (
+            <Animated.View
+              entering={FadeInUp.duration(200)}
+              exiting={FadeOut.duration(160)}
+              style={[styles.toastWrap, { bottom: toastBottom }]}
+              pointerEvents="none"
+            >
+              <View style={styles.toast}>
+                <Icon
+                  name="bookmarkFilled"
+                  size={15}
+                  color={COLORS.white}
+                  strokeWidth={2}
+                />
+                <Text style={styles.toastText}>{toast}</Text>
               </View>
             </Animated.View>
           )}
@@ -821,7 +901,7 @@ function DeckCardLayer({
 }) {
   const isTop = depth === 0;
 
-  const mini = miniSlot(depth, cardW, cardH);
+  const mini = miniSlot(depth, cardW);
   // Passed to the worklets as plain numbers, not as the slot object: a fresh
   // object every render would rebuild the animated style every render.
   const miniX = miniCentreX + mini.x;
@@ -840,7 +920,11 @@ function DeckCardLayer({
   const openRotate = useSharedValue(layer.rotate);
   const openScale = useSharedValue(layer.scale);
   const openOpacity = useSharedValue(layer.opacity);
-  const openShade = useSharedValue(depth === 0 ? 0 : 0.18);
+  // Read off the slot, not re-typed as a literal. It used to be
+  // `depth === 0 ? 0 : 0.18` here, which matched `LAYERS[1..4].shade` only by
+  // coincidence — tuning the table would have moved `DealtCard`'s stack and
+  // left this one behind, with no type error and no failing test.
+  const openShade = useSharedValue(layer.shade);
 
   // Guards the first run: a depth prop exists at mount too, and that is not a
   // promotion.
@@ -854,7 +938,7 @@ function DeckCardLayer({
     openRotate.value = withTiming(next.rotate, { duration: PROMOTE_MS });
     openScale.value = withTiming(next.scale, { duration: PROMOTE_MS });
     openOpacity.value = withTiming(next.opacity, { duration: PROMOTE_MS });
-    openShade.value = withTiming(depth === 0 ? 0 : 0.18, { duration: PROMOTE_MS });
+    openShade.value = withTiming(next.shade, { duration: PROMOTE_MS });
   }, [depth, openOpacity, openRotate, openScale, openShade, openX, openY]);
 
   // Per card, derived on the UI thread from the shared `expand` — never a JS
@@ -989,10 +1073,14 @@ function EmptyFace({
   emerge,
   emoji,
   reason,
+  onBeforeNavigate,
+  onRetry,
 }: {
   emerge: SharedValue<number>;
   emoji: string;
   reason: DeckEmptyReason | null;
+  onBeforeNavigate?: () => void;
+  onRetry?: () => void;
 }) {
   const style = useAnimatedStyle(() => ({ opacity: emerge.value }));
   return (
@@ -1002,7 +1090,11 @@ function EmptyFace({
       <Text style={styles.emptyEmoji}>{emoji}</Text>
       {reason && (
         <Animated.View style={[StyleSheet.absoluteFill, style]}>
-          <DeckEmptyCard reason={reason} />
+          <DeckEmptyCard
+            reason={reason}
+            onBeforeNavigate={onBeforeNavigate}
+            onRetry={onRetry}
+          />
         </Animated.View>
       )}
     </View>
@@ -1089,5 +1181,29 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
+  },
+  // The wishlist toast — the same pill `EventDealtCard` floats, deliberately
+  // identical: it is the same mutation reporting the same outcome, and two
+  // shapes for one message would read as two different features.
+  toastWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 4 },
+  toast: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[4],
+    height: 42,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.accent,
+    shadowColor: COLORS.ink,
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  toastText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.white,
   },
 });

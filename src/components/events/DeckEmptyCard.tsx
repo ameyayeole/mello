@@ -24,7 +24,33 @@ export type DeckEmptyReason = 'caughtUp' | 'outOfSwipes' | 'error';
  * Rendered as a `DealtCard` face, so it deals in and dismisses exactly like a
  * real card. It just has nothing on the back and nothing to swipe.
  */
-export function DeckEmptyCard({ reason }: { reason: DeckEmptyReason }) {
+export function DeckEmptyCard({
+  reason,
+  onBeforeNavigate,
+  onRetry,
+}: {
+  reason: DeckEmptyReason;
+  // Called immediately before this card pushes a route, so whoever is
+  // rendering it can get out of the way first.
+  //
+  // This exists because of where the card is rendered, not because of anything
+  // it does: `EventDeck` mounts it inside `CardPortal`'s `FullWindowOverlay`,
+  // which attaches to the key window and therefore paints OVER any pushed
+  // route. Pushing `/premium` from in here without minimizing first mounts the
+  // paywall underneath the deck — a free user taps "Get Mello+", nothing
+  // visibly happens, and the paywall then appears from nowhere when they later
+  // tap the dim. The deleted `spendSwipe` guarded this by ordering
+  // `close()` before `router.push`; this callback is that guard, handed back.
+  //
+  // A callback rather than importing the deck's state: this component stays
+  // dumb, and the one caller that has a window layer to escape is the one that
+  // passes it.
+  onBeforeNavigate?: () => void;
+  // Refetches the deck. Only `reason === 'error'` has anything to do with it —
+  // the card previously showed the "couldn't load" message with no way to act
+  // on it, because its only button was gated on the paywall branch.
+  onRetry?: () => void;
+}) {
   const router = useRouter();
   const premium = reason === 'outOfSwipes';
 
@@ -61,7 +87,23 @@ export function DeckEmptyCard({ reason }: { reason: DeckEmptyReason }) {
         <Button
           label="Get Mello+ · unlimited swipes"
           height={44}
-          onPress={() => router.push('/premium?reason=swipes')}
+          onPress={() => {
+            onBeforeNavigate?.();
+            router.push('/premium?reason=swipes');
+          }}
+          style={styles.cta}
+        />
+      )}
+
+      {/* `tertiary`, not `primary`: retrying a failed load is a low-stakes
+          "try that again", not the one decision on the surface — and the deck
+          spends its coral on Join. No navigation, so no `onBeforeNavigate`. */}
+      {reason === 'error' && onRetry && (
+        <Button
+          label="Try again"
+          variant="tertiary"
+          height={44}
+          onPress={onRetry}
           style={styles.cta}
         />
       )}

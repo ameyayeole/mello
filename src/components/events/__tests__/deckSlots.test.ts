@@ -7,49 +7,69 @@ import {
 import { STACK_DEPTH, stackLayer } from '@/components/ui/dealtCardGeometry';
 
 const CARD_W = 300;
-const CARD_H = 465;
 
 describe('miniSlot', () => {
   it('scales a full card down to the fan mini', () => {
-    expect(miniSlot(0, CARD_W, CARD_H).scale).toBeCloseTo(MINI_W / CARD_W, 5);
+    expect(miniSlot(0, CARD_W).scale).toBeCloseTo(MINI_W / CARD_W, 5);
   });
 
   // The fan reads as a hand of cards because they lean different ways. A
   // uniform tilt would be a neat pile, which is not the same object.
   it('fans the cards at different angles', () => {
-    const a = miniSlot(0, CARD_W, CARD_H).rotate;
-    const b = miniSlot(1, CARD_W, CARD_H).rotate;
-    const c = miniSlot(2, CARD_W, CARD_H).rotate;
+    const a = miniSlot(0, CARD_W).rotate;
+    const b = miniSlot(1, CARD_W).rotate;
+    const c = miniSlot(2, CARD_W).rotate;
     expect(new Set([a, b, c]).size).toBe(3);
   });
 
   it('leans the front card the opposite way to the ones behind it', () => {
-    expect(miniSlot(0, CARD_W, CARD_H).rotate).toBeGreaterThan(0);
-    expect(miniSlot(1, CARD_W, CARD_H).rotate).toBeLessThan(0);
-    expect(miniSlot(2, CARD_W, CARD_H).rotate).toBeLessThan(0);
+    expect(miniSlot(0, CARD_W).rotate).toBeGreaterThan(0);
+    expect(miniSlot(1, CARD_W).rotate).toBeLessThan(0);
+    expect(miniSlot(2, CARD_W).rotate).toBeLessThan(0);
   });
 
   // Anything past the three the fan shows sits exactly under the third, so a
   // deep deck does not spray cards across the corner of the map.
   it('parks anything deeper than the fan under the last visible mini', () => {
-    expect(miniSlot(5, CARD_W, CARD_H)).toEqual(miniSlot(2, CARD_W, CARD_H));
+    expect(miniSlot(5, CARD_W)).toEqual(miniSlot(2, CARD_W));
   });
 
   it('is deterministic', () => {
-    expect(miniSlot(1, CARD_W, CARD_H)).toEqual(miniSlot(1, CARD_W, CARD_H));
+    expect(miniSlot(1, CARD_W)).toEqual(miniSlot(1, CARD_W));
+  });
+
+  // The parked fan has no stack to shade — the cards are thumbnails behind
+  // each other, not a dimmed pile.
+  it('never shades a parked card', () => {
+    for (let d = 0; d <= 5; d++) expect(miniSlot(d, CARD_W).shade).toBe(0);
   });
 });
 
 describe('expandedSlot', () => {
-  it('is the messy stack the dealt card already uses', () => {
-    for (let d = 0; d <= STACK_DEPTH; d++) {
-      const slot = expandedSlot(d);
-      const layer = stackLayer(d);
-      expect(slot.x).toBe(layer.x);
-      expect(slot.y).toBe(layer.y);
-      expect(slot.rotate).toBe(layer.rotate);
-      expect(slot.scale).toBe(layer.scale);
+  // Past STACK_DEPTH, not up to it. `stackLayer`'s opacity-0 branch only fires
+  // at `depth > STACK_DEPTH`, and that is exactly the layer `EventDeck`
+  // renders — it slices the deck to `STACK_DEPTH + 2`, so the deepest card it
+  // mounts is at depth STACK_DEPTH + 1 and is meant to be invisible until the
+  // stack shortens. Looping only to STACK_DEPTH left that branch untested.
+  it('is the messy stack the dealt card already uses, at every depth it renders', () => {
+    for (let d = 0; d <= STACK_DEPTH + 2; d++) {
+      expect(expandedSlot(d)).toEqual(stackLayer(d));
     }
+  });
+
+  // Named separately from the loop above because it is the one this file
+  // exists to pin: `expandedSlot` used to list `stackLayer`'s fields by hand
+  // and silently dropped `shade`, and `EventDeck` then re-typed it as a
+  // literal that happened to agree.
+  it('carries the shade through rather than dropping it', () => {
+    expect(expandedSlot(0).shade).toBe(stackLayer(0).shade);
+    expect(expandedSlot(1).shade).toBe(stackLayer(1).shade);
+    expect(expandedSlot(1).shade).toBeGreaterThan(0);
+  });
+
+  it('fades out the layer past the deepest one the stack draws', () => {
+    expect(expandedSlot(STACK_DEPTH).opacity).toBe(1);
+    expect(expandedSlot(STACK_DEPTH + 1).opacity).toBe(0);
   });
 });
 
