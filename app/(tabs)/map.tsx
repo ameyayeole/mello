@@ -566,6 +566,8 @@ export default function MapScreen() {
         <Icon name="crosshair" size={22} color="#5F6368" strokeWidth={2} />
       </PressableScale>
 
+      <CreateEventFab onPress={() => setCreatingEvent(true)} />
+
       {/* The event deck — the parked fan AND the open deck, one component that
           never unmounts between them.
 
@@ -573,14 +575,15 @@ export default function MapScreen() {
           what puts it BELOW the floating tab bar, so its parked fan tucks its
           lower edge behind the bar exactly as the old teaser's did. Mounted at
           the root it was above the bar instead, with nothing left to hide
-          under.
+          under. Expanding still fills the screen because the bar steps aside —
+          `uiStore.deckExpanded`, read by (tabs)/_layout the same way it reads
+          `creatingEvent`.
 
-          Expanding still fills the screen, because the bar steps aside for it
-          — `uiStore.deckExpanded`, read by (tabs)/_layout the same way it
-          reads `creatingEvent`. */}
+          And it is LAST in this screen's chrome on purpose: any sibling after
+          it paints over the open deck's dim. The create FAB above did exactly
+          that — a coral button floating on top of a dimmed deck. Anything
+          added to this screen later belongs above this line, not below it. */}
       <EventDeck />
-
-      <CreateEventFab onPress={() => setCreatingEvent(true)} />
       </Animated.View>
       )}
 
