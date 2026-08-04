@@ -340,10 +340,32 @@ export function DealtCard({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View
-        style={[StyleSheet.absoluteFill, styles.dim, dimStyle]}
-        onTouchEnd={sendHome}
-      />
+      {/* The dim gets its own wrapper, and the stage carries an explicit
+          zIndex above it, because the two were fighting over DEPTH rather than
+          paint order.
+
+          The card's transform contains a `perspective`, which gives it real
+          z-extent: as it flips, the half turning away from you moves to
+          negative z. The dim is a flat plane at z = 0 filling the screen, and
+          it was a direct sibling of the card's stage — so Core Animation
+          depth-sorted them and drew the dim OVER whichever half of the card had
+          sunk behind it. On screen that reads as a hard vertical band down the
+          rotation axis, darkest mid-turn. Painting order alone never fixed it:
+          the dim is rendered first and was still winning.
+
+          Confirmed by making the dim bright green and flipping a card — the
+          bands turned green.
+
+          The wrapper gives the dim its own compositing context so it stops
+          being a peer in the card's 3D space, and the stage's zIndex maps to
+          `zPosition` on iOS, which puts the whole card layer in front of that
+          plane no matter where its own geometry sits. */}
+      <View style={styles.dimWrap} pointerEvents="box-none">
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.dim, dimStyle]}
+          onTouchEnd={sendHome}
+        />
+      </View>
       <View style={styles.stage} pointerEvents="box-none">
         {/* Deepest first so DOM order paints correctly without z-index games.
             STACK_DEPTH + 2, not + 1: the extra layer is the one parked at
@@ -562,8 +584,14 @@ function CardLayer({
 }
 
 const styles = StyleSheet.create({
+  dimWrap: { ...StyleSheet.absoluteFill, zIndex: 0 },
   dim: { backgroundColor: COLORS.ink },
-  stage: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  stage: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
   countWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   // White at 72% on an 80% ink dim: present, and clearly subordinate to the
   // card it is counting.
