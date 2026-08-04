@@ -19,6 +19,7 @@ export function IconButton({
   iconSize = 20,
   color,
   badge = false,
+  disabled = false,
   style,
   accessibilityLabel,
 }: {
@@ -29,21 +30,28 @@ export function IconButton({
   iconSize?: number;
   color?: string;
   badge?: boolean;
+  // Greys the glyph and blocks the press. Without it a caller that needs a
+  // disabled state has to wrap the button in something that swallows taps,
+  // which leaves it looking live — the bug this screen's text Save button had.
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 }) {
-  const iconColor =
-    color ??
-    (variant === 'tint'
-      ? COLORS.primary
-      : variant === 'onPhoto'
-        ? COLORS.white
-        : COLORS.textPrimary);
+  const iconColor = disabled
+    ? COLORS.textMuted
+    : (color ??
+      (variant === 'tint'
+        ? COLORS.primary
+        : variant === 'onPhoto'
+          ? COLORS.white
+          : COLORS.textPrimary));
   return (
     <PressableScale
       onPress={onPress}
-      scaleTo={0.9}
+      disabled={disabled}
+      scaleTo={disabled ? 1 : 0.9}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       accessibilityLabel={accessibilityLabel ?? icon}
       style={[
         styles.base,
@@ -52,6 +60,7 @@ export function IconButton({
         variant === 'surface' && styles.surface,
         variant === 'tint' && styles.tint,
         variant === 'onPhoto' && styles.onPhoto,
+        disabled && styles.disabled,
         style,
       ]}
     >
@@ -70,6 +79,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   tint: { backgroundColor: COLORS.primaryTint },
+  // Neutral fill, not a tinted one — a disabled coral chip still reads as the
+  // screen's live CTA from across the room.
+  disabled: { backgroundColor: COLORS.inkFaint, borderColor: COLORS.inkSubtle },
   onPhoto: {
     backgroundColor: COLORS.glassOnPhoto,
     borderWidth: StyleSheet.hairlineWidth * 2,

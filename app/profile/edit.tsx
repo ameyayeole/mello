@@ -1,4 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { GLIDE, SQUASH } from '@/constants/motion';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -22,6 +32,7 @@ import {
   AppBackground,
   ConfirmDialog,
   Glass,
+  IconButton,
   Loader,
   PressableScale,
   Screen,
@@ -36,6 +47,10 @@ import { showError } from '@/utils/errors';
 const MIN_AGE = 18;
 const MAX_AGE = 120;
 
+// The chip and the indicator that slides behind it have to be the same height,
+// so it is one number.
+const CHIP_HEIGHT = 42;
+
 const GENDERS: { id: Gender; label: string }[] = [
   { id: 'male', label: 'Male' },
   { id: 'female', label: 'Female' },
@@ -43,23 +58,137 @@ const GENDERS: { id: Gender; label: string }[] = [
   { id: 'other', label: 'Other' },
 ];
 
-// One selectable chip, replacing the two near-identical `styles.pill` copies
-// this screen used for gender and interests.
+// Both chip rows are local rather than ui/ primitives, and both stay pills.
+// AGENTS.md's "no pill buttons" rule is about `Button`; selection chips are
+// pills everywhere in this app (SectionPills, CategoryPill) and squaring these
+// off would fight the design language. The create flow's SectionPills is not a
+// third caller to generalise for — it is a horizontal single-select row with a
+// travelling indicator, not a wrapping grid.
 //
-// Local, not a ui/ primitive, and deliberately so: the only two callers are
-// both on this screen. The create flow's SectionPills looks similar but is a
-// different component — a horizontal single-select row with a travelling
-// indicator, not a wrapping grid — so there is no third caller to generalise
-// for. Promote it if one appears; a premature primitive is as bad as a fork.
+// Gender is single-select, so it gets the app's travelling selection: one black
+// indicator thrown to whatever is now chosen, squashing on the way. The
+// constants come from @/constants/motion, shared with the create flow's
+// category grid rather than copied — the two are meant to be one movement, and
+// copied numbers drift the first time either is tuned.
 //
-// It stays a pill. AGENTS.md's "no pill buttons" rule is about `Button`;
-// selection chips are pills everywhere in this app (SectionPills, CategoryPill)
-// and squaring these off would fight the design language.
-function SelectChip({
+// Deliberately not merged with InterestChip below. Interests are multi-select,
+// and a single travelling indicator cannot express "four of these are on" —
+// they are two different interactions that happen to be drawn as chips.
+function GenderChips({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: Gender | null;
+  onChange: (g: Gender | null) => void;
+  disabled: boolean;
+}) {
+  const [frames, setFrames] = useState<
+    Record<string, { x: number; y: number; w: number }>
+  >({});
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const w = useSharedValue(0);
+  const shown = useSharedValue(0);
+  const squash = useSharedValue(0);
+  // Distinguishes "first placement" from "moved", so the indicator appears in
+  // place on mount instead of flying in from the top-left corner.
+  const placed = useRef(false);
+
+  const frame = value ? frames[value] : undefined;
+
+  useEffect(() => {
+    if (!frame) {
+      shown.value = withTiming(0, { duration: 120 });
+      placed.current = false;
+      return;
+    }
+    shown.value = withTiming(1, { duration: 140 });
+    if (!placed.current) {
+      placed.current = true;
+      x.value = frame.x;
+      y.value = frame.y;
+      w.value = frame.w;
+      return;
+    }
+    squash.value = withSequence(
+      withTiming(1, { duration: 130, easing: Easing.out(Easing.quad) }),
+      withSpring(0, GLIDE)
+    );
+    x.value = withSpring(frame.x, GLIDE);
+    y.value = withSpring(frame.y, GLIDE);
+    // Width springs too — these chips are different widths, and snapping the
+    // width while translating reads as a different object arriving.
+    w.value = withSpring(frame.w, GLIDE);
+  }, [frame, x, y, w, shown, squash]);
+
+  const indicator = useAnimatedStyle(() => ({
+    width: w.value,
+    opacity: shown.value,
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value },
+      { scale: 1 - squash.value * SQUASH },
+    ],
+  }));
+
+  return (
+    <View style={styles.grid}>
+      {/* Behind the chips, so it can never take a tap. */}
+      <Animated.View
+        style={[styles.genderIndicator, indicator]}
+        pointerEvents="none"
+      />
+      {GENDERS.map((g) => {
+        const sel = value === g.id;
+        return (
+          <PressableScale
+            key={g.id}
+            scaleTo={disabled ? 1 : 0.94}
+            onLayout={(e) => {
+              // Read synchronously — React nulls nativeEvent once the handler
+              // returns, and the state updater runs later.
+              const { x: px, y: py, width } = e.nativeEvent.layout;
+              setFrames((f) =>
+                f[g.id]?.x === px && f[g.id]?.y === py && f[g.id]?.w === width
+                  ? f
+                  : { ...f, [g.id]: { x: px, y: py, w: width } }
+              );
+            }}
+            onPress={() => {
+              if (disabled) return;
+              Haptics.selectionAsync();
+              onChange(sel ? null : g.id);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: sel, disabled }}
+            style={[
+              styles.chip,
+              styles.chipOutline,
+              disabled && !sel && styles.chipLocked,
+            ]}
+          >
+            <Text style={[styles.chipLabel, sel && styles.chipLabelOn]}>
+              {g.label}
+            </Text>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
+// The interest chip. Multi-select, so each one carries its own on/off state
+// rather than sharing a travelling indicator the way gender does — and it keeps
+// its category's accent, which is the one place on this screen colour is
+// carrying information rather than decoration.
+//
+// Every prop here has a caller. It briefly also served gender, which is where
+// the optional accent/tint and a disabled state came from; both went with it.
+function InterestChip({
   label,
   selected,
   onPress,
-  disabled = false,
   accent,
   tint,
   leading,
@@ -67,31 +196,29 @@ function SelectChip({
   label: string;
   selected: boolean;
   onPress: () => void;
-  disabled?: boolean;
-  // Category chips colour themselves; gender chips fall back to coral.
-  accent?: string;
-  tint?: string;
-  leading?: React.ReactNode;
+  accent: string;
+  tint: string;
+  leading: React.ReactNode;
 }) {
-  const on = accent ?? COLORS.primary;
   return (
     <PressableScale
-      scaleTo={disabled ? 1 : 0.94}
-      onPress={disabled ? undefined : onPress}
+      scaleTo={0.94}
+      onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ selected, disabled }}
+      accessibilityState={{ selected }}
       style={[
         styles.chip,
         selected && {
-          backgroundColor: tint ?? COLORS.primaryTint,
-          borderColor: on,
+          backgroundColor: tint,
+          borderColor: accent,
           borderWidth: 1.5,
         },
-        disabled && !selected && styles.chipLocked,
       ]}
     >
       {leading}
-      <Text style={[styles.chipLabel, selected && { color: on }]}>{label}</Text>
+      <Text style={[styles.chipLabel, selected && { color: accent }]}>
+        {label}
+      </Text>
     </PressableScale>
   );
 }
@@ -291,22 +418,21 @@ export default function EditProfileScreen() {
         backIcon="close"
         onBack={handleClose}
         right={
-          <PressableScale
-            scaleTo={canSave ? 0.92 : 1}
-            onPress={handleSave}
-            disabled={!canSave}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Save profile"
-          >
-            {loading ? (
+          loading ? (
+            // Same 40pt box the button occupies, so the header doesn't reflow
+            // when the save starts.
+            <View style={styles.saveBusy}>
               <Loader inline />
-            ) : (
-              <Text style={[styles.save, !canSave && styles.saveDisabled]}>
-                Save
-              </Text>
-            )}
-          </PressableScale>
+            </View>
+          ) : (
+            <IconButton
+              icon="check"
+              variant="tint"
+              onPress={handleSave}
+              disabled={!canSave}
+              accessibilityLabel="Save profile"
+            />
+          )
         }
       />
 
@@ -391,19 +517,11 @@ export default function EditProfileScreen() {
               )}
             </View>
             <Glass tier="panel" radius={RADIUS['2xl']} style={styles.panel}>
-              <View style={styles.grid}>
-                {GENDERS.map((g) => (
-                  <SelectChip
-                    key={g.id}
-                    label={g.label}
-                    selected={gender === g.id}
-                    disabled={identityLocked}
-                    onPress={() =>
-                      setGender(gender === g.id ? null : g.id)
-                    }
-                  />
-                ))}
-              </View>
+              <GenderChips
+                value={gender}
+                onChange={setGender}
+                disabled={identityLocked}
+              />
             </Glass>
           </View>
 
@@ -430,7 +548,7 @@ export default function EditProfileScreen() {
                 const sel = interests.has(a.id);
                 const cat = categoryStyle(a.id);
                 return (
-                  <SelectChip
+                  <InterestChip
                     key={a.id}
                     label={a.label}
                     selected={sel}
@@ -473,18 +591,22 @@ export default function EditProfileScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  save: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.body, color: COLORS.primary },
-  saveDisabled: { color: COLORS.textMuted },
-  scroll: { padding: SPACING[5], gap: SPACING[5], paddingBottom: SPACING[8] },
+  saveBusy: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  scroll: { padding: SPACING[5], gap: SPACING[6], paddingBottom: SPACING[8] },
   // The container for a loose collection. Same tier and radius as Settings'
   // SettingsCard, so the two screens read as one surface family.
-  panel: { padding: SPACING[4], marginTop: SPACING[2], overflow: 'hidden' },
+  //
+  // One gap between a section's heading and its content, set here and nowhere
+  // else. It used to be assembled from three competing values — the label's own
+  // marginBottom, the hint's -3 top and 2.5 bottom, and the panel's marginTop —
+  // which stacked to different totals depending on whether the section happened
+  // to have a hint under its heading.
+  panel: { padding: SPACING[4], marginTop: SPACING[2.5], overflow: 'hidden' },
   hint: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
-    marginTop: -3,
-    marginBottom: SPACING[2.5],
+    marginTop: SPACING[1],
   },
   form: { gap: SPACING[3.5] },
   labelRow: {
@@ -538,17 +660,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[2],
-    height: 42,
+    height: CHIP_HEIGHT,
     paddingHorizontal: SPACING[3.5],
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.inkFaint,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  // Gender chips draw no fill of their own — the travelling indicator behind
+  // them is the fill, and an opaque chip would hide it.
+  chipOutline: { backgroundColor: 'transparent' },
   chipLocked: { opacity: 0.5 },
   chipLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
+  },
+  // White on the black indicator. Coral is reserved for the screen's one CTA,
+  // which here is Save.
+  chipLabelOn: { color: COLORS.white },
+  genderIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: CHIP_HEIGHT,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.accent,
   },
 });

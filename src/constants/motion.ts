@@ -45,6 +45,32 @@
  * and the pop is at 420, so the hand-off at the end lands on a settled screen
  * rather than a half-faded one.
  */
+/**
+ * The travelling selection — DESIGN.md §8.
+ *
+ * A single indicator that moves to whatever is now selected, rather than each
+ * option lighting up on its own. The create flow's category grid and section
+ * row use it, and so does the profile editor's gender picker.
+ *
+ * These sit here rather than beside the create flow because the whole point is
+ * that the motion is *the same wherever it appears* — two copies of the numbers
+ * would drift the first time either was tuned, and the drift would be invisible
+ * until someone saw both on one screen. `map/create/motion.ts` re-exports them
+ * so the create flow's own imports didn't have to churn.
+ */
+
+// Damping 24, not the tab bar's 19: a spring's overshoot is a fixed proportion
+// of the distance travelled, so numbers that read as a pleasant settle over
+// 60pt read as a lurch over 300. This puts the ratio just under critical — it
+// still arrives rather than stops, but the overrun stays small however far it
+// came.
+export const GLIDE = { stiffness: 190, damping: 24, mass: 0.85 } as const;
+
+// How much a travelling indicator compresses on its way — the "wobble". It is
+// what makes the indicator read as one object being thrown across the row
+// rather than a rectangle being redrawn in a new place.
+export const SQUASH = 0.08;
+
 export const OVERLAY_TRANSITION = {
   // The element handed between the two screens.
   travelInMs: 460,

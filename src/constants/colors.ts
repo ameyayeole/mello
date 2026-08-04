@@ -82,6 +82,10 @@ export const COLORS = {
   placeholder: 'rgba(15, 24, 44, 0.40)', // TextInput placeholderTextColor
   inkLabel: 'rgba(15, 24, 44, 0.50)', // small field labels
   scrim: 'rgba(15, 24, 44, 0.45)', // modal / sheet backdrop
+  // A chip sitting directly on a photo — the remove button on a photo tile.
+  // Heavier than `scrim` because it has to hold a white glyph legible over an
+  // arbitrary image, not just dim what's behind it.
+  scrimOnPhoto: 'rgba(15, 24, 44, 0.65)',
   // Behind a fullscreen photo viewer. Far heavier than `scrim`: a lightbox has
   // to kill the page behind it or the photo competes with it — but stopping
   // short of solid keeps the screen underneath sensed rather than replaced,

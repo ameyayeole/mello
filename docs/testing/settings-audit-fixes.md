@@ -72,6 +72,21 @@ Ordered by risk, not by feature.
 | 8.11 | Toggle an interest on then off again, tap X → no dialog | ☐ | ☐ |
 | 8.12 | Save succeeds → returns without the discard dialog appearing | ☐ | ☐ |
 
+| **9. Edit profile — visual pass** ||||
+| 9.1 | Gender: tap between chips — one black indicator *travels* and squashes on the way; it does not redraw in place **(reasoned)** | ☐ | ☐ |
+| 9.2 | The indicator resizes between chips of different widths (Male → Non-binary) without snapping | ☐ | ☐ |
+| 9.3 | Tapping Male then Other (row 1 → row 2) travels diagonally and lands centred | ☐ | ☐ |
+| 9.4 | Selected gender label is white on black; **no coral anywhere** on the gender row | ☐ | ☐ |
+| 9.5 | Tapping the selected chip clears it — indicator fades rather than flying to a corner | ☐ | ☐ |
+| 9.6 | Reopening the screen with a gender already set: the indicator is *already there*, it does not fly in from the top-left **(reasoned — `placed` ref)** | ☐ | ☐ |
+| 9.7 | KYC-locked account: gender chips dimmed, no haptic, indicator still sits on the locked value | ☐ | ☐ |
+| 9.8 | Save is now a check icon; greyed and unpressable with no photos, coral-tinted when saveable | ☐ | ☐ |
+| 9.9 | Saving swaps the icon for a spinner **without the header reflowing** | ☐ | ☐ |
+| 9.10 | "Main" badge is black with white text | ☐ | ☐ |
+| 9.11 | Add-photo slot reads as an empty slot in the same grid, not a dashed cut-out; remove ✕ is centred in its circle | ☐ | ☐ |
+| 9.12 | Section heading → content gap is even across Photos / Gender / Interests (Photos is the one with a hint line under its heading) | ☐ | ☐ |
+| 9.13 | **Create flow regression:** category grid and section pills still animate identically — their motion constants moved to `@/constants/motion` | ☐ | ☐ |
+
 ## Android specifically
 
 `react-native`'s `SafeAreaView` is a no-op on Android, and this cluster was only
