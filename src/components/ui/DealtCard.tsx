@@ -59,24 +59,23 @@ export interface DealtCardProps {
 export const DEALT_CARD_WIDTH_RATIO = 0.78;
 export const DEALT_CARD_ASPECT = 1.55;
 
-// How far the card lifts off the straight line between its origin and the
-// centre, at the midpoint. Small on purpose: a card flicked onto a table skims,
-// it does not loft. A big arc reads as a card FLYING, which is a different
-// motion entirely and was what made this feel wrong.
+// A hint of curve on the way up — just enough that the path is not a ruler
+// line. Anything more reads as the card flying rather than being dealt.
 //
-// A small lateral spread so cards leaving the same fan do not trace exactly the
-// same line. Deliberately slight — the spin below is what separates them now,
-// not a wide detour.
-const ARC_LIFT = 16;
+// Lateral spread, off. Cards go straight from the fan to the middle; what
+// separates them is the beat between them, not a detour. Kept as a constant
+// rather than deleted because it is the first thing to reach for if they ever
+// need to stop overlapping in flight.
+const ARC_LIFT = 10;
 // The overshoot: it passes 3% past its resting size before settling. Cheap,
 // and the difference between "a view appeared" and "an object landed".
-const DEAL_SWING = 20;
-// The spin. This is the signature of a dealt card and the thing that was
-// missing: a card flicked out of a hand turns most of a half-revolution on its
-// way and arrives flat. Front-loaded by the easing below, so it spins hardest
-// as it leaves and is already settling into its final angle by the time it
-// lands.
-const DEAL_SPIN = 155;
+const DEAL_SWING = 0;
+// A slight extra turn on the way, on top of the difference between the angle
+// the card was lying at in the fan and the angle it lands at. Small: the card
+// travels from the fan up to the middle of the screen and settles, and anything
+// more than a few degrees of added rotation stops reading as a deal and starts
+// reading as a spin.
+const DEAL_SPIN = 10;
 
 const OVERSHOOT = 1.03;
 
@@ -219,9 +218,8 @@ export function DealtCard({
   useEffect(() => {
     deal.value = withTiming(1, {
       duration: dealMs,
-      // A flick, not a glide: almost all the distance is covered early and the
-      // last stretch is the card skidding to a stop.
-      easing: Easing.bezier(0.12, 0.85, 0.25, 1),
+      // Moves off decisively and settles — no skid, no snap.
+      easing: Easing.bezier(0.22, 0.7, 0.28, 1),
     });
   }, [deal, dealMs]);
 

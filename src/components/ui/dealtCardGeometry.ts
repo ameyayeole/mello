@@ -14,10 +14,10 @@ export const STACK_DEPTH = 4;
 export const SWIPE_THRESHOLD_RATIO = 0.28;
 export const SWIPE_VELOCITY = 900;
 
-// One card's own flight. Slower than it was: the deal is the moment worth
-// watching, and at 620ms a card was on the table before your eye had followed
-// it.
-export const DEAL_MS = 760;
+// One card's own travel, fan to centre. The deck's sense of pace comes from the
+// beat between cards (see DEAL_STAGGER_MS), not from any one of them being
+// slow.
+export const DEAL_MS = 620;
 export const DISMISS_MS = 380;
 export const FLIP_MS = 460;
 // Promoting the next card up one depth after a swipe. Not a deal — the card is
