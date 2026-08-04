@@ -142,7 +142,7 @@ it still there on reopen?
 | G2 | Community — comment sheet | ☐ | ☐ |
 | G3 | Community — share post / share wrap sheets | ☐ | ☐ |
 | G4 | Chat — option sheet, read-receipt sheet | ☐ | ☐ |
-| G5 | Event bottom sheet | ☐ | ☐ |
+| G5 | Event dealt card — leave-reason sheet, leave-confirm dialog, safety-queue popup (the event bottom sheet these lived in was deleted; see `dealt-event-card.md`) | ☐ | ☐ |
 | G6 | Wrap — note composer, wrap sheet | ☐ | ☐ |
 | G7 | Any destructive confirm (block, delete post) | ☐ | ☐ |
 | G8 | Map — Hot events sheet | ☐ | ☐ |
