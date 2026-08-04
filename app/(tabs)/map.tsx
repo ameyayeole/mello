@@ -27,7 +27,6 @@ import { useLocationStore } from '@/stores/locationStore';
 import { useUIStore } from '@/stores/uiStore';
 import PlaceSearch, { PlaceResult } from '@/components/PlaceSearch';
 import CreateEventFab from '@/components/CreateEventFab';
-import SwipeDeckTeaser from '@/components/map/SwipeDeckTeaser';
 import HotEventsSheet from '@/components/map/HotEventsSheet';
 import CreateEventFlow, {
   CreateEventFlowRef,
@@ -570,8 +569,10 @@ export default function MapScreen() {
         <Icon name="crosshair" size={22} color="#5F6368" strokeWidth={2} />
       </PressableScale>
 
-      {/* Swipe-deck peek cards, tucked behind the tab bar bottom-left */}
-      <SwipeDeckTeaser />
+      {/* The event deck's parked fan used to render here — it's `EventDeck`
+          now, root-mounted in app/_layout.tsx alongside `EventDealtCard` so it
+          never unmounts between the mini fan and the open deck (see that
+          component's own comment, and design doc §3 for why a root portal). */}
 
       <CreateEventFab onPress={() => setCreatingEvent(true)} />
       </Animated.View>

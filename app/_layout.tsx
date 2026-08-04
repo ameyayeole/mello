@@ -20,6 +20,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
 import InAppNotification from '@/components/InAppNotification';
 import { EventDealtCard } from '@/components/events/EventDealtCard';
+import { EventDeck } from '@/components/events/EventDeck';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -142,6 +143,18 @@ function RootLayoutInner() {
           whatever that produced, so there's no cold-start ref-not-ready race
           to retry around. It renders nothing until a card is dealt. */}
       <EventDealtCard />
+      {/* The map's "Up for it?" fan and the swipe deck it opens, as one
+          component that never unmounts between the two sizes — see that
+          file's own header comment and design doc
+          2026-08-04-event-deck-one-component-design.md. Root-mounted for the
+          same reason `EventDealtCard` is: `CardPortal` lifts it into a
+          `FullWindowOverlay` on iOS, which attaches to the key window the
+          moment it mounts, so it has to be mounted for as long as it might be
+          on top — not just for as long as the map tab is active. Visibility
+          is therefore an internal rule (`deckVisible`, gated on the route, the
+          create-event flow and any open overlay) rather than this being
+          conditionally rendered by whoever is on screen. */}
+      <EventDeck />
       <InAppNotification />
     </>
   );
