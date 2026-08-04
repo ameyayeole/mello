@@ -64,6 +64,18 @@ export function nextFeedPage(
 }
 
 /**
+ * Whether the next session build should float the viewer's own fresh post to
+ * the top. Module-level because the two things that write it now live on
+ * different screens: the composer is its own route, so it can no longer hand a
+ * callback back to the feed the way a sheet mounted inside it could.
+ *
+ * A plain mutable object rather than store state, for the reason spelled out
+ * on `pinOwnRef` below — it is read inside `queryFn` at call time, and the
+ * write has to be visible to a rebuild triggered in the same tick.
+ */
+export const pinOwnPosts = { current: true };
+
+/**
  * @param pinOwnRef Whether the NEXT session build should float the viewer's own
  *   fresh posts to the top. A **ref**, not state, and read inside `queryFn`
  *   rather than baked into `initialPageParam` — both deliberate:

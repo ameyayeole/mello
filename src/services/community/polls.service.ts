@@ -13,6 +13,9 @@ export async function createPoll(params: {
   durationDays: 1 | 3 | 7;
   visibility: PostVisibility;
   city: string | null;
+  // An event of the author's to link (migration 070) — a poll about an event
+  // is still a poll, so this rides on the post row like any other type.
+  refEventId?: string | null;
 }): Promise<string> {
   const question = params.question.trim();
   const { data: post, error: postErr } = await supabase
@@ -23,6 +26,7 @@ export async function createPoll(params: {
       body: question,
       visibility: params.visibility,
       city: params.city,
+      ref_event_id: params.refEventId ?? null,
     })
     .select('id')
     .single();

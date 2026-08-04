@@ -435,6 +435,10 @@ export interface CommunityPost {
   // Set only on shared_wrap posts → the referenced event's wrap (migration 060
   // returns it from the feed / user_posts RPCs).
   ref_wrap_event_id: string | null;
+  // An event the author linked to this post (migration 070). Optional on every
+  // type — a poll about an event is still a poll — and distinct from
+  // ref_wrap_event_id, which is a *wrap* reference required on shared_wraps.
+  ref_event_id: string | null;
   city: string | null;
   like_count: number;
   comment_count: number;

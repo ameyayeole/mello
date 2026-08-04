@@ -16,6 +16,7 @@ const post = (id: string, over: Partial<CommunityPost> = {}): CommunityPost => (
   body: 'x',
   media: [],
   ref_wrap_event_id: null,
+  ref_event_id: null,
   score: 0,
   city: 'Mumbai',
   like_count: 0,

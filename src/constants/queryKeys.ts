@@ -186,6 +186,13 @@ export const queryKeys = {
       all: ['community', 'wrapCard'] as const,
       of: (eventId: Id) => ['community', 'wrapCard', eventId] as const,
     },
+    // The event a post links to (migration 070). Its own key rather than
+    // eventDetail's: this is the light card read, and sharing a key would let
+    // whichever loaded first serve the other the wrong shape.
+    eventCard: {
+      all: ['community', 'eventCard'] as const,
+      of: (eventId: Id) => ['community', 'eventCard', eventId] as const,
+    },
   },
 } as const;
 

@@ -165,7 +165,8 @@ serve(async (req) => {
     const update: Record<string, unknown> = { kyc_status: kycStatus };
     if (parsed.status === 'Approved') {
       update.kyc_verified_at = new Date().toISOString();
-      // Lock name/dob/age/gender to the verified document (migration 036).
+      // Prefill name and lock dob/age/gender to the verified document (migration
+      // 037) — name stays editable afterward, see fetchVerifiedIdentity.
       Object.assign(update, await fetchVerifiedIdentity(String(parsed.session_id)));
     } else if (parsed.status === 'Kyc Expired') {
       update.kyc_verified_at = null;

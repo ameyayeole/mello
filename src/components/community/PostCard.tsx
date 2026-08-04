@@ -7,6 +7,7 @@ import { TextPostBody } from './TextPostBody';
 import { PhotoCarousel } from './PhotoCarousel';
 import { PollCard } from './PollCard';
 import { SharedWrapCard } from './SharedWrapCard';
+import { LinkedEventCard } from './LinkedEventCard';
 import { PostActionBar } from './PostActionBar';
 
 // One post in the feed. Text (Phase 1) and photo (Phase 3a) render here; poll /
@@ -77,6 +78,11 @@ export function PostCard({
           caption={post.body ?? ''}
           onDark={onDark}
         />
+      ) : null}
+      {/* Outside the type branches on purpose: a linked event is an attachment,
+          not a kind of post, so it can ride on any of them (migration 070). */}
+      {post.ref_event_id ? (
+        <LinkedEventCard eventId={post.ref_event_id} onDark={onDark} />
       ) : null}
       <PostActionBar
         post={post}

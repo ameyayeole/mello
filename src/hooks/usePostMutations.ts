@@ -22,6 +22,9 @@ export type CreatePostArgs = {
   visibility: PostVisibility;
   // Local `file://` or remote `http` URIs; empty/undefined ⇒ a text post.
   media?: string[];
+  // An event of the author's, linked to the post (migration 070). Independent
+  // of media — a linked event doesn't make it a photo post or vice versa.
+  refEventId?: string | null;
 };
 
 // Built as a factory (like participationMutations) so the cache bookkeeping can
@@ -40,6 +43,7 @@ export function postMutations(qc: QueryClient, user: Profile | null) {
           media: urls,
           visibility: args.visibility,
           city: user?.city ?? null,
+          refEventId: args.refEventId ?? null,
         });
       }
       return createTextPost({
@@ -47,6 +51,7 @@ export function postMutations(qc: QueryClient, user: Profile | null) {
         body: args.body,
         visibility: args.visibility,
         city: user?.city ?? null,
+        refEventId: args.refEventId ?? null,
       });
     },
     onSuccess: () => {
@@ -90,6 +95,7 @@ export function useCreatePoll() {
       options: string[];
       durationDays: 1 | 3 | 7;
       visibility: PostVisibility;
+      refEventId?: string | null;
     }) =>
       createPoll({
         authorId: user!.id,
@@ -98,6 +104,7 @@ export function useCreatePoll() {
         durationDays: args.durationDays,
         visibility: args.visibility,
         city: user?.city ?? null,
+        refEventId: args.refEventId ?? null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.community.feed.all });

@@ -49,6 +49,7 @@ import { getGreetingLines } from '@/services/greetings.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ACTIVITY_MAP } from '@/constants/activities';
+import { categoryStyle } from '@/constants/categoryStyle';
 import { ExploreEvent, NearbyEvent, ParticipantStatus } from '@/types/models';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri, featuredHostedEvent } from '@/utils/events';
@@ -57,6 +58,7 @@ import { formatDistance } from '@/utils/distance';
 import { shareEvent } from '@/utils/shareEvent';
 import WrapEntryCard from '@/components/wrap/WrapEntryCard';
 import {
+  ActivityGlyph,
   Avatar,
   AttendeeStack,
   Glass,
@@ -167,20 +169,29 @@ function NearbyCard({
   onPress: () => void;
 }) {
   const activity = ACTIVITY_MAP[event.activity];
+  const cat = categoryStyle(event.activity);
   const joined = status === 'approved';
   const requested = status === 'pending';
   const label = joined ? 'Going' : requested ? 'Requested' : 'Join';
+  // The event's own photo, or the host's face when it has none — see
+  // `eventImageUri`. The glyph below is the genuine last resort.
   const imageUri = eventImageUri(event);
 
   return (
     <PressableScale style={styles.nearbyCard} onPress={onPress} scaleTo={0.98}>
-      {imageUri && (
+      {imageUri ? (
         <Image
           source={{ uri: imageUri }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           transition={150}
         />
+      ) : (
+        // Photoless event: the activity glyph on its category tint, so the
+        // card reads as intentional rather than a blank/broken image.
+        <View style={[StyleSheet.absoluteFill, styles.nearbyPlaceholder, { backgroundColor: cat.tint }]}>
+          <ActivityGlyph activity={event.activity} size={56} color={cat.accent} />
+        </View>
       )}
 
 
@@ -861,6 +872,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accentMid,
     ...SHADOWS.photoCard,
   },
+  nearbyPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   metaPill: {
     position: 'absolute',
     top: SPACING[3.5],

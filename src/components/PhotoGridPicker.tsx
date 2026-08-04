@@ -12,21 +12,44 @@ interface Props {
   photos: string[];
   onChange: (photos: string[]) => void;
   max?: number;
+  // Whether the grid draws its own dashed "Add photo" tile. Off for callers
+  // that already expose adding somewhere else — the Community composer puts it
+  // in its bottom toolbar — where a second affordance is just a second thing
+  // to explain. Defaults on, so the profile/edit call sites are untouched.
+  showAddTile?: boolean;
 }
 
-export function PhotoGridPicker({ photos, onChange, max = 6 }: Props) {
+/**
+ * Opens the library and returns the new photo list (unchanged if cancelled or
+ * already full). Exported so a caller driving its own add affordance runs the
+ * same picker the grid does, rather than a second copy that drifts on limits
+ * or quality.
+ */
+export async function pickPhotos(
+  photos: string[],
+  max: number
+): Promise<string[]> {
+  const remaining = max - photos.length;
+  if (remaining <= 0) return photos;
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsMultipleSelection: true,
+    selectionLimit: remaining,
+    quality: 0.8,
+  });
+  if (result.canceled) return photos;
+  const picked = result.assets.map((a) => a.uri);
+  return [...photos, ...picked].slice(0, max);
+}
+
+export function PhotoGridPicker({
+  photos,
+  onChange,
+  max = 6,
+  showAddTile = true,
+}: Props) {
   async function addPhotos() {
-    const remaining = max - photos.length;
-    if (remaining <= 0) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
-      quality: 0.8,
-    });
-    if (result.canceled) return;
-    const picked = result.assets.map((a) => a.uri);
-    onChange([...photos, ...picked].slice(0, max));
+    onChange(await pickPhotos(photos, max));
   }
 
   function removeAt(index: number) {
@@ -57,7 +80,7 @@ export function PhotoGridPicker({ photos, onChange, max = 6 }: Props) {
           </PressableScale>
         </View>
       ))}
-      {photos.length < max && (
+      {showAddTile && photos.length < max && (
         <PressableScale
           scaleTo={0.96}
           style={[styles.slot, styles.addSlot]}

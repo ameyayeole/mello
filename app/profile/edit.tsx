@@ -286,8 +286,9 @@ export default function EditProfileScreen() {
 
   if (!user) return null;
 
-  // Name, age and gender come off the verified government ID and are locked to
-  // it once KYC is approved (migration 036 enforces this server-side too).
+  // Age and gender come off the verified government ID and are locked to it
+  // once KYC is approved (migration 037 enforces this server-side too). The
+  // display name is prefilled from the ID on approval but stays editable.
   const identityLocked = user.kyc_status === 'approved';
 
   // One test, driving both the `disabled` prop and the greyed style. They used
@@ -441,14 +442,12 @@ export default function EditProfileScreen() {
         <View style={styles.form}>
           <TextField
             label="DISPLAY NAME"
-            trailingLabel={identityLocked ? 'VERIFIED · LOCKED' : undefined}
             placeholder="Your name"
             value={name}
             onChangeText={(t) => {
               setName(t);
               setNameError(null);
             }}
-            locked={identityLocked}
             error={nameError}
           />
 
@@ -511,7 +510,7 @@ export default function EditProfileScreen() {
 
           {identityLocked && (
             <Text style={styles.lockedNote}>
-              Your name, age and gender are locked to your verified ID.
+              Your age and gender are locked to your verified ID.
             </Text>
           )}
 

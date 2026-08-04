@@ -8,6 +8,7 @@ import {
   Alert,
   AlertButton,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -197,23 +198,35 @@ export function CommentSheet({
           <Loader />
         </View>
       ) : (
-        <FlatList
+        // Animated.FlatList, not FlatList: `itemLayoutAnimation` is a Reanimated
+        // prop and is silently ignored on the plain list.
+        <Animated.FlatList
           data={data}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: PostComment) => item.id}
           style={{ maxHeight: listMax }}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <CommentRow
-              comment={item}
-              postId={post.id}
-              meId={meId}
-              isPostAuthor={isPostAuthor}
-              mentionables={mentionables}
-              onReply={onReply}
-              onOverflow={onOverflow}
-            />
+          // Optimistic comments land at the end of the list, so a row that
+          // arrives mid-thread pushes the rest down; `layout` makes that a slide
+          // rather than a jump. Deletion fades instead of vanishing under the
+          // finger that confirmed it.
+          itemLayoutAnimation={LinearTransition.duration(220)}
+          renderItem={({ item }: { item: PostComment }) => (
+            <Animated.View
+              entering={FadeIn.duration(220)}
+              exiting={FadeOut.duration(160)}
+            >
+              <CommentRow
+                comment={item}
+                postId={post.id}
+                meId={meId}
+                isPostAuthor={isPostAuthor}
+                mentionables={mentionables}
+                onReply={onReply}
+                onOverflow={onOverflow}
+              />
+            </Animated.View>
           )}
           ListEmptyComponent={
             <EmptyState

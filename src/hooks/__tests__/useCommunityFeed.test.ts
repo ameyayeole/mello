@@ -15,6 +15,7 @@ const post = (
   body: 'x',
   media: [],
   ref_wrap_event_id: null,
+  ref_event_id: null,
   city: 'Mumbai',
   like_count: 0,
   comment_count: 0,

@@ -24,9 +24,11 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
 import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { categoryStyle } from '@/constants/categoryStyle';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import BoostCard from '@/components/events/BoostCard';
 import {
+  ActivityGlyph,
   Avatar,
   Button,
   CategoryTile,
@@ -157,14 +159,30 @@ export default function HostPanelScreen() {
         <Animated.View entering={FadeInDown.duration(350)} style={styles.card}>
           {/* The host's own face when the event has no photo — this is the
               first screen after publishing, and it was the one place a
-              photo-less event looked like it had failed to save one. */}
-          {coverUri && (
+              photo-less event looked like it had failed to save one. With
+              neither, the category glyph on its tint: an intentional-looking
+              cover rather than a gap where an image should be. */}
+          {coverUri ? (
             <Image
               source={{ uri: coverUri }}
               style={styles.cover}
               contentFit="cover"
               transition={200}
             />
+          ) : (
+            <View
+              style={[
+                styles.cover,
+                styles.coverPlaceholder,
+                { backgroundColor: categoryStyle(event.activity).tint },
+              ]}
+            >
+              <ActivityGlyph
+                activity={event.activity}
+                size={40}
+                color={categoryStyle(event.activity).accent}
+              />
+            </View>
           )}
           <View style={styles.titleRow}>
             <CategoryTile activity={event.activity} size={44} radius={13} />
@@ -509,6 +527,7 @@ const styles = StyleSheet.create({
     gap: SPACING[3],
   },
   cover: { width: '100%', height: 160, borderRadius: RADIUS.md },
+  coverPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3] },
   title: {
     fontFamily: FONTS.bold,

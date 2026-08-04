@@ -111,6 +111,8 @@ const glyphs = {
   // in a round button — the glyph's metrics are not the box's — where a stroked
   // path is centred by construction.
   minus: <Path d="M5 12h14" />,
+  // Three bars at different heights — a poll's results, not a generic chart.
+  poll: <Path d="M6 20v-7M12 20V5M18 20v-4" />,
   trash: (
     <>
       <Path d="M4 7h16M10 11v6M14 11v6" />

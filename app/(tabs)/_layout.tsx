@@ -109,6 +109,68 @@ function EventReminderSheet() {
 // indicator derives which slot to sit in from a route's index in this list.
 const TAB_ROUTES = ['/', '/community', '/map', '/chats', '/profile'] as const;
 
+// ─── Swipe between tabs ─────────────────────────────────────────────────────
+// Distance OR velocity — a slow deliberate drag and a quick flick should both
+// count, and requiring both makes the flick feel ignored.
+const SWIPE_DISTANCE = 60;
+const SWIPE_VELOCITY = 450;
+
+// Tabs whose content owns horizontal dragging, where claiming the gesture would
+// break the screen rather than add to it. The map pans in both axes, so there
+// is no spare horizontal drag for us to take.
+const SWIPE_EXCLUDED: readonly string[] = ['/map'];
+
+/**
+ * Instagram-style lateral navigation: a horizontal swipe anywhere on the screen
+ * moves to the neighbouring tab. Discrete, not a dragged pager — the navigator's
+ * own `shift` animation plays the transition, so the swipe picks the
+ * destination and the motion already configured above carries it.
+ *
+ * Only on a tab's *own* root (pathname exactly a route), never a screen pushed
+ * on top of one: a horizontal drag inside a DM thread or a nested list already
+ * means something there, and taking it to change tabs would be a trap.
+ *
+ * `failOffsetY` is what lets this coexist with the vertical lists on every tab —
+ * the pan gives up as soon as a drag looks vertical, so scrolling never has to
+ * win a race against it.
+ */
+function useTabSwipe() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const index = TAB_ROUTES.indexOf(pathname as (typeof TAB_ROUTES)[number]);
+  const enabled = index >= 0 && !SWIPE_EXCLUDED.includes(TAB_ROUTES[index]);
+
+  function go(direction: 1 | -1) {
+    const next = index + direction;
+    // No wrap-around: the ends are ends. A swipe off the edge should feel like
+    // nothing happened, not teleport across the whole bar.
+    if (next < 0 || next >= TAB_ROUTES.length) return;
+    Haptics.selectionAsync();
+    router.push(TAB_ROUTES[next]);
+  }
+
+  return Gesture.Pan()
+    .enabled(enabled)
+    // Claim the gesture only once it is clearly horizontal; abandon it the
+    // moment it looks vertical.
+    .activeOffsetX([-30, 30])
+    .failOffsetY([-20, 20])
+    .onEnd((e) => {
+      'worklet';
+      // Swiping left (finger travels left) brings in the tab to the right, the
+      // way every paged interface does it.
+      if (e.translationX <= -SWIPE_DISTANCE || e.velocityX <= -SWIPE_VELOCITY) {
+        runOnJS(go)(1);
+      } else if (
+        e.translationX >= SWIPE_DISTANCE ||
+        e.velocityX >= SWIPE_VELOCITY
+      ) {
+        runOnJS(go)(-1);
+      }
+    });
+}
+
 // The quick scale-pop an icon does as the picked-up puck arrives over it, so
 // the tab you're about to land on lifts to meet you. Springs back on release.
 const HOVER_POP = 1.16;
@@ -423,6 +485,8 @@ export default function TabLayout() {
   // overlay so they grow and hide as one piece.
   const barTransform = useTabBarTransform(hidden, pickedUp);
 
+  const tabSwipe = useTabSwipe();
+
   return (
     <>
     {/* One instance for the whole tab navigator, not one per screen. The
@@ -432,6 +496,10 @@ export default function TabLayout() {
     <AppBackground />
     <WelcomeSafetyPopup />
     <EventReminderSheet />
+    {/* Wraps only the navigator, so the swipe covers the screens without also
+        sitting under the drag overlay that owns the tab bar's own gestures. */}
+    <GestureDetector gesture={tabSwipe}>
+    <View style={styles.tabsHost}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -554,6 +622,8 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
+    </GestureDetector>
     <TabBarDragOverlay
       setDragIndex={setDragIndex}
       setPickedUp={setPickedUp}
@@ -564,6 +634,9 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  // GestureDetector attaches to a real view, so the navigator gets a host to
+  // fill. The tab bar is absolute *within* the navigator, so this doesn't move.
+  tabsHost: { flex: 1 },
   iconBox: {
     width: CHIP_WIDTH,
     height: CHIP_HEIGHT,

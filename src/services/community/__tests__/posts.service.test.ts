@@ -203,6 +203,9 @@ describe('createTextPost', () => {
       body: 'hi',
       visibility: 'public',
       city: 'Mumbai',
+      // Explicitly null rather than absent when nothing is linked (070), so the
+      // column is written on every path instead of relying on its default.
+      ref_event_id: null,
     });
     expect(id).toBe('new1');
   });

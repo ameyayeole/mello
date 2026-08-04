@@ -18,7 +18,7 @@ import { queryKeys } from '@/constants/queryKeys';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { useCommunityFeed } from '@/hooks/useCommunityFeed';
+import { useCommunityFeed, pinOwnPosts } from '@/hooks/useCommunityFeed';
 import { useThreadMentionables } from '@/hooks/useMentions';
 import { useDeletePost } from '@/hooks/usePostMutations';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -37,7 +37,6 @@ import {
 import { PostCard } from '@/components/community/PostCard';
 import { CommunityNudgeCard } from '@/components/community/CommunityNudgeCard';
 import { EventsRail } from '@/components/community/EventsRail';
-import { ComposePostSheet } from '@/components/community/ComposePostSheet';
 import { CommentSheet } from '@/components/community/CommentSheet';
 import { errorMessage } from '@/utils/errors';
 
@@ -52,22 +51,21 @@ export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   // Whether the next session build should float your own fresh post to the top.
-  //
-  // A ref, not state, because the two things that flip it both need it read on
-  // the very next query — pull-to-refresh sets it false and rebuilds in the
-  // same tick, and a state update would not have landed in time.
-  //
   // Posting turns it on; asking for a refresh turns it off. That is the whole
   // rule: refreshing repeatedly inside the 5-minute window should not keep
   // parking your own post at the top.
-  const pinOwnRef = useRef(true);
-  const feed = useCommunityFeed(pinOwnRef);
+  //
+  // Module-level (see useCommunityFeed) rather than a ref here, because the
+  // composer is its own route now and can no longer be handed a callback from
+  // this screen. Still a mutable object for the original reason: pull-to-refresh
+  // sets it false and rebuilds in the same tick, which a state update would
+  // not survive.
+  const feed = useCommunityFeed(pinOwnPosts);
   // Records what the viewer actually sees, so the ranker can stop re-serving
   // posts they have already scrolled past (migration 065/066).
   const impressions = useImpressionTracker();
   const meId = useAuthStore((s) => s.user?.id);
   const del = useDeletePost();
-  const [composeOpen, setComposeOpen] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CommunityPost | null>(null);
   const [reportTarget, setReportTarget] = useState<CommunityPost | null>(null);
@@ -167,7 +165,7 @@ export default function CommunityScreen() {
     setShowNewPill(false);
     // The gesture half of the pin release. Set BEFORE the rebuild: the ref is
     // read inside queryFn, so the very next request already carries it.
-    pinOwnRef.current = false;
+    pinOwnPosts.current = false;
     // resetQueries, not refetch. An infinite query's refetch re-runs every
     // LOADED page against its stored pageParam — i.e. against the OLD session
     // id — so the ranking would never change and the pin would never drop.
@@ -202,8 +200,8 @@ export default function CommunityScreen() {
 
   const openCompose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setComposeOpen(true);
-  }, []);
+    router.push('/community/compose');
+  }, [router]);
 
   const onComment = useCallback((p: CommunityPost) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -378,22 +376,6 @@ export default function CommunityScreen() {
           <Text style={styles.newPillText}>New posts ↑</Text>
         </PressableScale>
       ) : null}
-
-      <ComposePostSheet
-        visible={composeOpen}
-        onClose={() => setComposeOpen(false)}
-        // Armed optimistically at submit, not on mutation success: the
-        // mutation's hook-level onSuccess (usePostMutations.ts) invalidates
-        // the feed and triggers a refetch before ComposePostSheet's own
-        // onSuccess could run, so setting this on success arrived one refetch
-        // too late and the pin was silently lost. Arming here, before the
-        // network call, cannot lose that race. If the post ends up failing,
-        // this flag alone pins nothing — build_feed_session's is_pinned also
-        // requires an own post created in the last 5 minutes.
-        onWillPost={() => {
-          pinOwnRef.current = true;
-        }}
-      />
 
       {commentPost && (
         <CommentSheet

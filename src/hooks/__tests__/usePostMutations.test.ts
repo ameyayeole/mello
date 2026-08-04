@@ -25,6 +25,7 @@ describe('postMutations.create', () => {
       body: 'hello',
       visibility: 'public',
       city: 'Mumbai',
+      refEventId: null,
     });
   });
 
@@ -47,6 +48,7 @@ describe('postMutations.create', () => {
       media: ['http://a', 'http://b'],
       visibility: 'friends',
       city: 'Mumbai',
+      refEventId: null,
     });
     expect(svc.createTextPost).not.toHaveBeenCalled();
   });

@@ -133,6 +133,9 @@ export async function createTextPost(params: {
   body: string;
   visibility: PostVisibility;
   city: string | null;
+  // An event of the author's to link (migration 070). posts_insert rejects an
+  // event they neither host nor attend, so this cannot be spoofed client-side.
+  refEventId?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase
     .from('posts')
@@ -142,6 +145,7 @@ export async function createTextPost(params: {
       body: params.body.trim(),
       visibility: params.visibility,
       city: params.city,
+      ref_event_id: params.refEventId ?? null,
     })
     .select('id')
     .single();
@@ -155,6 +159,7 @@ export async function createPhotoPost(params: {
   media: string[]; // public URLs, ordered (carousel order)
   visibility: PostVisibility;
   city: string | null;
+  refEventId?: string | null;
 }): Promise<string> {
   const caption = params.body.trim();
   const { data, error } = await supabase
@@ -166,6 +171,7 @@ export async function createPhotoPost(params: {
       media: params.media,
       visibility: params.visibility,
       city: params.city,
+      ref_event_id: params.refEventId ?? null,
     })
     .select('id')
     .single();

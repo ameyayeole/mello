@@ -77,6 +77,12 @@ function RootLayoutInner() {
           name="events/wishlist"
           options={{ presentation: 'modal' }}
         />
+        {/* A full screen, not a sheet: the composer grows with each attachment
+            and needs the whole window rather than whatever the keyboard leaves. */}
+        <Stack.Screen
+          name="community/compose"
+          options={{ presentation: 'modal' }}
+        />
         <Stack.Screen name="events/host/[eventId]" />
         <Stack.Screen name="events/attendees/[eventId]" />
         <Stack.Screen

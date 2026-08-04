@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -39,10 +42,16 @@ export function PostActionBar({
   const toggle = useToggleLike(profileUserId);
   const [shareOpen, setShareOpen] = useState(false);
   const pop = useSharedValue(1);
+  // The ring that expands out from under the heart on a like. Two values, not
+  // one driving both scale and opacity: the ring has to keep growing while it
+  // fades, and a single value would tie the fade to the growth curve.
+  const ringScale = useSharedValue(0);
+  const ringOpacity = useSharedValue(0);
   // Tap counter drives the heart pop from an effect — the repo's accepted place
   // to write a shared value (TabBar/MessageBubble do the same). Writing it inside
   // the multi-statement onPress handler trips react-hooks/immutability.
   const [pulse, setPulse] = useState(0);
+  const liked = post.liked_by_me;
 
   useEffect(() => {
     if (pulse === 0) return; // no pop on mount
@@ -54,8 +63,28 @@ export function PostActionBar({
     );
   }, [pulse, pop]);
 
+  useEffect(() => {
+    // Only likes get the ring. Un-liking is a correction, and celebrating one
+    // reads as the app congratulating you for taking it back.
+    if (pulse === 0 || !liked) return;
+    ringScale.value = 0;
+    ringOpacity.value = 0.5;
+    ringScale.value = withTiming(1, {
+      duration: 380,
+      easing: Easing.out(Easing.cubic),
+    });
+    // Held briefly at full opacity so the ring is visible before it goes —
+    // fading from frame one makes it read as a rendering artefact.
+    ringOpacity.value = withDelay(60, withTiming(0, { duration: 320 }));
+  }, [pulse, liked, ringScale, ringOpacity]);
+
   const heartStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pop.value }],
+  }));
+
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: ringOpacity.value,
+    transform: [{ scale: 0.4 + ringScale.value * 1.4 }],
   }));
 
   return (
@@ -71,18 +100,36 @@ export function PostActionBar({
         accessibilityRole="button"
         accessibilityLabel={post.liked_by_me ? 'Unlike' : 'Like'}
       >
-        <Animated.View style={heartStyle}>
-          <Icon
-            name="heart"
-            variant={post.liked_by_me ? 'bold' : 'linear'}
-            size={22}
-            color={post.liked_by_me ? COLORS.primary : quiet}
-          />
-        </Animated.View>
+        <View style={styles.heartWrap}>
+          {/* Behind the glyph and non-interactive — purely the tap's echo. */}
+          <Animated.View pointerEvents="none" style={[styles.ring, ringStyle]} />
+          <Animated.View style={heartStyle}>
+            <Icon
+              name="heart"
+              variant={liked ? 'bold' : 'linear'}
+              size={22}
+              color={liked ? COLORS.primary : quiet}
+            />
+          </Animated.View>
+        </View>
         {post.like_count > 0 ? (
-          <Text style={[styles.count, onDark && styles.countOnDark]}>
+          // Keyed on the count so each value is its own element: the old number
+          // fades out as the new one fades in, instead of the text silently
+          // swapping underneath.
+          <Animated.Text
+            key={post.like_count}
+            entering={FadeIn.duration(160)}
+            exiting={FadeOut.duration(120)}
+            // `liked` last so the coral wins over the on-dark rung when both
+            // apply — a liked count is coral on either background.
+            style={[
+              styles.count,
+              onDark && styles.countOnDark,
+              liked && styles.countLiked,
+            ]}
+          >
             {post.like_count}
-          </Text>
+          </Animated.Text>
         ) : null}
       </PressableScale>
 
@@ -135,10 +182,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[2],
     minHeight: 44,
   },
+  heartWrap: { alignItems: 'center', justifyContent: 'center' },
+  // Absolute so growing it never reflows the row the counts sit in.
+  ring: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
   count: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
   },
   countOnDark: { color: COLORS.white },
+  countLiked: { color: COLORS.primary },
 });

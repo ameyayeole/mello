@@ -84,6 +84,30 @@ export async function searchEvents(query: string): Promise<NearbyEvent[]> {
   return ((data ?? []) as any[]).map(withParticipantCount);
 }
 
+/**
+ * One event, just enough to draw a card for it. `null` when it no longer
+ * exists — a post's ref_event_id survives the event being deactivated, so the
+ * caller needs a miss it can render rather than an exception.
+ *
+ * Deliberately lighter than `getEventDetail`: that one also resolves the full
+ * participant roster through a second round trip (the attendee-preview RPC),
+ * which a feed card doesn't need and shouldn't pay for once per linked post.
+ * The trade is no `participant_count` — EventRow simply omits "N going" when
+ * it's zero, which beats printing the count RLS would return to a non-attendee
+ * (0, however many are actually going — see migration 038).
+ */
+export async function getEventCard(eventId: string): Promise<NearbyEvent | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, host:profiles!host_id(name, photo_url)')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return withParticipantCount(data);
+}
+
 export async function getEventDetail(eventId: string): Promise<EventDetail> {
   const { data, error } = await supabase
     .from('events')
