@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as Haptics from 'expo-haptics';
 import { ActivityId } from '@/types/models';
 import { CONFIG } from '@/constants/config';
 import { DEFAULT_MAP_FILTERS, MapFilters } from '@/utils/mapFilters';
@@ -196,8 +197,18 @@ export const useUIStore = create<UIState>((set) => ({
   enterOverlay: () => set({ overlayOpen: true, overlayMounted: true }),
   closeOverlay: () => set({ overlayOpen: false }),
   clearOverlay: () => set({ overlayOpen: false, overlayMounted: false }),
-  dealCard: (ids, index, origin, source = 'browse') =>
-    set({ dealtCard: { ids, index, origin, source } }),
+  // The touch-down tick (design doc §3) belongs here rather than in each of
+  // the twelve call sites that can deal a card: this action is the one place
+  // every one of them already goes through, deep link included (where there
+  // was no touch to fire it from — harmless, since a selection tick with
+  // nothing pressed just doesn't register as odd the way a stray impact
+  // would). A store action causing a side effect is a small impurity, but
+  // it's the cheaper trade against twelve copies of the same haptic call
+  // that would silently drift out of sync with each other.
+  dealCard: (ids, index, origin, source = 'browse') => {
+    Haptics.selectionAsync();
+    set({ dealtCard: { ids, index, origin, source } });
+  },
   advanceDealtCard: () =>
     set((s) => {
       if (!s.dealtCard) return s;

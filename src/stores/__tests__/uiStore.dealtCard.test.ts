@@ -1,13 +1,44 @@
+import * as Haptics from 'expo-haptics';
 import { useUIStore } from '../uiStore';
+
+// `dealCard` fires the design doc's touch-down haptic (§3) itself, from the
+// one place every opener — twelve of them — already goes through, rather
+// than each call site firing it. Mocked explicitly rather than relying on
+// jest-expo's native-module stubbing to merely not throw: this asserts the
+// call actually happens, not just that nothing blows up when it's missing.
+jest.mock('expo-haptics', () => ({
+  selectionAsync: jest.fn(),
+  impactAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },
+  NotificationFeedbackType: { Success: 'success' },
+}));
 
 const ORIGIN = { x: 100, y: 200, width: 34, height: 34 };
 
 function reset() {
   useUIStore.getState().closeDealtCard();
+  jest.clearAllMocks();
 }
 
 describe('uiStore dealt card', () => {
   beforeEach(reset);
+
+  // Covers every opener from one assertion, since they all funnel through
+  // this same action — including the deep-link path, which has no touch to
+  // fire a haptic from at all; a selection tick with nothing pressed is
+  // harmless, so it isn't special-cased.
+  it('fires the touch-down selection haptic on deal', () => {
+    useUIStore.getState().dealCard(['a', 'b'], 0, ORIGIN);
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire the haptic again on advance', () => {
+    useUIStore.getState().dealCard(['a', 'b'], 0, ORIGIN);
+    jest.clearAllMocks();
+    useUIStore.getState().advanceDealtCard();
+    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+  });
 
   it('opens a deck at the given index with its origin', () => {
     useUIStore.getState().dealCard(['a', 'b', 'c'], 0, ORIGIN);

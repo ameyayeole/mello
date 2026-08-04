@@ -51,10 +51,18 @@ const OVERSHOOT = 1.03;
 const NO_ORIGIN_ROTATE = -14;
 const NO_ORIGIN_SCALE = 0.55;
 
-function haptic(kind: 'land' | 'flip' | 'commit') {
+// Five moments, matching the design doc's haptic table exactly (§3):
+// touch-down and the threshold tick are both a plain selection tick — one
+// fires from uiStore's `dealCard` (see the comment there), the other from the
+// pan gesture below — landing and flip are impacts of different weights, and
+// a save (not a pass — see `commit` below) gets the success notification,
+// because a pass is not a success and the threshold tick already told you it
+// took.
+function haptic(kind: 'land' | 'flip' | 'threshold' | 'save') {
   if (kind === 'land') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   else if (kind === 'flip') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  else Haptics.selectionAsync();
+  else if (kind === 'threshold') Haptics.selectionAsync();
+  else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 }
 
 /**
@@ -164,7 +172,10 @@ export function DealtCard({
   }
 
   function commit(direction: 1 | -1) {
-    haptic('commit');
+    // Only a save gets the success notification — a pass is not a success,
+    // and the threshold tick (fired already, from the pan gesture below)
+    // already told the finger that the swipe took.
+    if (direction === 1) haptic('save');
     dx.value = withTiming(direction * width * 1.4, { duration: 300 }, (done) => {
       if (done) {
         dx.value = 0;
@@ -182,6 +193,15 @@ export function DealtCard({
   // onEnd → onFinalize hop RNGH makes for a single gesture attempt.
   const settling = useSharedValue(false);
 
+  // A latch, not a plain flag read once at onEnd: the spec wants the
+  // threshold tick the instant the swipe first takes — while the finger is
+  // still down, so you feel it will commit before you let go — not a single
+  // check at release. Arms at the start of every drag, fires once as
+  // `isPastThreshold` first goes true, then disarms so it never buzzes every
+  // frame past the line; falling back under the threshold re-arms it, so
+  // crossing again (a hesitation, then a real swipe) ticks again.
+  const thresholdArmed = useSharedValue(true);
+
   // Disabled while the back is showing: on that face vertical is the
   // `ScrollView`'s to own, and a swipe-to-pass/save is a front-face-only
   // action anyway (the back has no join/pass affordance to trigger). Without
@@ -194,12 +214,21 @@ export function DealtCard({
       // Defensive: guarantees a clean flag at the start of every new drag
       // even if some prior attempt's onFinalize somehow didn't run.
       settling.value = false;
+      thresholdArmed.value = true;
     })
     .onUpdate((e) => {
       dx.value = e.translationX;
       // Up rubber-bands: it has no job, and letting it travel freely would
       // imply it does.
       dy.value = e.translationY < 0 ? e.translationY * 0.25 : e.translationY;
+
+      const pastThreshold = isPastThreshold(e.translationX, e.velocityX, width);
+      if (pastThreshold && thresholdArmed.value) {
+        thresholdArmed.value = false;
+        runOnJS(haptic)('threshold');
+      } else if (!pastThreshold) {
+        thresholdArmed.value = true;
+      }
     })
     .onEnd((e) => {
       if (isPastThreshold(e.translationX, e.velocityX, width)) {
