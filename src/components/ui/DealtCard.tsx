@@ -37,6 +37,10 @@ export interface DealtCardProps {
   // may hand over more than that and let this decide.
   cards: { key: string; front: ReactNode; back: ReactNode }[];
   origin: DealtOrigin | null;
+  // Where each card individually lifts off from, by depth — when the thing you
+  // tapped was itself a stack. Falls back to `origin` for every card when the
+  // opener is a single element like a map pin.
+  origins?: DealtOrigin[];
   // The angle each card starts at, by depth — the tilt it was lying at before
   // it lifted. Lets a deck leave a fan looking like the cards that were in it.
   // Falls back to a single lean for anything opened from a flat element.
@@ -170,6 +174,7 @@ function FlipHint({ bottom }: { bottom: number }) {
 export function DealtCard({
   cards,
   origin,
+  origins,
   originTilts,
   header,
   footer,
@@ -195,18 +200,27 @@ export function DealtCard({
   // for anything worklet-side.
   const [backShowing, setBackShowing] = useState(false);
 
-  // Where the card starts, relative to its landed position at screen centre.
-  // With no origin it starts below the bottom edge instead.
-  const startX = origin
-    ? origin.x + origin.width / 2 - width / 2
-    : 0;
-  const startY = origin
-    ? origin.y + origin.height / 2 - height / 2
-    : height * 0.72;
-  const startScale = origin
-    ? Math.max(origin.width / cardW, origin.height / cardH, 0.08)
-    : NO_ORIGIN_SCALE;
-  const startRotate = origin ? -16 : NO_ORIGIN_ROTATE;
+  // Where a card starts, relative to its landed position at screen centre.
+  // Per-depth when the opener handed over one rect per card; otherwise every
+  // card shares the single origin. With no origin at all it comes up off the
+  // bottom edge instead.
+  function startFor(depth: number) {
+    const from = origins?.[depth] ?? origin;
+    if (!from) {
+      return {
+        x: 0,
+        y: height * 0.72,
+        scale: NO_ORIGIN_SCALE,
+        rotate: NO_ORIGIN_ROTATE,
+      };
+    }
+    return {
+      x: from.x + from.width / 2 - width / 2,
+      y: from.y + from.height / 2 - height / 2,
+      scale: Math.max(from.width / cardW, from.height / cardH, 0.08),
+      rotate: originTilts?.[depth] ?? -16,
+    };
+  }
 
   // Cards leave the fan one at a time, deepest first, so the deck reads as a
   // hand being dealt onto a table rather than a block of cards teleporting.
@@ -470,12 +484,7 @@ export function DealtCard({
               flip={flip}
               dx={dx}
               dy={dy}
-              start={{
-                x: startX,
-                y: startY,
-                scale: startScale,
-                rotate: originTilts?.[depth] ?? startRotate,
-              }}
+              start={startFor(depth)}
               front={c.front}
               back={c.back}
               backShowing={backShowing}

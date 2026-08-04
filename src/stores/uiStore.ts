@@ -100,6 +100,12 @@ export interface DealtCardState {
   ids: string[];
   index: number;
   origin: DealtOrigin | null;
+  // Where each card of the deck was lying, when the thing you tapped was itself
+  // a stack of cards — the map's "Up for it?" fan. Indexed by depth, so card N
+  // lifts off from mini N. Without this every card starts from the fan's
+  // overall box, which means they all leave from one point on top of each other
+  // and the deal never reads as those cards coming up.
+  origins?: DealtOrigin[];
   source: DealtCardSource;
   // Bumped by every `dealCard`, never by `advanceDealtCard`. `EventDealtCard`
   // keys the card component on it, so a fresh deal remounts and a swipe does
@@ -178,7 +184,8 @@ interface UIState {
     ids: string[],
     index: number,
     origin: DealtOrigin | null,
-    source?: DealtCardSource
+    source?: DealtCardSource,
+    origins?: DealtOrigin[]
   ) => void;
   advanceDealtCard: () => void;
   closeDealtCard: () => void;
@@ -190,6 +197,24 @@ interface UIState {
   // reads as "just appear".
   swipeDeckOrigin: DealtOrigin | null;
   setSwipeDeckOrigin: (origin: DealtOrigin | null) => void;
+
+  // Settings and the screens it opens share one background: the sub-screens are
+  // transparent and slide only their *contents* over the backdrop Settings is
+  // already painting. Two flags, because each screen has to know something
+  // about the other that it cannot see from its own route.
+  //
+  //   settingsRootMounted — is the Settings list underneath us? A sub-screen
+  //     reached from there needs no backdrop of its own. Reached from anywhere
+  //     else (Edit profile is also opened from the Profile tab) there is
+  //     nothing behind it and it has to bring one.
+  //
+  //   settingsPanelOpen — is a sub-screen holding the foreground? Settings
+  //     reads it to slide its own rows out of the way, so the two contents
+  //     change places over a backdrop that never moves.
+  settingsRootMounted: boolean;
+  settingsPanelOpen: boolean;
+  setSettingsRootMounted: (mounted: boolean) => void;
+  setSettingsPanelOpen: (open: boolean) => void;
 }
 
 // A monotonic counter rather than a timestamp: two deals in the same
@@ -208,6 +233,10 @@ export const useUIStore = create<UIState>((set) => ({
   activeChat: null,
   overlayOpen: false,
   overlayMounted: false,
+  settingsRootMounted: false,
+  settingsPanelOpen: false,
+  setSettingsRootMounted: (settingsRootMounted) => set({ settingsRootMounted }),
+  setSettingsPanelOpen: (settingsPanelOpen) => set({ settingsPanelOpen }),
   handoff: null,
   dealtCard: null,
   setInAppBanner: (inAppBanner) => set({ inAppBanner }),
@@ -230,17 +259,17 @@ export const useUIStore = create<UIState>((set) => ({
   // would). A store action causing a side effect is a small impurity, but
   // it's the cheaper trade against twelve copies of the same haptic call
   // that would silently drift out of sync with each other.
-  dealCard: (ids, index, origin, source = 'browse') => {
+  dealCard: (ids, index, origin, source = 'browse', origins) => {
     Haptics.selectionAsync();
     dealToken += 1;
-    set({ dealtCard: { ids, index, origin, source, token: dealToken } });
+    set({ dealtCard: { ids, index, origin, origins, source, token: dealToken } });
   },
   advanceDealtCard: () =>
     set((s) => {
       if (!s.dealtCard) return s;
       const next = s.dealtCard.index + 1;
       if (next >= s.dealtCard.ids.length) return { dealtCard: null };
-      return { dealtCard: { ...s.dealtCard, index: next, origin: null } };
+      return { dealtCard: { ...s.dealtCard, index: next, origin: null, origins: undefined } };
     }),
   closeDealtCard: () => set({ dealtCard: null }),
   swipeDeckOrigin: null,

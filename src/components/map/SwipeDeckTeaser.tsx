@@ -40,10 +40,12 @@ const TILTS = [
 ];
 
 function MiniCard({
+  cardRef,
   event,
   index,
   emoji: emojiOverride,
 }: {
+  cardRef?: (node: View | null) => void;
   event?: ExploreEvent;
   index: number;
   emoji?: string;
@@ -56,6 +58,12 @@ function MiniCard({
   const imageUri = event ? eventImageUri(event) : null;
   return (
     <View
+      // Measured individually: the deck's cards lift off from their own mini,
+      // not from the fan's overall box. `collapsable={false}` because view
+      // flattening removes an unstyled wrapper on Android and a flattened node
+      // cannot be measured.
+      ref={cardRef}
+      collapsable={false}
       style={[
         styles.mini,
         { backgroundColor: cat?.tint ?? COLORS.primaryTint, zIndex: 3 - index },
@@ -109,6 +117,9 @@ export default function SwipeDeckTeaser() {
   const dealtSource = useUIStore((st) => st.dealtCard?.source);
   const lifted = dealtSource === 'swipeDeck';
   const fanRef = useRef<View>(null);
+  // One per visible mini, keyed by its place in the fan — index 0 is the front
+  // card, which is also the deck's top card.
+  const miniRefs = useRef<(View | null)[]>([]);
   const { deck, isLoading } = useSwipeDeck();
   const tabBarInset = useTabBarInset();
 
@@ -151,27 +162,50 @@ export default function SwipeDeckTeaser() {
       <PressableScale
         scaleTo={0.9}
         onPress={() => {
-          // Exactly what a map pin does — `dealCard` with this fan's rect as
-          // the origin — except the deck is the swipe queue and the source is
-          // 'swipeDeck', which is what turns on the messy stack behind the top
-          // card and routes a swipe through the day's quota.
-          //
-          // There is no separate swipe screen any more. The deck IS the dealt
-          // card; `app/events/swipe.tsx` and its route are deleted.
-          const node = fanRef.current;
+          // Exactly what a map pin does — `dealCard` with a measured rect as
+          // the origin — except the deck is the swipe queue, the source is
+          // 'swipeDeck' (which turns on the messy stack and routes a swipe
+          // through the day's quota), and every mini is measured, not just the
+          // fan. Card N lifts off from mini N, so what rises really is the
+          // card that was lying there.
           const ids = deck.map((e) => e.id);
-          const open = (origin: DealtOrigin | null) =>
-            useUIStore.getState().dealCard(ids, 0, origin, 'swipeDeck');
-          // An empty deck still opens: the card that lands says "check again
-          // later" rather than the tap doing nothing. Only a missing node
-          // (nothing to measure) drops the origin.
-          if (!node) {
+          const fan = fanRef.current;
+          const minis = miniRefs.current.filter(Boolean) as View[];
+
+          const open = (
+            origin: DealtOrigin | null,
+            origins?: DealtOrigin[]
+          ) =>
+            useUIStore
+              .getState()
+              .dealCard(ids, 0, origin, 'swipeDeck', origins);
+
+          if (!fan) {
             open(null);
             return;
           }
-          node.measureInWindow((x, y, width, height) =>
-            open({ x, y, width, height })
-          );
+
+          // measureInWindow is callback-based with no promise form, so the
+          // minis are gathered by counting completions rather than awaited.
+          const rects: DealtOrigin[] = [];
+          let pending = minis.length;
+          const finish = (fanRect: DealtOrigin) =>
+            open(fanRect, rects.length === minis.length ? rects : undefined);
+
+          fan.measureInWindow((fx, fy, fw, fh) => {
+            const fanRect = { x: fx, y: fy, width: fw, height: fh };
+            if (pending === 0) {
+              finish(fanRect);
+              return;
+            }
+            minis.forEach((node, i) => {
+              node.measureInWindow((x, y, width, height) => {
+                rects[i] = { x, y, width, height };
+                pending -= 1;
+                if (pending === 0) finish(fanRect);
+              });
+            });
+          });
         }}
         accessibilityRole="button"
         accessibilityLabel={
@@ -187,7 +221,14 @@ export default function SwipeDeckTeaser() {
               <MiniCard key={emoji} emoji={emoji} index={i} />
             ))
           : preview.map((event, i) => (
-              <MiniCard key={event.id} event={event} index={i} />
+              <MiniCard
+                key={event.id}
+                event={event}
+                index={i}
+                cardRef={(node) => {
+                  miniRefs.current[i] = node;
+                }}
+              />
             ))}
         {!caughtUp && (
           <View style={styles.countBadge}>

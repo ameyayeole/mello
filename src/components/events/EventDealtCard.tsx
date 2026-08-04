@@ -516,6 +516,7 @@ export function EventDealtCard() {
           key={deal.token}
           cards={cards}
           origin={deal.origin}
+          origins={deal.origins}
           // The deck came out of the map's fan, so its cards start at the
           // angles they were lying at in it — the same cards lifting off,
           // rather than new ones arriving where the old ones happen to be.
