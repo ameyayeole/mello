@@ -138,7 +138,7 @@ function RootLayoutInner() {
           on Android, and `EventDealtCard`'s own `CardPortal` lifts it above
           native modal routes on iOS the same way `InAppNotification` does.
 
-          Any opener, anywhere, calls uiStore.dealCard(ids, index, origin);
+          Any opener, anywhere, calls uiStore.dealCard(id, origin);
           this always-mounted component watches uiStore.dealtCard and renders
           whatever that produced, so there's no cold-start ref-not-ready race
           to retry around. It renders nothing until a card is dealt. */}
