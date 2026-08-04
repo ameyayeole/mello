@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FullWindowOverlay } from 'react-native-screens';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { FadeInUp, FadeOut } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -98,11 +100,60 @@ function BackgroundFace({ id }: { id: string }) {
   return <EventCard event={summary} blurred={false} />;
 }
 
+// Lifts the card out of the React tree it is mounted in and into a layer that
+// paints over the whole app — native modal routes included.
+//
+// This is not decoration. `EventDealtCard` is mounted once, in the root
+// layout; three openers (`events/wishlist`, `events/swipe`, `friends/[userId]`)
+// and every push-notification target live on routes stacked ABOVE that mount,
+// two of them `presentation: 'modal'`. Without this the card was dealt into a
+// layer behind the screen that dealt it and simply never appeared — a silent
+// no-op on three screens and on any push tapped from a pushed route.
+//
+// `FullWindowOverlay` is the mechanism `InAppNotification` already uses for
+// exactly this problem, and for the same reason: it adds its container as a
+// direct subview of the key UIWindow (`RNSFullWindowOverlay.mm`'s `maybeShow`),
+// so it sits above anything already presented. `addSubview` puts it on top at
+// the moment it mounts, which is why the caller must render this only while a
+// card is actually open (see the `if (!deal) return null` above) rather than
+// keeping it mounted empty.
+//
+// Two things deliberately stay OUT of here:
+//
+//   - Everything `Modal`-based — `Sheet`, `Dialog`, `SafetyPopup`. A `Modal`
+//     presents from `[self reactViewController]`, which walks the responder
+//     chain for the nearest UIViewController; the overlay's container hangs off
+//     the UIWindow with no view controller above it, so that walk returns nil
+//     and `presentViewController:` is a silent no-op. A dialog inside here
+//     would never open.
+//   - Android. `FullWindowOverlay` is iOS-only and warns when used elsewhere.
+//     It isn't needed: on Android a react-native-screens modal is a fragment
+//     inside the same root view, so a sibling of the root `<Stack>` already
+//     paints over it.
+//
+// The overlay hosts its own native window, so gestures need their own
+// `GestureHandlerRootView` — the app-root one does not reach into it. Same
+// note as `InAppNotification`'s.
+function CardPortal({ children }: { children: ReactNode }) {
+  if (Platform.OS !== 'ios') return <>{children}</>;
+  return (
+    <FullWindowOverlay>
+      {/* box-none: the container hit-tests through to the app wherever no
+          subview was hit, so this must not swallow taps on its own. The dim
+          inside `DealtCard` is a real subview and still receives them. */}
+      <GestureHandlerRootView style={styles.portal} pointerEvents="box-none">
+        {children}
+      </GestureHandlerRootView>
+    </FullWindowOverlay>
+  );
+}
+
 // The dealt card for one event, driven entirely by `uiStore.dealtCard` — no
-// props, so one instance mounted in the tabs layout serves every opener (the
+// props, so one instance mounted in the root layout serves every opener (the
 // map, the home rail, a friend's profile, the wishlist, the swipe deck): each
 // just calls `dealCard(ids, index, origin)` and this renders whatever that
-// produced.
+// produced. `CardPortal` above is what makes one mount enough — see its
+// comment for the three screens that proved it wasn't.
 //
 // Replaces the old `EventBottomSheet`/`EventSheetStack` as the app's one
 // event surface (deleted; see git history for the gorhom-based original this
@@ -365,19 +416,41 @@ export function EventDealtCard() {
 
   return (
     <>
-      {/* No absoluteFill/box-none wrapper here — `DealtCard` already renders
-          one at its own root, and the popups below are `Modal`-based
-          (`Sheet`/`Dialog` over `Overlay`), which paint into their own native
-          layer regardless of where they sit in this tree. The tabs layout is
-          what still needs that wrapper, around this whole component — see
-          its comment. */}
-      <DealtCard
-        cards={cards}
-        origin={deal.origin}
-        onPass={handlePass}
-        onSave={handleSave}
-        onDismiss={close}
-      />
+      {/* The card and its toast go through the portal; everything below is
+          `Modal`-based and must not (see `CardPortal`). `DealtCard` renders
+          its own absoluteFill/box-none root, so no wrapper is needed here. */}
+      <CardPortal>
+        <DealtCard
+          cards={cards}
+          origin={deal.origin}
+          onPass={handlePass}
+          onSave={handleSave}
+          onDismiss={close}
+        />
+
+        {/* Wishlist save/unsave toast — ported from EventBottomSheet.tsx's
+            footer toast. Sits over the card's own dim, inside the same portal
+            layer, so no dim/backdrop of its own is needed. pointerEvents none:
+            it's feedback, never a tap target. */}
+        {toast && (
+          <Animated.View
+            entering={FadeInUp.duration(200)}
+            exiting={FadeOut.duration(160)}
+            style={[styles.toastWrap, { bottom: insets.bottom + SPACING[5] }]}
+            pointerEvents="none"
+          >
+            <View style={styles.toast}>
+              <Icon
+                name="bookmarkFilled"
+                size={15}
+                color={COLORS.white}
+                strokeWidth={2}
+              />
+              <Text style={styles.toastText}>{toast}</Text>
+            </View>
+          </Animated.View>
+        )}
+      </CardPortal>
 
       {current && (
         <SafetyPopup
@@ -473,29 +546,14 @@ export function EventDealtCard() {
         </View>
       </Sheet>
 
-      {/* Wishlist save/unsave toast — ported from EventBottomSheet.tsx's
-          footer toast. Sits over the card's own dim (this component renders
-          inside the tabs layout's absoluteFill wrapper — see that file's
-          comment on EventDealtCard), so no dim/backdrop of its own is
-          needed. pointerEvents none: it's feedback, never a tap target. */}
-      {toast && (
-        <Animated.View
-          entering={FadeInUp.duration(200)}
-          exiting={FadeOut.duration(160)}
-          style={[styles.toastWrap, { bottom: insets.bottom + SPACING[5] }]}
-          pointerEvents="none"
-        >
-          <View style={styles.toast}>
-            <Icon name="bookmarkFilled" size={15} color="#fff" strokeWidth={2} />
-            <Text style={styles.toastText}>{toast}</Text>
-          </View>
-        </Animated.View>
-      )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  // Fills the FullWindowOverlay's container so the card's own absoluteFill
+  // root and the toast have something screen-sized to position against.
+  portal: { flex: 1 },
   placeholder: {
     flex: 1,
     backgroundColor: COLORS.surface,
@@ -577,7 +635,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
-    shadowColor: '#0F182C',
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.22,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
@@ -586,6 +644,6 @@ const styles = StyleSheet.create({
   toastText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: '#fff',
+    color: COLORS.white,
   },
 });

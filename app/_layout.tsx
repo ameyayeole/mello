@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
 import InAppNotification from '@/components/InAppNotification';
+import { EventDealtCard } from '@/components/events/EventDealtCard';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -128,6 +129,20 @@ function RootLayoutInner() {
         <Stack.Screen name="map-filters" options={{ presentation: 'modal' }} />
         <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
       </Stack>
+      {/* The one event card for the whole app, and the reason it is a sibling
+          of <Stack> rather than of <Tabs>: three openers (events/wishlist,
+          events/swipe, friends/[userId]) and every push-notification target
+          live on routes stacked ABOVE (tabs), so a card mounted inside the
+          tabs layout was dealt into a layer behind the screen that dealt it
+          and never appeared at all. From here it is above every pushed route
+          on Android, and `EventDealtCard`'s own `CardPortal` lifts it above
+          native modal routes on iOS the same way `InAppNotification` does.
+
+          Any opener, anywhere, calls uiStore.dealCard(ids, index, origin);
+          this always-mounted component watches uiStore.dealtCard and renders
+          whatever that produced, so there's no cold-start ref-not-ready race
+          to retry around. It renders nothing until a card is dealt. */}
+      <EventDealtCard />
       <InAppNotification />
     </>
   );

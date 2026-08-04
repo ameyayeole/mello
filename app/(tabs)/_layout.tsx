@@ -36,7 +36,6 @@ import { useUnreadDms } from '@/hooks/useUnreadDms';
 import { SafetyPopup, SosModal, WelcomeSafetyModal } from '@/components/safety';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import { sharePlan } from '@/utils/sharePlan';
-import { EventDealtCard } from '@/components/events/EventDealtCard';
 
 // Safety popup #1: full-screen welcome shown once ever, the first time a
 // signed-in user lands in the app after onboarding. "Read the Safety Centre"
@@ -234,8 +233,8 @@ const PICKUP_HOLD_MS = 280;
 
 /**
  * One shared drag surface over the whole bar, rendered as a sibling *above*
- * `<Tabs>` (same trick `EventDealtCard` below uses to paint over it) so it
- * physically intercepts touches before the native tab buttons underneath do.
+ * `<Tabs>` so it physically intercepts touches before the native tab buttons
+ * underneath do.
  *
  * Three behaviours off the one surface:
  *   • tap            → navigate to the tab under the finger.
@@ -555,18 +554,6 @@ export default function TabLayout() {
       setPickedUp={setPickedUp}
       barTransform={barTransform}
     />
-    {/* The one event card for the whole app. It lives here — above <Tabs>, so
-        it paints over the floating tab bar and its dim covers the bar too —
-        rather than one-per-screen, where it sat *under* the bar with nothing
-        to dim it. Any opener, anywhere, calls uiStore.dealCard(ids, index,
-        origin); this always-mounted component watches uiStore.dealtCard and
-        renders whatever that produced, so there's no cold-start
-        ref-not-ready race to retry around. Full-screen bounds + `box-none` so
-        taps fall through to the tab bar while no card is dealt; once one is,
-        DealtCard's own dim takes over. */}
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <EventDealtCard />
-    </View>
     </>
   );
 }
