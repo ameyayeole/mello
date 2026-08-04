@@ -47,6 +47,6 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { Toggle } from './Toggle';
 export { Wheel } from './Wheel';
 export { MelloPin, MelloWordmark, CoralGlow } from './MelloLogo';
-export { DealtCard, DEALT_CARD_WIDTH_RATIO, DEALT_CARD_ASPECT } from './DealtCard';
+export { DealtCard, DEALT_CARD_WIDTH_RATIO, DEALT_CARD_ASPECT, FlipHint } from './DealtCard';
 export type { DealtCardProps } from './DealtCard';
 export { stackLayer, STACK_DEPTH } from './dealtCardGeometry';

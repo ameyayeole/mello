@@ -137,7 +137,14 @@ function haptic(kind: 'land' | 'settle' | 'flip' | 'threshold' | 'save') {
 //
 // Breathes by lifting rather than fading; a label changing opacity reads as a
 // glitch, one that moves reads as alive.
-function FlipHint({ bottom }: { bottom: number }) {
+//
+// Exported: `EventDeck` has a back face too (design doc §2), and this is the
+// same fact about the same kind of surface, not a second copy of it. Its
+// caller controls the ONE thing that differs between them — `bottom`, since
+// the deck's card sits in a differently-shaped stage than a single dealt
+// card's — and owns its own visibility/fade; this component only knows how to
+// breathe in place.
+export function FlipHint({ bottom }: { bottom: number }) {
   const pulse = useSharedValue(0);
   useEffect(() => {
     pulse.value = withRepeat(

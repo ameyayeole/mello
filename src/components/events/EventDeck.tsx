@@ -35,6 +35,7 @@ import {
   Button,
   DEALT_CARD_ASPECT,
   DEALT_CARD_WIDTH_RATIO,
+  FlipHint,
   useTabBarInset,
 } from '@/components/ui';
 import {
@@ -573,6 +574,7 @@ function DeckBody({
   const dimStyle = useDimStyle(expand);
   const headerStyle = useChromeStyle(expand);
   const footerStyle = useChromeStyle(expand);
+  const hintStyle = useChromeStyle(expand);
   const fanChromeStyle = useFanChromeStyle(expand, sway);
 
   if (isLoading) return null;
@@ -661,6 +663,24 @@ function DeckBody({
                 />
               </Animated.View>
             </>
+          )}
+
+          {/* "Tap for details" — `DealtCard`'s own hint, lifted out and
+              exported rather than rebuilt here: the deck's top card has a back
+              face for exactly the same reason a single dealt card does (design
+              doc §2), and it is the same fact about the same kind of surface.
+              Gated on there actually being a back to turn to (an event whose
+              detail hasn't loaded yet has none) and on the front currently
+              showing — flipping it back on while the back is up would have it
+              advertise the face already on screen. Fades with the rest of the
+              chrome rather than popping in with `showChrome` alone. */}
+          {showChrome && !backMounted && layers[0]?.back != null && (
+            <Animated.View
+              style={[styles.hintChrome, hintStyle]}
+              pointerEvents="none"
+            >
+              <FlipHint bottom={height / 2 + cardH / 2 + SPACING[4]} />
+            </Animated.View>
           )}
 
           {/* The fan's tap target and its label, over the parked cards.
@@ -1000,6 +1020,10 @@ const styles = StyleSheet.create({
   },
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 2 },
+  // Full-screen so `FlipHint`'s own `bottom` offset — measured from the
+  // stage's own centring, same as `DealtCard`'s — resolves against the whole
+  // surface rather than against some smaller wrapper.
+  hintChrome: { ...StyleSheet.absoluteFill, zIndex: 2 },
   card: {
     position: 'absolute',
     backgroundColor: COLORS.surface,
