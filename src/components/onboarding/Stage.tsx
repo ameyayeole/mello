@@ -22,8 +22,9 @@ import Svg, {
   Circle,
   Path,
 } from 'react-native-svg';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
+import { themedStyles } from '@/theme';
 
 // Shared illustration stage for the intro tour: soft radial backdrop with
 // drifting glow blobs, faded into the content surface at the bottom.
@@ -338,37 +339,37 @@ export function MapPanel({
         {/* roads */}
         <Path
           d="M-10 90 C 70 70, 120 130, 200 110 S 320 60, 340 80"
-          stroke="rgba(15,24,44,0.07)"
+          stroke={inkAlpha(0.07)}
           strokeWidth={16}
           strokeLinecap="round"
           fill="none"
         />
         <Path
           d="M60 -10 C 80 80, 40 160, 90 240 S 120 320, 110 360"
-          stroke="rgba(15,24,44,0.06)"
+          stroke={inkAlpha(0.06)}
           strokeWidth={12}
           strokeLinecap="round"
           fill="none"
         />
         <Path
           d="M-10 250 C 90 230, 180 290, 320 240"
-          stroke="rgba(15,24,44,0.07)"
+          stroke={inkAlpha(0.07)}
           strokeWidth={14}
           strokeLinecap="round"
           fill="none"
         />
         <Path
           d="M200 -10 C 210 90, 250 150, 230 250 S 220 330, 230 360"
-          stroke="rgba(15,24,44,0.05)"
+          stroke={inkAlpha(0.05)}
           strokeWidth={8}
           strokeLinecap="round"
           fill="none"
         />
         {/* blocks */}
-        <Rect x={160} y={160} width={34} height={24} rx={7} fill="rgba(15,24,44,0.05)" />
-        <Rect x={122} y={52} width={26} height={26} rx={7} fill="rgba(15,24,44,0.05)" />
-        <Rect x={58} y={120} width={30} height={22} rx={7} fill="rgba(15,24,44,0.045)" />
-        <Rect x={168} y={288} width={40} height={22} rx={7} fill="rgba(15,24,44,0.045)" />
+        <Rect x={160} y={160} width={34} height={24} rx={7} fill={inkAlpha(0.05)} />
+        <Rect x={122} y={52} width={26} height={26} rx={7} fill={inkAlpha(0.05)} />
+        <Rect x={58} y={120} width={30} height={22} rx={7} fill={inkAlpha(0.045)} />
+        <Rect x={168} y={288} width={40} height={22} rx={7} fill={inkAlpha(0.045)} />
       </Svg>
       </Animated.View>
       {children}
@@ -376,7 +377,7 @@ export function MapPanel({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   stage: { flex: 1, overflow: 'hidden' },
   stageContent: { flex: 1 },
   fade: {
@@ -443,7 +444,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDFDFD',
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.06)',
+    borderColor: inkAlpha(0.06),
     overflow: 'hidden',
     shadowColor: '#0F182C',
     shadowOpacity: 0.08,
@@ -451,4 +452,4 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 5,
   },
-});
+}));

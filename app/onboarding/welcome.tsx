@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
   NativeSyntheticEvent,
@@ -27,6 +26,7 @@ import { DiscoverScene } from '@/components/onboarding/scenes/DiscoverScene';
 import { CreateScene } from '@/components/onboarding/scenes/CreateScene';
 import { SwipeScene } from '@/components/onboarding/scenes/SwipeScene';
 import { SafetyScene } from '@/components/onboarding/scenes/SafetyScene';
+import { themedStyles } from '@/theme';
 
 const SLIDES: {
   key: string;
@@ -154,7 +154,7 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   skip: {
     position: 'absolute',
     top: 62,
@@ -210,4 +210,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   loginLinkBold: { color: COLORS.primary, fontFamily: FONTS.bold },
-});
+}));

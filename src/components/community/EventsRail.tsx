@@ -12,6 +12,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
+import { themedStyles } from '@/theme';
 
 const MAX_CARDS = 8;
 
@@ -101,7 +102,7 @@ export function EventsRail() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { marginVertical: SPACING[2], gap: SPACING[2.5] },
   heading: {
     fontFamily: FONTS.headingBold,
@@ -135,4 +136,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
-});
+}));

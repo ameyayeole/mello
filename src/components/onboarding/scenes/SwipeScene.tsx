@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -17,6 +18,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CATEGORY_STYLE } from '@/constants/categoryStyle';
 import { Icon, IconName } from '@/components/ui';
 import { Stage } from '../Stage';
+import { themedStyles } from '@/theme';
 
 const CARD_W = 210;
 const CARD_H = 252;
@@ -159,7 +161,7 @@ export function SwipeScene() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   deck: {
     width: CARD_W,
@@ -241,4 +243,4 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: COLORS.success,
   },
-});
+}));

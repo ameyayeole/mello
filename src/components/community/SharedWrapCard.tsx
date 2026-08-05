@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { PressableScale, Icon } from '@/components/ui';
@@ -8,6 +9,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { useWrapCard } from '@/hooks/useWrapCard';
 import { TextPostBody } from './TextPostBody';
+import { themedStyles } from '@/theme';
 
 const GUTTER = 3;
 
@@ -132,7 +134,7 @@ export function SharedWrapCard({
 
 const TILE = 92;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     marginTop: SPACING[2],
     padding: SPACING[3],
@@ -205,4 +207,4 @@ const styles = StyleSheet.create({
   },
   // Shared by the two skeletons and the photo tiles' placeholder fill.
   skelOnDark: { backgroundColor: COLORS.fillOnDark },
-});
+}));

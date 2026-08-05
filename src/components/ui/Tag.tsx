@@ -1,9 +1,13 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { alpha } from '@/utils/color';
 import { Icon, IconName } from './Icon';
+import { themedStyles } from '@/theme';
 
 // A small static status tag: "Host", "Female-only", "Full". Says what something
 // *is* — it is never a control. For anything tappable use `Button`, and for a
@@ -69,7 +73,7 @@ export function Tag({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -85,4 +89,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.nano,
     letterSpacing: 0.3,
   },
-});
+}));

@@ -12,7 +12,6 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +38,7 @@ import {
   clearChat,
   chatKey,
 } from '@/services/chatPrefs.service';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
@@ -76,6 +75,8 @@ import {
 } from '@/components/wrap/SealedNoteRow';
 import { showError } from '@/utils/errors';
 import { openDmChat, openEventChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 type Tab = 'events' | 'friends';
 
@@ -142,7 +143,7 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
         <Icon name="pin" size={13} color={COLORS.primary} />
       ) : null}
       {pref.muted ? (
-        <Icon name="bellOff" size={13} color="rgba(15,24,44,0.4)" />
+        <Icon name="bellOff" size={13} color={inkAlpha(0.4)} />
       ) : null}
     </View>
   );
@@ -816,7 +817,7 @@ export default function ChatsListScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
 
       {/* Steps back while the search overlay is up. On the list rather than
           the whole screen: the option sheet must not shrink with it. */}
@@ -895,7 +896,7 @@ export default function ChatsListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Transparent: what shows through is the <AppBackground> mounted once behind
   // the tab navigator. This tab used to be the one opaque white list in the
   // app — see DESIGN.md §7, which this reverses.
@@ -1090,4 +1091,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.white,
   },
-});
+}));

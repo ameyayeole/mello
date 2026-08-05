@@ -1,8 +1,12 @@
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  Modal,
+  TouchableOpacity } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, CoralGlow, Icon, IconName, MelloPin } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Safety popup #1 ("Welcome to a safer Mello") — full-screen interstitial per
 // the design gallery: pin logo, coral glow, three tinted tip cards, coral CTA.
@@ -64,7 +68,7 @@ export default function WelcomeSafetyModal({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: COLORS.surface },
   glow: {
     position: 'absolute',
@@ -84,7 +88,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
     marginTop: SPACING[2.5],
   },
   tips: { gap: SPACING[2.5], marginTop: SPACING[5] },
@@ -114,7 +118,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
     marginTop: SPACING[4],
   },
   actions: { paddingHorizontal: SPACING[6], paddingBottom: SPACING[8] },
@@ -127,6 +131,6 @@ const styles = StyleSheet.create({
   secondaryLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
   },
-});
+}));

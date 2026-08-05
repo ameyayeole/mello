@@ -12,7 +12,6 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,7 +34,7 @@ import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { getDmPin, setDmPin } from '@/services/dm.service';
 import { getChatPrefs, chatKey } from '@/services/chatPrefs.service';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DirectMessage, Profile, ReplyTarget } from '@/types/models';
 import { isPremium } from '@/utils/premium';
@@ -80,6 +79,8 @@ import {
   replyTargetOf,
 } from '@/utils/chatActions';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 // How much of a pull past the gutter actually moves the thread, and the spring
 // that returns it. Slightly overdamped: it should settle, not wobble — this is
@@ -431,7 +432,7 @@ function DirectChatScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
       <Glass
         tier="chrome"
         radius={0}
@@ -634,7 +635,7 @@ function DirectChatScreen() {
             ref={inputRef}
             style={styles.input}
             placeholder="Message…"
-            placeholderTextColor="rgba(15,24,44,0.40)"
+            placeholderTextColor={inkAlpha(0.40)}
             value={input}
             onChangeText={setInput}
             multiline
@@ -691,7 +692,7 @@ function DirectChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Transparent, over the app's drifting background — see the Inbox.
   container: { flex: 1 },
   flex: { flex: 1 },
@@ -781,4 +782,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: COLORS.disabled },
-});
+}));

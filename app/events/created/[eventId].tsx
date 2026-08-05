@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +16,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { shareEvent } from '@/utils/shareEvent';
 import { Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // H1 — the celebratory "You're live!" moment right after publishing an event.
 // Reached from the map create-flow; "View event" leads to the host panel.
@@ -112,7 +114,7 @@ export default function EventCreatedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: COLORS.accent },
   celebration: {
     position: 'absolute',
@@ -217,4 +219,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: 'rgba(255,255,255,0.85)',
   },
-});
+}));

@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,6 +34,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Rate the people you met: swipe right = thumbs up, left = thumbs down
 // (private). Same deck engine as the events swipe screen.
@@ -290,7 +290,7 @@ variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   deckArea: {
     flex: 1,
     margin: SPACING[4],
@@ -362,4 +362,4 @@ const styles = StyleSheet.create({
   smallActionBtn: { width: 50, height: 50, borderRadius: 25 },
   actionDisabled: { opacity: 0.4 },
   actionEmoji: { fontSize: TYPE_SIZE.h1 },
-});
+}));

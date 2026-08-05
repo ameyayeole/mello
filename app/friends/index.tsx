@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
   TextInput,
@@ -16,7 +15,7 @@ import { useFriends } from '@/hooks/useFriends';
 import { usePresence } from '@/hooks/usePresence';
 import { useAuthStore } from '@/stores/authStore';
 import { searchUsers } from '@/services/friends.service';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Friendship } from '@/types/models';
 import {
@@ -30,6 +29,7 @@ import {
   SectionLabel,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 function FriendRow({
   friendship,
@@ -58,7 +58,7 @@ function FriendRow({
           {isOnline ? 'Active now' : 'Offline'}
         </Text>
       </View>
-      <Icon name="chevronRight" size={20} color="rgba(15,24,44,0.35)" />
+      <Icon name="chevronRight" size={20} color={inkAlpha(0.35)} />
     </PressableScale>
   );
 }
@@ -102,11 +102,11 @@ export default function FriendsScreen() {
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Icon name="search" size={17} color="rgba(15,24,44,0.45)" />
+          <Icon name="search" size={17} color={inkAlpha(0.45)} />
           <TextInput
             style={styles.searchInput}
             placeholder="Find friends"
-            placeholderTextColor="rgba(15,24,44,0.45)"
+            placeholderTextColor={inkAlpha(0.45)}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -210,7 +210,7 @@ export default function FriendsScreen() {
                       onPress={() => remove.mutate(req.id)}
                       accessibilityLabel="Decline request"
                     >
-                      <Icon name="close" size={16} color="rgba(15,24,44,0.55)" />
+                      <Icon name="close" size={16} color={inkAlpha(0.55)} />
                     </PressableScale>
                   </View>
                 </Animated.View>
@@ -249,7 +249,7 @@ export default function FriendsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   headerIcon: {
     width: 40,
     height: 40,
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   friendStatus: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
     marginTop: SPACING[0.5],
   },
   statusLabel: {
@@ -332,8 +332,8 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xs,
     backgroundColor: COLORS.background,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.12)',
+    borderColor: inkAlpha(0.12),
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

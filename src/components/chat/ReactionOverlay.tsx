@@ -6,6 +6,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import ReactionBar from './ReactionBar';
 import { barEnter, liftEnter } from './motion';
+import { themedStyles } from '@/theme';
 
 // iMessage's tapback: the thread dims, the message you pressed stays lit where
 // it already was, and the emoji float beside it.
@@ -137,7 +138,7 @@ export default function ReactionOverlay({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   fill: { flex: 1 },
   // Light, because the blur is doing most of the work. `inkVeil` is the token
   // for exactly this — keeping contrast without killing what is behind.
@@ -172,4 +173,4 @@ const styles = StyleSheet.create({
     left: SPACING[4],
     right: SPACING[4],
   },
-});
+}));

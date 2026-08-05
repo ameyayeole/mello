@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text,
+  View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
@@ -7,6 +8,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
 import { useCreateEventStore } from '@/stores/createEventStore';
 import { GLYPH_STROKE } from './motion';
+import { themedStyles } from '@/theme';
 
 // Live location under the pin. Sits directly beneath the map's search bar
 // rather than riding above the card, so the address reads next to the field
@@ -39,7 +41,7 @@ export const LocationPill = memo(function LocationPill({ top }: { top: number })
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Floats free under the search bar; `top` is supplied by the caller from the
   // safe-area inset so it clears the notch on every device.
   locationPillWrap: {
@@ -70,4 +72,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.white,
   },
-});
+}));

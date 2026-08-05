@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -18,6 +19,7 @@ import { relativeTime } from '@/utils/time';
 import { useCommentReplies, useToggleCommentLike } from '@/hooks/useComments';
 // Reuse the chat mention renderer — @handles in the pool tap through to profiles.
 import MentionText from '@/components/chat/MentionText';
+import { themedStyles } from '@/theme';
 
 // One comment. Top-level rows carry a Reply link + an expandable "View N replies"
 // that lazy-loads its chronological replies (rendered as reply-variant rows, one
@@ -201,7 +203,7 @@ export function CommentRow({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { flexDirection: 'row', gap: SPACING[2.5], alignItems: 'flex-start' },
   replyRow: { marginTop: SPACING[3] },
   body: { flex: 1, gap: SPACING[1] },
@@ -242,4 +244,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
   },
-});
+}));

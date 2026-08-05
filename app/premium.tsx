@@ -34,6 +34,7 @@ import {
   PressableScale,
   Screen,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Why the paywall opened — puts the blocked feature first in the list.
 type Reason = 'distance' | 'filters' | 'swipes' | 'wishlist';
@@ -281,7 +282,7 @@ export default function PremiumScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -424,4 +425,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: SPACING[0.5],
   },
-});
+}));

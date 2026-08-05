@@ -5,7 +5,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -27,6 +28,7 @@ import {
   PremiumBadge,
   VerifiedBadge,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // A person, without leaving where you are. Opened from a chat avatar and from
 // the Inbox search when the person isn't a friend yet.
@@ -241,7 +243,7 @@ ProfileBottomSheet.displayName = 'ProfileBottomSheet';
 
 export default ProfileBottomSheet;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   sheetBg: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 28,
@@ -304,4 +306,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[0.5],
   },
   actions: { gap: SPACING[2] },
-});
+}));

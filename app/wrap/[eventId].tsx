@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   useWindowDimensions,
 } from 'react-native';
@@ -23,6 +22,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Public, read-only wrap gallery: the event's 6 most-liked photos, reachable
 // from the Explore feed by anyone (data via SECURITY DEFINER RPC).
@@ -148,7 +148,7 @@ export default function PublicWrapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: {
     flex: 1,
     alignItems: 'center',
@@ -243,4 +243,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.primary,
   },
-});
+}));

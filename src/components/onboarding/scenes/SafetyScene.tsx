@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import Animated, { ZoomIn, Easing } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, VerifiedBadge } from '@/components/ui';
 import { Stage, FloatingCard, PulseRing } from '../Stage';
+import { themedStyles } from '@/theme';
 
 // Slide 4: a verified profile card with trust chips orbiting it.
 export function SafetyScene() {
@@ -53,7 +55,7 @@ export function SafetyScene() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   profileCard: {
     width: 216,
@@ -158,4 +160,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
-});
+}));

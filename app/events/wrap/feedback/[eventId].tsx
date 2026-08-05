@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useWrap } from '@/hooks/useWrap';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
@@ -21,6 +20,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Private event feedback for the host: thumbs + optional note, anonymous.
 export default function EventFeedbackScreen() {
@@ -112,7 +112,7 @@ export default function EventFeedbackScreen() {
                 <TextInput
                   style={styles.noteInput}
                   placeholder="Anything the host should know? (optional)"
-                  placeholderTextColor="rgba(15,24,44,0.40)"
+                  placeholderTextColor={inkAlpha(0.40)}
                   value={note}
                   onChangeText={(t) => setNote(t.slice(0, 300))}
                   multiline
@@ -137,7 +137,7 @@ export default function EventFeedbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[5], gap: SPACING[4] },
   completeWrap: { paddingTop: 70, alignItems: 'center' },
   title: {
@@ -191,4 +191,4 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   footer: { padding: SPACING[4], paddingTop: SPACING[2] },
-});
+}));

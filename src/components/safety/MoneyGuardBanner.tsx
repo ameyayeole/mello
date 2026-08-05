@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  TouchableOpacity } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
@@ -9,6 +11,7 @@ import {
   canShowMoneyGuard,
   markMoneyGuardShown,
 } from '@/services/safety';
+import { themedStyles } from '@/theme';
 
 // Scam guard (spec #11): watches incoming chat messages for payment-related
 // terms and shows a warning strip to the recipient, once per conversation per
@@ -99,7 +102,7 @@ export default function MoneyGuardBanner({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrapper: { paddingHorizontal: SPACING[3], paddingBottom: SPACING[2.5] },
   card: {
     flexDirection: 'row',
@@ -130,4 +133,4 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginTop: SPACING[1.5],
   },
-});
+}));

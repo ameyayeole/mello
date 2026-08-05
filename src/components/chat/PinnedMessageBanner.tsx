@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Slim pinned-message bar shown under the chat header.
 
@@ -50,7 +52,7 @@ export default function PinnedMessageBanner({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[2],
     backgroundColor: COLORS.primaryTint,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(15,24,44,0.06)',
+    borderBottomColor: inkAlpha(0.06),
   },
   label: {
     fontFamily: FONTS.bold,
@@ -76,8 +78,8 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: RADIUS.sm,
-    backgroundColor: 'rgba(15,24,44,0.06)',
+    backgroundColor: inkAlpha(0.06),
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { exchangeAuthCode } from '@/services/auth.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, CoralGlow, Icon, Loader, Screen } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 type Phase = 'verifying' | 'done' | 'invalid';
 
@@ -65,7 +67,7 @@ export default function ConfirmScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   glow: {
     position: 'absolute',
     top: -80,
@@ -90,4 +92,4 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: COLORS.textSecondary,
   },
-});
+}));

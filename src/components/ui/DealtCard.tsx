@@ -39,6 +39,7 @@ import {
   isPastThreshold,
   stackLayer,
 } from './dealtCardGeometry';
+import { themedStyles } from '@/theme';
 
 export interface DealtCardProps {
   // One entry per card in the deck, front to back. index 0 is face up.
@@ -725,7 +726,7 @@ function CardLayer({
   return <GestureDetector gesture={gesture}>{body}</GestureDetector>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   dimWrap: { ...StyleSheet.absoluteFill, zIndex: 0 },
   dim: { backgroundColor: COLORS.ink },
   stage: {
@@ -785,4 +786,4 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS['2xl'],
     backgroundColor: COLORS.ink,
   },
-});
+}));

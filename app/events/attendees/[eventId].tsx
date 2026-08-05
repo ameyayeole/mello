@@ -4,17 +4,17 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEventDetail } from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import { Loader, PressableScale, Screen, ScreenHeader } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 type Tab = 'attendees' | 'requests';
 
@@ -101,7 +101,7 @@ export default function EventAttendeesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   tabs: {
     flexDirection: 'row',
     gap: SPACING[2],
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.08)',
+    borderColor: inkAlpha(0.08),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
   },
   tabTextActive: { color: COLORS.primary },
   list: { padding: SPACING[5], paddingTop: SPACING[2], gap: SPACING[2], paddingBottom: SPACING[8] },
@@ -136,4 +136,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING[7],
   },
-});
+}));

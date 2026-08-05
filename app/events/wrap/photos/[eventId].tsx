@@ -4,7 +4,6 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
@@ -21,7 +20,7 @@ import { getCoAttendees, addWrapPhoto } from '@/services/wrap.service';
 import { uploadWrapPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Avatar,
@@ -32,6 +31,7 @@ import {
   ScreenHeader,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 const MAX_PHOTOS = 4;
 
@@ -177,7 +177,7 @@ export default function WrapPhotosScreen() {
                     <TextInput
                       style={styles.captionInput}
                       placeholder="That golden hour though…"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
+                      placeholderTextColor={inkAlpha(0.40)}
                       value={caption}
                       onChangeText={(t) => setCaption(t.slice(0, 300))}
                       multiline
@@ -246,7 +246,7 @@ export default function WrapPhotosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[4], paddingTop: SPACING[2], gap: SPACING[4], paddingBottom: SPACING[6] },
   completeWrap: { paddingTop: 60, alignItems: 'center' },
   completeActions: { marginTop: SPACING[3.5], gap: SPACING[3], alignSelf: 'stretch' },
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
     marginBottom: SPACING[2],
   },
   mineRow: { flexDirection: 'row', gap: SPACING[2] },
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[1.5],
     height: 19,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(15,24,44,0.55)',
+    backgroundColor: inkAlpha(0.55),
   },
   mineLikesText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: '#fff' },
   captionInput: {
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   tagText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.7)',
+    color: inkAlpha(0.7),
   },
   tagTextOn: { color: COLORS.primary },
   fullNote: {
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
     lineHeight: 18,
-    color: 'rgba(15,24,44,0.65)',
+    color: inkAlpha(0.65),
   },
   footer: {
     paddingHorizontal: SPACING[4],
@@ -365,4 +365,4 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING[2.5],
     backgroundColor: COLORS.background,
   },
-});
+}));

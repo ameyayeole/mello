@@ -67,6 +67,7 @@ import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
 import { showError } from '@/utils/errors';
 import { openDmChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
 
 // ── Frosted-sheet scaffold ───────────────────────────────────────────────────
 // These five constants and the three animated styles below are mirrored from
@@ -775,7 +776,7 @@ const FILL = {
   bottom: 0,
 } as const;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: COLORS.accent },
   loading: { alignItems: 'center', justifyContent: 'center' },
 
@@ -966,4 +967,4 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderOnDark,
   },
   viewerDotActive: { backgroundColor: COLORS.white },
-});
+}));

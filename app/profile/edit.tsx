@@ -10,7 +10,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { GLIDE, SQUASH } from '@/constants/motion';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View,
+  Text,
+  ScrollView } from 'react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { updateProfile } from '@/services/auth.service';
 import {
@@ -38,6 +40,7 @@ import {
 } from '@/components/ui';
 import { SettingsPanel } from '@/components/profile/SettingsPanel';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 // 18 is the product floor (and the copy users see). The ceiling only exists to
 // catch a typo'd year of birth — it is not a real limit on anyone.
@@ -573,7 +576,7 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1 },
   saveBusy: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: SPACING[5], gap: SPACING[6], paddingBottom: SPACING[8] },
@@ -671,4 +674,4 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.accent,
   },
-});
+}));

@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import { WrapPhoto } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 // Grid tile in the wrap gallery: photo + like count, with a chip when the
 // viewer is tagged in it.
@@ -39,7 +41,7 @@ export default function WrapPhotoTile({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   tile: {
     flex: 1,
     aspectRatio: 1,
@@ -58,7 +60,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING[2],
     height: 24,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(15,24,44,0.55)',
+    backgroundColor: inkAlpha(0.55),
   },
   likeText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.micro, color: '#fff' },
   mentionChip: {
@@ -73,4 +75,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mentionText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: '#fff' },
-});
+}));

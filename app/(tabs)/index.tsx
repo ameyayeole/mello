@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
-import { StatusBar } from 'expo-status-bar';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -72,6 +71,8 @@ import {
 import EventRow from '@/components/events/EventRow';
 import FeaturedPlanCard from '@/components/events/FeaturedPlanCard';
 import { openEventChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -467,7 +468,7 @@ export default function DashboardScreen() {
   return (
     <View style={styles.root}>
       {/* Dark glyphs: the backdrop is light on every screen now. */}
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
 
       <Animated.View style={[styles.fill, recedeStyle]}>
       <ScrollView
@@ -753,7 +754,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // No background colour: <AppBackground> is mounted behind the tab navigator
   // and this screen is a transparent sheet over it.
   root: { flex: 1 },
@@ -1043,4 +1044,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.white,
   },
-});
+}));

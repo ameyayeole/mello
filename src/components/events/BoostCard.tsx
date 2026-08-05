@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   Alert,
   ActivityIndicator,
   Modal,
@@ -12,7 +11,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EventDetail } from '@/types/models';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   BOOST_ACCENT,
@@ -27,6 +26,7 @@ import { PurchaseCancelled, purchaseBoostPack, BoostPack } from '@/services/iap'
 import { getBoostCredits, spendBoost } from '@/services/boost.service';
 import { Button, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 // Host-only card on the manage-event panel. Boosts are credits now (028):
 // "Boost event" opens a sheet showing the host's balance — spend one from
@@ -268,7 +268,7 @@ export default function BoostCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.45)',
+    backgroundColor: inkAlpha(0.45),
     justifyContent: 'center',
     padding: SPACING[7],
   },
@@ -447,6 +447,6 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 28,
-    backgroundColor: 'rgba(15,24,44,0.08)',
+    backgroundColor: inkAlpha(0.08),
   },
-});
+}));

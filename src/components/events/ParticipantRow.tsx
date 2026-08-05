@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, Alert, Linking } from 'react-native';
+import { View,
+  Text,
+  Alert,
+  Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -10,7 +13,7 @@ import {
 } from '@/services/events.service';
 import { reportUser, ReportReason } from '@/services/moderation.service';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { EventParticipant } from '@/types/models';
 import { isPremium } from '@/utils/premium';
@@ -18,6 +21,7 @@ import { SafetyPopup } from '@/components/safety';
 import { Avatar, Icon, PremiumBadge, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
 import { openDmChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
 
 // One attendee / join-request row in the host panel. Tapping the avatar or
 // name opens the person's profile. Approved attendees get message + overflow
@@ -141,7 +145,7 @@ export default function ParticipantRow({
             <Icon
               name="close"
               size={16}
-              color="rgba(15,24,44,0.55)"
+              color={inkAlpha(0.55)}
               strokeWidth={2}
             />
           </PressableScale>
@@ -166,7 +170,7 @@ export default function ParticipantRow({
             <Icon
               name="dots"
               size={16}
-              color="rgba(15,24,44,0.55)"
+              color={inkAlpha(0.55)}
               strokeWidth={2}
             />
           </PressableScale>
@@ -198,7 +202,7 @@ export default function ParticipantRow({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -207,7 +211,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     padding: SPACING[2.5],
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: inkAlpha(0.07),
   },
   identity: {
     flex: 1,
@@ -239,4 +243,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

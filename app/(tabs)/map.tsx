@@ -46,6 +46,8 @@ import {
 } from '@/components/ui';
 import { clusterPoints, Cluster } from '@/utils/clusterEvents';
 import { applyMapFilters, countActiveMapFilters } from '@/utils/mapFilters';
+import { themedStyles } from '@/theme';
+import { useMapScheme } from '@/stores/themeStore';
 
 // Gentle pop for pins. Inside map markers the native layer's transform anchor
 // ends up at the top-left, so a bare scale grows diagonally; the translate
@@ -109,6 +111,7 @@ export default function MapScreen() {
   const { requestAndStart } = useLocation();
   const { friends } = useFriends();
   const mapRef = useRef<MapView>(null);
+  const mapScheme = useMapScheme();
   const tabBarInset = useTabBarInset();
   const didCenter = useRef(false);
   // Where the map is looking; pins load for this region, not the GPS position.
@@ -335,6 +338,10 @@ export default function MapScreen() {
         ref={mapRef}
         style={styles.map}
         provider={MAP_PROVIDER}
+        // The map follows the app's theme rather than the phone's — Apple's own
+        // dark tiles on iOS, Google's `MapColorScheme.DARK` on Android. See
+        // `useMapScheme` for the one platform difference.
+        userInterfaceStyle={mapScheme}
         initialRegion={initialRegion}
         onMapReady={() => setRegion((r) => r ?? initialRegion)}
         onRegionChangeComplete={(r) => {
@@ -613,7 +620,7 @@ export default function MapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1 },
   map: { flex: 1 },
   filterOverlay: {
@@ -792,4 +799,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: BOOST_ACCENT,
   },
-});
+}));

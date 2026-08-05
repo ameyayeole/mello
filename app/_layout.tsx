@@ -20,6 +20,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
 import InAppNotification from '@/components/InAppNotification';
 import { EventDealtCard } from '@/components/events/EventDealtCard';
+import { useThemeName, useThemeStore } from '@/stores/themeStore';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -174,16 +175,46 @@ export default function RootLayout() {
     BricolageGrotesque_800ExtraBold,
   });
 
+  // The saved theme, read before anything paints. Gated alongside the fonts and
+  // for the same reason: a first frame in the wrong palette is the same kind of
+  // flash as a first frame in the wrong typeface, and this app already holds the
+  // splash screen for one of those.
+  const themeLoaded = useThemeStore((s) => s.loaded);
   useEffect(() => {
-    if (fontsLoaded) {
+    useThemeStore.getState().load();
+  }, []);
+
+  // Subscribing here is what makes the rest of the app follow a theme change.
+  // Styles resolve through a proxy (see src/theme), so they are always current
+  // *when read* — but only a re-render reads them again, and re-rendering the
+  // root re-renders everything under it. Two more subscriptions sit lower down,
+  // in the tabs layout and in `Screen`, so a change reaches screens that are
+  // mounted but not currently the root's child.
+  const theme = useThemeName();
+
+  const ready = fontsLoaded && themeLoaded;
+  useEffect(() => {
+    if (ready) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [ready]);
 
-  if (!fontsLoaded) return null;
+  if (!ready) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    // Keyed on the theme, which remounts the tree when it changes.
+    //
+    // Not a shortcut — a re-render alone does not reach the screens. React
+    // Navigation wraps every screen in a `StaticContainer` that deliberately
+    // blocks re-renders coming from above it, so a root that re-renders leaves
+    // every mounted screen holding the styles it read under the old palette.
+    // Remounting is what gets past that.
+    //
+    // It should keep your place: the navigation state lives in the container
+    // above this layout, and a navigator that remounts rehydrates from it rather
+    // than resetting. "Should" is doing real work in that sentence — it is the
+    // first row of the test sheet.
+    <GestureHandlerRootView style={{ flex: 1 }} key={theme}>
       <QueryClientProvider client={queryClient}>
         <BottomSheetModalProvider>
           <RootLayoutInner />

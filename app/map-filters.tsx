@@ -28,6 +28,7 @@ import {
   MapFilters,
   TimeWindow,
 } from '@/utils/mapFilters';
+import { themedStyles } from '@/theme';
 
 const TIME_OPTIONS: { id: TimeWindow; label: string }[] = [
   { id: 'any', label: 'Any time' },
@@ -337,7 +338,7 @@ export default function MapFiltersScreen() {
   );
 }
 
-const plusStyles = StyleSheet.create({
+const plusStyles = themedStyles(() => ({
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -352,9 +353,9 @@ const plusStyles = StyleSheet.create({
     fontSize: TYPE_SIZE.nano,
     color: PREMIUM_GOLD,
   },
-});
+}));
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[4], paddingBottom: SPACING[6], gap: SPACING[1] },
   sectionLabel: { marginTop: SPACING[3.5], marginBottom: SPACING[2], marginLeft: SPACING[1] },
   sectionLabelRow: {
@@ -454,4 +455,4 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
-});
+}));

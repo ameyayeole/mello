@@ -1,11 +1,13 @@
 import { memo } from 'react';
-import { StyleSheet, Text, TextInput } from 'react-native';
+import { Text,
+  TextInput } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { DESCRIPTION_MAX, TITLE_MAX } from '@/utils/eventDraft';
 import { useCreateEventStore } from '@/stores/createEventStore';
 import { StepShell } from '../StepShell';
+import { themedStyles } from '@/theme';
 
 // Step 1 — name it.
 //
@@ -54,7 +56,7 @@ export const StepDetails = memo(function StepDetails() {
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   input: {
     height: 50,
     backgroundColor: 'transparent',
@@ -83,4 +85,4 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: SPACING[1.5],
   },
-});
+}));

@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   Modal,
@@ -15,9 +14,10 @@ import {
   fmtDayLong,
   fmtDayShort,
 } from '@/utils/time';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // ─── Pure-JS date/time span picker ──────────────────────────────────────────
 // No native datetime module (not in the build), so we render a custom calendar
@@ -294,7 +294,7 @@ export default function DateTimeField({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   chipScroll: { gap: SPACING[2], paddingVertical: SPACING[0.5] },
   timeGridScroll: { maxHeight: 320 },
   timeGrid: {
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,24,44,0.45)',
+    backgroundColor: inkAlpha(0.45),
     justifyContent: 'center',
     padding: SPACING[6],
   },
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryTint,
   },
   chipTextActive: { color: COLORS.primary },
-});
+}));
 
 // Re-exported so the many callers that reach for these through this component
 // keep working; the implementations live in utils/time now.

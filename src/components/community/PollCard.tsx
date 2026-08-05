@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useAnimatedStyle,
@@ -13,6 +14,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { usePoll, useCastVote } from '@/hooks/usePoll';
 import { PollOption } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 // Bars grow from 0 on the first render of the result state (spec §12).
 const BAR_MS = 520;
@@ -167,7 +169,7 @@ export function PollCard({
 
 const ROW_HEIGHT = 44;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: SPACING[2] },
   question: {
     fontFamily: FONTS.bold,
@@ -255,4 +257,4 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inkSubtle,
   },
   skelRowOnDark: { backgroundColor: COLORS.fillOnDark },
-});
+}));

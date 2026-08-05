@@ -1,9 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text,
+  View } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Dialog, PressableScale } from '@/components/ui';
 import { TAP_SCALE } from './motion';
+import { themedStyles } from '@/theme';
 
 // Leaving keeps the draft, so the question is no longer "lose this work?" but
 // "which did you mean?" — the destructive option has to be the explicit one.
@@ -51,7 +53,7 @@ export function DiscardDialog({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Same shape and tokens as the community delete confirm, so the two
   // destructive prompts in the app read identically.
   discardTitle: {
@@ -92,4 +94,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.white,
   },
-});
+}));

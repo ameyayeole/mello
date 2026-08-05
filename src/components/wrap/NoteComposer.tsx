@@ -3,13 +3,12 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Avatar,
@@ -24,6 +23,7 @@ import { uploadChatPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
 import { CoAttendee } from '@/types/models';
 import { errorMessage } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 // Private note composer: text + optional photo, delivered sealed to the
 // recipient's inbox. One note per person per event (DB unique).
@@ -108,7 +108,7 @@ export function NoteComposer({
     <TextInput
       style={styles.input}
       placeholder="Great meeting you! That story about…"
-      placeholderTextColor="rgba(15,24,44,0.40)"
+      placeholderTextColor={inkAlpha(0.40)}
       value={content}
       onChangeText={(t) => setContent(t.slice(0, 500))}
       multiline
@@ -144,7 +144,7 @@ export function NoteComposer({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { padding: SPACING[5], gap: SPACING[3.5] },
   header: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   title: {
@@ -203,4 +203,4 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.surface,
   },
-});
+}));

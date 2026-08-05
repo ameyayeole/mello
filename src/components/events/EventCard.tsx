@@ -23,6 +23,7 @@ import {
   PremiumBadge,
   VerifiedBadge,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 export interface EventCardProps {
   // `NearbyEvent` covers both the feed/RPC row shape and `EventDetail` (which
@@ -228,7 +229,7 @@ export function EventCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { flex: 1, borderRadius: RADIUS['2xl'], overflow: 'hidden', backgroundColor: COLORS.surface },
   // `absoluteFillObject` isn't in this RN version's type declarations (only
   // the plain-object `absoluteFill` is) — spreading that instead.
@@ -260,4 +261,4 @@ const styles = StyleSheet.create({
   // in typography.ts — rather than the sketch's nonexistent `TYPE_SIZE.xs`.
   meta: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.caption, color: COLORS.white, opacity: 0.85 },
   goingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING[2] },
-});
+}));

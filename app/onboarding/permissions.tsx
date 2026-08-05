@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocation } from '@/hooks/useLocation';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, IconName, Screen } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 type PermKey = 'location' | 'notifications' | 'camera';
 
+// The two colours on each row are getters: this list is built when the module
+// loads, which is before the theme is known, so reading the palette here
+// directly would freeze these rows in the light one. Same trap as the glass
+// tiers — see the note in components/ui/Glass.
 const PERMS: {
   key: PermKey;
   icon: IconName;
@@ -23,24 +30,24 @@ const PERMS: {
     icon: 'location',
     title: 'Location',
     desc: 'Find events near you',
-    accent: COLORS.primary,
-    tint: COLORS.primaryTint,
+    get accent() { return COLORS.primary; },
+    get tint() { return COLORS.primaryTint; },
   },
   {
     key: 'notifications',
     icon: 'bell',
     title: 'Notifications',
     desc: 'Chats, invites & reminders',
-    accent: COLORS.secondary,
-    tint: COLORS.secondaryTint,
+    get accent() { return COLORS.secondary; },
+    get tint() { return COLORS.secondaryTint; },
   },
   {
     key: 'camera',
     icon: 'camera',
     title: 'Camera',
     desc: 'Check in & share photos',
-    accent: COLORS.success,
-    tint: COLORS.successTint,
+    get accent() { return COLORS.success; },
+    get tint() { return COLORS.successTint; },
   },
 ];
 
@@ -117,7 +124,7 @@ export default function PermissionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: {
     flex: 1,
     paddingHorizontal: SPACING[6],
@@ -183,4 +190,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   actions: { paddingHorizontal: SPACING[6], paddingBottom: SPACING[7], paddingTop: SPACING[2] },
-});
+}));

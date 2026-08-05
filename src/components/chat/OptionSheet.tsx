@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName, PressableScale, Sheet } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // A bottom action sheet in the Mello style: dim backdrop, rounded card,
 // icon + label rows. Used for chat-row and message long-press menus.
@@ -70,7 +72,7 @@ export default function OptionSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { paddingHorizontal: SPACING[4], paddingTop: SPACING[3.5], gap: SPACING[0.5] },
   title: {
     fontFamily: FONTS.bold,
@@ -107,4 +109,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: SPACING[0.5],
   },
-});
+}));

@@ -2,6 +2,7 @@ import { StyleSheet, StyleProp, ViewStyle, View } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { Icon, IconName } from './Icon';
 import { PressableScale } from './PressableScale';
+import { themedStyles } from '@/theme';
 
 // 40×40 circular icon button for actions that live *on* a screen — share,
 // filter, rotate, overflow menus. 'plain' = grey fill, 'surface' = white +
@@ -70,7 +71,7 @@ export function IconButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: { alignItems: 'center', justifyContent: 'center' },
   plain: { backgroundColor: COLORS.background },
   surface: {
@@ -99,4 +100,4 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.surface,
   },
-});
+}));

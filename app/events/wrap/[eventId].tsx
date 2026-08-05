@@ -4,7 +4,6 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
@@ -31,6 +30,7 @@ import {
   ScreenHeader,
 } from '@/components/ui';
 import { ShareWrapSheet } from '@/components/community/ShareWrapSheet';
+import { themedStyles } from '@/theme';
 
 // The post-event hub: checklist, gallery preview, run-it-back, and the
 // locked/unlocked "night in numbers" recap.
@@ -256,7 +256,7 @@ export default function WrapHubScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: { alignItems: 'center', justifyContent: 'center', padding: SPACING[7] },
   guardTitle: {
     fontFamily: FONTS.bold,
@@ -385,4 +385,4 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     marginTop: SPACING[0.5],
   },
-});
+}));

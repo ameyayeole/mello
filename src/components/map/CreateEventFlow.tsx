@@ -40,6 +40,7 @@ import { CreateCard } from './create/CreateCard';
 import { DiscardDialog } from './create/DiscardDialog';
 import { LocationPill } from './create/LocationPill';
 import { useDraftPersistence } from './create/useDraftPersistence';
+import { themedStyles } from '@/theme';
 
 // ─── In-map event creation ───────────────────────────────────────────────────
 // The map itself is the canvas:
@@ -640,7 +641,7 @@ const CreateEventFlow = forwardRef<CreateEventFlowRef, Props>(
 // map.tsx holds it in a useCallback.
 export default memo(CreateEventFlow);
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   promptWrap: {
     position: 'absolute',
     top: 130,
@@ -748,4 +749,4 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
-});
+}));

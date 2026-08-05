@@ -3,7 +3,6 @@ import { SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   Alert,
   TouchableOpacity,
 } from 'react-native';
@@ -19,10 +18,11 @@ import {
   resendSignupEmail,
 } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, CoralGlow, Icon, MelloWordmark, Screen, TextField } from '@/components/ui';
 import { errorMessage } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 type Mode = 'signin' | 'signup';
 
@@ -263,7 +263,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   glow: {
     position: 'absolute',
     top: -80,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
     lineHeight: 16,
-    color: 'rgba(15,24,44,0.4)',
+    color: inkAlpha(0.4),
     marginTop: SPACING[2.5],
   },
-});
+}));

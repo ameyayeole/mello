@@ -1,8 +1,9 @@
-import { StyleSheet } from 'react-native';
+import {  } from 'react-native';
 import MentionText from '@/components/chat/MentionText';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // The caption/body of a text or photo post. Rendered through MentionText so
 // @handles present in `mentionables` (lowercase username → id) highlight and tap
@@ -26,7 +27,7 @@ export function TextPostBody({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   body: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.body,
@@ -35,4 +36,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[3],
   },
   bodyOnDark: { color: COLORS.white },
-});
+}));

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Text, StyleSheet, ScrollView } from 'react-native';
+import { Text,
+  ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { Sheet, Avatar, Button, PressableScale } from '@/components/ui';
@@ -12,6 +13,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
 import { openDmChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
 
 // The post share picker: send the post's deep link straight into a friend's DM
 // (a horizontal friend row), or hand off to the native sheet for external apps +
@@ -99,7 +101,7 @@ export function SharePostSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { padding: SPACING[5], gap: SPACING[4] },
   title: {
     fontFamily: FONTS.heavy,
@@ -118,4 +120,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textMuted,
   },
-});
+}));

@@ -16,6 +16,7 @@ import {
   Icon,
   PressableScale,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 /**
  * The one event you're hosting next, given the hero slot at the top of "Your
@@ -154,7 +155,7 @@ export default function FeaturedPlanCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     height: 330,
     borderRadius: RADIUS['3xl'],
@@ -246,4 +247,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

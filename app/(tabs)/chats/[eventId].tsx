@@ -12,7 +12,6 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -43,7 +42,7 @@ import {
 } from '@/services/chat.service';
 import { getChatPrefs, setChatMuted, chatKey } from '@/services/chatPrefs.service';
 import { hasWrapped } from '@/services/wrap.service';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Message, Profile, ReplyTarget } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
@@ -94,6 +93,8 @@ import {
   replyTargetOf,
 } from '@/utils/chatActions';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 // How much of a pull past the gutter actually moves the thread, and the spring
 // that returns it. Slightly overdamped: it should settle, not wobble — this is
@@ -635,7 +636,7 @@ function GroupChatScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
       <Glass
         tier="chrome"
         radius={0}
@@ -943,7 +944,7 @@ function GroupChatScreen() {
               ref={inputRef}
               style={styles.input}
               placeholder={announceMode ? 'Announcement…' : 'Message…'}
-              placeholderTextColor="rgba(15,24,44,0.40)"
+              placeholderTextColor={inkAlpha(0.40)}
               value={input}
               onChangeText={setInput}
               multiline
@@ -1030,7 +1031,7 @@ function GroupChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Transparent — the thread runs over the app's drifting background now, the
   // same as the Inbox it came from.
   container: { flex: 1 },
@@ -1063,8 +1064,8 @@ const styles = StyleSheet.create({
   systemText: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.4)',
-    backgroundColor: 'rgba(15,24,44,0.06)',
+    color: inkAlpha(0.4),
+    backgroundColor: inkAlpha(0.06),
     paddingHorizontal: SPACING[3],
     paddingVertical: SPACING[1],
     borderRadius: RADIUS.full,
@@ -1101,7 +1102,7 @@ const styles = StyleSheet.create({
   announceTime: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.35)',
+    color: inkAlpha(0.35),
   },
   announceModeBar: {
     flexDirection: 'row',
@@ -1128,7 +1129,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[4],
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(15,24,44,0.08)',
+    borderTopColor: inkAlpha(0.08),
   },
   wrapBanner: {
     flexDirection: 'row',
@@ -1206,4 +1207,4 @@ const styles = StyleSheet.create({
   },
   sendBtnAnnounce: { backgroundColor: '#E8940A' },
   sendBtnDisabled: { backgroundColor: COLORS.disabled },
-});
+}));

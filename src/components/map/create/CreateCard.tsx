@@ -26,6 +26,7 @@ import { StepDetails } from './steps/StepDetails';
 import { StepWhen } from './steps/StepWhen';
 import { StepPhoto } from './steps/StepPhoto';
 import { StepSafety } from './steps/StepSafety';
+import { themedStyles } from '@/theme';
 
 // Off the RADIUS scale, which stops at 24. The profile sheet — the app's only
 // other full-bleed pane rising from the bottom edge — is also 32, and matching
@@ -185,7 +186,7 @@ export const CreateCard = memo(function CreateCard({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   cardWrap: {
     position: 'absolute',
     left: 0,
@@ -248,4 +249,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.primary,
   },
-});
+}));

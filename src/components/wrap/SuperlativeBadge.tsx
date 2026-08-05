@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
@@ -6,6 +7,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, PressableScale } from '@/components/ui';
 import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { SuperlativeWinner } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 // A decided superlative: emoji + category + the winner (tap → profile).
 // Undecided categories (fewer than 3 votes) render a muted "still counting" row.
@@ -56,7 +58,7 @@ export default function SuperlativeBadge({ winner }: { winner: SuperlativeWinner
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -94,4 +96,4 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: COLORS.textMuted,
   },
-});
+}));

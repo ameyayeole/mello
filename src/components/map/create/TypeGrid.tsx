@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   Easing,
@@ -15,6 +16,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { ActivityId } from '@/types/models';
 import { GLIDE, SQUASH, TAP_SCALE } from './motion';
+import { themedStyles } from '@/theme';
 
 // Columns in the grid, and the emoji plate the indicator is sized to. Both have
 // to agree with the layout below.
@@ -144,7 +146,7 @@ export const TypeGrid = memo(function TypeGrid({
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -179,4 +181,4 @@ const styles = StyleSheet.create({
     color: COLORS.inkLabel,
   },
   typeLabelOn: { fontFamily: FONTS.bold, color: COLORS.textPrimary },
-});
+}));

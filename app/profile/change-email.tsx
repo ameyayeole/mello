@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View,
+  Text,
+  Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { changeEmail } from '@/services/auth.service';
@@ -9,6 +11,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, TextField } from '@/components/ui';
 import { SettingsPanel } from '@/components/profile/SettingsPanel';
+import { themedStyles } from '@/theme';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -102,7 +105,7 @@ export default function ChangeEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   form: { gap: SPACING[3], padding: SPACING[5], paddingTop: SPACING[2.5] },
   hint: {
     fontFamily: FONTS.medium,
@@ -111,4 +114,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: SPACING[1],
   },
-});
+}));

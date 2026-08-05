@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   useWindowDimensions,
   Alert,
@@ -33,6 +32,7 @@ import {
 import { useThreadMentionables } from '@/hooks/useMentions';
 import { CommentRow } from './CommentRow';
 import { CommentComposer } from './CommentComposer';
+import { themedStyles } from '@/theme';
 
 // The comment thread for one post: a capped, scrollable list of top-level
 // CommentRows (each with lazy replies) + a pinned composer. The post's author
@@ -256,7 +256,7 @@ export function CommentSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { padding: SPACING[5], gap: SPACING[4] },
   header: {
     flexDirection: 'row',
@@ -283,4 +283,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: SPACING[3],
   },
-});
+}));

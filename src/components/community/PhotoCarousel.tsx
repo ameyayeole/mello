@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { View, FlatList, StyleSheet, Text } from 'react-native';
+import { View,
+  FlatList,
+  Text } from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { Glass } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // A photo post's media, as a paged square carousel. Chrome (index counter, dots)
 // only appears for >1 photo and sits on the image via the `onPhoto` smoked-glass
@@ -70,7 +73,7 @@ export function PhotoCarousel({ media }: { media: string[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     borderRadius: RADIUS.xl,
     overflow: 'hidden',
@@ -106,4 +109,4 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.5)',
   },
   dotActive: { backgroundColor: COLORS.white, width: 7, height: 7, borderRadius: 3.5 },
-});
+}));

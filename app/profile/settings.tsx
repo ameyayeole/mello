@@ -40,6 +40,8 @@ import {
   CHIP_X,
 } from '@/components/profile/settingsChrome';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
+import { useThemeName, useThemeStore } from '@/stores/themeStore';
 
 // The chip flies at the size the profile screen drew it — it *is* that chip,
 // not a copy sized to this screen's taste. Profile's `topGlyph` is 46/23, the
@@ -137,6 +139,8 @@ function SettingsCard({ children }: { children: React.ReactNode }) {
 }
 
 export default function SettingsScreen() {
+  const theme = useThemeName();
+  const setTheme = useThemeStore((s) => s.setTheme);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
@@ -345,6 +349,37 @@ export default function SettingsScreen() {
 
             <View>
               <SectionLabel style={styles.sectionLabel}>
+                Appearance
+              </SectionLabel>
+              <SettingsCard>
+                {/* The whole app follows this — see src/constants/colors for
+                    the two palettes, and src/theme for how a switch reaches
+                    styles that were written before there was a theme.
+
+                    A toggle rather than a light/dark/system picker: system
+                    would be a third state to explain, and this app has exactly
+                    one preference to express here. Following the OS is the
+                    obvious next step, and the store takes a `ThemeName`, so it
+                    is a third case rather than a rewrite. */}
+                <SettingsRow
+                  icon="moon"
+                  iconColor={COLORS.secondary}
+                  title="Dark mode"
+                  subtitle="The app in ink, the way your profile already is"
+                  last
+                  trailing={
+                    <Toggle
+                      value={theme === 'dark'}
+                      onValueChange={(on) => setTheme(on ? 'dark' : 'light')}
+                      accessibilityLabel="Dark mode"
+                    />
+                  }
+                />
+              </SettingsCard>
+            </View>
+
+            <View>
+              <SectionLabel style={styles.sectionLabel}>
                 Privacy & safety
               </SectionLabel>
               <SettingsCard>
@@ -489,7 +524,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // The route is transparent; the backdrop above supplies the gradient. This is
   // the one place a second <AppBackground> is mounted, and it is safe precisely
   // because the profile tab's opaque floor means the shared one is never
@@ -551,4 +586,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paneFill: { width: CHIP, height: CHIP },
-});
+}));

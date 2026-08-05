@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName, PressableScale } from '@/components/ui';
 import { WrapStatus } from '@/types/models';
 import { wrapStepsDone, wrapStepTotal } from '@/hooks/useWrap';
+import { themedStyles } from '@/theme';
 
 export type WrapStep = 'rate' | 'photos' | 'superlatives' | 'feedback';
 
@@ -138,7 +140,7 @@ export function WrapChecklist({
                 <Icon
                   name="chevronRight"
                   size={18}
-                  color="rgba(15,24,44,0.35)"
+                  color={inkAlpha(0.35)}
                 />
               )}
             </PressableScale>
@@ -149,7 +151,7 @@ export function WrapChecklist({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS['2xl'],
@@ -232,4 +234,4 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: SPACING[0.5],
   },
-});
+}));

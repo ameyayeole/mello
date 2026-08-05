@@ -63,6 +63,7 @@ import { EventCardBack } from './EventCardBack';
 import { DeckActions, DeckHeader } from './DeckChrome';
 import { DeckEmptyCard, type DeckEmptyReason } from './DeckEmptyCard';
 import { MINI_W, FAN_W, deckVisible, expandedSlot, miniSlot } from './deckSlots';
+import { themedStyles } from '@/theme';
 
 /**
  * The event deck: the fan in the map's bottom-left corner AND the open swipe
@@ -1216,7 +1217,7 @@ function EmptyFace({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   dimWrap: { ...StyleSheet.absoluteFill, zIndex: 0 },
   dim: { backgroundColor: COLORS.ink },
   stage: {
@@ -1325,4 +1326,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.white,
   },
-});
+}));

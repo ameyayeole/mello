@@ -22,6 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/colors';
 import { OVERLAY_TRANSITION } from '@/constants/motion';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
+import { useThemeName } from '@/stores/themeStore';
 
 // The tab bar is a floating bar: it sits *over* the screen instead of below
 // it, so content passes under the frosted glass. Everything a screen needs in
@@ -411,11 +413,14 @@ export function TabBarBackground({
   pickedUp?: boolean;
 }) {
   const pathname = usePathname();
-  // The one screen dark enough to invert the bar: Profile paints its own photo
-  // full-bleed under a smoked `onPhoto` sheet, and the pale `chrome` bar reads
-  // as a mistake floating over it.
-  const isProfile = pathname === '/profile';
-  const tintProgress = useDarkTabBarProgress(isProfile);
+  // Profile paints its own photo full-bleed under a smoked `onPhoto` sheet, and
+  // the pale `chrome` bar reads as a mistake floating over it — so the bar
+  // inverts there. On the dark theme it inverts everywhere, for the same reason
+  // and against the same fill: `chrome` is a *pale* pane, and the whole app is
+  // now the surface Profile used to be on its own.
+  const dark = useThemeName() === 'dark';
+  const onDark = pathname === '/profile' || dark;
+  const tintProgress = useDarkTabBarProgress(onDark);
   const itemWidth = useTabBarItemWidth(routes.length);
 
   const chromeStyle = useAnimatedStyle(() => ({ opacity: 1 - tintProgress.value }));
@@ -444,7 +449,7 @@ export function TabBarBackground({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1 },
   layer: StyleSheet.absoluteFill,
   // Fill and border come from <Glass>; this is only the box.
@@ -458,4 +463,4 @@ const styles = StyleSheet.create({
     height: CHIP_HEIGHT,
     borderRadius: CHIP_RADIUS,
   },
-});
+}));

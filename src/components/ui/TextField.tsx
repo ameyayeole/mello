@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  StyleSheet,
   StyleProp,
   ViewStyle,
   type TextInputProps,
@@ -11,6 +10,7 @@ import {
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
+import { themedStyles } from '@/theme';
 
 // Labelled text input with the app's focus ring, error state, optional trailing
 // accessory and character counter. Replaces the
@@ -124,7 +124,7 @@ export type TextFieldProps = Omit<TextInputProps, 'editable'> & {
   containerStyle?: StyleProp<ViewStyle>;
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -187,4 +187,4 @@ const styles = StyleSheet.create({
   },
   errorText: { color: COLORS.error, fontFamily: FONTS.semibold },
   count: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.micro, color: COLORS.textMuted },
-});
+}));

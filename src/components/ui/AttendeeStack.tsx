@@ -1,9 +1,13 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
 import { Profile } from '@/types/models';
 import { Avatar } from './Avatar';
 import { OverflowCount } from './OverflowCount';
+import { themedStyles } from '@/theme';
 
 /** Just enough of a person to draw their bubble. */
 export type Attendee = Pick<Profile, 'id' | 'name' | 'photo_url'>;
@@ -76,7 +80,7 @@ export function AttendeeStack({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center' },
   // Each bubble tucks under the one before it. Not applied to the first.
   overlap: { marginLeft: -9 },
@@ -85,4 +89,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.micro,
     color: COLORS.textMuted,
   },
-});
+}));

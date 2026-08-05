@@ -1,9 +1,13 @@
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  Modal,
+  TouchableOpacity } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Safety popup #9 — full-screen confirm before creating a female-only event.
 // Purple treatment per the design gallery (matches the Music/lilac category
@@ -76,7 +80,7 @@ export default function FemaleOnlyConfirmModal({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: COLORS.surface },
   glow: { position: 'absolute', top: -70, alignSelf: 'center' },
   content: { flex: 1, paddingHorizontal: SPACING[6], paddingTop: 88 },
@@ -100,7 +104,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
-    color: 'rgba(15,24,44,0.6)',
+    color: inkAlpha(0.6),
     marginTop: SPACING[3],
   },
   noteCard: {
@@ -143,6 +147,6 @@ const styles = StyleSheet.create({
   backLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
   },
-});
+}));

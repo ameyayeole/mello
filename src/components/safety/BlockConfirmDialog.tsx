@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Dialog, Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Safety popup #13: block confirmation, per the design gallery — a centered
 // alert card with a red block glyph and Cancel / Block buttons. Every time.
@@ -53,7 +55,7 @@ export default function BlockConfirmDialog({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   dialog: {
     alignSelf: 'stretch',
     paddingTop: SPACING[5],
@@ -84,7 +86,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
-    color: 'rgba(15,24,44,0.6)',
+    color: inkAlpha(0.6),
     textAlign: 'center',
     marginTop: SPACING[2],
   },
@@ -109,4 +111,4 @@ const styles = StyleSheet.create({
   },
   blockBtn: { backgroundColor: COLORS.error },
   blockLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
-});
+}));

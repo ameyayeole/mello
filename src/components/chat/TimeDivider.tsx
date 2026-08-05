@@ -1,9 +1,10 @@
-import { Text, StyleSheet } from 'react-native';
+import { Text } from 'react-native';
 import { SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { chatDayLabel, formatChatTime } from '@/utils/time';
 import { isToday } from 'date-fns';
+import { themedStyles } from '@/theme';
 
 // The centred line above a burst of messages: "3:22 PM" today, "YESTERDAY
 // 3:22 PM" before that.
@@ -22,7 +23,7 @@ export default function TimeDivider({ date }: { date: string }) {
   return <Text style={styles.label}>{label.toUpperCase()}</Text>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   label: {
     alignSelf: 'center',
     fontFamily: FONTS.bold,
@@ -32,4 +33,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[4],
     marginBottom: SPACING[1.5],
   },
-});
+}));

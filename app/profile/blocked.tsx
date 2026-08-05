@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, StyleSheet, FlatList } from 'react-native';
+import { Text,
+  FlatList } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   DISCOVERY_FEED_KEYS,
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui';
 import { SettingsPanel } from '@/components/profile/SettingsPanel';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 export default function BlockedUsersScreen() {
   const me = useAuthStore((s) => s.user);
@@ -110,7 +112,7 @@ export default function BlockedUsersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   list: { padding: SPACING[4], gap: SPACING[2.5] },
   row: {
     flexDirection: 'row',
@@ -133,4 +135,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
-});
+}));

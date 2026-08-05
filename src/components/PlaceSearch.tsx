@@ -12,10 +12,11 @@ import {
   ViewStyle,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
 import { errorProp } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 export interface PlaceResult {
   lat: number;
@@ -183,7 +184,7 @@ export default function PlaceSearch({
   return (
     <View style={[styles.wrap, style]}>
       <View style={styles.bar}>
-        <Icon name="search" size={17} color="rgba(15,24,44,0.5)" />
+        <Icon name="search" size={17} color={inkAlpha(0.5)} />
         <TextInput
           style={styles.input}
           value={query}
@@ -219,7 +220,7 @@ export default function PlaceSearch({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { position: 'relative', zIndex: 30 },
   bar: {
     flexDirection: 'row',
@@ -272,4 +273,4 @@ const styles = StyleSheet.create({
   },
   itemIcon: { fontSize: TYPE_SIZE.bodyMd },
   itemText: { flex: 1, fontSize: TYPE_SIZE.bodyMd, color: COLORS.textPrimary },
-});
+}));

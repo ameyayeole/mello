@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, Easing } from 'react-native-reanimated';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Button, Dialog, Icon, PressableScale } from '@/components/ui';
 import { useFriends } from '@/hooks/useFriends';
 import { WrapNote } from '@/types/models';
 import { openDmChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
 
 function timeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -105,7 +107,7 @@ export function NoteRevealModal({
                 from {note.eventTitle ?? 'your event'}
               </Text>
             </View>
-            <Icon name="chevronRight" size={18} color="rgba(15,24,44,0.35)" />
+            <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
           </PressableScale>
 
           <Text style={styles.noteText}>{note.content}</Text>
@@ -148,7 +150,7 @@ export function NoteRevealModal({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -220,4 +222,4 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
   },
-});
+}));

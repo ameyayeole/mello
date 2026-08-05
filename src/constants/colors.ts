@@ -1,4 +1,22 @@
-export const COLORS = {
+// Two palettes, one shape, and a live view onto whichever is active.
+//
+// `COLORS` is a Proxy, not an object. Every `COLORS.x` in the app resolves
+// against `active` at the moment it is *read* rather than at import time, which
+// is what lets the theme change without touching 155 files: JSX props and
+// anything inside a function are read during render, so they follow the theme
+// on their own.
+//
+// The one thing that does not is a module-level `StyleSheet.create({…})` — its
+// values are read once, when the module first loads. Those are wrapped in
+// `themedStyles` (src/theme.ts), which defers the same object literal to first
+// access and re-runs it when the palette changes. That is the whole migration:
+// one call per file, no hooks, no props threaded anywhere.
+//
+// Adding a colour means adding it to BOTH palettes — `DARK` is typed as the
+// same shape as `LIGHT`, so leaving one out is a type error rather than a
+// screen that goes invisible in one theme.
+
+export const LIGHT = {
   // Brand
   primary: '#F95B5B',
   primaryLight: '#FF8E8B',
@@ -169,3 +187,216 @@ export const COLORS = {
   safetyParty: '#D6478E',
   safetyPartyTint: '#FBE7F1',
 } as const;
+
+export type Palette = { [K in keyof typeof LIGHT]: string };
+
+/**
+ * Dark, and specifically *this app's* dark: the profile screen, which has been
+ * a dark surface since long before there was a theme. Nothing here is invented.
+ *
+ *   background   `LIGHT.accent`, the app black — profile's own `container`
+ *   surfaces     the translucent white lifts profile already uses for the cards
+ *                inside its sheet (`fillOnDark`, `fillOnDarkStrong`)
+ *   text         white, then profile's two on-dark rungs at 72% and 56%
+ *   borders      profile's `borderOnDark`
+ *
+ * So the whole app is now the treatment that one screen was already carrying,
+ * which is what makes this a theme rather than a second design.
+ *
+ * The brand ramp does not invert. Coral on near-black is the same coral, and a
+ * "dark mode primary" would make the one colour that means *decide* stop
+ * meaning it. Only its tint moves — a pale wash is invisible on black, so the
+ * tints become dim washes of the same hue.
+ */
+export const DARK: Palette = {
+  // ── Brand ────────────────────────────────────────────────────────────────
+  primary: '#FF6B6B', // a touch lighter: #F95B5B on near-black loses its bite
+  primaryLight: '#FF8E8B',
+  primaryTint: 'rgba(255, 107, 107, 0.16)',
+  primaryDark: '#C24A4A',
+  primaryTrack: 'rgba(255, 107, 107, 0.20)',
+  secondary: '#9B7DF0',
+  secondaryTint: 'rgba(155, 125, 240, 0.18)',
+  // A raised charcoal, NOT an inverted near-white.
+  //
+  // `accent` is the app black, and it is a *surface* in 33 places — the
+  // secondary button, your own chat bubbles, the compose bar — each of them with
+  // white content on top. Inverting it to near-white (the first thing I tried)
+  // makes every one of those white-on-white. Lifting it instead keeps every
+  // existing pairing correct and still reads as the most solid thing on the
+  // screen, which is what the token means. It is also how a dark-mode secondary
+  // button looks anywhere else.
+  //
+  // The two places it is used as *ink* (community's tab label, the wordmark)
+  // are the ones this costs: charcoal text on near-black. Both are one-liners
+  // that should be `textPrimary`, and both are in section D of the test sheet.
+  accent: '#2A2F3A',
+  accentMid: '#39404E',
+
+  // ── Surfaces ─────────────────────────────────────────────────────────────
+  // Profile's `container`. Everything else is a lift off this.
+  background: '#12151B',
+  surface: '#1C2029',
+  // Still literal white — the token means the colour, not "the foreground".
+  white: '#FFFFFF',
+
+  border: 'rgba(255, 255, 255, 0.12)',
+  borderSoft: 'rgba(255, 255, 255, 0.07)',
+
+  // Glass, inverted. Smoked rather than frosted: a translucent *white* pane on a
+  // dark backdrop is a grey smear, where a translucent dark one over a lighter
+  // blob still reads as a pane with something behind it.
+  glassChrome: 'rgba(24, 28, 36, 0.76)',
+  glassPanel: 'rgba(30, 35, 44, 0.72)',
+  glassBorder: 'rgba(255, 255, 255, 0.10)',
+
+  // On-photo glass was already dark in the light theme, and a photo is a photo
+  // in either — so these barely move.
+  glassOnPhoto: 'rgba(9, 12, 20, 0.52)',
+  glassBorderOnPhoto: 'rgba(255, 255, 255, 0.18)',
+
+  glassPanelSolid: 'rgba(30, 35, 44, 0.92)',
+  glassChromeSolid: 'rgba(24, 28, 36, 0.94)',
+  glassOnPhotoSolid: 'rgba(9, 12, 20, 0.66)',
+
+  // Shadows do almost nothing on a dark surface — a black shadow on near-black
+  // is invisible. Kept black rather than faked with a glow: the elevation on
+  // this theme is carried by the surface lifts above, which is how the profile
+  // sheet has always done it.
+  shadowWarm: '#000000',
+
+  bgGradientTop: '#151922',
+  bgGradientMid: '#12151B',
+  bgGradientBottom: '#0E1116',
+  bgBlobCool: '#3C4A8C', // the same periwinkle, dimmed to sit under content
+
+  // ── Ink ──────────────────────────────────────────────────────────────────
+  // The ramp inverts: on dark, the "ink" you dim and lift with is white.
+  ink: '#000000', // shadows only — see shadowWarm
+  inkFaint: 'rgba(255, 255, 255, 0.05)',
+  inkSubtle: 'rgba(255, 255, 255, 0.09)',
+  chipGrab: 'rgba(255, 255, 255, 0.22)',
+  chipGrabOnDark: 'rgba(255, 255, 255, 0.30)',
+  placeholder: 'rgba(255, 255, 255, 0.38)',
+  inkLabel: 'rgba(255, 255, 255, 0.52)',
+  // Heavier than the light theme's 45%: a dim over an already-dark screen has
+  // to work harder to say "the thing behind this is not the thing to look at".
+  scrim: 'rgba(0, 0, 0, 0.62)',
+  scrimOnPhoto: 'rgba(9, 12, 20, 0.68)',
+  lightbox: 'rgba(0, 0, 0, 0.96)',
+  inkVeil: 'rgba(9, 12, 20, 0.32)',
+
+  // ── Text ─────────────────────────────────────────────────────────────────
+  // Profile's on-dark ramp, promoted to the whole app.
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255, 255, 255, 0.72)',
+  textMuted: 'rgba(255, 255, 255, 0.56)',
+  textEyebrow: 'rgba(255, 255, 255, 0.48)',
+
+  // Already on-dark tokens: unchanged, because they were built for exactly this
+  // surface. Anything using them was dark-mode-correct before there was one.
+  textOnDark: 'rgba(255, 255, 255, 0.72)',
+  textOnDarkMuted: 'rgba(255, 255, 255, 0.56)',
+  fillOnDark: 'rgba(255, 255, 255, 0.08)',
+  fillOnDarkStrong: 'rgba(255, 255, 255, 0.16)',
+  borderOnDark: 'rgba(255, 255, 255, 0.14)',
+
+  // ── Status ───────────────────────────────────────────────────────────────
+  // Lifted for contrast against near-black; the tints become washes.
+  success: '#34C77B',
+  successTint: 'rgba(52, 199, 123, 0.16)',
+  attending: '#6BA5FF',
+  attendingTint: 'rgba(107, 165, 255, 0.16)',
+  verified: '#6B9BFF',
+  error: '#FF6B6B',
+  errorTint: 'rgba(255, 107, 107, 0.16)',
+  warning: '#E2A24C',
+  online: '#3ADB7C',
+  disabled: 'rgba(255, 255, 255, 0.16)',
+
+  // ── Category accents ─────────────────────────────────────────────────────
+  catCoffee: '#E2A24C',
+  catDrinks: '#FF6B6B',
+  catMusic: '#9B7DF0',
+  catTrekking: '#34C77B',
+  catGym: '#5B95E8',
+
+  // ── Safety popups ────────────────────────────────────────────────────────
+  safetyWomen: '#A98BF5',
+  safetyWomenTint: 'rgba(169, 139, 245, 0.18)',
+  safetyCaution: '#E2A24C',
+  safetyCautionTint: 'rgba(226, 162, 76, 0.18)',
+  safetyParty: '#F06BAA',
+  safetyPartyTint: 'rgba(240, 107, 170, 0.18)',
+};
+
+export type ThemeName = 'light' | 'dark';
+
+export const PALETTES: Record<ThemeName, Palette> = { light: LIGHT, dark: DARK };
+
+// The one piece of mutable state in this file, and the reason `COLORS` can be a
+// constant everything imports. `themeStore` owns *when* this changes; nothing
+// else should call it.
+let active: Palette = LIGHT;
+let activeName: ThemeName = 'light';
+
+// Bumped on every change. `themedStyles` compares against it to know whether the
+// sheet it cached is still the current one — cheaper than comparing palettes,
+// and correct even if a palette object were ever mutated in place.
+let generation = 0;
+
+export function applyPalette(name: ThemeName): void {
+  if (name === activeName) return;
+  activeName = name;
+  active = PALETTES[name];
+  generation += 1;
+}
+
+export function paletteGeneration(): number {
+  return generation;
+}
+
+export function activePaletteName(): ThemeName {
+  return activeName;
+}
+
+/**
+ * The palette, read live.
+ *
+ * A Proxy so that the ~1,300 existing `COLORS.x` sites keep working untouched:
+ * each one is a property read, and a property read happens when the code runs,
+ * not when it was written. Inside a component, a callback or a `themedStyles`
+ * factory, "when it runs" is after the theme is known.
+ */
+export const COLORS: Palette = new Proxy({} as Palette, {
+  get: (_target, key: string) => active[key as keyof Palette],
+  // Object.keys(COLORS) / spreading has to keep working — `{...COLORS}` snapshots
+  // the *current* palette, which is what a caller spreading it wants.
+  ownKeys: () => Reflect.ownKeys(active),
+  getOwnPropertyDescriptor: (_target, key) =>
+    Object.getOwnPropertyDescriptor(active, key),
+  has: (_target, key) => key in active,
+});
+
+/**
+ * A wash of the theme's foreground over its surface.
+ *
+ * The app writes this by hand ~100 times as `rgba(15, 24, 44, α)` — the ink
+ * ramp, at whatever alpha a particular divider or caption wanted. Every one of
+ * those is dark-on-light by construction, which on the dark theme is a dark wash
+ * over a dark surface: a divider that vanishes, a caption that cannot be read.
+ *
+ * The named rungs above (`inkFaint`, `inkSubtle`, `placeholder`, `inkLabel`)
+ * cover the alphas that were used often enough to name. This covers the rest
+ * without inventing a token per alpha: same intent, resolved per theme.
+ *
+ *   backgroundColor: inkAlpha(0.06)   // was 'rgba(15, 24, 44, 0.06)'
+ *
+ * Called at render, like everything else that reads the palette, so it follows
+ * a theme change on its own.
+ */
+export function inkAlpha(alpha: number): string {
+  return activeName === 'dark'
+    ? `rgba(255, 255, 255, ${alpha})`
+    : `rgba(15, 24, 44, ${alpha})`;
+}

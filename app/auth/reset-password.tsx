@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   Alert,
   TouchableOpacity,
 } from 'react-native';
@@ -22,6 +21,7 @@ import {
   Screen,
   TextField,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -173,7 +173,7 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   glow: {
     position: 'absolute',
     top: -80,
@@ -235,4 +235,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
-});
+}));

@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, IconName, Screen } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
+// The two colours on each row are getters: this list is built when the module
+// loads, which is before the theme is known, so reading the palette here
+// directly would freeze these rows in the light one. Same trap as the glass
+// tiers — see the note in components/ui/Glass.
 const RULES: {
   icon: IconName;
   title: string;
@@ -18,28 +25,28 @@ const RULES: {
     icon: 'user',
     title: 'Be real & respectful',
     desc: 'Real name, real photos. Treat everyone kindly.',
-    accent: COLORS.primary,
-    tint: COLORS.primaryTint,
+    get accent() { return COLORS.primary; },
+    get tint() { return COLORS.primaryTint; },
   },
   {
     icon: 'shield',
     title: 'Keep it safe',
     desc: 'Meet in public. No harassment, ever.',
-    accent: COLORS.success,
-    tint: COLORS.successTint,
+    get accent() { return COLORS.success; },
+    get tint() { return COLORS.successTint; },
   },
   {
     icon: 'calendar',
     title: 'Show up',
     desc: "RSVP means you're coming. Flaking hurts hosts.",
-    accent: COLORS.secondary,
-    tint: COLORS.secondaryTint,
+    get accent() { return COLORS.secondary; },
+    get tint() { return COLORS.secondaryTint; },
   },
   {
     icon: 'flag',
     title: 'Speak up',
     desc: 'Report anything that feels off. We act fast.',
-    accent: COLORS.catCoffee,
+    get accent() { return COLORS.catCoffee; },
     tint: '#FEEEDD',
   },
 ];
@@ -105,7 +112,7 @@ export default function GuidelinesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: { flex: 1, paddingHorizontal: SPACING[6], paddingTop: SPACING[6] },
   badge: {
     width: 56,
@@ -178,4 +185,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: '#5C5860',
   },
-});
+}));

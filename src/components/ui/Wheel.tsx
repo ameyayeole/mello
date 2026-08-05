@@ -2,7 +2,6 @@ import { memo, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   StyleProp,
   ViewStyle,
 } from 'react-native';
@@ -19,6 +18,7 @@ import type { SharedValue } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // A picker wheel, in the shape of the system timer: a column of options
 // scrolling under a fixed selection band. Duration, date and time are the same
@@ -173,7 +173,7 @@ function WheelInner<T extends string | number>({
 // Callers must pass a stable `options` array and `onChange` for this to bite.
 export const Wheel = memo(WheelInner) as typeof WheelInner;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { height: WHEEL_H, marginVertical: SPACING[3] },
   // Explicit height. Without it the ScrollView sizes to its content, lays every
   // row out and has nothing left to scroll — which is exactly how it shipped.
@@ -203,4 +203,4 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
-});
+}));

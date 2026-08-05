@@ -27,6 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // The app's two overlay shapes, over one `Modal`:
 //
@@ -323,7 +324,7 @@ const EXIT_TIMING = { duration: 260, easing: Easing.in(Easing.cubic) } as const;
 const DISMISS_PX = 90;
 const DISMISS_VELOCITY = 900;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Root holds the layout; the scrim is a layer inside it, so the dim can fade
   // on its own while the card slides.
   backdropRoot: { flex: 1 },
@@ -361,4 +362,4 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.chipGrab,
   },
-});
+}));

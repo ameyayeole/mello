@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { COLORS } from '@/constants/colors';
+import { useThemeName } from '@/stores/themeStore';
 import { SHADOWS } from '@/constants/spacing';
 
 // A frosted surface. The single most repeated thing in the design — search
@@ -58,33 +59,44 @@ const BLUR_INTENSITY: Record<GlassTier, number> = {
   onPhoto: 22,
 };
 
-// Which way the native blur leans. `onPhoto` is the dark one — see the tier
-// note above.
-const TINT: Record<GlassTier, 'light' | 'dark'> = {
-  chrome: 'light',
-  panel: 'light',
-  onPhoto: 'dark',
-};
+// Which way the *native* blur leans, which is a separate decision from the fill
+// on top of it — and the one that made every glass surface in the app read as a
+// pale card on the dark theme even after the fills were inverted. `expo-blur`
+// samples what is behind the pane and lightens or darkens it; a `light` tint over
+// a dark app is a bright frosted sheet no fill can rescue.
+//
+// `onPhoto` was always dark, on either theme, because a photo is a photo.
+function tintFor(tier: GlassTier, dark: boolean): 'light' | 'dark' {
+  if (tier === 'onPhoto') return 'dark';
+  return dark ? 'dark' : 'light';
+}
 
-const FILL: Record<GlassTier, string> = {
-  chrome: COLORS.glassChrome,
-  panel: COLORS.glassPanel,
-  onPhoto: COLORS.glassOnPhoto,
-};
+// Functions, not objects. A `Record` built at module level reads the palette
+// once — at import, before the theme is known — which is exactly the trap
+// `themedStyles` exists for; these three sat outside it because they are not
+// stylesheets. Called per render, they follow the theme like everything else.
+const fillFor = (tier: GlassTier): string =>
+  ({
+    chrome: COLORS.glassChrome,
+    panel: COLORS.glassPanel,
+    onPhoto: COLORS.glassOnPhoto,
+  })[tier];
 
 // Android's no-blur fallback: further from transparent, since there is no blur
 // doing half the work.
-const SOLID_FILL: Record<GlassTier, string> = {
-  chrome: COLORS.glassChromeSolid,
-  panel: COLORS.glassPanelSolid,
-  onPhoto: COLORS.glassOnPhotoSolid,
-};
+const solidFillFor = (tier: GlassTier): string =>
+  ({
+    chrome: COLORS.glassChromeSolid,
+    panel: COLORS.glassPanelSolid,
+    onPhoto: COLORS.glassOnPhotoSolid,
+  })[tier];
 
-const BORDER: Record<GlassTier, string> = {
-  chrome: COLORS.glassBorder,
-  panel: COLORS.glassBorder,
-  onPhoto: COLORS.glassBorderOnPhoto,
-};
+const borderFor = (tier: GlassTier): string =>
+  ({
+    chrome: COLORS.glassBorder,
+    panel: COLORS.glassBorder,
+    onPhoto: COLORS.glassBorderOnPhoto,
+  })[tier];
 
 export function Glass({
   children,
@@ -125,6 +137,10 @@ export function Glass({
   flat?: boolean;
 }) {
   const supportsBlur = Platform.OS === 'ios' && !flat;
+  // Subscribed, not read: `Glass` is under every surface in the app, and this is
+  // the cheapest place to guarantee they all re-tint together on a theme change
+  // even if the root's remount is ever taken out.
+  const dark = useThemeName() === 'dark';
   // The pane is a clipped layer *behind* the children rather than their parent.
   //
   // Two reasons, both of which bit an earlier version. The pane needs
@@ -145,7 +161,7 @@ export function Glass({
     bottom: 0,
     borderRadius: radius,
     borderWidth: hairline,
-    borderColor: BORDER[tier],
+    borderColor: borderFor(tier),
     overflow: 'hidden',
     ...(edge === 'top' && {
       borderBottomLeftRadius: 0,
@@ -172,7 +188,7 @@ export function Glass({
         <View style={pane}>
           {backdrop}
           <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: FILL[tier] }]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: fillFor(tier) }]}
           />
         </View>
       ) : supportsBlur ? (
@@ -189,18 +205,18 @@ export function Glass({
         <View style={pane}>
           <BlurView
             intensity={BLUR_INTENSITY[tier]}
-            tint={TINT[tier]}
+            tint={tintFor(tier, dark)}
             style={StyleSheet.absoluteFill}
           />
           {/* The blur alone is grey and lifeless. The wash over it is what
               turns "the background, out of focus" into "a pane of glass" —
               white for the light tiers, smoked ink for `onPhoto`. */}
           <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: FILL[tier] }]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: fillFor(tier) }]}
           />
         </View>
       ) : (
-        <View style={[pane, { backgroundColor: SOLID_FILL[tier] }]} />
+        <View style={[pane, { backgroundColor: solidFillFor(tier) }]} />
       )}
       {children}
     </View>

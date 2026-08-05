@@ -20,6 +20,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Loader, NavButton, PressableScale } from '@/components/ui';
 import { SuperlativeWinner } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 function StatCard({
   value,
@@ -200,7 +201,7 @@ export default function WrapRecapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: '#141018' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   confetti: {
@@ -303,4 +304,4 @@ const styles = StyleSheet.create({
   footerBtnGhost: { backgroundColor: 'rgba(255,255,255,0.12)' },
   footerBtnPrimary: { backgroundColor: COLORS.primary },
   footerBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
-});
+}));

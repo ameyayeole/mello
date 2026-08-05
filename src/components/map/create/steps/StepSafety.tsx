@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text,
+  View } from 'react-native';
 import { SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -8,6 +9,7 @@ import { FemaleOnlyConfirmModal } from '@/components/safety';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreateEventStore } from '@/stores/createEventStore';
 import { StepShell } from '../StepShell';
+import { themedStyles } from '@/theme';
 
 // Step 4 — who can see it and who can join.
 export const StepSafety = memo(function StepSafety() {
@@ -89,7 +91,7 @@ export const StepSafety = memo(function StepSafety() {
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   safetyRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -109,4 +111,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: SPACING[0.5],
   },
-});
+}));

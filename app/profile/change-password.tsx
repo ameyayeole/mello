@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View,
+  Text,
+  Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { verifyCurrentPassword, updatePassword } from '@/services/auth.service';
 import { friendlyAuthError } from '@/utils/authErrors';
@@ -8,6 +10,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, PressableScale, TextField } from '@/components/ui';
 import { SettingsPanel } from '@/components/profile/SettingsPanel';
+import { themedStyles } from '@/theme';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -148,7 +151,7 @@ export default function ChangePasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   form: { gap: SPACING[3], padding: SPACING[5], paddingTop: SPACING[2.5] },
   hint: {
     fontFamily: FONTS.medium,
@@ -157,4 +160,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: SPACING[1],
   },
-});
+}));

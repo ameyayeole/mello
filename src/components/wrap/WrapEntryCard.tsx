@@ -1,11 +1,13 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import { useWrap, useWrapEntry, wrapStepsDone, wrapStepTotal } from '@/hooks/useWrap';
+import { themedStyles } from '@/theme';
 
 // "Wrap up last night" banner for Home and Explore. Shows the most recently
 // ended attended event still inside its wrap window; hides itself when the
@@ -46,13 +48,13 @@ export default function WrapEntryCard({ style }: { style?: object }) {
             {done}/{total}
           </Text>
         </View>
-        <Icon name="chevronRight" size={18} color="rgba(15,24,44,0.35)" />
+        <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
       </PressableScale>
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -92,4 +94,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   progressText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.micro, color: '#fff' },
-});
+}));

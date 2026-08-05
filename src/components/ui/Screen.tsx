@@ -1,5 +1,4 @@
 import {
-  StyleSheet,
   StyleProp,
   ViewStyle,
   Platform,
@@ -8,6 +7,8 @@ import {
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { COLORS } from '@/constants/colors';
+import { useBarStyle } from '@/stores/themeStore';
+import { themedStyles } from '@/theme';
 
 // Standard screen shell: safe area + status bar style + optional keyboard
 // avoidance, so screens stop each re-deriving all three.
@@ -24,7 +25,7 @@ export function Screen({
   children,
   edges = ['top'],
   modal = false,
-  statusBar = 'dark',
+  statusBar,
   keyboardAvoiding = false,
   background = COLORS.background,
   style,
@@ -48,6 +49,11 @@ export function Screen({
   const resolvedEdges =
     modal && Platform.OS === 'ios' ? edges.filter((e) => e !== 'top') : edges;
 
+  // Defaulted from the theme rather than to 'dark'. This also subscribes every
+  // screen built on this shell to theme changes — see the note on `useBarStyle`.
+  const themeBar = useBarStyle();
+  const resolvedStatusBar = statusBar ?? themeBar;
+
   const body = keyboardAvoiding ? (
     <KeyboardAvoidingView
       style={styles.fill}
@@ -64,12 +70,12 @@ export function Screen({
       edges={resolvedEdges}
       style={[styles.fill, { backgroundColor: background }, style]}
     >
-      <StatusBar style={statusBar} />
+      <StatusBar style={resolvedStatusBar} />
       {body}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   fill: { flex: 1 },
-});
+}));

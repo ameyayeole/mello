@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View,
+  Text,
+  ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   FadeIn,
@@ -31,6 +33,7 @@ import { pinOwnPosts } from '@/hooks/useCommunityFeed';
 import { NearbyEvent, PostVisibility } from '@/types/models';
 import EventRow from '@/components/events/EventRow';
 import { LinkEventSheet } from '@/components/community/LinkEventSheet';
+import { themedStyles } from '@/theme';
 
 const MAX = 280;
 const OPTION_MAX = 80;
@@ -441,7 +444,7 @@ export default function ComposePostScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: {
     padding: SPACING[5],
     paddingTop: SPACING[3],
@@ -529,4 +532,4 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   countMax: { color: COLORS.error },
-});
+}));

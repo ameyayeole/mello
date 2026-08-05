@@ -1,10 +1,14 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { useSavedEventIds } from '@/hooks/useSwipeDeck';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Circular "open the wishlist" button. The bookmark fills in and a count badge
 // appears as soon as anything is saved. `raised` matches the floating action
@@ -66,7 +70,7 @@ export default function WishlistButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: { alignItems: 'center', justifyContent: 'center' },
   plain: { backgroundColor: COLORS.background },
   raised: {
@@ -92,4 +96,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: { fontFamily: FONTS.heavy, fontSize: TYPE_SIZE.nano, color: '#fff' },
-});
+}));

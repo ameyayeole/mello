@@ -3,6 +3,7 @@ import { RADIUS } from '@/constants/spacing';
 import { View, StyleSheet, Modal, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Icon, PressableScale } from '@/components/ui';
+import { inkAlpha } from '@/constants/colors';
 
 // An image message: rounded thumbnail sized for the bubble column, tap for a
 // full-screen viewer. `uri` may be a local file (optimistic) or a public URL.
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
     width: 210,
     height: 210,
     borderRadius: RADIUS.lg,
-    backgroundColor: 'rgba(15,24,44,0.08)',
+    backgroundColor: inkAlpha(0.08),
   },
   viewer: { flex: 1, backgroundColor: '#000' },
   closeBtn: {

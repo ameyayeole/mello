@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Sheet, Button, TextField, PressableScale, NavButton } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
@@ -7,6 +8,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { useCreateSharedWrap } from '@/hooks/usePostMutations';
 import { PostVisibility } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 const MAX = 280;
 
@@ -104,7 +106,7 @@ export function ShareWrapSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { padding: SPACING[5], gap: SPACING[4] },
   header: {
     flexDirection: 'row',
@@ -130,4 +132,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   chipTextActive: { color: COLORS.white },
-});
+}));

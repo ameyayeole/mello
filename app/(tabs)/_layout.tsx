@@ -36,6 +36,8 @@ import { useUnreadDms } from '@/hooks/useUnreadDms';
 import { SafetyPopup, SosModal, WelcomeSafetyModal } from '@/components/safety';
 import { hasSeenSafetyFlag, markSafetyFlagSeen } from '@/services/safety';
 import { sharePlan } from '@/utils/sharePlan';
+import { themedStyles } from '@/theme';
+import { useThemeName } from '@/stores/themeStore';
 
 // Safety popup #1: full-screen welcome shown once ever, the first time a
 // signed-in user lands in the app after onboarding. "Read the Safety Centre"
@@ -457,11 +459,17 @@ export default function TabLayout() {
   // strips the `(tabs)` group, so these are `/chats/<eventId>` and
   // `/chats/dm/<friendId>`.
   const pathname = usePathname();
+  // Subscribing here re-renders the tab bar and its icons on a theme change.
+  const theme = useThemeName();
   const inConversation = pathname.startsWith('/chats/');
   // Read once here rather than in each tab icon, so every icon (and the ring,
   // and the bar itself in TabBarBackground) cross-fades on the same trigger
   // instead of five components independently watching the route.
-  const isProfileScreen = pathname === '/profile';
+  // Profile, or the whole app on the dark theme — see TabBarBackground for why
+  // these are the same condition as far as the bar's tint is concerned. The name
+  // stays `isProfileScreen` at the icon props below because that is still what
+  // it means to them: "you are sitting on the dark version of the bar".
+  const isProfileScreen = pathname === '/profile' || theme === 'dark';
 
   // The full-screen overlays — notifications, search — are *transparent*
   // routes, so unlike every other push the bar would otherwise still be sitting
@@ -674,7 +682,7 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // GestureDetector attaches to a real view, so the navigator gets a host to
   // fill. The tab bar is absolute *within* the navigator, so this doesn't move.
   tabsHost: { flex: 1 },
@@ -744,4 +752,4 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: TAB_BAR_RADIUS,
   },
-});
+}));

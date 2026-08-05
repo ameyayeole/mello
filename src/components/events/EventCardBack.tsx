@@ -1,5 +1,7 @@
 import { type ReactNode } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View,
+  Text,
+  ScrollView } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
@@ -15,6 +17,7 @@ import {
   SectionLabel,
   Tag,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 export interface EventCardBackProps {
   event: EventDetail;
@@ -183,7 +186,7 @@ export function EventCardBack({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   face: { flex: 1, backgroundColor: COLORS.white },
   content: { padding: SPACING[5], paddingBottom: SPACING[8], gap: SPACING[5] },
   section: { gap: SPACING[2.5] },
@@ -268,4 +271,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   actions: { gap: SPACING[2.5] },
-});
+}));

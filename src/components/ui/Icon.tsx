@@ -68,6 +68,7 @@ const SOLAR = {
   lock: 'LockPassword',
   logout: 'Logout2',
   mic: 'Microphone',
+  moon: 'Moon',
   phone: 'Phone',
   pin: 'MapPoint',
   qr: 'QrCode',

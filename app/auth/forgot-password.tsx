@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  Alert,
+  TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { sendPasswordReset } from '@/services/auth.service';
@@ -8,6 +11,7 @@ import { friendlyAuthError } from '@/utils/authErrors';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, CoralGlow, Screen, TextField } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -100,7 +104,7 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   glow: {
     position: 'absolute',
     top: -80,
@@ -134,4 +138,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[1.5],
   },
   resendLink: { color: COLORS.primary, fontFamily: FONTS.bold },
-});
+}));

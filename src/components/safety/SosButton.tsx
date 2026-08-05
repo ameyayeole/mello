@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { StyleSheet, Text, StyleProp, ViewStyle } from 'react-native';
+import { Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import SosModal from './SosModal';
+import { themedStyles } from '@/theme';
 
 // The persistent safety entry point (spec #14): a small shield pill that opens
 // the SOS screen. Drop it on event screens and chat headers.
@@ -47,7 +50,7 @@ export default function SosButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   iconBtn: {
     width: 36,
     height: 36,
@@ -70,4 +73,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.error,
   },
-});
+}));

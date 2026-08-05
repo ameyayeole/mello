@@ -1,9 +1,10 @@
-import { StyleSheet } from 'react-native';
+import {  } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { useUIStore } from '@/stores/uiStore';
 import { Icon, PressableScale, useTabBarInset } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Starts the in-map creation flow (no standalone create screen anymore — the
 // map itself is the form). Screens other than the map hop to the map tab with
@@ -33,7 +34,7 @@ export default function CreateEventFab({ onPress }: { onPress?: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   fab: {
     position: 'absolute',
     right: 18,
@@ -49,4 +50,4 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
-});
+}));

@@ -1,6 +1,9 @@
-import { Text, StyleSheet, StyleProp, TextStyle } from 'react-native';
+import { Text,
+  StyleProp,
+  TextStyle } from 'react-native';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
+import { themedStyles } from '@/theme';
 
 // Uppercase overline section label.
 export function SectionLabel({
@@ -13,7 +16,7 @@ export function SectionLabel({
   return <Text style={[styles.label, style]}>{children}</Text>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   label: {
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.micro,
@@ -21,4 +24,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: COLORS.textMuted,
   },
-});
+}));

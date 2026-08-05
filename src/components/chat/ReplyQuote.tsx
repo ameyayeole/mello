@@ -1,7 +1,10 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View,
+  Text,
+  Pressable } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
+import { themedStyles } from '@/theme';
 
 // The quoted message, above the text of the reply that quotes it.
 //
@@ -68,14 +71,14 @@ export default function ReplyQuote({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   quote: {
     flexDirection: 'row',
     gap: SPACING[2],
     borderRadius: RADIUS.md,
     // Tucked inside the bubble's own padding rather than inset from it: a quote
     // that floats in the middle of the bubble reads as a second bubble.
-    backgroundColor: 'rgba(15,24,44,0.05)',
+    backgroundColor: inkAlpha(0.05),
     paddingRight: SPACING[2.5],
     paddingVertical: SPACING[2],
     marginBottom: SPACING[1.5],
@@ -125,4 +128,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   previewMine: { color: 'rgba(255,255,255,0.78)' },
-});
+}));

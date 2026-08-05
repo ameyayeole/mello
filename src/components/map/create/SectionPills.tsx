@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Text, StyleSheet, ScrollView } from 'react-native';
+import { Text,
+  ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useAnimatedStyle,
@@ -12,6 +13,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { SectionId } from '@/constants/activities';
 import { GLIDE, TAP_SCALE } from './motion';
+import { themedStyles } from '@/theme';
 
 // Memoised for the same reason as TypeGrid — it sits in the same step and rode
 // along on every unrelated re-render of the flow. Its `sections` prop has to be
@@ -105,7 +107,7 @@ export const SectionPills = memo(function SectionPills({
 
 // The activity grid, with the same travelling selection as the category row.
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   sectionPillRow: { flexGrow: 0, marginTop: SPACING[3], marginHorizontal: -20 },
   sectionPillContent: { paddingHorizontal: SPACING[5], gap: SPACING[2] },
   sectionPill: {
@@ -133,4 +135,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   sectionPillTextActive: { fontFamily: FONTS.bold, color: COLORS.white },
-});
+}));

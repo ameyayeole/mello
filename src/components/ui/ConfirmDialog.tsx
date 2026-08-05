@@ -1,10 +1,12 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text,
+  View } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button } from './Button';
 import { Icon, IconName } from './Icon';
 import { Dialog } from './Overlay';
+import { themedStyles } from '@/theme';
 
 // The app's "are you sure?" card.
 //
@@ -96,7 +98,7 @@ export function ConfirmDialog({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Stretches to the Dialog's gutter rather than shrink-wrapping the text,
   // so the two buttons below get a full-width row to split.
   card: { alignSelf: 'stretch' },
@@ -131,4 +133,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[4],
   },
   btn: { flex: 1, paddingHorizontal: 0 },
-});
+}));

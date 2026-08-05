@@ -4,12 +4,10 @@ import {
   View,
   Text,
   TextInput,
-  StyleSheet,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import Animated, {
@@ -49,6 +47,8 @@ import {
   SectionLabel,
 } from '@/components/ui';
 import { openDmChat, openEventChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 // The height the field settles at. Its *starting* height comes from the
 // hand-off, not from here — the home screen's search bar happens to be this
@@ -310,7 +310,7 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
 
       <Animated.View
         style={[
@@ -499,7 +499,7 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // No background: the route is transparent, so what shows through is
   // <AppBackground>, the one already mounted behind the tab navigator and still
   // drifting. A second copy here would be a second blob at a different point in
@@ -573,4 +573,4 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.textMuted,
   },
   close: { position: 'absolute', right: SPACING[5] },
-});
+}));

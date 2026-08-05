@@ -1,6 +1,9 @@
-import { ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { ActivityIndicator,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // The app's loading spinner. Every one of the twenty-two in the codebase is
 // `<ActivityIndicator color={COLORS.primary} />`, and eleven of them differ
@@ -30,7 +33,7 @@ export function Loader({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Roughly a third of the way down a bare screen — where the eye already is.
   inset: { marginTop: SPACING[12] },
-});
+}));

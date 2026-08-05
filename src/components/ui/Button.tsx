@@ -2,7 +2,6 @@ import {
   View,
   Text,
   ActivityIndicator,
-  StyleSheet,
   StyleProp,
   ViewStyle,
 } from 'react-native';
@@ -11,6 +10,7 @@ import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { PressableScale } from './PressableScale';
 import { Icon, IconName } from './Icon';
+import { themedStyles } from '@/theme';
 
 // The app has exactly three buttons. Pick by how much weight the action
 // deserves, not by colour:
@@ -66,11 +66,17 @@ const SIZES = {
   },
 } as const;
 
-const LABEL_COLOR: Record<Variant, string> = {
-  primary: COLORS.white,
-  secondary: COLORS.white,
-  tertiary: COLORS.textPrimary,
-};
+// A function, not a `Record`: an object built here would read the palette once,
+// at import. `secondary` is the app's black button, and `accent` inverts to a
+// near-white surface on the dark theme — so its label has to invert with it or
+// it is white on white.
+function labelColorFor(variant: Variant): string {
+  // `secondary` is the app-black button on either theme — near-black on light, a
+  // raised charcoal on dark — so its label is white in both. See the note on
+  // `accent` in constants/colors for why that token lifts rather than inverts.
+  if (variant === 'primary' || variant === 'secondary') return COLORS.white;
+  return COLORS.textPrimary;
+}
 
 export function Button({
   label,
@@ -115,7 +121,7 @@ export function Button({
     ? COLORS.textMuted
     : destructive && variant === 'tertiary'
       ? COLORS.error
-      : LABEL_COLOR[variant];
+      : labelColorFor(variant);
 
   const glyph = icon ? (
     <Icon name={icon} size={spec.icon} color={labelColor} />
@@ -158,7 +164,7 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: { alignItems: 'center', justifyContent: 'center' },
   fullWidth: { alignSelf: 'stretch' },
   content: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
@@ -191,4 +197,4 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
-});
+}));

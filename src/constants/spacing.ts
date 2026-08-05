@@ -53,53 +53,61 @@ export const RADIUS = {
 // Elevation. `shadowColor` is a real colour token, not a hex literal — the
 // primary shadow previously used #FF5E5B, a third rival coral that matched
 // neither COLORS.primary nor anything else in the palette.
+// Getters, so a shadow's colour is read when a style spreads it rather than when
+// this module loads. `...SHADOWS.lg` inside a `themedStyles` factory is
+// evaluated per theme; the object being spread has to be too, or every shadow in
+// the app keeps the light palette's ink.
+//
+// Shadows do very little on the dark theme — near-black on near-black is
+// invisible, which is why that palette carries depth in its surface lifts
+// instead. Kept correct here rather than special-cased.
 export const SHADOWS = {
-  sm: {
+  get sm() { return {
     shadowColor: COLORS.ink,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
-  },
-  md: {
+  }; },
+  get md() { return {
     shadowColor: COLORS.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 4,
-  },
-  lg: {
+  }; },
+  get lg() { return {
     shadowColor: COLORS.ink,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
     elevation: 8,
-  },
+  }; },
   // Under a glass panel. Wide, soft and barely-there — glass is held off the
   // background by a large diffuse shadow, not by a tight drop shadow, which is
   // what stops it looking like a white box.
-  glass: {
+  get glass() { return {
     shadowColor: COLORS.ink,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.1,
     shadowRadius: 24,
     elevation: 3,
-  },
+  }; },
   // Under a full-bleed photo card. Deeper, and warm rather than blue-black so
   // it sits with the coral in the background instead of fighting it.
-  photoCard: {
+  get photoCard() { return {
     shadowColor: COLORS.shadowWarm,
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.28,
     shadowRadius: 32,
     elevation: 8,
-  },
+  }; },
   // The coral glow under a primary button.
-  primary: {
+  get primary() { return {
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
     elevation: 4,
-  },
-} as const;
+  }; },
+};

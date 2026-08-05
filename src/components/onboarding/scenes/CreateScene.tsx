@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import Animated, {
   FadeInDown,
   ZoomIn,
@@ -11,11 +12,12 @@ import Animated, {
   withDelay,
   Easing,
 } from 'react-native-reanimated';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CATEGORY_STYLE } from '@/constants/categoryStyle';
 import { Icon } from '@/components/ui';
 import { Stage, MapPanel, FloatingCard } from '../Stage';
+import { themedStyles } from '@/theme';
 
 // The emoji inside the fixed pin swaps calmly, the way it does in the real
 // create flow when you change the plan type.
@@ -107,7 +109,7 @@ export function CreateScene() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   panel: {
     width: '76%',
@@ -166,7 +168,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(15,24,44,0.16)',
+    backgroundColor: inkAlpha(0.16),
   },
   sheet: {
     position: 'absolute',
@@ -182,7 +184,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(15,24,44,0.12)',
+    backgroundColor: inkAlpha(0.12),
     marginBottom: SPACING[2.5],
   },
   sheetTitle: {
@@ -226,4 +228,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[3],
   },
   sheetButtonText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
-});
+}));

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -18,6 +19,7 @@ import { SPACING } from '@/constants/spacing';
 import { CommunityPost } from '@/types/models';
 import { useToggleLike } from '@/hooks/usePostInteractions';
 import { SharePostSheet } from './SharePostSheet';
+import { themedStyles } from '@/theme';
 
 // Inline glyph controls, not Buttons — these are icon affordances, so a Button
 // (which owns a label + the three-variant weight system) would be the wrong
@@ -166,7 +168,7 @@ export function PostActionBar({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   bar: {
     flexDirection: 'row',
     gap: SPACING[5],
@@ -199,4 +201,4 @@ const styles = StyleSheet.create({
   },
   countOnDark: { color: COLORS.white },
   countLiked: { color: COLORS.primary },
-});
+}));

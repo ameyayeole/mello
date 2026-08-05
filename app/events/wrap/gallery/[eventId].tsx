@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   Modal,
   Alert,
@@ -38,6 +37,7 @@ import {
   ScreenHeader,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 const REPORT_REASONS: { reason: PhotoReportReason; label: string; icon: any }[] = [
   { reason: 'remove_me', label: "I don't want my photo included", icon: 'user' },
@@ -343,7 +343,7 @@ export default function WrapGalleryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   grid: { padding: SPACING[3.5], gap: SPACING[2], paddingBottom: SPACING[7] },
   column: { gap: SPACING[2] },
   empty: { alignItems: 'center', gap: SPACING[2], paddingTop: 90, paddingHorizontal: SPACING[10] },
@@ -437,4 +437,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: 'rgba(255,255,255,0.55)',
   },
-});
+}));

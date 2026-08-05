@@ -1,5 +1,6 @@
 import Animated, { ZoomIn } from 'react-native-reanimated';
 import { Icon } from '@/components/ui';
+import { inkAlpha } from '@/constants/colors';
 
 // WhatsApp-style delivery state for your own messages:
 //   sending → little clock · sent → single tick · read → blue double tick.
@@ -22,7 +23,7 @@ export default function Ticks({
         : '#3BA7F0'
       : light
         ? 'rgba(255,255,255,0.8)'
-        : 'rgba(15,24,44,0.4)';
+        : inkAlpha(0.4);
 
   return (
     <Animated.View key={status} entering={ZoomIn.duration(200)}>

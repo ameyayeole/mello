@@ -1,5 +1,7 @@
 import { memo, useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Text,
+  TextInput,
+  View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
@@ -23,6 +25,7 @@ import { fmtDayLong, fmtTime } from '@/utils/time';
 import { useCreateEventStore } from '@/stores/createEventStore';
 import { GLYPH_STROKE, TAP_SCALE } from '../motion';
 import { StepShell } from '../StepShell';
+import { themedStyles } from '@/theme';
 
 // Built once. This used to be mapped to {value,label} inline in the JSX, which
 // handed the duration wheel a brand-new options array on every render.
@@ -276,7 +279,7 @@ export const StepWhen = memo(function StepWhen() {
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   label: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
@@ -371,4 +374,4 @@ const styles = StyleSheet.create({
   // Two wheels abreast for date + time; the band spans each column separately
   // so the pair reads as one control rather than two stacked lists.
   wheelRow: { flexDirection: 'row', gap: SPACING[3] },
-});
+}));

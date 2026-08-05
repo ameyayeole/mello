@@ -4,7 +4,6 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   Alert,
 } from 'react-native';
@@ -18,7 +17,7 @@ import {
   getCheckinTimes,
 } from '@/services/checkin.service';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import TicketQR from '@/components/events/TicketQR';
 import {
@@ -30,6 +29,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Host's door screen: displays the event's single check-in QR + read-aloud code,
 // and a live roster of who has scanned in.
@@ -218,7 +218,7 @@ export default function HostCheckinScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   headerBtn: { backgroundColor: 'rgba(255,255,255,0.12)' },
   notHost: {
     fontFamily: FONTS.medium,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xl,
     padding: SPACING[3.5],
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.06)',
+    borderColor: inkAlpha(0.06),
   },
   qrPlaceholder: {
     width: 236,
@@ -367,4 +367,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING[6],
   },
-});
+}));

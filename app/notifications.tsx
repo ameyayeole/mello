@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView } from 'react-native';
+import { View,
+  Text,
+  FlatList,
+  ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, {
@@ -42,6 +44,8 @@ import {
 } from '@/components/ui';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
 import { openDmChat, openEventChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 // ── The transition ───────────────────────────────────────────────────────────
 //
@@ -794,7 +798,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
 
       <View style={[styles.content, { paddingTop: destY + CIRCLE + SPACING[5] }]}>
         <Animated.Text style={[styles.title, titleStyle]}>
@@ -939,7 +943,7 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // No background: the route is transparent, so what shows through is
   // <AppBackground> — the one already mounted behind the tab navigator, still
   // drifting. A second copy here would be a second blob at a different point in
@@ -1092,4 +1096,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

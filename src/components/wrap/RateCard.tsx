@@ -1,11 +1,13 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale, VerifiedBadge } from '@/components/ui';
 import { CoAttendee } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 // Deck card for one person you met at the event. Tapping the card opens
 // their profile; the action buttons live on the deck screen.
@@ -121,7 +123,7 @@ export default function RateCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     flex: 1,
     borderRadius: RADIUS['3xl'],
@@ -210,7 +212,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xs,
     backgroundColor: COLORS.primary,
   },
-  friendBtnSent: { backgroundColor: 'rgba(15,24,44,0.06)' },
+  friendBtnSent: { backgroundColor: inkAlpha(0.06) },
   friendBtnText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#fff' },
   friendBtnTextSent: { color: COLORS.textMuted },
   friendsChip: {
@@ -227,4 +229,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.success,
   },
-});
+}));

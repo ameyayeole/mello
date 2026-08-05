@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator,
+  Platform,
+  Text,
+  View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FullWindowOverlay } from 'react-native-screens';
@@ -29,6 +32,7 @@ import {
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
 import { openEventChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
 
 // Lifts the card out of the React tree it is mounted in and into a layer that
 // paints over the whole app — native modal routes included.
@@ -507,7 +511,7 @@ export function EventDealtCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Fills the FullWindowOverlay's container so the card's own absoluteFill
   // root and the toast have something screen-sized to position against.
   portal: { flex: 1 },
@@ -605,4 +609,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.white,
   },
-});
+}));

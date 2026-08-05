@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/constants/queryKeys';
 import { getEventCard } from '@/services/events.service';
@@ -7,6 +8,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import EventRow from '@/components/events/EventRow';
+import { themedStyles } from '@/theme';
 
 /**
  * The event a post links to (migration 070), drawn under the post's body.
@@ -69,7 +71,7 @@ export function LinkedEventCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { marginTop: SPACING[2] },
   // Same height as the row it becomes, so the card doesn't jump when it lands.
   skeleton: {
@@ -90,4 +92,4 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   deadTextOnDark: { color: COLORS.textOnDarkMuted },
-});
+}));

@@ -2,18 +2,18 @@ import {
   Modal,
   View,
   Text,
-  StyleSheet,
   ScrollView,
   Pressable,
 } from 'react-native';
 import { NearbyEvent } from '@/types/models';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { ACTIVITY_MAP } from '@/constants/activities';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatDistance } from '@/utils/distance';
 import { BOOST_EMOJI, BOOST_TINT } from '@/utils/boost';
 import { Avatar, CategoryTile, Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // The map's "🔥 Hot events" list: a bottom card of the currently-boosted events
 // in the visible region. Tapping a row hands the event id back so the map can
@@ -106,8 +106,8 @@ export default function HotEventsSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(15,24,44,0.35)' },
+const styles = themedStyles(() => ({
+  backdrop: { flex: 1, backgroundColor: inkAlpha(0.35) },
   sheet: {
     position: 'absolute',
     left: 0,
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(15,24,44,0.15)',
+    backgroundColor: inkAlpha(0.15),
     marginBottom: SPACING[3],
   },
   titleRow: {
@@ -190,4 +190,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 260,
   },
-});
+}));

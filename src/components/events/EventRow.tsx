@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { Image } from 'expo-image';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { NearbyEvent } from '@/types/models';
@@ -9,6 +10,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
 import { CategoryTile, Glass, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // The compact event list row used by the dashboard and the profile tab:
 // category tile with an emoji badge, title, time/attendee meta, and a trailing
@@ -176,7 +178,7 @@ export default function EventRow({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,4 +266,4 @@ const styles = StyleSheet.create({
   pillQuiet: { backgroundColor: COLORS.inkSubtle },
   pillOnDark: { backgroundColor: COLORS.white },
   pillTextQuiet: { color: COLORS.textPrimary },
-});
+}));

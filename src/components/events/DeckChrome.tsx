@@ -8,6 +8,7 @@ import { useSwipeDeck } from '@/hooks/useSwipeDeck';
 import { PREMIUM_GOLD } from '@/utils/premium';
 import { Icon, PressableScale } from '@/components/ui';
 import WishlistButton from './WishlistButton';
+import { themedStyles } from '@/theme';
 
 // The swipe deck's furniture, laid over its dim.
 //
@@ -160,7 +161,7 @@ export function DeckActions({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // The row is only as tall as the button; the counter floats over it, centred on
   // the screen. `box-none` on the row and `none` on the counter, so the only
   // thing here that takes a touch is the button.
@@ -219,4 +220,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

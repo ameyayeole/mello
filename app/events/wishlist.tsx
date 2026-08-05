@@ -20,7 +20,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
@@ -35,6 +35,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 function WishlistCard({
   event,
@@ -332,7 +333,7 @@ export default function WishlistScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   list: { padding: SPACING[4], paddingTop: SPACING[2], gap: SPACING[3.5], flexGrow: 1 },
   card: {
     backgroundColor: COLORS.surface,
@@ -408,7 +409,7 @@ const styles = StyleSheet.create({
   // Full-bleed rule, mockup-style.
   divider: {
     height: 1,
-    backgroundColor: 'rgba(15,24,44,0.08)',
+    backgroundColor: inkAlpha(0.08),
     marginHorizontal: -16,
   },
   footer: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
@@ -421,7 +422,7 @@ const styles = StyleSheet.create({
   countText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.caption,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
   },
   joinBtn: {
     height: 40,
@@ -470,4 +471,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 260,
   },
-});
+}));

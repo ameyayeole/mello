@@ -4,7 +4,6 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   TextInput,
   ScrollView,
@@ -41,7 +40,7 @@ import {
   clampMaxPeople,
   FALLBACK_MAP_CENTER,
 } from '@/utils/eventDraft';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId, Coords } from '@/types/models';
 import {
@@ -56,6 +55,8 @@ import {
   Toggle,
 } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
+import { useMapScheme } from '@/stores/themeStore';
 
 // react-native-maps declares MapPressEvent but does not export it from the
 // package root, so it is derived from the prop rather than reached for down an
@@ -103,6 +104,7 @@ export default function EditEventScreen() {
   const [locationName, setLocationName] = useState('');
   const [seeded, setSeeded] = useState(false);
   const miniMapRef = useRef<MapView>(null);
+  const mapScheme = useMapScheme();
 
   const mapCenter = newCoords ?? userCoords ?? FALLBACK_MAP_CENTER;
 
@@ -251,7 +253,7 @@ export default function EditEventScreen() {
                   <ActivityGlyph
                     activity={a.id}
                     size={24}
-                    color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
+                    color={sel ? cat.accent : inkAlpha(0.55)}
                   />
                 </View>
                 <Text
@@ -272,7 +274,7 @@ export default function EditEventScreen() {
         <TextInput
           style={[styles.input, titleFocused && styles.inputFocused]}
           placeholder="e.g. Sunset rooftop drinks"
-          placeholderTextColor="rgba(15,24,44,0.40)"
+          placeholderTextColor={inkAlpha(0.40)}
           value={title}
           onChangeText={setTitle}
           onFocus={() => setTitleFocused(true)}
@@ -288,7 +290,7 @@ export default function EditEventScreen() {
         <TextInput
           style={[styles.input, styles.multiline]}
           placeholder="Tell people what this event is about…"
-          placeholderTextColor="rgba(15,24,44,0.40)"
+          placeholderTextColor={inkAlpha(0.40)}
           value={description}
           onChangeText={setDescription}
           multiline
@@ -376,7 +378,7 @@ export default function EditEventScreen() {
         <TextInput
           style={[styles.input, styles.shortInput]}
           placeholder="e.g. 4"
-          placeholderTextColor="rgba(15,24,44,0.40)"
+          placeholderTextColor={inkAlpha(0.40)}
           value={maxPeople}
           onChangeText={setMaxPeople}
           keyboardType="numeric"
@@ -466,6 +468,7 @@ export default function EditEventScreen() {
             ref={miniMapRef}
             style={styles.miniMap}
             provider={MAP_PROVIDER}
+            userInterfaceStyle={mapScheme}
             initialRegion={{
               latitude: mapCenter.lat,
               longitude: mapCenter.lng,
@@ -515,25 +518,25 @@ export default function EditEventScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[5], paddingTop: SPACING[2], gap: SPACING[1.5], paddingBottom: SPACING[6] },
   label: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
     letterSpacing: 0.3,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
     marginTop: SPACING[2.5],
     marginBottom: SPACING[0.5],
   },
   labelOptional: {
     fontFamily: FONTS.medium,
-    color: 'rgba(15,24,44,0.32)',
+    color: inkAlpha(0.32),
     letterSpacing: 0,
   },
   charCount: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.35)',
+    color: inkAlpha(0.35),
     textAlign: 'right',
     marginTop: SPACING[1],
   },
@@ -545,14 +548,14 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     backgroundColor: COLORS.background,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.08)',
+    borderColor: inkAlpha(0.08),
     alignItems: 'center',
     justifyContent: 'center',
   },
   categoryLabel: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
   },
   input: {
     height: 48,
@@ -600,7 +603,7 @@ const styles = StyleSheet.create({
     gap: SPACING[2],
     borderStyle: 'dashed',
     borderWidth: 1.5,
-    borderColor: 'rgba(15,24,44,0.2)',
+    borderColor: inkAlpha(0.2),
     borderRadius: RADIUS.lg,
     backgroundColor: COLORS.surface,
   },
@@ -615,7 +618,7 @@ const styles = StyleSheet.create({
   photoPlaceholderText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.caption,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
   },
   photoRemove: {
     fontFamily: FONTS.semibold,
@@ -687,7 +690,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING[3],
     paddingBottom: SPACING[2],
     borderTopWidth: 1,
-    borderTopColor: 'rgba(15,24,44,0.08)',
+    borderTopColor: inkAlpha(0.08),
     backgroundColor: COLORS.surface,
   },
-});
+}));

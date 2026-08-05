@@ -1,9 +1,10 @@
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { SPACING } from '@/constants/spacing';
 import Animated, { FadeIn, Easing } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // The calm "task complete" moment used across the wrap: a circle fills green,
 // then the tick fades in. Same language as CreateEventFlow's success state —
@@ -46,7 +47,7 @@ export function CompleteMoment({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { alignItems: 'center', gap: SPACING[2], paddingHorizontal: SPACING[7] },
   circle: {
     width: 96,
@@ -77,4 +78,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 260,
   },
-});
+}));

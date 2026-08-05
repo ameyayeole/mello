@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { Dialog, PressableScale } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 export function PostInteractionDialog({
   visible,
@@ -51,7 +53,7 @@ export function PostInteractionDialog({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   title: {
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.section,
@@ -90,4 +92,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.white,
   },
-});
+}));

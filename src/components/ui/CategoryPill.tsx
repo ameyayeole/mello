@@ -1,7 +1,11 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // Every accent in `categoryStyle` is a 6-digit hex, so alpha is an 8-digit
 // suffix rather than a parse. Anything else falls through to a solid fill, which
@@ -58,7 +62,7 @@ export function CategoryPill({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -86,4 +90,4 @@ const styles = StyleSheet.create({
   // Glyph metric, not typography — deliberately not a type step.
   emoji: { fontSize: 13, lineHeight: 17 },
   label: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.caption, color: '#fff' },
-});
+}));

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { TextField, PressableScale, Icon } from '@/components/ui';
 import MentionAutocomplete, {
   activeMentionQuery,
@@ -9,6 +10,7 @@ import { useMentionSearch } from '@/hooks/useMentions';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 const MAX = 500;
 
@@ -95,7 +97,7 @@ export function CommentComposer({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: SPACING[2] },
   banner: {
     flexDirection: 'row',
@@ -112,4 +114,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING[2] },
   field: { flex: 1 },
   send: { paddingBottom: SPACING[2] },
-});
+}));

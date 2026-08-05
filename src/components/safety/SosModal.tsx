@@ -1,9 +1,14 @@
-import { View, Text, StyleSheet, Modal, Linking, ScrollView } from 'react-native';
+import { View,
+  Text,
+  Modal,
+  Linking,
+  ScrollView } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { sharePlan } from '@/utils/sharePlan';
 import { Icon, IconName, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Popup #14: the in-app SOS screen, per the design gallery — a dominant red
 // "Call 112" button, secondary helplines, then Share-my-plan and Report cards.
@@ -46,7 +51,7 @@ function ActionCard({
         <Text style={styles.cardLabel}>{label}</Text>
         <Text style={styles.cardSub}>{sub}</Text>
       </View>
-      <Icon name="chevronRight" size={18} color="rgba(15,24,44,0.35)" />
+      <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
     </PressableScale>
   );
 }
@@ -152,7 +157,7 @@ export default function SosModal({ visible, onClose, event, onReport }: SosModal
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: COLORS.surface, paddingTop: 54 },
   closeRow: {
     flexDirection: 'row',
@@ -187,7 +192,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
     marginTop: SPACING[1.5],
   },
   emergencyBtn: {
@@ -234,11 +239,11 @@ const styles = StyleSheet.create({
     gap: SPACING[2.5],
     marginTop: SPACING[4],
   },
-  orLine: { flex: 1, height: 1, backgroundColor: 'rgba(15,24,44,0.1)' },
+  orLine: { flex: 1, height: 1, backgroundColor: inkAlpha(0.1) },
   orText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.4)',
+    color: inkAlpha(0.4),
   },
   card: {
     flexDirection: 'row',
@@ -265,7 +270,7 @@ const styles = StyleSheet.create({
   cardSub: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(15,24,44,0.5)',
+    color: inkAlpha(0.5),
     marginTop: SPACING[0.5],
   },
-});
+}));

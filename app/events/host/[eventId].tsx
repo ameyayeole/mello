@@ -1,7 +1,6 @@
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -19,7 +18,7 @@ import {
 import { getEventFeedback, hasWrapped } from '@/services/wrap.service';
 import { useWrap } from '@/hooks/useWrap';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
@@ -39,6 +38,7 @@ import {
   ScreenHeader,
 } from '@/components/ui';
 import { openEventChat } from '@/utils/chatActions';
+import { themedStyles } from '@/theme';
 
 // How many attendees / requests show inline before "See all" takes over.
 const PREVIEW_COUNT = 3;
@@ -190,7 +190,7 @@ export default function HostPanelScreen() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.title}>{event.title}</Text>
               <View style={styles.metaRow}>
-                <Icon name="clock" size={13} color="rgba(15,24,44,0.6)" />
+                <Icon name="clock" size={13} color={inkAlpha(0.6)} />
                 <Text style={styles.metaText}>
                   {formatEventWhen(event.starts_at)}
                 </Text>
@@ -448,7 +448,7 @@ export default function HostPanelScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   notHostText: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodyMd,
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: inkAlpha(0.07),
     padding: SPACING[3.5],
     gap: SPACING[3],
   },
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.6)',
+    color: inkAlpha(0.6),
   },
   spotsPill: {
     backgroundColor: 'rgba(31,164,99,0.10)',
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: inkAlpha(0.07),
     padding: SPACING[4],
   },
   emptyText: {
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: inkAlpha(0.07),
     padding: SPACING[3],
   },
   saverChip: {
@@ -699,4 +699,4 @@ const styles = StyleSheet.create({
     color: PREMIUM_GOLD,
     marginTop: SPACING[0.5],
   },
-});
+}));

@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { Text } from 'react-native';
 import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { MessageReaction } from '@/types/models';
 import { PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // What a message's reactions look like once they exist: one pill per distinct
 // emoji, carrying a count when more than one person picked it, tucked against
@@ -68,7 +69,7 @@ export default function ReactionPills({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     gap: SPACING[1],
@@ -102,4 +103,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.nano,
     color: COLORS.textSecondary,
   },
-});
+}));

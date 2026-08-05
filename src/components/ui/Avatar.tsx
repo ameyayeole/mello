@@ -6,6 +6,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
 import { VerifiedBadge } from './Icon';
 import { PressableScale } from './PressableScale';
+import { themedStyles } from '@/theme';
 
 // Avatar per design system: photo, or initial on the brand gradient.
 // Optional online dot (green, bg-colored ring) and verified check.
@@ -110,7 +111,7 @@ export function Avatar({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   circle: {
     overflow: 'hidden',
     alignItems: 'center',
@@ -127,4 +128,4 @@ const styles = StyleSheet.create({
     borderColor: COLORS.surface,
   },
   verifiedWrap: { position: 'absolute', right: -2, bottom: -2 },
-});
+}));

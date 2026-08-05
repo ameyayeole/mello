@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   Alert,
 } from 'react-native';
@@ -13,6 +12,7 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, VerifiedBadge } from '@/components/ui';
 import { SettingsPanel } from '@/components/profile/SettingsPanel';
+import { themedStyles } from '@/theme';
 
 const STATUS_COPY: Record<
   string,
@@ -128,7 +128,7 @@ export default function VerifyIdentityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[5], paddingTop: SPACING[6] },
   hero: { alignItems: 'center', marginBottom: SPACING[6] },
   heroIcon: {
@@ -185,4 +185,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[3],
     paddingHorizontal: SPACING[2.5],
   },
-});
+}));

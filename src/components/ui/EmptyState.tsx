@@ -1,9 +1,13 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName } from './Icon';
 import { Button } from './Button';
+import { themedStyles } from '@/theme';
 
 // The "nothing here yet" block: tinted circle, title, supporting line and an
 // optional call to action. Used directly or as a FlatList ListEmptyComponent.
@@ -53,7 +57,7 @@ export function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { alignItems: 'center', paddingTop: 80, paddingHorizontal: SPACING[8], gap: SPACING[2] },
   compact: { paddingTop: SPACING[7] },
   badge: {
@@ -82,4 +86,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   action: { marginTop: SPACING[2] },
-});
+}));

@@ -1,9 +1,12 @@
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View,
+  Text,
+  Image } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 interface Props {
   // Ordered list of photo URIs — a mix of remote URLs (already uploaded) and
@@ -103,7 +106,7 @@ export function PhotoGridPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2.5] },
   slot: {
     width: '31%',
@@ -169,4 +172,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View,
+  Text,
+  ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +24,7 @@ import { CommunityPost } from '@/types/models';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // A single-post screen reached at mello://post/<id> (deep link) and from a
 // notification tap. It's a one-post Community screen: the same PostCard plus the
@@ -166,7 +169,7 @@ export default function PostDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[4], paddingBottom: SPACING[8] },
   dialogTitle: {
     fontFamily: FONTS.heavy,
@@ -206,4 +209,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.white,
   },
-});
+}));

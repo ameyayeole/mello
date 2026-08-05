@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform,
+  Text,
+  View } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import {
   Gesture,
@@ -18,9 +20,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DealtOrigin, useUIStore, InAppBanner } from '@/stores/uiStore';
 import { openNotificationTarget } from '@/hooks/useNotifications';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, IconName } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 const HIDDEN_Y = -180;
 const AUTO_HIDE_MS = 4500;
@@ -151,7 +154,7 @@ function BannerCard({ banner }: { banner: InAppBanner }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: { flex: 1 },
   wrap: {
     position: 'absolute',
@@ -194,7 +197,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
-    color: 'rgba(15,24,44,0.65)',
+    color: inkAlpha(0.65),
     marginTop: SPACING[0.5],
   },
   dot: {
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(15,24,44,0.12)',
+    backgroundColor: inkAlpha(0.12),
     marginTop: SPACING[1],
   },
-});
+}));

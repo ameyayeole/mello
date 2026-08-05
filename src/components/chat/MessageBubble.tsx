@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import Animated, {
   Easing,
   SharedValue,
@@ -13,7 +14,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatChatTime } from '@/utils/time';
 import { MessageReaction, Profile } from '@/types/models';
@@ -35,6 +36,7 @@ import {
   STRETCH_OUT_MS,
   STRETCH_Y,
 } from './motion';
+import { themedStyles } from '@/theme';
 
 // The one bubble both threads render. Event chat and DM had a private copy
 // each, near-identical and already drifting (the DM one had no avatar at all),
@@ -454,7 +456,7 @@ export default function MessageBubble({
   return <GestureDetector gesture={replyPan}>{row}</GestureDetector>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -488,7 +490,7 @@ const styles = StyleSheet.create({
   senderName: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.6)',
+    color: inkAlpha(0.6),
     marginLeft: SPACING[3],
     marginBottom: SPACING[0.5],
   },
@@ -573,7 +575,7 @@ const styles = StyleSheet.create({
   imageStatus: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.nano,
-    color: 'rgba(15,24,44,0.45)',
+    color: inkAlpha(0.45),
     alignSelf: 'flex-end',
   },
-});
+}));

@@ -1,6 +1,10 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { FONTS } from '@/constants/typography';
+import { themedStyles } from '@/theme';
 
 // "+7" — the people a stack didn't draw, or the whole count where no faces are
 // shown at all. Coral disc, white text, everywhere in the app.
@@ -59,7 +63,7 @@ export function OverflowCount({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   disc: {
     backgroundColor: COLORS.primary,
     alignItems: 'center',
@@ -68,4 +72,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   text: { fontFamily: FONTS.heavy, color: COLORS.white },
-});
+}));

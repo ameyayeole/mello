@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View,
+  Text,
+  FlatList } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Sheet, NavButton, Loader, EmptyState } from '@/components/ui';
@@ -12,6 +14,7 @@ import { getMyEvents, getJoinedEvents } from '@/services/events.service';
 import { splitByWhen } from '@/utils/events';
 import { NearbyEvent } from '@/types/models';
 import EventRow from '@/components/events/EventRow';
+import { themedStyles } from '@/theme';
 
 /**
  * Picks one of your own events to link to a post (migration 070).
@@ -101,7 +104,7 @@ export function LinkEventSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { padding: SPACING[5], gap: SPACING[4] },
   header: {
     flexDirection: 'row',
@@ -117,4 +120,4 @@ const styles = StyleSheet.create({
   // Capped so a long list of plans can't push the sheet past the screen.
   listBox: { maxHeight: 380 },
   list: { gap: SPACING[2.5] },
-});
+}));

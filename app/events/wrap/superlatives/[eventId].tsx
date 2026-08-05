@@ -4,7 +4,6 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,7 +14,7 @@ import { getCoAttendees, getMyVotes } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { SUPERLATIVES } from '@/constants/superlatives';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CoAttendee, SuperlativeCategory } from '@/types/models';
 import {
@@ -27,6 +26,7 @@ import {
   ScreenHeader,
   Sheet,
 } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Vote the four superlatives. Anonymous; winners appear once a category
 // has 3+ votes (shown in the recap).
@@ -125,7 +125,7 @@ export default function SuperlativesScreen() {
                       <Icon name="check" size={14} color="#fff" strokeWidth={3} />
                     </View>
                   ) : (
-                    <Icon name="chevronRight" size={18} color="rgba(15,24,44,0.35)" />
+                    <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
                   )}
                 </PressableScale>
               </Animated.View>
@@ -171,7 +171,7 @@ export default function SuperlativesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[4], paddingTop: SPACING[2.5], gap: SPACING[3], paddingBottom: SPACING[7] },
   completeWrap: { paddingTop: 70, alignItems: 'center' },
   intro: {
@@ -235,4 +235,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.body,
     color: COLORS.textPrimary,
   },
-});
+}));

@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text,
+  View } from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCreateEventStore } from '@/stores/createEventStore';
 import { GLYPH_STROKE, TAP_SCALE } from '../motion';
 import { StepShell } from '../StepShell';
+import { themedStyles } from '@/theme';
 
 // Step 3 — the cover photo, which is optional.
 export const StepPhoto = memo(function StepPhoto() {
@@ -97,7 +99,7 @@ export const StepPhoto = memo(function StepPhoto() {
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   photoWrap: {
     marginTop: SPACING[4],
     marginBottom: SPACING[3],
@@ -173,4 +175,4 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: COLORS.textSecondary,
   },
-});
+}));

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Button } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
@@ -12,6 +13,7 @@ import { CommunityPost } from '@/types/models';
 import { PostCard } from './PostCard';
 import { CommentSheet } from './CommentSheet';
 import { PostInteractionDialog } from './PostInteractionDialog';
+import { themedStyles } from '@/theme';
 
 // How close to the end of the *host page* counts as "near the bottom". Lives
 // here rather than in each screen so the two profiles can't drift apart.
@@ -168,7 +170,7 @@ export function ProfilePosts({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   empty: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
@@ -176,4 +178,4 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING[2.5],
   },
   emptyOnDark: { color: COLORS.textOnDarkMuted },
-});
+}));

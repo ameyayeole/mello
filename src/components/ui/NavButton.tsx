@@ -1,7 +1,9 @@
-import { StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { StyleProp,
+  ViewStyle } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { Icon, IconName } from './Icon';
 import { PressableScale } from './PressableScale';
+import { themedStyles } from '@/theme';
 
 // The app's one back / close / dismiss affordance: a bare icon, no fill behind
 // it. Nav buttons used to sit in a grey circle (IconButton's `plain` variant),
@@ -47,11 +49,11 @@ export function NavButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: {
     width: NAV_BUTTON_SIZE,
     height: NAV_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

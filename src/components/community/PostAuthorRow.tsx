@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Avatar, IconButton, PressableScale } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
@@ -7,6 +8,7 @@ import { SPACING } from '@/constants/spacing';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import { relativeTime } from '@/utils/time';
+import { themedStyles } from '@/theme';
 
 // Avatar + name + city · time, with an overflow button on the right. The
 // avatar+name block taps through to the author's profile (same /friends/[id]
@@ -67,7 +69,7 @@ export function PostAuthorRow({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
   author: {
     flex: 1,
@@ -89,4 +91,4 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   metaOnDark: { color: COLORS.textOnDarkMuted },
-});
+}));

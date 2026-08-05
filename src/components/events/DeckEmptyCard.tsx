@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
 import { Button, Icon } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Why the deck has nothing to show. Two different dead ends, and they want
 // different words: one is "come back later", the other is "come back tomorrow,
@@ -111,7 +113,7 @@ export function DeckEmptyCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Fills whatever face it is given, like `EventCard` does — the dealt card
   // owns the size, the radius and the shadow.
   card: {
@@ -147,4 +149,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   cta: { marginTop: SPACING[2] },
-});
+}));

@@ -1,10 +1,13 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View,
+  Text,
+  ScrollView } from 'react-native';
 import { SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Profile } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
 import { Avatar, SectionLabel, Sheet } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Who has seen a message. Opened from the read rail under your own bubble.
 //
@@ -85,7 +88,7 @@ export default function ReadReceiptSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { paddingHorizontal: SPACING[5], paddingTop: SPACING[4] },
   title: {
     fontFamily: FONTS.heading,
@@ -116,4 +119,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
-});
+}));

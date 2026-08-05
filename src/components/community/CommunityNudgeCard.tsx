@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { Glass, Button, IconButton } from '@/components/ui';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
+import { themedStyles } from '@/theme';
 
 // Cold-start nudge for users with few friends / no posts. Dismissible; the
 // parent screen decides when it recurs (see Task 7).
@@ -44,10 +46,10 @@ export function CommunityNudgeCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { padding: SPACING[4], gap: SPACING[3] },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodyLg, color: COLORS.textPrimary },
   body: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.body, color: COLORS.textSecondary },
   actions: { flexDirection: 'row', gap: SPACING[2] },
-});
+}));

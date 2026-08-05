@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { CATEGORY_STYLE } from '@/constants/categoryStyle';
 import { Icon } from '@/components/ui';
 import { Stage, MapPanel, EventPin, ClusterBubble, FloatingCard } from '../Stage';
+import { themedStyles } from '@/theme';
 
 // Slide 1: the live map. Pins pop in the way they do on the real map screen,
 // with the featured one pulsing softly.
@@ -50,7 +52,7 @@ export function DiscoverScene() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   panel: {
     width: '76%',
@@ -96,4 +98,4 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   avatarOverlap: { marginLeft: -8 },
-});
+}));

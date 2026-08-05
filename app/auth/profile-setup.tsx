@@ -3,7 +3,6 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   ScrollView,
   Alert,
@@ -27,11 +26,12 @@ import { uploadProfilePhotos } from '@/services/storage.service';
 import { PhotoGridPicker } from '@/components/PhotoGridPicker';
 import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { ActivityId, Gender } from '@/types/models';
 import { ActivityGlyph, Button, Icon, PressableScale, Screen, TextField } from '@/components/ui';
 import { errorMessage, showError } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 const STEPS = [
   'name',
@@ -403,7 +403,7 @@ export default function ProfileSetupScreen() {
                     <TextInput
                       style={dobFieldStyle('dobDay')}
                       placeholder="DD"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
+                      placeholderTextColor={inkAlpha(0.40)}
                       value={dobDay}
                       onChangeText={(t) => {
                         const v = t.replace(/\D/g, '').slice(0, 2);
@@ -420,7 +420,7 @@ export default function ProfileSetupScreen() {
                       ref={monthRef}
                       style={dobFieldStyle('dobMonth')}
                       placeholder="MM"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
+                      placeholderTextColor={inkAlpha(0.40)}
                       value={dobMonth}
                       onChangeText={(t) => {
                         const v = t.replace(/\D/g, '').slice(0, 2);
@@ -436,7 +436,7 @@ export default function ProfileSetupScreen() {
                       ref={yearRef}
                       style={[...dobFieldStyle('dobYear'), styles.dobYear]}
                       placeholder="YYYY"
-                      placeholderTextColor="rgba(15,24,44,0.40)"
+                      placeholderTextColor={inkAlpha(0.40)}
                       value={dobYear}
                       onChangeText={(t) => setDobYear(t.replace(/\D/g, '').slice(0, 4))}
                       onFocus={() => setFocused('dobYear')}
@@ -519,7 +519,7 @@ export default function ProfileSetupScreen() {
                         <ActivityGlyph
                           activity={a.id}
                           size={18}
-                          color={sel ? cat.accent : 'rgba(15,24,44,0.55)'}
+                          color={sel ? cat.accent : inkAlpha(0.55)}
                         />
                         <Text
                           style={[styles.pillLabel, sel && { color: cat.accent }]}
@@ -565,7 +565,7 @@ export default function ProfileSetupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 10,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(15,24,44,0.08)',
+    backgroundColor: inkAlpha(0.08),
     overflow: 'hidden',
   },
   progressFill: {
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   pillLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.7)',
+    color: inkAlpha(0.7),
   },
   footer: {
     paddingHorizontal: SPACING[5],
@@ -723,4 +723,4 @@ const styles = StyleSheet.create({
     gap: SPACING[3],
     backgroundColor: COLORS.background,
   },
-});
+}));

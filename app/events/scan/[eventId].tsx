@@ -4,7 +4,6 @@ import { queryKeys } from '@/constants/queryKeys';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   ActivityIndicator,
   TextInput,
@@ -26,7 +25,7 @@ import {
 import { CheckinResult } from '@/types/models';
 import { hasWrapped } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventTime, formatEventWhen } from '@/utils/time';
 import {
@@ -39,6 +38,7 @@ import {
   ScreenHeader,
 } from '@/components/ui';
 import type LiveScannerType from '@/components/events/LiveScanner';
+import { themedStyles } from '@/theme';
 
 type Feedback = { tone: 'error' | 'warn'; text: string };
 
@@ -194,7 +194,7 @@ export default function AttendeeScanScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
                 <View style={styles.metaRow}>
-                  <Icon name="clock" size={13} color="rgba(15,24,44,0.6)" />
+                  <Icon name="clock" size={13} color={inkAlpha(0.6)} />
                   <Text style={styles.metaText}>{formatEventWhen(event.starts_at)}</Text>
                 </View>
               </View>
@@ -278,7 +278,7 @@ export default function AttendeeScanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: { padding: SPACING[5], paddingTop: SPACING[2.5], gap: SPACING[4], paddingBottom: SPACING[8] },
   notice: {
     fontFamily: FONTS.medium,
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   eventRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3] },
   eventTitle: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.section, color: COLORS.textPrimary },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1], marginTop: SPACING[0.5] },
-  metaText: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.bodySm, color: 'rgba(15,24,44,0.6)' },
+  metaText: { fontFamily: FONTS.semibold, fontSize: TYPE_SIZE.bodySm, color: inkAlpha(0.6) },
   feedback: { borderRadius: RADIUS.sm, paddingVertical: SPACING[2.5], paddingHorizontal: SPACING[3.5] },
   feedbackError: { backgroundColor: COLORS.error },
   feedbackWarn: { backgroundColor: COLORS.warning },
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS['2xl'],
     borderWidth: 1,
-    borderColor: 'rgba(15,24,44,0.07)',
+    borderColor: inkAlpha(0.07),
     padding: SPACING[5],
     alignItems: 'center',
     gap: SPACING[2.5],
@@ -376,4 +376,4 @@ const styles = StyleSheet.create({
     marginTop: SPACING[1.5],
   },
   doneTime: { fontFamily: FONTS.medium, fontSize: TYPE_SIZE.bodySm, color: COLORS.textMuted, marginTop: SPACING[2] },
-});
+}));

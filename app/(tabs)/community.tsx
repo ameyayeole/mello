@@ -2,7 +2,6 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   ActivityIndicator,
   RefreshControl,
@@ -39,6 +38,7 @@ import { CommunityNudgeCard } from '@/components/community/CommunityNudgeCard';
 import { EventsRail } from '@/components/community/EventsRail';
 import { CommentSheet } from '@/components/community/CommentSheet';
 import { errorMessage } from '@/utils/errors';
+import { themedStyles } from '@/theme';
 
 // How often the events rail is woven into the feed (spec §8). Consumed by
 // both the inline weave in `renderItem` and the footer's duplicate-rail
@@ -443,7 +443,7 @@ export default function CommunityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1 },
   // Floating coral pill, centred under the header. `top` is set inline from the
   // safe-area inset so it clears the notch + header on every device.
@@ -534,4 +534,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.white,
   },
-});
+}));

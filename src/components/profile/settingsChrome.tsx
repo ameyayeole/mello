@@ -1,8 +1,9 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/colors';
 import { SPACING } from '@/constants/spacing';
 import { Glass, Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 /**
  * The settings back chip's geometry, in one place.
@@ -61,7 +62,7 @@ export function SettingsBackChip({ onPress }: { onPress: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   chip: { position: 'absolute', zIndex: 2 },
   pane: { width: CHIP_SIZE, height: CHIP_SIZE },
   // The glyph sits over the pane rather than inside it, matching how Settings
@@ -75,4 +76,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

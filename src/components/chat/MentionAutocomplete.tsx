@@ -1,8 +1,11 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View,
+  Text,
+  ScrollView } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 export interface Mentionable {
   id: string;
@@ -68,11 +71,11 @@ export default function MentionAutocomplete({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(15,24,44,0.08)',
+    borderTopColor: inkAlpha(0.08),
   },
   scroll: {
     gap: SPACING[2],
@@ -94,4 +97,4 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textPrimary,
   },
-});
+}));

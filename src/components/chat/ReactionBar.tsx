@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { Glass, Icon, PressableScale } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // The iMessage tapback bar: a floating row of emoji that appears over a
 // long-pressed bubble.
@@ -67,7 +69,7 @@ export default function ReactionBar({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { alignSelf: 'flex-start', marginBottom: SPACING[1] },
   wrapRight: { alignSelf: 'flex-end', marginBottom: SPACING[1] },
   bar: {
@@ -86,4 +88,4 @@ const styles = StyleSheet.create({
   },
   slotMine: { backgroundColor: COLORS.inkSubtle },
   emoji: { fontSize: EMOJI_SIZE, lineHeight: EMOJI_SIZE + 4 },
-});
+}));

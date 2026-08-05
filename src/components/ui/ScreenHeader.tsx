@@ -1,10 +1,14 @@
-import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View,
+  Text,
+  StyleProp,
+  ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { NavButton } from './NavButton';
 import { IconName } from './Icon';
+import { themedStyles } from '@/theme';
 
 // App header: back button + title, optional subtitle and right slot.
 //
@@ -80,7 +84,7 @@ export function ScreenHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -102,4 +106,4 @@ const styles = StyleSheet.create({
   },
   subtitleDark: { color: 'rgba(255,255,255,0.6)' },
   spacer: { width: 40 },
-});
+}));

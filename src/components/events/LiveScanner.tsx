@@ -8,6 +8,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, IconButton } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Full-screen live QR scanner. Calls onScan with each decoded string; the parent
 // decides whether it was a valid ticket. While `paused` (parent showing a result
@@ -75,7 +76,7 @@ export default function LiveScanner({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: '#000' },
   center: {
     flex: 1,
@@ -123,4 +124,4 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   topBar: { position: 'absolute', top: 52, left: 16 },
-});
+}));

@@ -1,8 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View,
+  Text,
+  TouchableOpacity } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, IconName, Sheet } from '@/components/ui';
+import { themedStyles } from '@/theme';
 
 // Safety bottom sheet, matching the "Mello Screens" design gallery: left-aligned,
 // 46px tinted icon tile, 19px title, bullet tips with an accent dot, coral
@@ -73,7 +76,7 @@ export default function SafetyPopup({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   sheet: {
     paddingHorizontal: SPACING[5],
     paddingTop: SPACING[3],
@@ -101,7 +104,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
     lineHeight: 19,
-    color: 'rgba(15,24,44,0.6)',
+    color: inkAlpha(0.6),
     marginTop: SPACING[2],
   },
   bullets: { marginTop: SPACING[0.5] },
@@ -122,7 +125,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
     lineHeight: 18,
-    color: 'rgba(15,24,44,0.7)',
+    color: inkAlpha(0.7),
   },
   primary: { marginTop: SPACING[4] },
   secondaryBtn: {
@@ -134,6 +137,6 @@ const styles = StyleSheet.create({
   secondaryLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(15,24,44,0.55)',
+    color: inkAlpha(0.55),
   },
-});
+}));

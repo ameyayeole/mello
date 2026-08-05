@@ -8,7 +8,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import Animated, {
   Easing,
   interpolate,
@@ -27,6 +26,8 @@ import {
   SettingsBackChip,
   useChipTop,
 } from './settingsChrome';
+import { themedStyles } from '@/theme';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 
 /**
  * A settings sub-screen: the contents arrive from the right, the back button
@@ -174,7 +175,7 @@ export function SettingsPanel({
 
   return (
     <View style={styles.root} pointerEvents="box-none">
-      <StatusBar style="dark" />
+      <ThemedStatusBar />
 
       {/* Only when there is nothing underneath to be transparent over — see the
           note above. Outside the sliding layer either way: the backdrop is the
@@ -218,7 +219,7 @@ export function SettingsPanel({
 const ENTER = { duration: 320, easing: Easing.out(Easing.cubic) } as const;
 const EXIT = { duration: 240, easing: Easing.in(Easing.cubic) } as const;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   root: { flex: 1 },
   fill: { flex: 1 },
   content: { flex: 1 },
@@ -238,4 +239,4 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     color: COLORS.textPrimary,
   },
-});
+}));

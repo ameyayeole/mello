@@ -1,7 +1,6 @@
 import {
   ActivityIndicator,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -14,6 +13,7 @@ import { WrapChecklist, WrapStep } from './WrapChecklist';
 import { useWrap } from '@/hooks/useWrap';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { NearbyEvent } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 // The wrap, met from the chat. When an event has ended, opening its chat lands
 // you here first: a dark sheet up from the bottom with the post-event cards —
@@ -110,7 +110,7 @@ export function WrapSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // The app black — a moment laid over the bright chat, not part of it.
   card: { backgroundColor: COLORS.accent },
   header: {
@@ -161,4 +161,4 @@ const styles = StyleSheet.create({
     color: COLORS.textOnDark,
   },
   viewChat: { marginHorizontal: SPACING[5], marginTop: SPACING[3] },
-});
+}));

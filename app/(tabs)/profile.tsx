@@ -74,6 +74,7 @@ import {
   ProfilePosts,
   POSTS_NEAR_BOTTOM_PX,
 } from '@/components/community/ProfilePosts';
+import { themedStyles } from '@/theme';
 
 // The photo is a 4:5 portrait, shown whole — cropping the user's own picture to
 // a band is the one place in the app where that reads as a slight.
@@ -844,7 +845,7 @@ const FILL = {
   bottom: 0,
 } as const;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Opaque, unlike every other tab screen: this one deliberately covers
   // <AppBackground> with the user's own photo. `accent` is the floor for a
   // profile with no photo at all.
@@ -1124,4 +1125,4 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderOnDark,
   },
   viewerDotActive: { backgroundColor: COLORS.white },
-});
+}));

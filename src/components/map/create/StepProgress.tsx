@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -9,6 +9,7 @@ import Animated, {
 import { COLORS } from '@/constants/colors';
 import { SPACING } from '@/constants/spacing';
 import { STEP_COUNT } from '@/utils/eventDraft';
+import { themedStyles } from '@/theme';
 
 // Progress across the card, under the title row. It replaced a ring in a dark
 // heading sheet, which went when the sheet did. Still animated for the reason
@@ -37,7 +38,7 @@ export function StepProgress({ step }: { step: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Below the title row rather than in the card's top edge. That is where it
   // belongs — it describes the step you are reading, not the pane — and it also
   // retires the corner problem entirely: away from the radius there is no curve
@@ -54,4 +55,4 @@ const styles = StyleSheet.create({
     borderRadius: PROGRESS_H / 2,
     backgroundColor: COLORS.primary,
   },
-});
+}));

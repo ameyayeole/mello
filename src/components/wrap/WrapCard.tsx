@@ -1,12 +1,14 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View,
+  Text } from 'react-native';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { COLORS } from '@/constants/colors';
+import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { ExploreWrap } from '@/types/models';
+import { themedStyles } from '@/theme';
 
 function endedAgo(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -90,7 +92,7 @@ export default function WrapCard({ wrap }: { wrap: ExploreWrap }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS['2xl'],
@@ -151,7 +153,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15,24,44,0.45)',
+    backgroundColor: inkAlpha(0.45),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -163,4 +165,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     flex: 1,
   },
-});
+}));
