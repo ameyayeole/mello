@@ -509,6 +509,20 @@ export default function TabLayout() {
         // Screens cross-fade with a small lateral shift toward the tab you
         // came from. 150ms default: enough to read as motion, short enough
         // that it never sits between you and the content.
+        //
+        // `sceneStyle` is transparent, so both scenes are painted for the
+        // transition's duration and an incoming screen that does heavy work on
+        // mount can leave the shift reading badly. The windowing on the message
+        // list in chats/[eventId] is there for that reason.
+        //
+        // What this animation does *not* do is unpaint the tab you left — see
+        // the map's own `animation` below, which is the one route that cannot
+        // rely on it.
+        //
+        // `freezeOnBlur` was tried and made it read worse — it suspends a
+        // blurred screen's rendering without unpainting it, so the map stopped
+        // updating and froze on its last frame, still visible and now visibly
+        // stuck.
         animation: 'shift',
         tabBarShowLabel: false,
         tabBarActiveTintColor: COLORS.accent,
@@ -586,6 +600,33 @@ export default function TabLayout() {
         name="map"
         options={{
           title: 'Map',
+          // The one tab that does not cross-fade, and this is load-bearing
+          // rather than taste.
+          //
+          // `shift` does not detach the screen you left: react-navigation keeps
+          // it mounted and animates it to `opacity: 0`, and only hands
+          // react-native-screens `activityState: 0` — an actual detach — when
+          // the blurred route's progress reaches +1, i.e. when you move to a tab
+          // on its *left*. Going right (Map index 2 → Inbox index 3) the
+          // progress runs to -1, which the activityState interpolation
+          // extrapolates as "still transitioning", so the map stays attached
+          // forever with nothing but that animated opacity hiding it.
+          //
+          // Opening a chat from a dealt card is exactly that navigation, and
+          // when the opacity does not land the map is left painted, shifted the
+          // 50pt the shift's transform ended on — showing through the
+          // conversation, which is transparent all the way down to the
+          // navigator (chats/_layout, plus `sceneStyle` above). That is the
+          // stuck map behind a working, typeable chat.
+          //
+          // With `animation: 'none'` this route's activityState is the plain
+          // constant `STATE_INACTIVE` whenever it is blurred — a value React
+          // commits, not one an animation has to arrive at — so the scene is
+          // removed instead of faded. Nothing to stall, nothing for a later
+          // commit to clobber. It costs the map its own 150ms fade; the other
+          // four tabs keep theirs. Leaving a native MKMapView to be hidden by
+          // an animated opacity is the part that was never safe.
+          animation: 'none',
           tabBarIcon: ({ focused }) => (
             <TabIcon
               name="map"

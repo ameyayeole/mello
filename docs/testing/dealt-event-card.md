@@ -393,17 +393,34 @@ fragment in the same root view, so a sibling of `<Stack>` already covers it.
 **Every row here is reasoning.** The mechanism was traced through
 `RNSFullWindowOverlay.mm` and `RCTModalHostViewComponentView.mm`; none of it
 has been watched. The failure to look for is the blunt one — **no card, at
-all** — and the second-order one, that the card appears but its dialogs do not
-(see P5, which is the one residual risk this fix knowingly leaves).
+all** — and the second-order one, that the card appears but its dialogs do not.
+
+> **P5 happened.** The residual risk this section flagged was real, and it was
+> reported from the wishlist: Join did nothing, and the app appeared to freeze
+> afterwards. UIKit will not present a second modal from a controller that is
+> already presenting one, so the pre-join safety popup never opened — and a
+> safety queue with no popup to answer leaves `CardPortal` *suspended*, which is
+> `opacity: 0` on a still-mounted full-screen layer over everything.
+>
+> Fixed by making the wishlist do what `search.tsx` and `notifications.tsx`
+> already did: deal the card **and dismiss itself**, so the card is never dealt
+> over a modal route that stays presented. `EventDealtCard` also clears the
+> safety queue on every new deal, so that state can no longer outlive its card.
+> P1 and P5 below were rewritten for the new behaviour; **P5a is the freeze.**
 
 | # | Step | Expect | Failure looks like | iOS | Android |
 | --- | --- | --- | --- | :-: | :-: |
-| P1 | Open the **wishlist** (`events/wishlist`, a modal route) and tap a saved event | Card deals from that row's rect, over the wishlist, with the dim covering the whole screen including the wishlist's own header | No card at all (the original bug), or a card that appears underneath the wishlist screen | ☐ | ☐ |
+| P1 | Open the **wishlist** (`events/wishlist`, a modal route) and tap a saved event | The wishlist dismisses *and* the card deals from that row's rect — one movement, ending with the card over the tabs | No card at all (the original bug); a card under the wishlist; or the wishlist staying put with the card on top of it (the state that broke Join) | ☐ | ☐ |
 | P2 | Open the **swipe deck** (`events/swipe`, a modal route) and tap its top card | Card deals from the deck card's rect, over the deck screen | As P1 | ☐ | ☐ |
 | P3 | Open a **friend's profile** (`friends/[userId]`, a plain push) and tap one of their events | Card deals from that row, over the profile | As P1 | ☐ | ☐ |
 | P4 | With the app open on any **pushed** route (a friend's profile, an event's host screen, a chat), receive a push for an event and tap it | Card deals — bottom-edge arc if the in-app banner has already gone, from the banner's rect if it is still on screen | No card; you are left on the pushed route with nothing having happened | ☐ | ☐ |
-| P5 | From the card dealt in **P1 or P2** (i.e. over a `presentation: 'modal'` route), reach a dialog: trip a safety popup by joining, or open Leave → the reason sheet | The popup/dialog appears over the card | Nothing appears and the action stalls. **This is the known residual risk and the reason this row exists.** `Sheet`/`Dialog`/`SafetyPopup` are RN `Modal`s and deliberately sit outside the card's portal (a `Modal` inside a `FullWindowOverlay` has no view controller to present from and would never open at all); presenting one *while a native modal route is already presented* is the case that has not been proven. Compare with the same action from the map, which is not a modal route — if it works there and not here, this is what you have found | ☐ | ☐ |
-| P6 | Dismiss the card dealt in P1/P2/P3 (drag down or tap the dim) | The card leaves and you are back on the wishlist / deck / profile, still on that route — dismissing the card must not pop the route | The route pops too, or the card leaves and the screen underneath is the wrong one | ☐ | ☐ |
+| P5 | From the card dealt in **P1**, tap **Join** on an event that should trip a safety popup (your first join, a women-only event, a new host, a party) | The popup appears over the card, and confirming it actually joins — the same as joining from the map | Nothing appears and the action stalls. That is the original bug: it means the card is still being dealt over a presented modal route | ☐ | ☐ |
+| P5a | **The freeze.** Do P5, then dismiss whatever you are on and go back to the map | The map pans and taps normally | The map is inert — you can see it but not move it. That is a suspended `CardPortal` still mounted over the app: an invisible full-screen `GestureHandlerRootView`. Check the same on Home and in a chat; if the whole app is unresponsive to drags, this is it, not a map bug | ☐ | ☐ |
+| P5b | Join from the wishlist, let the popup appear, then **dismiss the popup** without confirming | You are back on the card, nothing joined, and the app still responds | Anything invisible left over — same failure as P5a | ☐ | ☐ |
+| P5c | Deal a card from the wishlist, dismiss it, then deal a *different* card from the map and tap Join | The popup for the *second* event appears. The first card's safety queue must not be sitting there suspending the portal | The second card deals invisibly (portal suspended by a stale queue) | ☐ | ☐ |
+| P5d | The same dialog check from a card dealt on the **map** and on a **friend's profile** (neither is a modal route) | Popups and the leave flow work, as before | A regression from the queue-clearing effect | ☐ | ☐ |
+| P6 | Dismiss the card dealt in P3 (a plain push — drag down or tap the dim) | The card leaves and you are still on the profile — dismissing the card must not pop the route | The route pops too, or the card leaves and the screen underneath is the wrong one | ☐ | ☐ |
+| P6a | Dismiss the card dealt from the **wishlist** in P1 | You are on whatever the wishlist was opened from (the map's deck, or Home) — *not* back in the wishlist, which dismissed itself when the card was dealt | Back in the wishlist, meaning the dismissal did not happen and Join is still broken | ☐ | ☐ |
 | P7 | **Android only.** With a card dealt over the wishlist, press the hardware back button | Something sane and consistent — either the card closes or the route pops, but not both, and not a stuck dim with no card | A dim left on screen with nothing on it, or the route popping while the card stays | ☐ | ☐ |
 | P8 | From the map (the case that always worked), deal a card and confirm the dim covers the floating tab bar | Tab bar is under the dim and not tappable | Tab bar sits above the dim, or is still tappable — the card is mounted a level higher than it used to be, so this is the row that checks nothing regressed on the path that was fine | ☐ | ☐ |
 

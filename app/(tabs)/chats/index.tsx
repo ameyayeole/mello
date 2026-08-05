@@ -75,6 +75,7 @@ import {
   NoteRevealModal,
 } from '@/components/wrap/SealedNoteRow';
 import { showError } from '@/utils/errors';
+import { openDmChat, openEventChat } from '@/utils/chatActions';
 
 type Tab = 'events' | 'friends';
 
@@ -642,7 +643,7 @@ export default function ChatsListScreen() {
         }
         time={last ? formatChatTime(last.created_at) : undefined}
         pref={prefs?.get(chatKey('event', event.id))}
-        onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+        onPress={() => openEventChat(event.id)}
         onLongPress={() =>
           setSheetTarget({
             chatType: 'event',
@@ -680,7 +681,7 @@ export default function ChatsListScreen() {
         time={lastMessage ? formatChatTime(lastMessage.created_at) : undefined}
         unread={unreadByFriend?.get(friend.id)}
         pref={prefs?.get(chatKey('dm', friend.id))}
-        onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
+        onPress={() => openDmChat(friend.id)}
         onLongPress={() =>
           setSheetTarget({
             chatType: 'dm',
@@ -752,7 +753,7 @@ export default function ChatsListScreen() {
                   photoUrl={friend.photo_url}
                   size={72}
                   online
-                  onPress={() => router.push(`/(tabs)/chats/dm/${friend.id}`)}
+                  onPress={() => openDmChat(friend.id)}
                 />
                 <Text style={styles.activeName} numberOfLines={1}>
                   {friend.name.split(' ')[0]}

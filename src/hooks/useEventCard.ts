@@ -17,6 +17,7 @@ import {
   dismissSafetyQueue,
 } from '@/utils/safetyQueue';
 import { joinGate, safetyFlagsFor, type QueuedSafetyPopup } from '@/utils/eventCardGates';
+import { openEventChat } from '@/utils/chatActions';
 
 // Copied verbatim from EventBottomSheet.tsx — these strings are written to
 // `event_leave_feedback` as-is, so a rewording here would silently change
@@ -196,6 +197,35 @@ export function useEventCard(eventId: string | null) {
                       ? 'Request to join'
                       : 'Join event';
 
+  /**
+   * What the primary action will actually do, for callers that have to prepare
+   * for it. `onPrimary` branches on eight conditions internally; this exposes the
+   * one distinction a *surface* cares about — whether it is about to lose the
+   * screen — without asking it to re-derive any of them or to match on labels.
+   *
+   *   'navigate'  pushes a route or opens a chat
+   *   'join'      joins, or asks the host to; may raise a safety popup first
+   *   'withdraw'  cancels a pending request, in place
+   *   'blocked'   does nothing (a full or female-only event)
+   *
+   * The deck needs this because it comes home before it lets go of the screen,
+   * and doing that for a *join* took the event detail query down mid-action —
+   * see the note on `actingId` in EventDeck.
+   */
+  const primaryKind: 'navigate' | 'join' | 'withdraw' | 'blocked' = !event
+    ? 'blocked'
+    : wrapped
+      ? 'navigate'
+      : isHost || isParticipant
+        ? 'navigate'
+        : isPending
+          ? 'withdraw'
+          : gate === 'full' || gate === 'womenOnly'
+            ? 'blocked'
+            : gate === 'premiumDistance'
+              ? 'navigate'
+              : 'join';
+
   const onPrimary = useCallback(() => {
     if (!event) return;
     if (wrapped && (isParticipant || isHost)) {
@@ -211,7 +241,7 @@ export function useEventCard(eventId: string | null) {
     }
     if (isParticipant) {
       closeDealtCard();
-      router.push(`/(tabs)/chats/${event.id}`);
+      openEventChat(event.id);
       return;
     }
     if (isPending) {
@@ -247,6 +277,7 @@ export function useEventCard(eventId: string | null) {
     isLoading,
     gate,
     primaryLabel,
+    primaryKind,
     onPrimary,
     queue,
     confirmQueued,

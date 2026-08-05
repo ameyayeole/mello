@@ -9,6 +9,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Avatar, Button, Dialog, Icon, PressableScale } from '@/components/ui';
 import { useFriends } from '@/hooks/useFriends';
 import { WrapNote } from '@/types/models';
+import { openDmChat } from '@/utils/chatActions';
 
 function timeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -124,7 +125,7 @@ export function NoteRevealModal({
                 label="Message"
                 onPress={() => {
                   onClose();
-                  router.push(`/(tabs)/chats/dm/${note.sender_id}`);
+                  openDmChat(note.sender_id);
                 }}
               />
             ) : (

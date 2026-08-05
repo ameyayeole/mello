@@ -34,7 +34,100 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$;
+$$;Data Minimization & Privacy
+Select the data points you would like to include in the verification results. This helps comply with GDPR/CCPA data minimization principles by ensuring you only receive the data you need.
+
+35 of 35 data points included
+Clear all
+
+Identity Details
+4/4
+
+Document type
+
+Document number
+
+Issuing state
+
+Personal number
+
+Personal Information
+9/9
+
+First name
+
+Last name
+
+Full name
+
+Date of birth
+
+Age
+
+Place of birth
+
+Gender
+
+Marital status
+
+Nationality
+
+Document Validity
+3/3
+
+Date of issue
+
+Expiration date
+
+Issuing state name
+
+Address Information
+3/3
+
+Full address (unstructured)
+
+Formatted address
+
+Parsed address
+
+Media Assets
+5/5
+
+Document image
+
+Document video
+
+Portrait image
+
+Silent selfie capture
+
+Extra files
+
+Quality Scores
+4/4
+
+Front image quality score
+
+Back image quality score
+
+Silent Capture
+
+Back camera face match score
+
+Other
+5/5
+
+Extra fields
+
+Matches
+
+Status
+Always
+
+Warnings
+Always
+
+Node ID
 
 DROP TRIGGER IF EXISTS trg_guard_kyc_locked_identity ON profiles;
 CREATE TRIGGER trg_guard_kyc_locked_identity

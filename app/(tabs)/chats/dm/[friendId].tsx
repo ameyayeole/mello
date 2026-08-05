@@ -28,6 +28,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useDirectChat } from '@/hooks/useDirectChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
+import { useBackToInbox } from '@/hooks/useBackToInbox';
 import { usePresence } from '@/hooks/usePresence';
 import { useChatScroll } from '@/hooks/useChatScroll';
 import { supabase } from '@/services/supabase';
@@ -36,7 +37,7 @@ import { getDmPin, setDmPin } from '@/services/dm.service';
 import { getChatPrefs, chatKey } from '@/services/chatPrefs.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { DirectMessage, Profile } from '@/types/models';
+import { DirectMessage, Profile, ReplyTarget } from '@/types/models';
 import { isPremium } from '@/utils/premium';
 import {
   readersByMessage,
@@ -64,6 +65,7 @@ import {
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
+  ReplyComposerBar,
   TickStatus,
   activeMentionQuery,
   insertMention,
@@ -75,6 +77,7 @@ import {
   messageExcerpt,
   pickChatImage,
   promptReportMessage,
+  replyTargetOf,
 } from '@/utils/chatActions';
 import { showError } from '@/utils/errors';
 
@@ -89,7 +92,19 @@ function tickStatus(message: DirectMessage): TickStatus {
   return message.read_at ? 'read' : 'sent';
 }
 
-export default function DirectChatScreen() {
+/**
+ * The route. `dm/[friendId]` is `dangerouslySingular` (see chats/_layout), so
+ * opening a different DM reuses *this* route with new params rather than pushing
+ * a second one — and a param change on a kept route does not remount. The key
+ * makes it remount: without it the incoming thread renders with the previous
+ * one's messages, draft and scroll position still in state.
+ */
+export default function DirectChatRoute() {
+  const { friendId } = useLocalSearchParams<{ friendId: string }>();
+  return <DirectChatScreen key={friendId} />;
+}
+
+function DirectChatScreen() {
   const { friendId } = useLocalSearchParams<{ friendId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -100,9 +115,13 @@ export default function DirectChatScreen() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   useActiveChat(friendId ? `dm:${friendId}` : null);
+  const backToInbox = useBackToInbox();
   const [input, setInput] = useState('');
   const [messageSheet, setMessageSheet] = useState<DirectMessage | null>(null);
+  // What the composer is replying to — see the same note in the event thread.
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const profileSheet = useRef<ProfileBottomSheetRef>(null);
   const { isOnline } = usePresence();
 
@@ -166,25 +185,7 @@ export default function DirectChatScreen() {
     for (const m of messages) seen.current.add(m.id);
   }, [messages]);
 
-  // Where to open: the first message from them you haven't read.
-  //
-  // Captured once and then frozen, because opening this screen marks the
-  // conversation read — useDirectChat fires markDmRead the moment an unread
-  // message is on screen — so a live computation would evaluate to "nothing
-  // unread" a fraction of a second later and the anchor would vanish before
-  // the list had laid out.
-  const unreadAnchor = useRef<number | null>(null);
-  const anchored = useRef(false);
-  useEffect(() => {
-    if (anchored.current || messages.length === 0) return;
-    anchored.current = true;
-    const i = messages.findIndex(
-      (m) => m.sender_id === friendId && !m.read_at && !m._status
-    );
-    unreadAnchor.current = i >= 0 ? i : null;
-  }, [messages, friendId]);
-
-  const chatScroll = useChatScroll(listRef, unreadAnchor);
+  const chatScroll = useChatScroll(listRef, messages);
 
   // Drag the thread left to read the times. One shared value for every bubble,
   // so the column moves as a single sheet.
@@ -194,7 +195,9 @@ export default function DirectChatScreen() {
   // committed sideways, and gives up the moment it commits downward.
   const revealX = useSharedValue(0);
   const revealPan = Gesture.Pan()
-    .activeOffsetX([-14, 14])
+    // Leftward only — rightward drags are the per-message swipe-to-reply. See
+    // the same note in the event chat.
+    .activeOffsetX(-14)
     .failOffsetY([-12, 12])
     // Driven off the gesture's own total translation rather than accumulated
     // deltas. Accumulating and then clamping puts a kink in the motion at the
@@ -320,8 +323,11 @@ export default function DirectChatScreen() {
     if (!text || !user) return;
     kickSend();
     setInput('');
+    setReplyTo(null);
+    // Sending from up in the history should bring you back to your own message.
+    chatScroll.scrollToLatest();
     send(
-      { content: text },
+      { content: text, reply: replyTo },
       {
         onError: (e) => {
           // Restore the text so it isn't lost, and surface the real reason
@@ -334,6 +340,14 @@ export default function DirectChatScreen() {
         },
       }
     );
+  }
+
+  // Swiped right on a message, or the sheet's Reply row. The friend's name is
+  // passed as the fallback: a DM row does not always carry a joined sender, and
+  // "Them" in a quote of the person you are talking to would be odd.
+  function startReply(message: DirectMessage) {
+    setReplyTo(replyTargetOf(message, user?.id, friend?.name));
+    inputRef.current?.focus();
   }
 
   async function handleAttach() {
@@ -364,6 +378,15 @@ export default function DirectChatScreen() {
     const mine = message.sender_id === user.id;
     const options: SheetOption[] = [];
 
+    // First — see the same row in the event thread.
+    if (!message._status) {
+      options.push({
+        icon: 'reply',
+        label: 'Reply',
+        sub: 'Or swipe the message right',
+        onPress: () => startReply(message),
+      });
+    }
     if (message.type !== 'image') {
       options.push({
         icon: 'copy',
@@ -414,7 +437,7 @@ export default function DirectChatScreen() {
         radius={0}
         style={[styles.header, { paddingTop: insets.top + 8 }]}
       >
-        <NavButton onPress={() => router.back()} accessibilityLabel="Go back" />
+        <NavButton onPress={backToInbox} accessibilityLabel="Go back" />
         <Avatar
           name={friend?.name}
           photoUrl={friend?.photo_url}
@@ -462,20 +485,21 @@ export default function DirectChatScreen() {
         <GestureDetector gesture={revealPan}>
         <FlatList
           ref={listRef}
-          data={messages}
+          // Inverted — see the event thread and useChatScroll.
+          inverted
+          data={chatScroll.ordered}
           keyExtractor={(m) => m.id}
           renderItem={({ item, index }) => {
             const isMine = item.sender_id === user?.id;
-            const { isFirstOfRun, isLastOfRun } = runFlags(
-              messages[index - 1],
-              item,
-              messages[index + 1]
-            );
+            // Neighbours in reading order, out of an array in the opposite one.
+            const older = chatScroll.ordered[index + 1];
+            const newer = chatScroll.ordered[index - 1];
+            const { isFirstOfRun, isLastOfRun } = runFlags(older, item, newer);
 
             return (
               <>
               {/* Only across an hour or a day — see the event thread. */}
-              {startsTimeBlock(messages[index - 1], item) ? (
+              {startsTimeBlock(older, item) ? (
                 <TimeDivider date={item.created_at} />
               ) : null}
               <MessageBubble
@@ -515,18 +539,46 @@ export default function DirectChatScreen() {
                 onReadersPress={() => setReceiptFor(item)}
                 onLongPress={() => setMessageSheet(item)}
                 onAvatarPress={() => profileSheet.current?.open(friendId)}
+                reply={
+                  item.reply_to_id
+                    ? {
+                        senderName: item.reply_sender_name ?? 'Message',
+                        preview: item.reply_preview ?? '',
+                      }
+                    : null
+                }
+                onQuotePress={
+                  item.reply_to_id
+                    ? () => chatScroll.scrollToMessage(item.reply_to_id!)
+                    : undefined
+                }
+                onReply={item._status ? undefined : () => startReply(item)}
+                // The list is inverted, which flips the direction of the send
+                // entrance unless the bubble knows.
+                inverted
               />
               </>
             );
           }}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
-          onScroll={chatScroll.onScroll}
-          scrollEventThrottle={64}
-          onContentSizeChange={chatScroll.onContentSizeChange}
           onScrollToIndexFailed={chatScroll.onScrollToIndexFailed}
+          // Drag the thread and the keyboard goes away, the way it does in
+          // WhatsApp and Instagram.
+          //
+          // `on-drag` on both platforms, not iOS's nicer `interactive`, because
+          // `inverted` flips it: interactive dismissal follows a drag toward the
+          // keyboard, and the list's scaleY(-1) maps a real downward drag onto an
+          // upward one internally — so the keyboard came down when you swiped
+          // *up* into history and stayed put when you swiped down at it.
+          keyboardDismissMode="on-drag"
+          // …but a tap on a bubble, a mention or a reply quote still lands
+          // instead of being swallowed by the dismiss.
+          keyboardShouldPersistTaps="handled"
+          // `scaleY: -1` undoes the one `inverted` puts on every cell — without
+          // it this renders upside down, which is the classic inverted-list trap.
           ListEmptyComponent={
-            <View style={styles.empty}>
+            <View style={[styles.empty, { transform: [{ scaleY: -1 }] }]}>
               <Avatar
                 name={friend?.name}
                 photoUrl={friend?.photo_url}
@@ -558,6 +610,10 @@ export default function DirectChatScreen() {
           />
         )}
 
+        {replyTo && (
+          <ReplyComposerBar reply={replyTo} onCancel={() => setReplyTo(null)} />
+        )}
+
         <Glass
           tier="chrome"
           radius={0}
@@ -575,6 +631,7 @@ export default function DirectChatScreen() {
             <Icon name="image" size={20} color={COLORS.textSecondary} />
           </PressableScale>
           <TextInput
+            ref={inputRef}
             style={styles.input}
             placeholder="Message…"
             placeholderTextColor="rgba(15,24,44,0.40)"

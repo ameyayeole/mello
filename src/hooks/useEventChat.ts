@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
+import { freshChannel } from '@/services/realtime';
 import {
   getMessages,
   sendMessage,
@@ -10,9 +11,10 @@ import {
 } from '@/services/chat.service';
 import { uploadChatPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
-import { Message } from '@/types/models';
+import { Message, ReplyTarget } from '@/types/models';
 import { CONFIG } from '@/constants/config';
 import { newId } from '@/utils/id';
+import { replyOf } from '@/utils/chatActions';
 
 export function useEventChat(eventId: string, clearedAt?: string | null) {
   const userId = useAuthStore((s) => s.user?.id);
@@ -56,19 +58,14 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
   }, [initial]);
 
   useEffect(() => {
-    const name = `event:${eventId}:messages`;
-    // Drop any channel left over from a previous mount of this same chat. If one
-    // lingers in the client registry, `supabase.channel(name)` returns that stale,
-    // already-subscribed channel and calling `.on()` on it throws a fatal
-    // "cannot add postgres_changes callbacks after subscribe()" error.
-    supabase.getChannels().forEach((c) => {
-      if (c.topic === name || c.topic === `realtime:${name}`) {
-        supabase.removeChannel(c);
-      }
-    });
-
-    const channel = supabase
-      .channel(name)
+    // `freshChannel` rather than clearing the registry first, which is what this
+    // used to do. Sweeping channels by name assumed only one mount of a given
+    // event chat could exist — but a chat reached while the same one is still on
+    // the stack below had the older mount's *live* channel torn out from under
+    // it, and the sweep is async, so the replacement could still be handed a
+    // subscribed channel and throw. A topic nobody else can be holding has
+    // neither problem. See services/realtime.
+    const channel = freshChannel(`event:${eventId}:messages`)
       .on(
         'postgres_changes',
         {
@@ -128,9 +125,9 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
       .subscribe();
 
     return () => {
-      // removeChannel (not just unsubscribe) also drops it from the client
-      // registry, so reopening this chat creates a fresh channel instead of
-      // reusing a subscribed one.
+      // removeChannel, not unsubscribe: only the former drops it from the
+      // client's registry, which is what keeps that registry from growing a
+      // dead channel per thread you have opened.
       supabase.removeChannel(channel);
     };
   }, [eventId]);
@@ -138,7 +135,15 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
   // Fire-and-forget send: the bubble shows instantly as 'sending', flips to
   // confirmed when the realtime echo lands, or to 'failed' if the insert errors.
   const send = useCallback(
-    (senderId: string, content: string, type: Message['type'] = 'text') => {
+    (
+      senderId: string,
+      content: string,
+      type: Message['type'] = 'text',
+      // What this replies to, if anything. Carried on the optimistic row too,
+      // so the quote is on screen with the message rather than a beat later
+      // when the echo lands.
+      reply?: ReplyTarget | null
+    ) => {
       const id = newId();
       const optimistic: Message = {
         id,
@@ -147,11 +152,14 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
         content,
         type,
         created_at: new Date().toISOString(),
+        reply_to_id: reply?.id ?? null,
+        reply_preview: reply?.preview ?? null,
+        reply_sender_name: reply?.senderName ?? null,
         _status: 'sending',
       };
       setMessages((prev) => [...prev, optimistic]);
 
-      sendMessage(eventId, senderId, content, id, type)
+      sendMessage(eventId, senderId, content, id, type, reply)
         .then(() => {
           // Clear the spinner even if the realtime echo is slow to arrive.
           setMessages((prev) =>
@@ -204,7 +212,10 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
     (message: Message) => {
       setMessages((prev) => prev.filter((m) => m.id !== message.id));
       if (message.type === 'image') sendImage(message.sender_id, message.content);
-      else send(message.sender_id, message.content, message.type);
+      // The failed row still carries its reply snapshot, so a retry keeps the
+      // quote rather than sending the text on its own.
+      else
+        send(message.sender_id, message.content, message.type, replyOf(message));
     },
     [send, sendImage]
   );

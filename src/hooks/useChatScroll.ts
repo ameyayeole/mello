@@ -1,78 +1,74 @@
-import { useCallback, useRef } from 'react';
-import { FlatList, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { FlatList } from 'react-native';
 
 /**
- * Where a thread opens, and when it follows along afterwards.
+ * The scroll behaviour of a thread — which, now that the list is **inverted**, is
+ * almost nothing. That is the point.
  *
- * Three rules, and they were one line before this — `onContentSizeChange` ran
- * `scrollToEnd({ animated: true })` every time, which got all three wrong:
+ * An inverted list is what every chat app does, and it is the answer to "just
+ * open at the last message". The newest message is index 0 and the list is
+ * flipped, so scroll offset 0 *is* the bottom of the conversation. The thread
+ * therefore opens at the last message because that is where a list starts — no
+ * scroll on open, nothing to animate, nothing to correct.
  *
- *   **It opens at the bottom, instantly.** Animating the first scroll meant
- *   watching the thread race past you from the top on every open. You should
- *   arrive where the conversation is, not travel there.
+ * What it replaced, and why none of it is missed:
  *
- *   **Unless something is unread, in which case it opens there.** Landing at
- *   the bottom of ten unread messages means scrolling back up to find where
- *   you stopped. The first unread message goes to the top of the screen with
- *   what came before it still visible above.
+ *   • **The initial `scrollToEnd`.** With a normal list the newest messages are
+ *     at the *end*, so opening one meant laying it out and then travelling to the
+ *     bottom. Worse, `initialNumToRender` lays out the oldest dozen rows first,
+ *     so the first scroll-to-end went to the end of *twelve* messages and parked
+ *     forty short of the real bottom. Every fix for that was a scroll you could
+ *     see.
+ *   • **"Follow new messages only if you were at the bottom."** A new message is
+ *     now an insert at index 0, which is below your viewport when you are reading
+ *     history: it cannot move the content you are looking at. Being yanked away
+ *     mid-sentence is not something to guard against any more, it is structurally
+ *     impossible.
+ *   • **Re-pinning when the keyboard opens.** The list is anchored at its offset
+ *     0 end, so a shorter frame keeps the last message against the composer.
  *
- *   **It only follows new messages if you were already at the bottom.** Being
- *   yanked away mid-sentence because someone else posted is the single most
- *   irritating thing a chat can do.
+ * `ordered` is the reversed view the list renders. The threads keep their own
+ * `messages` oldest-first, because everything else — run grouping, time blocks,
+ * read receipts — reads in reading order.
  */
-// Close enough to the bottom that you were plainly reading the live end of the
-// conversation rather than history. One bubble's worth.
-const AT_BOTTOM_SLOP = 90;
-
-export function useChatScroll(
+export function useChatScroll<T extends { id: string }>(
   listRef: React.RefObject<FlatList | null>,
-  // Index of the first message the viewer hasn't read, or null for none.
-  // Captured by the caller *once*, before opening the chat marks it read.
-  //
-  // A ref rather than a value: it is written after the first messages land and
-  // read when the list reports its size, and passing the number itself would
-  // mean reading a ref during render — which the compiler rejects, rightly.
-  firstUnreadIndex: React.RefObject<number | null>
+  messages: T[]
 ) {
-  const landed = useRef(false);
-  const atBottom = useRef(true);
+  // Newest first, for `inverted`. A copy: `reverse` mutates, and the array it
+  // would mutate is the one held in the chat hook's state.
+  const ordered = useMemo(() => [...messages].slice().reverse(), [messages]);
 
-  const onScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-      atBottom.current =
-        contentSize.height - contentOffset.y - layoutMeasurement.height <
-        AT_BOTTOM_SLOP;
+  /**
+   * Back to the newest message. Only needed where something you did should be
+   * shown to you — sending while scrolled up into history.
+   */
+  const scrollToLatest = useCallback(
+    (animated = true) => {
+      listRef.current?.scrollToOffset({ offset: 0, animated });
     },
-    []
+    [listRef]
   );
 
-  const onContentSizeChange = useCallback(() => {
-    const list = listRef.current;
-    if (!list) return;
+  /**
+   * Jump to a specific message — what tapping a reply's quote does. Indexes into
+   * the inverted list, so the caller does not have to know the list is reversed.
+   */
+  const scrollToMessage = useCallback(
+    (id: string) => {
+      const index = ordered.findIndex((m) => m.id === id);
+      if (index < 0) return;
+      listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    },
+    [listRef, ordered]
+  );
 
-    if (!landed.current) {
-      landed.current = true;
-      const anchor = firstUnreadIndex.current;
-      if (anchor != null && anchor > 0) {
-        // viewPosition 0 puts it at the top of the viewport, so the messages
-        // you already read stay above it and the new ones read downward.
-        list.scrollToIndex({ index: anchor, animated: false, viewPosition: 0 });
-      } else {
-        list.scrollToEnd({ animated: false });
-      }
-      return;
-    }
-
-    if (atBottom.current) list.scrollToEnd({ animated: true });
-  }, [listRef, firstUnreadIndex]);
-
-  // Rows are measured as they render, so an index far down the list can be
-  // unreachable at the moment we ask for it. Fall back to the bottom rather
-  // than leaving the thread parked at the top.
+  // Rows are measured as they render, so a row far up the list can be
+  // unreachable at the moment `scrollToMessage` asks for it. Falling back to the
+  // newest message beats leaving the thread wherever the failed attempt stopped.
   const onScrollToIndexFailed = useCallback(() => {
-    listRef.current?.scrollToEnd({ animated: false });
-  }, [listRef]);
+    scrollToLatest(false);
+  }, [scrollToLatest]);
 
-  return { onScroll, onContentSizeChange, onScrollToIndexFailed };
+  return { ordered, scrollToLatest, scrollToMessage, onScrollToIndexFailed };
 }

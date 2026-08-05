@@ -17,6 +17,7 @@ import { isPremium } from '@/utils/premium';
 import { SafetyPopup } from '@/components/safety';
 import { Avatar, Icon, PremiumBadge, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
+import { openDmChat } from '@/utils/chatActions';
 
 // One attendee / join-request row in the host panel. Tapping the avatar or
 // name opens the person's profile. Approved attendees get message + overflow
@@ -65,7 +66,7 @@ export default function ParticipantRow({
   }
 
   function openMessage() {
-    router.push(`/(tabs)/chats/dm/${person.id}`);
+    openDmChat(person.id);
   }
 
   function confirmRemove() {

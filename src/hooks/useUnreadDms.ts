@@ -11,7 +11,9 @@ import { useAuthStore } from '@/stores/authStore';
  * two instances opening `supabase.channel('unreadDms:<userId>')` collide: the
  * second gets back the already-subscribed channel and `.on()` throws "cannot
  * add postgres_changes callbacks after subscribe()". A component that can
- * exist twice cannot own a channel keyed by a value it shares.
+ * exist twice cannot own a channel keyed by a value it shares — or rather, could
+ * not: `freshChannel` in services/realtime exists for exactly that now, so if
+ * this badge ever needs to be live it can subscribe for itself.
  *
  * Two things move this number, and both invalidate from somewhere mounted
  * exactly once:

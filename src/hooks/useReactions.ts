@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/services/supabase';
+import { freshChannel } from '@/services/realtime';
 import {
   getReactions,
   reactionColumn,
@@ -61,8 +62,10 @@ export function useReactions(
     if (!chatId) return;
     const column = reactionColumn(target);
 
-    const channel = supabase
-      .channel(`reactions:${target}:${chatId}`)
+    // Own topic per mount — the tapbacks of a thread that is open while the same
+    // thread is still mounted below it would otherwise collide on this name and
+    // throw. See services/realtime.
+    const channel = freshChannel(`reactions:${target}:${chatId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'message_reactions' },

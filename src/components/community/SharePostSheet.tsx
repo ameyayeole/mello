@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Text, StyleSheet, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
 import { Sheet, Avatar, Button, PressableScale } from '@/components/ui';
 import { useFriends } from '@/hooks/useFriends';
 import { sendDirectMessage } from '@/services/dm.service';
@@ -12,6 +11,7 @@ import { CommunityPost } from '@/types/models';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
+import { openDmChat } from '@/utils/chatActions';
 
 // The post share picker: send the post's deep link straight into a friend's DM
 // (a horizontal friend row), or hand off to the native sheet for external apps +
@@ -26,7 +26,6 @@ export function SharePostSheet({
   onClose: () => void;
 }) {
   const meId = useAuthStore((s) => s.user?.id);
-  const router = useRouter();
   const { friends } = useFriends();
   const [sendingTo, setSendingTo] = useState<string | null>(null);
 
@@ -47,7 +46,7 @@ export function SharePostSheet({
       await sendDirectMessage(meId, friendId, `${preview}\n${url}`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
-      router.push(`/(tabs)/chats/dm/${friendId}`);
+      openDmChat(friendId);
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {

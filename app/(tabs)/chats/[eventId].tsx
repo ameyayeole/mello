@@ -18,7 +18,7 @@ import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
-  FadeInDown,
+  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -29,6 +29,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useEventChat } from '@/hooks/useEventChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
+import { useBackToInbox } from '@/hooks/useBackToInbox';
 import { useChatScroll } from '@/hooks/useChatScroll';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -44,7 +45,7 @@ import { getChatPrefs, setChatMuted, chatKey } from '@/services/chatPrefs.servic
 import { hasWrapped } from '@/services/wrap.service';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Message, Profile } from '@/types/models';
+import { Message, Profile, ReplyTarget } from '@/types/models';
 import { formatChatTime } from '@/utils/time';
 import {
   readersByMessage,
@@ -76,6 +77,7 @@ import {
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
+  ReplyComposerBar,
   Ticks,
   TickStatus,
   activeMentionQuery,
@@ -89,6 +91,7 @@ import {
   messageExcerpt,
   pickChatImage,
   promptReportMessage,
+  replyTargetOf,
 } from '@/utils/chatActions';
 import { showError } from '@/utils/errors';
 
@@ -130,7 +133,11 @@ function AnnouncementCard({
   const sending = message._status === 'sending';
 
   return (
-    <Animated.View entering={FadeInDown.duration(250)}>
+    // FadeInUp, not FadeInDown, and for the same reason MessageBubble takes an
+    // `inverted` prop: this card sits in an inverted list cell, whose `scaleY: -1`
+    // flips the direction of the 25pt offset these presets animate from.
+    // FadeInDown starts *below* and rises — which, flipped, drops in from above.
+    <Animated.View entering={FadeInUp.duration(250)}>
       <PressableScale
         scaleTo={0.99}
         style={[styles.announceCard, sending && { opacity: 0.6 }]}
@@ -159,7 +166,20 @@ function AnnouncementCard({
   );
 }
 
-export default function GroupChatScreen() {
+/**
+ * The route. `[eventId]` is `dangerouslySingular` (see chats/_layout), so opening
+ * a different event chat reuses *this* route with new params rather than pushing
+ * a second one — and a param change on a kept route does not remount. The key
+ * makes it remount: without it the incoming thread renders with the previous
+ * one's messages, scroll position, unread anchor and "already seen" set still in
+ * state, because all of those live in `useState`/`useRef` below.
+ */
+export default function GroupChatRoute() {
+  const { eventId } = useLocalSearchParams<{ eventId: string }>();
+  return <GroupChatScreen key={eventId} />;
+}
+
+function GroupChatScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -170,19 +190,39 @@ export default function GroupChatScreen() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   useActiveChat(eventId ? `event:${eventId}` : null);
+  const backToInbox = useBackToInbox();
   const [input, setInput] = useState('');
   const [announceMode, setAnnounceMode] = useState(false);
   const [messageSheet, setMessageSheet] = useState<Message | null>(null);
+  // What the composer is replying to, until it sends or you cancel. The snapshot
+  // rather than the message: it is what gets stored on the reply, and holding the
+  // whole row would keep a deleted message alive in state.
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const profileSheet = useRef<ProfileBottomSheetRef>(null);
 
   // Full event detail: header info, host, participants (mentions + host
   // controls), chat lock + pinned message (migration 030 columns).
+  // The shared `eventDetail` key, not a private `['eventChatDetail', id]` one.
+  //
+  // Same function, same shape — a bespoke key just meant this screen could
+  // never reuse what the card or host panel had already fetched, and refetched
+  // from scratch on every entry. That cost is not evenly spread: `getEventDetail`
+  // selects the participant roster with a full profile per row, and RLS shows a
+  // HOST every row of their own event where it shows a guest almost none. So the
+  // events whose chats were slowest to open were exactly the ones you host, and
+  // they paid it again every time you came back to the thread.
+  //
+  // `staleTime` for the same reason: navigating back into a thread you were just
+  // in should read the cache, not re-run the roster query while the transition
+  // is trying to animate.
   const { data: event } = useQuery({
-    queryKey: ['eventChatDetail', eventId],
+    queryKey: queryKeys.eventDetail.of(eventId),
     queryFn: () => getEventDetail(eventId),
     enabled: !!eventId,
+    staleTime: 60_000,
   });
 
   // The wrap, met from the chat. Once the event has ended, opening its chat
@@ -259,32 +299,7 @@ export default function GroupChatScreen() {
     for (const m of messages) seen.current.add(m.id);
   }, [messages]);
 
-  // Where to open: the first message posted after your read watermark.
-  //
-  // Captured once, and from the *first* watermark the server gives us —
-  // useEventChat bumps it as soon as you are looking at the chat, so a live
-  // read would say "nothing unread" a moment later and the anchor would vanish
-  // before the list had laid out.
-  const unreadAnchor = useRef<number | null>(null);
-  const anchored = useRef(false);
-  useEffect(() => {
-    if (anchored.current || messages.length === 0 || !user) return;
-    const watermark = reads.get(user.id);
-    // No watermark yet means the fetch hasn't landed; wait for it rather than
-    // deciding there is nothing unread.
-    if (!watermark) return;
-    anchored.current = true;
-    const at = Date.parse(watermark);
-    const i = messages.findIndex(
-      (m) =>
-        m.sender_id !== user.id &&
-        !m._status &&
-        Date.parse(m.created_at) > at
-    );
-    unreadAnchor.current = i >= 0 ? i : null;
-  }, [messages, reads, user]);
-
-  const chatScroll = useChatScroll(listRef, unreadAnchor);
+  const chatScroll = useChatScroll(listRef, messages);
 
   // Drag the thread left to read the times. One shared value for every bubble,
   // so the column moves as a single sheet.
@@ -294,7 +309,11 @@ export default function GroupChatScreen() {
   // committed sideways, and gives up the moment it commits downward.
   const revealX = useSharedValue(0);
   const revealPan = Gesture.Pan()
-    .activeOffsetX([-14, 14])
+    // Leftward only. A single negative threshold rather than a range: rightward
+    // drags belong to the per-message swipe-to-reply (see MessageBubble), and
+    // with a range this claimed those too and then ignored them, which is why a
+    // right swipe used to do nothing at all.
+    .activeOffsetX(-14)
     .failOffsetY([-12, 12])
     // Driven off the gesture's own total translation rather than accumulated
     // deltas. Accumulating and then clamping puts a kink in the motion at the
@@ -432,8 +451,11 @@ export default function GroupChatScreen() {
   // request, once per conversation per day.
   const moneyGuard = useMoneyGuard(eventId, messages, user?.id);
 
+  // Must match the key the query above actually uses. This is the failure mode
+  // a hand-typed key has: it type-checks, it lints, and it silently refreshes
+  // nothing (AGENTS.md's "a hand-typed key that drifts fails silently").
   function refreshDetail() {
-    qc.invalidateQueries({ queryKey: ['eventChatDetail', eventId] });
+    qc.invalidateQueries({ queryKey: queryKeys.eventDetail.of(eventId) });
   }
 
   function handleSend() {
@@ -441,9 +463,24 @@ export default function GroupChatScreen() {
     if (!text || !user) return;
     kickSend();
     setInput('');
-    send(user.id, text, announceMode ? 'announcement' : 'text');
+    send(user.id, text, announceMode ? 'announcement' : 'text', replyTo);
+    setReplyTo(null);
+    // The one place a scroll is still wanted: sending from up in the history
+    // should bring you back to your own message.
+    chatScroll.scrollToLatest();
     if (announceMode) setAnnounceMode(false);
   }
+
+  // Swiped right on a message. Also what the sheet's Reply row calls.
+  //
+  // Focuses the composer as well: a reply you have to tap into is a reply you
+  // half-started, and every other chat app puts the cursor in the box for you.
+  function startReply(message: Message) {
+    setReplyTo(replyTargetOf(message, user?.id));
+    inputRef.current?.focus();
+  }
+
+
 
   async function handleAttach() {
     if (!user) return;
@@ -488,6 +525,16 @@ export default function GroupChatScreen() {
     const mine = message.sender_id === user.id;
     const options: SheetOption[] = [];
 
+    // First, because it is the most common thing to want. The swipe is the fast
+    // path; this is the discoverable one.
+    if (!message._status) {
+      options.push({
+        icon: 'reply',
+        label: 'Reply',
+        sub: 'Or swipe the message right',
+        onPress: () => startReply(message),
+      });
+    }
     if (message.type !== 'image') {
       options.push({
         icon: 'copy',
@@ -596,17 +643,11 @@ export default function GroupChatScreen() {
       >
         <NavButton
           // Back should *pop* — slide this screen off to the right, the way it
-          // came in. `router.navigate('/(tabs)/chats')` re-navigated to the
-          // list as if it were a new destination, so the transition ran
-          // forwards (in from the left) — the "wrong side". `back()` pops the
-          // stack when there's something to pop; the navigate stays only as the
-          // fallback for when this chat was deep-linked from outside the tabs
-          // and has no list beneath it (see _layout's initialRouteName note).
-          onPress={() =>
-            router.canGoBack()
-              ? router.back()
-              : router.navigate('/(tabs)/chats')
-          }
+          // came in. `router.navigate('/(tabs)/chats')` re-navigated to the list
+          // as if it were a new destination, so the transition ran forwards (in
+          // from the left) — the "wrong side". That navigate survives inside
+          // `useSoleConversation` as the deep-link fallback only.
+          onPress={backToInbox}
           accessibilityLabel="Go back"
         />
         {event?.activity ? (
@@ -676,23 +717,30 @@ export default function GroupChatScreen() {
         <GestureDetector gesture={revealPan}>
         <FlatList
           ref={listRef}
-          data={messages}
+          // Inverted: index 0 is the newest message and offset 0 is the bottom,
+          // so the thread opens at the last message with no scrolling — see
+          // useChatScroll. `data` is the reversed view of `messages`, which stays
+          // oldest-first everywhere else.
+          inverted
+          data={chatScroll.ordered}
           keyExtractor={(m) => m.id}
           renderItem={({ item, index }) => {
+            // Neighbours in *reading* order, from an array that is in the
+            // opposite one. Everything below (runs, time blocks) is written in
+            // terms of what came before and after a message, and inverting the
+            // list must not quietly invert that too.
+            const older = chatScroll.ordered[index + 1];
+            const newer = chatScroll.ordered[index - 1];
             const isMine = item.sender_id === user?.id;
             const read = isMine && readByAll(item);
             const longPress = () => {
               if (!item._status) setMessageSheet(item);
             };
-            const { isFirstOfRun, isLastOfRun } = runFlags(
-              messages[index - 1],
-              item,
-              messages[index + 1]
-            );
+            const { isFirstOfRun, isLastOfRun } = runFlags(older, item, newer);
             // Only where the conversation actually paused — an hour, or a new
             // day. A header over every burst was a clock stapled to the thread
             // rather than a marker in it.
-            const divider = startsTimeBlock(messages[index - 1], item) ? (
+            const divider = startsTimeBlock(older, item) ? (
               <TimeDivider date={item.created_at} />
             ) : null;
 
@@ -761,16 +809,65 @@ export default function GroupChatScreen() {
                 onRetry={() => retry(item)}
                 onLongPress={longPress}
                 onAvatarPress={() => profileSheet.current?.open(item.sender_id)}
+                reply={
+                  item.reply_to_id
+                    ? {
+                        senderName: item.reply_sender_name ?? 'Message',
+                        preview: item.reply_preview ?? '',
+                      }
+                    : null
+                }
+                onQuotePress={
+                  item.reply_to_id
+                    ? () => chatScroll.scrollToMessage(item.reply_to_id!)
+                    : undefined
+                }
+                // Not on a message still in flight: it has no server row for a
+                // reply to point at, and its id would be orphaned if the send
+                // failed.
+                onReply={item._status ? undefined : () => startReply(item)}
+                // The list is inverted, which flips the direction of the send
+                // entrance unless the bubble knows.
+                inverted
               />
               </>
             );
           }}
           contentContainerStyle={styles.messageList}
           style={styles.flex}
-          onScroll={chatScroll.onScroll}
-          scrollEventThrottle={64}
-          onContentSizeChange={chatScroll.onContentSizeChange}
           onScrollToIndexFailed={chatScroll.onScrollToIndexFailed}
+          // Windowing, because this list is what the tab transition is waiting
+          // on. Opening a chat from another tab mounts the thread while the
+          // `shift` animation is running, and that animation is driven from the
+          // JS thread — so an unwindowed list rendering the whole page at once
+          // (50 messages, each computing run flags, read receipts and time
+          // dividers) held the thread long enough for the transition to stall
+          // half-way, leaving the tab you came from painted through this one.
+          //
+          // A screenful first, the rest in small batches after. The numbers are
+          // a screenful-and-a-bit rather than a round guess: a bubble is ~60pt,
+          // so 12 covers the tallest phone with room to spare.
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={9}
+          // Drag the thread and the keyboard goes away, the way it does in
+          // WhatsApp and Instagram.
+          //
+          // `on-drag` on both platforms, not iOS's nicer `interactive`, because
+          // `inverted` flips it: interactive dismissal follows a drag toward the
+          // keyboard, and the list's scaleY(-1) maps a real downward drag onto an
+          // upward one internally — so the keyboard came down when you swiped
+          // *up* into history and stayed put when you swiped down at it.
+          keyboardDismissMode="on-drag"
+          // …but a tap on a bubble, a mention or a reply quote still lands
+          // instead of being swallowed by the dismiss.
+          keyboardShouldPersistTaps="handled"
+          // Frees the offscreen rows' native views while keeping them mounted —
+          // the memory half of the same problem on a long thread. iOS only:
+          // combined with `inverted`, Android's clipping is the long-standing
+          // source of rows that scroll into view blank, and a blank message is
+          // worse than the memory it saves.
+          removeClippedSubviews={Platform.OS === 'ios'}
         />
         </GestureDetector>
 
@@ -790,6 +887,10 @@ export default function GroupChatScreen() {
             people={mentionPeople}
             onPick={(username) => setInput((prev) => insertMention(prev, username))}
           />
+        )}
+
+        {replyTo && (
+          <ReplyComposerBar reply={replyTo} onCancel={() => setReplyTo(null)} />
         )}
 
         {announceMode && (
@@ -839,6 +940,7 @@ export default function GroupChatScreen() {
               <Icon name="image" size={20} color={COLORS.textSecondary} />
             </PressableScale>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               placeholder={announceMode ? 'Announcement…' : 'Message…'}
               placeholderTextColor="rgba(15,24,44,0.40)"

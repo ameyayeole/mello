@@ -60,7 +60,7 @@ import {
 import type { ExploreEvent, NearbyEvent, EventParticipant } from '@/types/models';
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
-import { DeckActions, DeckCounter } from './DeckChrome';
+import { DeckActions, DeckHeader } from './DeckChrome';
 import { DeckEmptyCard, type DeckEmptyReason } from './DeckEmptyCard';
 import { MINI_W, FAN_W, deckVisible, expandedSlot, miniSlot } from './deckSlots';
 
@@ -252,13 +252,15 @@ function DeckBody({
   const topId = topRow?.id ?? null;
 
   // The full detail behind the top card — the join gate, the CTA, the roster
-  // on the back. Only while the deck is open: the parked fan is a photo, and
-  // fetching an event detail (plus its distance query) for a card nobody has
-  // tapped would run on every map session.
+  // on the back. Only while the deck is open, or while a parked deck still owes
+  // an action an answer: the parked fan is a photo, and fetching an event detail
+  // (plus its distance query) for a card nobody has tapped would run on every
+  // map session.
   const {
     event: detail,
     gate,
     primaryLabel,
+    primaryKind,
     onPrimary,
     queue,
     confirmQueued,
@@ -630,12 +632,26 @@ function DeckBody({
                 primaryLabel ? (
                   <Button
                     label={primaryLabel}
-                    // The deck comes home before any of these navigate: it
-                    // lives in a window-level overlay, so a pushed route would
-                    // render underneath it. `onPrimary` closes the *dealt
-                    // card* (a different surface) and knows nothing about us.
+                    // The deck comes home before the primary action *navigates*
+                    // — you should come back to a parked fan, not to a deck still
+                    // sitting open over the map. `onPrimary` knows nothing about
+                    // us; it closes the *dealt card*, a different surface.
+                    //
+                    // **Only when it navigates.** Joining happens right here: the
+                    // button becomes "Open chat" under your finger and the safety
+                    // popup, if the event trips one, opens over the deck. Coming
+                    // home for it was wrong twice over — it threw away the card
+                    // you were reading, and `minimize` turns `expanded` false,
+                    // which switched off the detail query *this hook's own join
+                    // mutation reads its event from*. `startJoin` awaits a
+                    // SecureStore read per safety flag before firing, so by then
+                    // `event` was undefined and `joinEvent(event!.id, …)` threw
+                    // inside the mutation — surfacing as "Couldn't join · Please
+                    // check your connection and try again", which is what a null
+                    // dereference looks like when it is wearing a network
+                    // error's clothes.
                     onPress={() => {
-                      minimize();
+                      if (primaryKind === 'navigate') minimize();
                       onPrimary();
                     }}
                     fullWidth
@@ -770,7 +786,10 @@ function DeckBody({
                 style={[styles.header, headerStyle]}
                 pointerEvents={expanded ? 'box-none' : 'none'}
               >
-                <DeckCounter />
+                {/* The counter and the wishlist. `minimize` for the same
+                    reason the undo button below takes it: this window layer
+                    paints over pushed routes. */}
+                <DeckHeader onBeforeNavigate={minimize} />
               </Animated.View>
               <Animated.View
                 style={[styles.footer, footerStyle]}
@@ -1224,7 +1243,11 @@ const styles = StyleSheet.create({
   face: { overflow: 'hidden' },
   // Counter-rotated so the back's content is not mirrored once the card has
   // turned 180°.
-  backFace: { transform: [{ rotateY: '180deg' }] },
+  // `scaleX: -1`, not a second `rotateY` — see the same style in `DealtCard`
+  // for why: a nested 3D transform inside the card's own one makes iOS
+  // rasterise this layer, which is what left the back face looking blurred
+  // while the front stayed sharp.
+  backFace: { transform: [{ scaleX: -1 }] },
   shade: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.ink },
   miniFrame: { ...StyleSheet.absoluteFill, borderColor: COLORS.white },
   emptyFace: {

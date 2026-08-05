@@ -48,6 +48,7 @@ import {
   PressableScale,
   SectionLabel,
 } from '@/components/ui';
+import { openDmChat, openEventChat } from '@/utils/chatActions';
 
 // The height the field settles at. Its *starting* height comes from the
 // hand-off, not from here — the home screen's search bar happens to be this
@@ -283,7 +284,7 @@ export default function SearchScreen() {
     // In chat mode the row *is* a conversation, so it opens the thread rather
     // than the details sheet — the details are a tap away inside it.
     if (chatMode) {
-      close(() => router.push(`/(tabs)/chats/${eventId}`));
+      close(() => openEventChat(eventId));
       return;
     }
     useUIStore.getState().dealCard(eventId, origin);
@@ -295,7 +296,7 @@ export default function SearchScreen() {
   // deciding whether to add them, not leaving to read a profile.
   const openPerson = (userId: string) => {
     if (chatMode && relationshipWith(userId).status === 'friends') {
-      close(() => router.push(`/(tabs)/chats/dm/${userId}`));
+      close(() => openDmChat(userId));
       return;
     }
     if (chatMode) {

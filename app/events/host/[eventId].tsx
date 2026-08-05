@@ -38,6 +38,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { openEventChat } from '@/utils/chatActions';
 
 // How many attendees / requests show inline before "See all" takes over.
 const PREVIEW_COUNT = 3;
@@ -428,7 +429,7 @@ export default function HostPanelScreen() {
 
         <Button
           label="Open event chat"
-          onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+          onPress={() => openEventChat(event.id)}
           style={{ marginTop: SPACING[1.5] }}
         />
       </ScrollView>

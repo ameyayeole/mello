@@ -71,6 +71,7 @@ import {
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
 import FeaturedPlanCard from '@/components/events/FeaturedPlanCard';
+import { openEventChat } from '@/utils/chatActions';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -620,7 +621,7 @@ export default function DashboardScreen() {
                   }
                   onShare={() => shareEvent(featuredEvent)}
                   onChat={() =>
-                    router.push(`/(tabs)/chats/${featuredEvent.id}`)
+                    openEventChat(featuredEvent.id)
                   }
                 />
               )}
@@ -643,7 +644,7 @@ export default function DashboardScreen() {
                       eyebrow="attending"
                       cta="details"
                       tone="quiet"
-                      onPress={() => router.push(`/(tabs)/chats/${event.id}`)}
+                      onPress={() => openEventChat(event.id)}
                     />
                   ))}
                 </>

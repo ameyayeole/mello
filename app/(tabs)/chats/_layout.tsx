@@ -43,7 +43,41 @@ export default function ChatsLayout() {
           // themselves paint over the background the theme just uncovered.
           contentStyle: { backgroundColor: 'transparent' },
         }}
-      />
+      >
+        <Stack.Screen name="index" />
+        {/* This stack holds the list plus *one* open thread, and that is
+            enforced here rather than cleaned up afterwards.
+
+            Every "open chat" button in the app calls `router.push` — the map's
+            dealt card, the home rows, a notification, search, the profile
+            sheet. expo-router resolves that push against the current state and
+            finds the deepest navigator where the two diverge: `[eventId]`
+            matches this stack's current route by *name* but not by param, so
+            the divergence lands here and the action stays a PUSH. Open five
+            chats and the stack is five deep, and back walks down it one thread
+            at a time — which is the bug this fixes.
+
+            `dangerouslySingular` gives the route a constant id, and
+            `StackRouter` treats PUSH and NAVIGATE the same once a route with a
+            matching id exists: it reuses that route with the new params and
+            moves it to the top instead of adding a second one. So there is
+            never a stale thread underneath, whichever way you leave — the
+            header button, the iOS swipe, Android back. It also means opening
+            the thread you are already in cannot mount a second copy of it,
+            which is what used to collide on the realtime channel name.
+
+            The screens remount themselves on a param change — a reused route
+            keeps its key, so React would otherwise leave the previous thread's
+            messages in state. See the wrapper at the bottom of each. */}
+        <Stack.Screen
+          name="[eventId]"
+          dangerouslySingular={() => 'conversation'}
+        />
+        <Stack.Screen
+          name="dm/[friendId]"
+          dangerouslySingular={() => 'conversation'}
+        />
+      </Stack>
     </ThemeProvider>
   );
 }

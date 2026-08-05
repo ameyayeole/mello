@@ -16,12 +16,18 @@ export default function WishlistButton({
   raised = false,
   color,
   style,
+  onBeforeNavigate,
 }: {
   size?: number;
   iconSize?: number;
   raised?: boolean;
   color?: string;
   style?: StyleProp<ViewStyle>;
+  // Called immediately before the push. For the swipe deck, which renders inside
+  // a `FullWindowOverlay` that paints over pushed routes — the wishlist would
+  // open underneath it and the button would read as dead. Same contract as
+  // `DeckActions`'s undo.
+  onBeforeNavigate?: () => void;
 }) {
   const router = useRouter();
   const { data } = useSavedEventIds();
@@ -30,7 +36,10 @@ export default function WishlistButton({
   return (
     <PressableScale
       scaleTo={0.88}
-      onPress={() => router.push('/events/wishlist')}
+      onPress={() => {
+        onBeforeNavigate?.();
+        router.push('/events/wishlist');
+      }}
       accessibilityRole="button"
       accessibilityLabel={
         count > 0 ? `Open wishlist, ${count} saved` : 'Open wishlist'

@@ -28,6 +28,7 @@ import {
 } from '@/components/ui';
 import { EventCard } from './EventCard';
 import { EventCardBack } from './EventCardBack';
+import { openEventChat } from '@/utils/chatActions';
 
 // Lifts the card out of the React tree it is mounted in and into a layer that
 // paints over the whole app — native modal routes included.
@@ -63,14 +64,31 @@ import { EventCardBack } from './EventCardBack';
 // The overlay hosts its own native window, so gestures need their own
 // `GestureHandlerRootView` — the app-root one does not reach into it. Same
 // note as `InAppNotification`'s.
-export function CardPortal({ children }: { children: ReactNode }) {
+export function CardPortal({
+  children,
+  // Set while a `Modal`-based surface (SafetyPopup, Dialog) is open over the
+  // card. Those cannot live inside the overlay — see the note above — so they
+  // render in the app tree, which puts them UNDER this window-level container:
+  // the sheet appeared behind the card and could not be tapped at all.
+  //
+  // Hidden rather than unmounted. Unmounting would tear down `DealtCard`'s
+  // shared values, so dismissing the sheet would re-deal the card from its
+  // origin instead of returning to the one you were already reading.
+  suspended = false,
+}: {
+  children: ReactNode;
+  suspended?: boolean;
+}) {
   if (Platform.OS !== 'ios') return <>{children}</>;
   return (
     <FullWindowOverlay>
       {/* box-none: the container hit-tests through to the app wherever no
           subview was hit, so this must not swallow taps on its own. The dim
           inside `DealtCard` is a real subview and still receives them. */}
-      <GestureHandlerRootView style={styles.portal} pointerEvents="box-none">
+      <GestureHandlerRootView
+        style={[styles.portal, suspended && styles.portalSuspended]}
+        pointerEvents={suspended ? 'none' : 'box-none'}
+      >
         {children}
       </GestureHandlerRootView>
     </FullWindowOverlay>
@@ -115,6 +133,21 @@ export function EventDealtCard() {
     leave,
   } = useEventCard(topId);
   const insets = useSafeAreaInsets();
+
+  // A safety queue belongs to the deal that started it. This component never
+  // unmounts — it returns null when no card is dealt — so the queue survives a
+  // close, and a queue left non-empty keeps `CardPortal` suspended: opacity 0,
+  // still mounted, a full-screen layer over the entire app. Whatever is
+  // underneath then looks frozen.
+  //
+  // It can be left non-empty. `startJoin` sets it and waits for the popup to be
+  // answered, and the popup is a `Modal` — so anything that stops it presenting
+  // (until recently: dealing this card over the wishlist's modal route) leaves a
+  // queue with no UI to clear it. Clearing on every new deal, and on close, means
+  // that state cannot outlive the card it belonged to.
+  useEffect(() => {
+    dismissQueue();
+  }, [deal?.token, dismissQueue]);
 
   // The wishlist save/unsave toast — ported from EventBottomSheet.tsx's
   // footer toast (:800-839), which existed specifically because a silently
@@ -255,7 +288,7 @@ export function EventDealtCard() {
                         variant="tertiary"
                         onPress={() => {
                           close();
-                          router.push(`/(tabs)/chats/${event.id}`);
+                          openEventChat(event.id);
                         }}
                       />
                     )}
@@ -339,7 +372,7 @@ export function EventDealtCard() {
       {/* The card and its toast go through the portal; everything below is
           `Modal`-based and must not (see `CardPortal`). `DealtCard` renders
           its own absoluteFill/box-none root, so no wrapper is needed here. */}
-      <CardPortal>
+      <CardPortal suspended={!!current || leave.step !== 'idle'}>
         <DealtCard
           // A fresh deal remounts the card; an advance does not. See
           // `DealtCardState.token` for the bug this fixes and the one it must
@@ -478,6 +511,8 @@ const styles = StyleSheet.create({
   // Fills the FullWindowOverlay's container so the card's own absoluteFill
   // root and the toast have something screen-sized to position against.
   portal: { flex: 1 },
+  // Out of the way, not gone: see `suspended` on CardPortal.
+  portalSuspended: { opacity: 0 },
   placeholder: {
     flex: 1,
     backgroundColor: COLORS.surface,

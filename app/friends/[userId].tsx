@@ -66,6 +66,7 @@ import {
 import { isPremium } from '@/utils/premium';
 import { SafetyPopup, BlockConfirmDialog } from '@/components/safety';
 import { showError } from '@/utils/errors';
+import { openDmChat } from '@/utils/chatActions';
 
 // ── Frosted-sheet scaffold ───────────────────────────────────────────────────
 // These five constants and the three animated styles below are mirrored from
@@ -337,7 +338,7 @@ export default function UserProfileScreen() {
               size="md"
               icon="chat"
               style={styles.actionPrimary}
-              onPress={() => router.push(`/(tabs)/chats/dm/${userId}`)}
+              onPress={() => openDmChat(userId)}
             />
             <PressableScale
               scaleTo={0.92}

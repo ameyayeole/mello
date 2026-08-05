@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -18,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
+import { CardTapContext } from './cardTapContext';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import type { DealtOrigin } from '@/stores/uiStore';
 // DIM_OPACITY, TAP_SLOP, CARD_SHADOW_OPACITY, CARD_ELEVATION and `haptic` were
@@ -397,15 +398,25 @@ export function DealtCard({
   // Same immutability rule, same reason, same fallback as `sendHome` above —
   // `flip` is also read via `useAnimatedReaction` (for the flip haptic), so a
   // `useEffect` detour would not clear the warning either. Direct write.
-  const tap = Gesture.Tap()
-    .maxDuration(400)
-    .maxDistance(TAP_SLOP)
-    .onEnd(() => {
-      flip.value = withTiming(flip.value > 0.5 ? 0 : 1, {
-        duration: FLIP_MS,
-        easing: Easing.bezier(0.5, 0.05, 0.2, 1),
-      });
-    });
+  // Published through CardTapContext so the controls drawn on the faces can
+  // declare `blocksExternalGesture` against it — that is what settles §O's
+  // race, in RNGH rather than in whatever order UIKit delivers touchesEnded.
+  // `useMemo` because the identity has to be stable: it is a dependency of
+  // every child control's gesture, and a new object each render would rebuild
+  // all of them.
+  const tap = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDuration(400)
+        .maxDistance(TAP_SLOP)
+        .onEnd(() => {
+          flip.value = withTiming(flip.value > 0.5 ? 0 : 1, {
+            duration: FLIP_MS,
+            easing: Easing.bezier(0.5, 0.05, 0.2, 1),
+          });
+        }),
+    [flip]
+  );
 
   const gesture = Gesture.Exclusive(pan, tap);
 
@@ -448,6 +459,13 @@ export function DealtCard({
           {header}
         </View>
       )}
+      {/* Everything drawn on a face sits under this, so any PressableScale on
+          the card can block the flip rather than race it (§O). Only the top
+          card actually carries `gesture`, but the provider covers the whole
+          stage — a buried card's controls are not hit-testable anyway, and
+          scoping it per-layer would mean a different context value per depth
+          for no behavioural difference. */}
+      <CardTapContext.Provider value={tap}>
       <View style={styles.stage} pointerEvents="box-none">
         {/* Deepest first so DOM order paints correctly without z-index games.
             STACK_DEPTH + 2, not + 1: the extra layer is the one parked at
@@ -482,6 +500,7 @@ export function DealtCard({
             />
           ))}
       </View>
+      </CardTapContext.Provider>
       {/* "N more behind" (design §6). Positioned off the card's own height
           rather than laid out in the stage, whose children are all absolute so
           the deck can overlap. pointerEvents none — it is a label, not a
@@ -746,9 +765,21 @@ const styles = StyleSheet.create({
     // through the flip — see the comment there.
   },
   face: { borderRadius: RADIUS['2xl'], overflow: 'hidden' },
-  // The back face is counter-rotated so its content is not mirrored once the
-  // container has turned 180°.
-  backFace: { transform: [{ rotateY: '180deg' }] },
+  // Un-mirrors the back's content, since the container it sits in has turned
+  // 180°. `scaleX: -1` and not `rotateY: '180deg'` — they look identical here
+  // and the difference is entirely in how Core Animation renders them.
+  //
+  // The card already carries a real 3D transform (perspective + rotateY). A
+  // rotateY here nests a SECOND one inside it, and iOS renders a layer with a
+  // 3D transform by rasterising it into a texture and transforming that — so
+  // the back's text and avatars were resampled and came out soft, while the
+  // front, which has no nested transform, stayed crisp. That asymmetry is the
+  // tell.
+  //
+  // `scaleX` is a 2D affine transform. It mirrors exactly the same way and
+  // keeps the layer in the normal vector-drawing path, so the back renders at
+  // full resolution.
+  backFace: { transform: [{ scaleX: -1 }] },
   shade: {
     ...StyleSheet.absoluteFill,
     borderRadius: RADIUS['2xl'],

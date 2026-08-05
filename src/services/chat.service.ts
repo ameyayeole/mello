@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Message } from '@/types/models';
+import { Message, ReplyTarget } from '@/types/models';
 
 export async function getMessages(
   eventId: string,
@@ -27,7 +27,10 @@ export async function sendMessage(
   // Optional client-minted id so an optimistic message can be matched to its
   // realtime echo. Falls back to the DB default when omitted.
   id?: string,
-  type: Message['type'] = 'text'
+  type: Message['type'] = 'text',
+  // The message this one replies to, if any (migration 072). The preview and
+  // name are stored alongside the id on purpose — see the migration.
+  reply?: ReplyTarget | null
 ): Promise<void> {
   const { error } = await supabase.from('messages').insert({
     ...(id ? { id } : {}),
@@ -35,6 +38,13 @@ export async function sendMessage(
     sender_id: senderId,
     content,
     type,
+    ...(reply
+      ? {
+          reply_to_id: reply.id,
+          reply_preview: reply.preview,
+          reply_sender_name: reply.senderName,
+        }
+      : {}),
   });
 
   if (error) throw error;

@@ -17,6 +17,7 @@ import {
 } from '@/services/reminders';
 import { DISCOVERY_FEED_KEYS, queryKeys } from '@/constants/queryKeys';
 import { EventDetail, ParticipantStatus, Profile } from '@/types/models';
+import { errorMessage } from '@/utils/errors';
 
 // The four participation mutations for one event: join, leave, and the host's
 // approve/reject. All optimistic — the button label, the participant list and
@@ -122,11 +123,18 @@ export function participationMutations(
       setMyParticipation(event!.requires_approval ? 'pending' : 'approved');
       return ctx;
     },
-    onError: (_e, _v, ctx) => {
+    onError: (e, _v, ctx) => {
       rollback(ctx);
+      // The real reason, with the network guess only as the fallback. This used
+      // to assert the connection line for *every* failure, which is wrong for
+      // most of them — a full event, a women-only gate, an RLS refusal, a
+      // migration that has not been run — and actively misleading for a bug in
+      // this app: a null dereference inside the mutation reads as "you are
+      // offline", which is what sent someone looking at their wifi instead of at
+      // EventDeck's primary button.
       Alert.alert(
         "Couldn't join",
-        'Please check your connection and try again.'
+        errorMessage(e, 'Please check your connection and try again.')
       );
     },
     onSuccess: () => {

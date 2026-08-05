@@ -218,6 +218,11 @@ export interface Message {
   type: 'text' | 'system' | 'location' | 'image' | 'announcement';
   created_at: string;
   sender?: Profile;
+  // Reply (migration 072). The quoted text and author are a snapshot taken when
+  // the reply was sent — see the migration for why they are not a join.
+  reply_to_id?: string | null;
+  reply_preview?: string | null;
+  reply_sender_name?: string | null;
   // Client-only optimistic state. Undefined once the server confirms the row
   // (via the realtime echo). 'sending' = in flight, 'failed' = insert errored.
   _status?: 'sending' | 'failed';
@@ -233,8 +238,22 @@ export interface DirectMessage {
   // Read receipt (migration 031): set when the recipient opens the chat.
   read_at?: string | null;
   sender?: Profile;
+  // Reply (migration 072). The quoted text and author are a snapshot taken when
+  // the reply was sent — see the migration for why they are not a join.
+  reply_to_id?: string | null;
+  reply_preview?: string | null;
+  reply_sender_name?: string | null;
   // Client-only optimistic state, same semantics as Message._status.
   _status?: 'sending' | 'failed';
+}
+
+// What a composer is replying to: the id to link, plus the snapshot to render
+// and to store on the reply. Built by `replyTargetOf` in utils/chatActions so
+// both threads truncate and label it the same way.
+export interface ReplyTarget {
+  id: string;
+  preview: string;
+  senderName: string;
 }
 
 // Which of the two chats a reaction hangs off. The table stores it as one of

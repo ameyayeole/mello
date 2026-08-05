@@ -3,23 +3,27 @@ import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
   SharedValue,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatChatTime } from '@/utils/time';
 import { MessageReaction, Profile } from '@/types/models';
-import { Avatar, PressableScale } from '@/components/ui';
+import { Avatar, Icon, PressableScale } from '@/components/ui';
 import type { BubbleAnchor } from './ReactionOverlay';
 import ChatImageBubble from './ChatImageBubble';
 import MentionText from './MentionText';
 import ReactionPills from './ReactionPills';
 import ReadRail from './ReadRail';
+import ReplyQuote from './ReplyQuote';
 import Ticks, { TickStatus } from './Ticks';
 import {
   GLIDE,
@@ -49,6 +53,28 @@ const AVATAR_SIZE = 26;
 // How far the thread slides, and how wide the gutter it opens is. One number:
 // the drag stops exactly where the times are fully clear.
 export const TIME_GUTTER = 62;
+
+// ─── Swipe right to reply ───────────────────────────────────────────────────
+//
+// The two horizontal drags in a thread are told apart by *direction*, and that
+// is the whole of the arbitration: this one claims rightward drags only
+// (`activeOffsetX(REPLY_ACTIVATE)`, a positive threshold), and the thread-wide
+// time reveal claims leftward ones only (`activeOffsetX(-14)` in each screen).
+// A drag can only be one of the two, so neither has to block the other and the
+// list's vertical scroll still wins outright via `failOffsetY`.
+//
+// 12 to start moving — far enough that a tap or a scroll never nudges the row.
+const REPLY_ACTIVATE = 12;
+// Past this on release, it replies. Also where the haptic fires, so your thumb
+// is told the reply is armed before you let go, and you can drag back to cancel.
+const REPLY_TRIGGER = 52;
+// How much of a pull past the trigger still moves the row. Same asymptotic
+// resistance as the time gutter, for the same reason: it should never stop dead.
+const REPLY_RUBBER = 0.4;
+// The arrow's box. Negative-margined to net zero, so it paints in the space to
+// the left of the bubble without moving anything.
+const REPLY_HINT_SIZE = 30;
+const REPLY_SPRING = { damping: 20, stiffness: 260, mass: 0.5 };
 
 export interface BubbleSender {
   id: string;
@@ -98,6 +124,22 @@ export interface MessageBubbleProps {
   onRetry?: () => void;
   onLongPress?: () => void;
   onAvatarPress?: () => void;
+  // The message this one quotes, as stored on the row (migration 072). Rendered
+  // from the snapshot rather than looked up, so it is right even when the
+  // original has been deleted or is older than the loaded page.
+  reply?: { senderName: string; preview: string } | null;
+  // Jump to the quoted message. Omitted when it is not in the loaded thread.
+  onQuotePress?: () => void;
+  // Swipe right to reply to this message. Omitted where a reply makes no sense
+  // (a message that hasn't been sent yet), which is also what turns the gesture
+  // off for that row.
+  onReply?: () => void;
+  // Whether the list this sits in is `inverted` — both threads are. The cell of
+  // an inverted list carries a `scaleY: -1`, which silently flips the *direction*
+  // of any vertical movement inside it: without this the send entrance arrives
+  // from above instead of from behind the composer. Scales and opacities are
+  // unaffected, which is what makes it easy to miss.
+  inverted?: boolean;
 }
 
 export default function MessageBubble({
@@ -122,6 +164,10 @@ export default function MessageBubble({
   onRetry,
   onLongPress,
   onAvatarPress,
+  reply,
+  onQuotePress,
+  onReply,
+  inverted = false,
 }: MessageBubbleProps) {
   const failed = status === 'failed';
   const sending = status === 'sending';
@@ -155,12 +201,63 @@ export default function MessageBubble({
     }
   }, [isNew, isMine, enter, stretch]);
 
-  // One style, not two. The reveal-drag and the arrival both want `transform`,
-  // and a later style in the array replaces the earlier one's transform wholesale
-  // rather than merging — so they have to be composed here or one of them
-  // silently wins.
+  // How far this one row has been pulled right, and whether the pull has passed
+  // the point where letting go replies.
+  const swipeX = useSharedValue(0);
+  const armed = useSharedValue(0);
+
+  // Built per render rather than memoised, the same way the thread's own reveal
+  // pan is. A `useMemo` here earns nothing — GestureDetector diffs the config and
+  // updates the native handler rather than rebuilding it — and it costs the
+  // clarity of the worklets closing over the props directly.
+  function fireReply() {
+    onReply?.();
+  }
+  function armHaptic() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  const replyPan = Gesture.Pan()
+    // Rightward only — see REPLY_ACTIVATE. This is what keeps it out of the
+    // thread's leftward time reveal.
+    .activeOffsetX(REPLY_ACTIVATE)
+    // And out of the list's scroll: the moment a drag looks vertical this gives
+    // up, so scrolling never has to win a race.
+    .failOffsetY([-12, 12])
+    .onUpdate((e) => {
+      const raw = Math.max(0, e.translationX);
+      const past = raw - REPLY_TRIGGER;
+      swipeX.value =
+        past <= 0
+          ? raw
+          : REPLY_TRIGGER + (past * REPLY_RUBBER) / (1 + past / REPLY_TRIGGER);
+
+      // One tick as the reply arms, and it re-arms if you pull back — so
+      // dragging out and back reads as "not this one" rather than as a buzzing
+      // row.
+      if (raw >= REPLY_TRIGGER && armed.value === 0) {
+        armed.value = 1;
+        runOnJS(armHaptic)();
+      } else if (raw < REPLY_TRIGGER && armed.value === 1) {
+        armed.value = 0;
+      }
+    })
+    .onEnd((e) => {
+      if (Math.max(0, e.translationX) >= REPLY_TRIGGER) runOnJS(fireReply)();
+    })
+    // onFinalize, not onEnd: a gesture cancelled by the list taking over still
+    // has to put the row back.
+    .onFinalize(() => {
+      armed.value = 0;
+      swipeX.value = withSpring(0, REPLY_SPRING);
+    });
+
+  // One style, not two. The reveal-drag, the reply swipe and the arrival all
+  // want `transform`, and a later style in the array replaces the earlier one's
+  // transform wholesale rather than merging — so they have to be composed here
+  // or one of them silently wins.
   const rowStyle = useAnimatedStyle(() => {
-    const dragX = revealX ? revealX.value : 0;
+    const dragX = (revealX ? revealX.value : 0) + swipeX.value;
     if (!isMine) {
       return {
         opacity: 1 - enter.value,
@@ -173,10 +270,22 @@ export default function MessageBubble({
     return {
       transform: [
         { translateX: dragX },
-        { translateY: enter.value * SEND_FROM },
+        // Negated in an inverted list so "from behind the composer" stays down
+        // rather than up — see the `inverted` prop.
+        { translateY: enter.value * SEND_FROM * (inverted ? -1 : 1) },
         { scaleY: 1 + stretch.value * STRETCH_Y },
         { scaleX: 1 - stretch.value * SQUASH_X },
       ],
+    };
+  });
+
+  // The arrow fades and grows in as the row travels, and is at full size exactly
+  // when the reply is armed — the visual half of the haptic.
+  const hintStyle = useAnimatedStyle(() => {
+    const progress = Math.min(1, swipeX.value / REPLY_TRIGGER);
+    return {
+      opacity: progress,
+      transform: [{ scale: 0.6 + progress * 0.4 }],
     };
   });
 
@@ -201,7 +310,7 @@ export default function MessageBubble({
     );
   };
 
-  return (
+  const row = (
     <Animated.View
       style={[
         styles.row,
@@ -223,6 +332,18 @@ export default function MessageBubble({
           <View style={styles.avatarSpacer} />
         ))}
 
+      {/* The reply arrow, in the space the row vacates as it travels right.
+          Net-zero width (see REPLY_HINT_SIZE) so adding it moves nothing, and
+          `pointerEvents: none` so it never takes a touch from the bubble. */}
+      {onReply ? (
+        <Animated.View
+          style={[styles.replyHint, hintStyle]}
+          pointerEvents="none"
+        >
+          <Icon name="reply" size={17} color={COLORS.textMuted} />
+        </Animated.View>
+      ) : null}
+
       <View style={styles.column}>
         {showName && !isMine ? (
           <Text style={styles.senderName}>{sender?.name}</Text>
@@ -236,6 +357,18 @@ export default function MessageBubble({
             delayLongPress={350}
             scaleTo={0.98}
           >
+            {reply ? (
+              <View style={styles.imageQuote}>
+                <ReplyQuote
+                  senderName={reply.senderName}
+                  preview={reply.preview}
+                  // Always the light treatment, even on your own photo: there is
+                  // no ink bubble here for the dark variant to sit on.
+                  isMine={false}
+                  onPress={onQuotePress}
+                />
+              </View>
+            ) : null}
             <ChatImageBubble uri={content} dimmed={sending} />
             {failed ? (
               <Text style={styles.imageStatus}>Not sent · tap to retry</Text>
@@ -261,6 +394,14 @@ export default function MessageBubble({
                 sending && styles.bubblePending,
               ]}
             >
+              {reply ? (
+                <ReplyQuote
+                  senderName={reply.senderName}
+                  preview={reply.preview}
+                  isMine={isMine}
+                  onPress={onQuotePress}
+                />
+              ) : null}
               <MentionText
                 content={content}
                 style={[styles.bubbleText, isMine && styles.bubbleTextMine]}
@@ -305,6 +446,12 @@ export default function MessageBubble({
       </Animated.View>
     </Animated.View>
   );
+
+  // No detector at all when the row cannot be replied to, rather than a disabled
+  // gesture: one fewer native handler per row, on the component a thread renders
+  // fifty of.
+  if (!onReply) return row;
+  return <GestureDetector gesture={replyPan}>{row}</GestureDetector>;
 }
 
 const styles = StyleSheet.create({
@@ -327,6 +474,16 @@ const styles = StyleSheet.create({
   rowFirst: { marginTop: 4 },
   rowTight: { marginTop: 2 },
   avatarSpacer: { width: AVATAR_SIZE },
+  // Width + an equal negative left margin = no space taken, drawn in the gap to
+  // the left of whatever follows it. A hint that changed the layout would nudge
+  // every bubble in the thread the moment the gesture became available.
+  replyHint: {
+    width: REPLY_HINT_SIZE,
+    marginLeft: -REPLY_HINT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
   column: { maxWidth: '74%' },
   senderName: {
     fontFamily: FONTS.bold,
@@ -403,6 +560,9 @@ const styles = StyleSheet.create({
     fontSize: TYPE_SIZE.nano,
     color: COLORS.textMuted,
   },
+  // A quote above a photo has no bubble to sit inside, so it gets the inset the
+  // bubble's padding would otherwise have given it.
+  imageQuote: { paddingHorizontal: SPACING[1] },
   imageMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',

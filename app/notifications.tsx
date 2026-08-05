@@ -41,6 +41,7 @@ import {
   PressableScale,
 } from '@/components/ui';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
+import { openDmChat, openEventChat } from '@/utils/chatActions';
 
 // ── The transition ───────────────────────────────────────────────────────────
 //
@@ -632,12 +633,13 @@ export default function NotificationsScreen() {
         case 'mention':
         case 'host_announcement':
           if (friendId) {
-            return dismiss(() => router.push(`/(tabs)/chats/dm/${friendId}`));
+            return dismiss(() => openDmChat(friendId));
           }
-          if (notif.event_id) {
-            return dismiss(() =>
-              router.push(`/(tabs)/chats/${notif.event_id}`)
-            );
+          // Held in a const: the narrowing from the `if` does not survive into
+          // the closure, since `event_id` is a mutable property.
+          const eventId = notif.event_id;
+          if (eventId) {
+            return dismiss(() => openEventChat(eventId));
           }
           break;
         case 'wrap_ready':

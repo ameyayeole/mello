@@ -41,6 +41,7 @@ import {
   getAttendeePreviews,
 } from '@/services/events.service';
 import { shareEvent } from '@/utils/shareEvent';
+import { openEventChat } from '@/utils/chatActions';
 import { useUIStore } from '@/stores/uiStore';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
@@ -633,7 +634,9 @@ export default function ProfileTabScreen() {
                   )
                 }
                 onShare={() => shareEvent(hosting)}
-                onChat={() => router.push(`/chats/event/${hosting.id}`)}
+                // Was `/chats/event/<id>` — no such route, there is no `event`
+                // segment under chats, so this button went to +not-found.
+                onChat={() => openEventChat(hosting.id)}
               />
             </Animated.View>
           )}

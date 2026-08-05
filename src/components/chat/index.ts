@@ -23,3 +23,5 @@ export {
   insertMention,
 } from './MentionAutocomplete';
 export type { Mentionable } from './MentionAutocomplete';
+export { default as ReplyQuote } from './ReplyQuote';
+export { default as ReplyComposerBar } from './ReplyComposerBar';

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
+import { freshChannel } from '@/services/realtime';
 import { queryKeys } from '@/constants/queryKeys';
 import {
   getDirectMessages,
@@ -9,7 +10,7 @@ import {
   markDmRead,
 } from '@/services/dm.service';
 import { uploadChatPhoto } from '@/services/storage.service';
-import { DirectMessage } from '@/types/models';
+import { DirectMessage, ReplyTarget } from '@/types/models';
 import { useAuthStore } from '@/stores/authStore';
 import { CONFIG } from '@/constants/config';
 import { newId } from '@/utils/id';
@@ -52,8 +53,12 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
   // read-receipt flips (031) via the UPDATE listener on our sent messages.
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`dm:${userId}:${friendId}`)
+    // `freshChannel`, not `supabase.channel`: this thread can be on screen while
+    // another mount of the same one is still alive — open a DM from the profile
+    // sheet of the person whose DM you are already in, or reach the same thread
+    // from the Inbox while it sits on the stack below. A shared topic hands the
+    // second mount the first one's subscribed channel and `.on()` throws.
+    const channel = freshChannel(`dm:${userId}:${friendId}`)
       .on(
         'postgres_changes',
         {
@@ -100,7 +105,9 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      // removeChannel, not unsubscribe: unsubscribe leaves the channel in the
+      // client's registry for the next mount to trip over.
+      supabase.removeChannel(channel);
     };
   }, [userId, friendId]);
 
@@ -129,7 +136,10 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
   function makeOptimistic(
     id: string,
     content: string,
-    type: DirectMessage['type']
+    type: DirectMessage['type'],
+    // Carried on the optimistic row as well, so the quote is on screen with the
+    // message rather than a beat later when the server row replaces it.
+    reply?: ReplyTarget | null
   ) {
     return {
       id,
@@ -138,6 +148,9 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
       content,
       type,
       created_at: new Date().toISOString(),
+      reply_to_id: reply?.id ?? null,
+      reply_preview: reply?.preview ?? null,
+      reply_sender_name: reply?.senderName ?? null,
       _status: 'sending',
     } as DirectMessage;
   }
@@ -151,13 +164,15 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
       content,
       type = 'text',
       id,
+      reply,
     }: {
       content: string;
       type?: DirectMessage['type'];
       id?: string;
-    }) => sendDirectMessage(userId!, friendId, content, type, id),
-    onMutate: ({ content, type = 'text', id }) => {
-      const optimistic = makeOptimistic(id ?? newId(), content, type);
+      reply?: ReplyTarget | null;
+    }) => sendDirectMessage(userId!, friendId, content, type, id, reply),
+    onMutate: ({ content, type = 'text', id, reply }) => {
+      const optimistic = makeOptimistic(id ?? newId(), content, type, reply);
       setMessages((prev) => [...prev, optimistic]);
       return { id: optimistic.id };
     },
@@ -202,7 +217,11 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
   // machinery to keep two call sites working.
   const send = useCallback(
     (
-      vars: { content: string; type?: DirectMessage['type'] },
+      vars: {
+        content: string;
+        type?: DirectMessage['type'];
+        reply?: ReplyTarget | null;
+      },
       opts?: Parameters<typeof sendMutation.mutate>[1]
     ) => sendMutation.mutate({ ...vars, id: newId() }, opts),
     [sendMutation]

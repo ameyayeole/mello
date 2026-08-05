@@ -7,11 +7,13 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
+import { freshChannel } from '@/services/realtime';
 import { useAuthStore } from '@/stores/authStore';
 import { DealtOrigin, useUIStore } from '@/stores/uiStore';
 import { updatePushToken } from '@/services/notifications.service';
 import { notificationCopy } from '@/utils/notificationCopy';
 import { Notification } from '@/types/models';
+import { openDmChat, openEventChat } from '@/utils/chatActions';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -83,11 +85,11 @@ export function openNotificationTarget(
   if (type === 'new_message' || type === 'mention' || type === 'host_announcement') {
     const friendId = data?.friendId ? String(data.friendId) : null;
     if (friendId) {
-      router.push(`/(tabs)/chats/dm/${friendId}`);
+      openDmChat(friendId);
       return;
     }
     if (eventId) {
-      router.push(`/(tabs)/chats/${eventId}`);
+      openEventChat(eventId);
       return;
     }
   }
@@ -118,8 +120,11 @@ export function useNotifications() {
     // notifications list + unread badge, and pop a banner from the top — the
     // Mello-styled in-app card while the app is open (InAppNotification in the
     // root layout), the system banner otherwise.
-    const channel = supabase
-      .channel(`notifications:${userId}`)
+    // One mount in the root layout, so nothing competes for this name today —
+    // but this effect re-runs on every `userId` change (sign out and back in on
+    // the same session), and the previous channel is still joined for as long as
+    // its leave takes. Own topic each time, so that race cannot throw.
+    const channel = freshChannel(`notifications:${userId}`)
       .on(
         'postgres_changes',
         {
@@ -196,7 +201,7 @@ export function useNotifications() {
 
     return () => {
       responseListener.current?.remove();
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [userId]);
 }

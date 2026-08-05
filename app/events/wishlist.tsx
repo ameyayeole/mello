@@ -11,7 +11,11 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSavedEvents, unsaveEvent } from '@/services/events.service';
+import {
+  getMyParticipation,
+  getSavedEvents,
+  unsaveEvent,
+} from '@/services/events.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { ACTIVITY_MAP } from '@/constants/activities';
@@ -21,7 +25,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
 import { shortLocation } from '@/utils/location';
-import { NearbyEvent, SavedEventItem } from '@/types/models';
+import { NearbyEvent, ParticipantStatus, SavedEventItem } from '@/types/models';
 import {
   Avatar,
   Button,
@@ -34,16 +38,36 @@ import {
 
 function WishlistCard({
   event,
+  status,
   onPress,
   onRemove,
 }: {
   event: SavedEventItem;
+  // My participation in this event, or undefined if I have never asked to join.
+  // Saving an event and joining it are different things — you can do either
+  // first — so the wishlist has to be told, or it offers Join to people who are
+  // already going. Which it did: the row said "Join", and the card it opened
+  // said "Open chat".
+  status?: ParticipantStatus;
   onPress: () => void;
   onRemove: () => void;
 }) {
   const activity = ACTIVITY_MAP[event.activity];
   const cat = categoryStyle(event.activity);
   const imageUri = eventImageUri(event);
+  // `Going` / `Requested` / `Join` — the home screen's nearby card's exact
+  // vocabulary for the exact same three states (see its `label`), rather than a
+  // second set of words for them. A host reads as "Going" there too: migration
+  // 043 made a host an approved participant of their own event.
+  const joined = status === 'approved';
+  const requested = status === 'pending';
+  const ctaLabel = joined
+    ? 'Going'
+    : requested
+      ? 'Requested'
+      : event.requires_approval
+        ? 'Request to Join'
+        : 'Join';
 
   return (
     <PressableScale style={styles.card} onPress={onPress} scaleTo={0.98}>
@@ -139,15 +163,24 @@ function WishlistCard({
           {event.max_people ? `/${event.max_people}` : ' going'}
         </Text>
         <View style={{ flex: 1 }} />
+        {/* Tapping this opens the card, exactly as tapping the row does — the
+            join itself happens there. So for someone already going it is a
+            state, not an offer: `Going` is the honest label for a button that
+            does not join you a second time. */}
         <PressableScale
           scaleTo={0.94}
-          style={styles.joinBtn}
+          style={[styles.joinBtn, (joined || requested) && styles.joinBtnQuiet]}
           onPress={onPress}
           accessibilityRole="button"
           accessibilityLabel={`Open ${event.title}`}
         >
-          <Text style={styles.joinText}>
-            {event.requires_approval ? 'Request to Join' : 'Join'}
+          <Text
+            style={[
+              styles.joinText,
+              (joined || requested) && styles.joinTextQuiet,
+            ]}
+          >
+            {ctaLabel}
           </Text>
         </PressableScale>
       </View>
@@ -171,6 +204,15 @@ export default function WishlistScreen() {
     enabled: !!user,
     staleTime: 60_000,
     retry: 1,
+  });
+
+  // What each row's CTA says. The same query and the same key the home screen
+  // uses, so this reads that cache rather than fetching again — and so joining
+  // from the dealt card, which invalidates this key, corrects the row behind it.
+  const { data: participation } = useQuery({
+    queryKey: queryKeys.myParticipation.of(user?.id),
+    queryFn: () => getMyParticipation(user!.id),
+    enabled: !!user,
   });
 
   const remove = useMutation({
@@ -224,16 +266,37 @@ export default function WishlistScreen() {
               >
                 <WishlistCard
                   event={item}
+                  status={participation?.[item.id]}
+                  // Deal, then dismiss — the order search.tsx and
+                  // notifications.tsx already use, and not a style choice.
+                  //
+                  // This screen is `presentation: 'modal'`, so it is a *presented*
+                  // view controller, and the dealt card is a window-level layer
+                  // that sits above it. Everything the card needs to open after
+                  // that is `Modal`-based — the pre-join safety popups, the leave
+                  // dialog — and UIKit will not present a second modal from a
+                  // controller that is already presenting one. So Join silently
+                  // did nothing: the safety queue was set, no popup ever
+                  // appeared, and the queue being non-empty leaves `CardPortal`
+                  // *suspended* — opacity 0 but still mounted, a full-screen
+                  // layer over the whole app. That is what read as the map
+                  // freezing on the way back to it.
+                  //
+                  // Dealing over a screen that is on its way out has none of
+                  // that: by the time there is a Join to tap, this modal is gone
+                  // and the card is over the tabs like any other.
                   onPress={() => {
                     const node = cardRefs.current[item.id];
                     if (!node) {
                       useUIStore.getState().dealCard(item.id, null);
+                      router.back();
                       return;
                     }
                     node.measureInWindow((x, y, width, height) => {
                       useUIStore
                         .getState()
                         .dealCard(item.id, { x, y, width, height });
+                      router.back();
                     });
                   }}
                   onRemove={() => remove.mutate(item.id)}
@@ -248,8 +311,8 @@ export default function WishlistScreen() {
               </View>
               <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
               <Text style={styles.emptyText}>
-                Swipe right on events you like — or tap ♥ — and they&apos;ll be
-                waiting for you here.
+                Swipe right on events you like — or tap the bookmark — and
+                they&apos;ll be waiting for you here.
               </Text>
               <Button
                 label="Find events"
@@ -369,6 +432,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   joinText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
+  // Going / Requested are answers, not invitations, so they lose the coral.
+  // Coral is for the one real decision on a screen (AGENTS.md's button rule) and
+  // a wishlist of eight events you are already going to would be eight of them.
+  joinBtnQuiet: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  joinTextQuiet: { color: COLORS.textSecondary },
   empty: {
     flex: 1,
     alignItems: 'center',

@@ -72,6 +72,7 @@ const SOLAR = {
   pin: 'MapPoint',
   qr: 'QrCode',
   refresh: 'Refresh',
+  reply: 'Reply',
   scan: 'Scanner',
   search: 'Magnifer',
   send: 'Plain2',

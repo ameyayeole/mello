@@ -7,6 +7,7 @@ import { SPACING } from '@/constants/spacing';
 import { useSwipeDeck } from '@/hooks/useSwipeDeck';
 import { PREMIUM_GOLD } from '@/utils/premium';
 import { Icon, PressableScale } from '@/components/ui';
+import WishlistButton from './WishlistButton';
 
 // The swipe deck's furniture, laid over its dim.
 //
@@ -31,19 +32,46 @@ import { Icon, PressableScale } from '@/components/ui';
 // one level up: see its own comment on why it is split into a visibility gate
 // and a body.
 
-// The counter, top-centre. Premium has no cap, so it says nothing at all
-// rather than an infinity glyph that has to be explained.
-export function DeckCounter() {
+/**
+ * The deck's top row: the swipes-left counter, and the way to the wishlist.
+ *
+ * The wishlist belongs *here* because this is where things get onto it. A right
+ * swipe saves the event (`useRecordSwipe` — "liking = wanting to come back to
+ * it"), and until now the only way to see what that had collected was the
+ * bookmark on the home header, three taps away from the deck you saved it from.
+ *
+ * The counter is centred on the screen rather than in the space left over beside
+ * the button: it is absolutely positioned, so the button appearing next to it
+ * cannot shift it, and a premium account — which has no cap and so no counter —
+ * gets the button in exactly the same place as everyone else.
+ */
+export function DeckHeader({
+  onBeforeNavigate,
+}: {
+  // Same contract, and the same reason, as `DeckActions` below: this row lives
+  // inside `CardPortal`'s `FullWindowOverlay`, which paints over pushed routes.
+  // The wishlist would open *underneath* the open deck and read as a dead
+  // button, so the deck gets out of the way first.
+  onBeforeNavigate?: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const { swipesLeft, premium } = useSwipeDeck();
-  if (premium) return null;
+
   return (
-    <View style={[styles.counterWrap, { paddingTop: insets.top + SPACING[2] }]}>
-      <View style={styles.counterPill}>
-        <Text style={styles.counterText}>
-          {swipesLeft} free {swipesLeft === 1 ? 'swipe' : 'swipes'} left today
-        </Text>
-      </View>
+    <View
+      style={[styles.headerRow, { paddingTop: insets.top + SPACING[2] }]}
+      pointerEvents="box-none"
+    >
+      {!premium && (
+        <View style={styles.counterWrap} pointerEvents="none">
+          <View style={styles.counterPill}>
+            <Text style={styles.counterText}>
+              {swipesLeft} free {swipesLeft === 1 ? 'swipe' : 'swipes'} left today
+            </Text>
+          </View>
+        </View>
+      )}
+      <WishlistButton raised onBeforeNavigate={onBeforeNavigate} />
     </View>
   );
 }
@@ -133,7 +161,20 @@ export function DeckActions({
 }
 
 const styles = StyleSheet.create({
-  counterWrap: { alignItems: 'center', paddingHorizontal: SPACING[4] },
+  // The row is only as tall as the button; the counter floats over it, centred on
+  // the screen. `box-none` on the row and `none` on the counter, so the only
+  // thing here that takes a touch is the button.
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: SPACING[4],
+  },
+  counterWrap: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: SPACING[1],
+  },
   // Smoked glass rather than the old solid header bar: it is sitting on the
   // dim now, not on a screen, and a bar would read as chrome the card is
   // attached to.

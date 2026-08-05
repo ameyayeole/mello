@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useFriends } from '@/hooks/useFriends';
 import { isPremium } from '@/utils/premium';
 import { showError } from '@/utils/errors';
+import { openDmChat } from '@/utils/chatActions';
 import {
   Avatar,
   Button,
@@ -103,7 +104,13 @@ const ProfileBottomSheet = forwardRef<ProfileBottomSheetRef, object>(
               size="md"
               icon="chat"
               fullWidth
-              onPress={() => goTo(`/(tabs)/chats/dm/${profile.id}`)}
+              // Not `goTo` — a conversation is opened through chatActions so it
+              // gets the Inbox list as its anchor, which is what makes back from
+              // it land on the list. `close()` first, same as goTo does.
+              onPress={() => {
+                close();
+                openDmChat(profile.id);
+              }}
             />
           );
         case 'request_sent':
