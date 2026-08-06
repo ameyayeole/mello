@@ -127,7 +127,9 @@ export function DeckActions({
         accessibilityRole="button"
         accessibilityLabel="Pass on this event"
       >
-        <Icon name="close" size={28} color={COLORS.textSecondary} strokeWidth={2.4} />
+        {/* `onWhiteMuted`, not `textSecondary`: this button is white on both
+            themes, and `textSecondary` inverts to near-white on the dark one. */}
+        <Icon name="close" size={28} color={COLORS.onWhiteMuted} strokeWidth={2.4} />
       </PressableScale>
       <PressableScale
         scaleTo={0.85}

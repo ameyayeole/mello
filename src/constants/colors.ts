@@ -44,6 +44,22 @@ export const LIGHT = {
   surface: '#FFFFFF',
   white: '#FFFFFF',
 
+  // The workhorse button — `secondary`, the black one. Its own token rather than
+  // `accent`, because the two want opposite things on the dark theme: `accent`
+  // stays a surface you put white content on (your chat bubbles, the compose
+  // bar), while a button has to *lift off* the sheet it sits on, and on a dark
+  // sheet the only thing that lifts is light.
+  buttonSecondary: '#1A1D24',
+  onButtonSecondary: '#FFFFFF',
+
+  // Content on a surface that is white in BOTH themes — the pill on a profile
+  // row, the swipe deck's pass button. Identical in each palette, exactly as
+  // `fillOnDark` / `borderOnDark` are, and for the same reason: the surface does
+  // not change, so neither can what sits on it. Using `textPrimary` here is the
+  // bug this pair exists to stop — it inverts to white and the label vanishes.
+  onWhite: '#1A1D24',
+  onWhiteMuted: 'rgba(15, 24, 44, 0.55)',
+
   // Borders
   border: 'rgba(0, 0, 0, 0.10)',
   borderSoft: 'rgba(0, 0, 0, 0.06)',
@@ -253,6 +269,21 @@ export const DARK: Palette = {
   surface: '#1C2029',
   // Still literal white — the token means the colour, not "the foreground".
   white: '#FFFFFF',
+
+  // Inverted, and translucent rather than solid: over the frosted sheet on the
+  // host panel this reads as a pane of white glass rather than a paint chip. Not
+  // an actual `<Glass>` — that button already sits on a blurred surface, and a
+  // blur inside a blur is a native blur view per button and reads as mud.
+  buttonSecondary: 'rgba(255, 255, 255, 0.94)',
+  onButtonSecondary: '#12151B',
+
+  // Content on a surface that is white in BOTH themes — the pill on a profile
+  // row, the swipe deck's pass button. Identical in each palette, exactly as
+  // `fillOnDark` / `borderOnDark` are, and for the same reason: the surface does
+  // not change, so neither can what sits on it. Using `textPrimary` here is the
+  // bug this pair exists to stop — it inverts to white and the label vanishes.
+  onWhite: '#1A1D24',
+  onWhiteMuted: 'rgba(15, 24, 44, 0.55)',
 
   border: 'rgba(255, 255, 255, 0.12)',
   borderSoft: 'rgba(255, 255, 255, 0.07)',

@@ -89,8 +89,9 @@ colours** the migration deliberately did not guess at:
   active tab label and the wordmark in `MelloLogo`. Both are charcoal-on-black on
   the dark theme, and both should be `textPrimary`.
 
-**Fixed since, both the same mistake:** a surface painted with a token that means
-a *colour* rather than a *role*.
+**Fixed since — three of the same mistake, in both directions:** a *colour* token
+used where a *role* was meant, or a role token used on a surface that never
+changes.
 
 - `EventCardBack.face` was `COLORS.white`, which stays white on both themes — so
   a flipped card was a white page with white text on it. Now `COLORS.surface`.
@@ -99,6 +100,16 @@ a *colour* rather than a *role*.
 - `PREMIUM_GOLD_TINT` was a pale cream constant behind every gold pill in the
   app — a tint on white, a bright patch on near-black. It is now
   `premiumGoldTint()`, an alpha wash of the same hue on dark, at all 16 sites.
+- **The other direction:** a white pill on the profile's event rows, and the
+  swipe deck's pass button, are white in *both* themes — but their label and
+  glyph used `textPrimary` / `textSecondary`, which invert. A white pill with a
+  white label reads as an empty pill, which is what it was. New pair,
+  `onWhite` / `onWhiteMuted`, identical in both palettes exactly as
+  `fillOnDark` is, because the surface does not change either.
+- The `secondary` button now has its own pair too (`buttonSecondary` /
+  `onButtonSecondary`) rather than borrowing `accent`: black with a white label
+  on light, white glass with an ink label on dark. `accent` stays put — it is a
+  surface with white content on it in 33 places, including your chat bubbles.
 
 | # | Do | Expect | iOS | Android |
 | --- | --- | --- | :-: | :-: |

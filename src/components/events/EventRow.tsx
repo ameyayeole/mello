@@ -144,7 +144,7 @@ export default function EventRow({
           style={[
             styles.pillText,
             tone === 'quiet' && styles.pillTextQuiet,
-            onDark && styles.pillTextQuiet,
+            onDark && styles.pillTextOnWhite,
           ]}
         >
           {CTA_LABEL[cta]}
@@ -266,4 +266,8 @@ const styles = themedStyles(() => ({
   pillQuiet: { backgroundColor: COLORS.inkSubtle },
   pillOnDark: { backgroundColor: COLORS.white },
   pillTextQuiet: { color: COLORS.textPrimary },
+  // The `onDark` pill is white in both themes, so its label cannot use
+  // `textPrimary` — that inverts to white and the pill reads as empty, which is
+  // exactly what it did.
+  pillTextOnWhite: { color: COLORS.onWhite },
 }));

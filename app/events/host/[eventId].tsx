@@ -603,7 +603,6 @@ export default function HostPanelScreen() {
             <View>
               <Button
                 label="Open event chat"
-                icon="chat"
                 variant="secondary"
                 fullWidth
                 onPress={() => openEventChat(event.id)}

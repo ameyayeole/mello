@@ -17,7 +17,10 @@ import { themedStyles } from '@/theme';
 //
 //   primary   — coral on white text. The standout. Major CTAs ONLY: sign in,
 //               host an event, pay, check in, save. Aim for one per screen.
-//   secondary — black on white text. The workhorse; use this by default.
+//   secondary — the workhorse; use this by default. Black with white text on
+//                the light theme, white glass with ink text on the dark one:
+//                whichever way it goes, it is the thing on the screen that
+//                lifts furthest off its surface.
 //   tertiary  — white on black text. Low-stakes actions: back, dismiss, done.
 //
 // `secondary` is the default precisely so coral stays rare. Reaching for
@@ -67,14 +70,14 @@ const SIZES = {
 } as const;
 
 // A function, not a `Record`: an object built here would read the palette once,
-// at import. `secondary` is the app's black button, and `accent` inverts to a
-// near-white surface on the dark theme — so its label has to invert with it or
-// it is white on white.
+// at import, and freeze to whichever theme booted first.
 function labelColorFor(variant: Variant): string {
-  // `secondary` is the app-black button on either theme — near-black on light, a
-  // raised charcoal on dark — so its label is white in both. See the note on
-  // `accent` in constants/colors for why that token lifts rather than inverts.
-  if (variant === 'primary' || variant === 'secondary') return COLORS.white;
+  // Coral is coral on both themes, and white reads on it either way.
+  if (variant === 'primary') return COLORS.white;
+  // `secondary` flips: near-black with a white label on the light theme, white
+  // glass with an ink label on the dark one. The pair moves together — see the
+  // tokens in constants/colors.
+  if (variant === 'secondary') return COLORS.onButtonSecondary;
   return COLORS.textPrimary;
 }
 
@@ -177,7 +180,7 @@ const styles = themedStyles(() => ({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  secondary: { backgroundColor: COLORS.accent },
+  secondary: { backgroundColor: COLORS.buttonSecondary },
   tertiary: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
