@@ -156,6 +156,13 @@ export const LIGHT = {
   // `glassPanel` — a bone has to read as a shape, not as a smudge.
   skeletonBone: 'rgba(15, 24, 44, 0.10)',
   skeletonSheen: 'rgba(255, 255, 255, 0.45)',
+  // The same pair for bones on a surface that is dark in *both* themes — the
+  // `onPhoto` sheet. Identical in each palette, exactly as `fillOnDark` and
+  // `borderOnDark` are, and for the same reason: they were built for a surface
+  // that does not change. Without them the locked wishlist's bones would be
+  // dark ink on dark glass on the light theme.
+  skeletonBoneOnDark: 'rgba(255, 255, 255, 0.09)',
+  skeletonSheenOnDark: 'rgba(255, 255, 255, 0.16)',
 
   // Status
   success: '#17915A',
@@ -315,6 +322,13 @@ export const DARK: Palette = {
   // a flash, where on the light theme it is a highlight.
   skeletonBone: 'rgba(255, 255, 255, 0.09)',
   skeletonSheen: 'rgba(255, 255, 255, 0.16)',
+  // The same pair for bones on a surface that is dark in *both* themes — the
+  // `onPhoto` sheet. Identical in each palette, exactly as `fillOnDark` and
+  // `borderOnDark` are, and for the same reason: they were built for a surface
+  // that does not change. Without them the locked wishlist's bones would be
+  // dark ink on dark glass on the light theme.
+  skeletonBoneOnDark: 'rgba(255, 255, 255, 0.09)',
+  skeletonSheenOnDark: 'rgba(255, 255, 255, 0.16)',
 
   // ── Status ───────────────────────────────────────────────────────────────
   // Lifted for contrast against near-black; the tints become washes.

@@ -70,6 +70,7 @@ export function SkeletonBone({
   radius,
   circle = false,
   size,
+  onDark = false,
   style,
 }: {
   // A number of points, or a percentage of the parent — `"60%"` for a bone that
@@ -80,6 +81,12 @@ export function SkeletonBone({
   // An avatar-shaped bone. `size` sets both axes and the radius follows.
   circle?: boolean;
   size?: number;
+  /**
+   * On a surface that is dark in both themes — the `onPhoto` sheet. Not "the
+   * dark theme": the light palette's bone is dark ink, which would be invisible
+   * there. Picks the `*OnDark` pair instead.
+   */
+  onDark?: boolean;
   style?: React.ComponentProps<typeof View>['style'];
 }) {
   const clock = useContext(SkeletonClock);
@@ -95,6 +102,7 @@ export function SkeletonBone({
   const boxRadius = circle ? (size ?? 0) / 2 : (radius ?? (h ? h / 2 : 6));
 
   const band = Math.max(MIN_BAND, width * BAND_SCALE);
+  const sheen = onDark ? COLORS.skeletonSheenOnDark : COLORS.skeletonSheen;
 
   const sheenStyle = useAnimatedStyle(() => {
     if (!clock || width === 0) return { opacity: 0 };
@@ -111,6 +119,7 @@ export function SkeletonBone({
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       style={[
         styles.bone,
+        onDark && styles.boneOnDark,
         { width: boxWidth, height: boxHeight, borderRadius: boxRadius },
         style,
       ]}
@@ -124,13 +133,9 @@ export function SkeletonBone({
         <Svg width="100%" height="100%">
           <Defs>
             <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor={COLORS.skeletonSheen} stopOpacity={0} />
-              <Stop
-                offset="0.5"
-                stopColor={COLORS.skeletonSheen}
-                stopOpacity={1}
-              />
-              <Stop offset="1" stopColor={COLORS.skeletonSheen} stopOpacity={0} />
+              <Stop offset="0" stopColor={sheen} stopOpacity={0} />
+              <Stop offset="0.5" stopColor={sheen} stopOpacity={1} />
+              <Stop offset="1" stopColor={sheen} stopOpacity={0} />
             </LinearGradient>
           </Defs>
           <Rect width="100%" height="100%" fill={`url(#${gradientId})`} />
@@ -145,4 +150,5 @@ const styles = themedStyles(() => ({
     backgroundColor: COLORS.skeletonBone,
     overflow: 'hidden',
   },
+  boneOnDark: { backgroundColor: COLORS.skeletonBoneOnDark },
 }));

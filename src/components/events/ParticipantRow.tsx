@@ -12,6 +12,7 @@ import {
   removeParticipant,
 } from '@/services/events.service';
 import { reportUser, ReportReason } from '@/services/moderation.service';
+import { useFriends } from '@/hooks/useFriends';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -30,15 +31,44 @@ export default function ParticipantRow({
   eventId,
   person,
   onChanged,
+  surface = 'card',
+  first = false,
+  showAddFriend = false,
 }: {
   eventId: string;
   person: EventParticipant;
   onChanged: () => void;
+  /**
+   * `card` — its own surface, as on the attendees screen.
+   * `row` — transparent, inside one shared lift, with a divider above it.
+   *
+   * A prop, not a fork. Six attendees on the host panel is one surface, not six
+   * cards; the attendees screen keeps `card` and neither has to know about the
+   * other's container.
+   */
+  surface?: 'card' | 'row';
+  /** First in a `row` stack — no divider above it. */
+  first?: boolean;
+  /**
+   * Offer add-friend. Attendees only: you connect with people after you have
+   * let them in, so a request row keeps Approve / ✕ and nothing else.
+   */
+  showAddFriend?: boolean;
 }) {
+  const onDark = surface === 'row';
   const router = useRouter();
   const me = useAuthStore((s) => s.user);
   // Safety popup #12: report intro shown every time before the reasons list.
   const [reportIntroVisible, setReportIntroVisible] = useState(false);
+
+  // What we already are to this person, from the one cached friendships list
+  // `useFriends` keeps for the whole app — not a query per row. The glyph has to
+  // already know friend / pending / none, or it offers to add someone you added
+  // last week.
+  const { relationshipWith, sendRequest } = useFriends();
+  const relationship = relationshipWith(person.id).status;
+  const canAdd = showAddFriend && relationship === 'none' && me?.id !== person.id;
+  const connected = showAddFriend && relationship !== 'none';
 
   const approve = useMutation({
     mutationFn: () => approveParticipant(eventId, person.id),
@@ -112,14 +142,22 @@ export default function ParticipantRow({
   const busy = approve.isPending || decline.isPending || remove.isPending;
 
   return (
-    <View style={styles.row}>
+    <View
+      style={[
+        surface === 'card' ? styles.row : styles.rowFlat,
+        surface === 'row' && !first && styles.rowDivider,
+      ]}
+    >
       <PressableScale
         scaleTo={0.96}
         style={styles.identity}
         onPress={openProfile}
       >
         <Avatar name={person.name} photoUrl={person.photo_url} size={38} />
-        <Text style={styles.name} numberOfLines={1}>
+        <Text
+          style={[styles.name, onDark && styles.nameOnDark]}
+          numberOfLines={1}
+        >
           {person.name}
         </Text>
         {isPremium(person) && <PremiumBadge size={13} />}
@@ -152,9 +190,39 @@ export default function ParticipantRow({
         </>
       ) : (
         <>
+          {(canAdd || connected) && (
+            <PressableScale
+              scaleTo={0.92}
+              style={[styles.iconBtn, onDark && styles.iconBtnOnDark]}
+              onPress={() => canAdd && sendRequest.mutate(person.id)}
+              disabled={!canAdd || sendRequest.isPending}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={
+                canAdd
+                  ? `Add ${person.name} as a friend`
+                  : `Already connected with ${person.name}`
+              }
+            >
+              <Icon
+                name={canAdd ? 'userPlus' : 'check'}
+                size={16}
+                color={
+                  canAdd
+                    ? onDark
+                      ? COLORS.white
+                      : COLORS.textPrimary
+                    : onDark
+                      ? COLORS.textOnDarkMuted
+                      : COLORS.textMuted
+                }
+                strokeWidth={2}
+              />
+            </PressableScale>
+          )}
           <PressableScale
             scaleTo={0.92}
-            style={styles.iconBtn}
+            style={[styles.iconBtn, onDark && styles.iconBtnOnDark]}
             onPress={openMessage}
             accessibilityLabel={`Message ${person.name}`}
           >
@@ -213,6 +281,17 @@ const styles = themedStyles(() => ({
     borderWidth: 1,
     borderColor: inkAlpha(0.07),
   },
+  // Inside a shared lift: no surface of its own, no radius, no border — the
+  // stack it sits in has all three.
+  rowFlat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[2.5],
+  },
+  rowDivider: { borderTopWidth: 1, borderTopColor: COLORS.borderOnDark },
+  iconBtnOnDark: { backgroundColor: COLORS.fillOnDarkStrong },
   identity: {
     flex: 1,
     flexDirection: 'row',
@@ -226,6 +305,7 @@ const styles = themedStyles(() => ({
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
   },
+  nameOnDark: { color: COLORS.white },
   approveBtn: {
     height: 34,
     paddingHorizontal: SPACING[3.5],

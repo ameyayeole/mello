@@ -19,6 +19,7 @@ export function EmptyState({
   actionLabel,
   onAction,
   compact = false,
+  onDark = false,
   style,
 }: {
   icon?: IconName;
@@ -30,6 +31,12 @@ export function EmptyState({
   onAction?: () => void;
   // Tighter top padding, for use inside a card or short list.
   compact?: boolean;
+  /**
+   * Sitting on the `onPhoto` sheet, which is dark in *both* themes — so this is
+   * not "the dark theme", it is "this surface". The ink ramp never appears
+   * there. Add the prop; do not fork the component.
+   */
+  onDark?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
@@ -43,8 +50,10 @@ export function EmptyState({
           )}
         </View>
       )}
-      <Text style={styles.title}>{title}</Text>
-      {body ? <Text style={styles.body}>{body}</Text> : null}
+      <Text style={[styles.title, onDark && styles.titleOnDark]}>{title}</Text>
+      {body ? (
+        <Text style={[styles.body, onDark && styles.bodyOnDark]}>{body}</Text>
+      ) : null}
       {actionLabel && onAction ? (
         <Button
           label={actionLabel}
@@ -60,6 +69,8 @@ export function EmptyState({
 const styles = themedStyles(() => ({
   wrap: { alignItems: 'center', paddingTop: 80, paddingHorizontal: SPACING[8], gap: SPACING[2] },
   compact: { paddingTop: SPACING[7] },
+  titleOnDark: { color: COLORS.white },
+  bodyOnDark: { color: COLORS.textOnDark },
   badge: {
     width: 84,
     height: 84,

@@ -1,14 +1,21 @@
-import {
-  View,
-  Text,
-  ScrollView,
-} from 'react-native';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
 import {
   countEventSavers,
@@ -18,31 +25,172 @@ import {
 import { getEventFeedback, hasWrapped } from '@/services/wrap.service';
 import { useWrap } from '@/hooks/useWrap';
 import { useAuthStore } from '@/stores/authStore';
-import { COLORS, inkAlpha } from '@/constants/colors';
+import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
 import { isPremium, PREMIUM_GOLD, premiumGoldTint } from '@/utils/premium';
 import { categoryStyle } from '@/constants/categoryStyle';
+import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import BoostCard from '@/components/events/BoostCard';
 import {
   ActivityGlyph,
   Avatar,
   Button,
-  CategoryTile,
+  EmptyState,
+  Glass,
   Icon,
+  type IconName,
   Loader,
   PressableScale,
   Screen,
-  ScreenHeader,
 } from '@/components/ui';
+import { SkeletonGroup } from '@/components/ui';
+import { SkeletonPersonRow } from '@/components/skeletons';
 import { openEventChat } from '@/utils/chatActions';
 import { themedStyles } from '@/theme';
-import { alpha } from '@/utils/color';
 
 // How many attendees / requests show inline before "See all" takes over.
 const PREVIEW_COUNT = 3;
+
+// ─── The hero, ported from profile.tsx ───────────────────────────────────────
+//
+// Same tree, same three animated styles, same constants — see
+// docs/design/manage-event-redesign.html §04. Only HERO_RATIO differs: profile
+// is 1.25 (a portrait of a person), an event is a screen-width square
+// (DESIGN.md §7).
+const HERO_RATIO = 1;
+const SHEET_RADIUS = 32;
+const PARALLAX = 0.5;
+// The photo is taller than the hero by this much and pulled up by the same, so
+// the extra sits off the top at rest and is there to be revealed by a pull-down.
+const PHOTO_BLEED = 250;
+// Extra sheet drawn past the end of the content, cancelled by a negative margin
+// of the same size — what the bottom rubber band reveals is more sheet, never
+// bare screen.
+const SHEET_UNDERHANG = 500;
+const KEN_BURNS_SCALE = 1.07;
+const KEN_BURNS_MS = 24000;
+
+// A photoless event gets 16:9, not a square. A screen-width square of flat
+// category tint is a lot of nothing.
+const FALLBACK_RATIO = 9 / 16;
+
+/**
+ * One statistic in the pulse strip.
+ *
+ * `alert` is the whole attention mechanism on this screen: the requests figure
+ * goes coral above zero and is white at zero. No badge, no dot, no red — the
+ * number itself is the signal.
+ */
+function Pulse({
+  value,
+  label,
+  alert = false,
+}: {
+  value: number;
+  label: string;
+  alert?: boolean;
+}) {
+  return (
+    <View style={styles.pulse}>
+      <Text style={[styles.pulseValue, alert && styles.pulseValueAlert]}>
+        {value}
+      </Text>
+      <Text style={styles.pulseLabel}>{label}</Text>
+    </View>
+  );
+}
+
+/**
+ * One action tile: a glyph well, a label, and an optional dot.
+ *
+ * The dot is `COLORS.primary`, not `COLORS.error`. Coral next to coral is one
+ * colour; `#EF4444` beside `#F95B5B` reads as two rival reds, and this marks
+ * "something here", not "something wrong".
+ *
+ * No sub-labels. State lives on the well — a dot for "there is something", or
+ * the well going solid for boosted, because a dot cannot say "23h left".
+ */
+function ActionTile({
+  icon,
+  emoji,
+  label,
+  onPress,
+  dot = false,
+  solid,
+  glyphColor,
+}: {
+  icon?: IconName;
+  // The boost is an emoji everywhere else in the app (`BOOST_EMOJI`); a tile is
+  // not the place to invent a flame path that agrees with nothing.
+  emoji?: string;
+  label: string;
+  onPress: () => void;
+  dot?: boolean;
+  // A filled well, for a state a dot cannot express.
+  solid?: string;
+  glyphColor?: string;
+}) {
+  return (
+    <PressableScale
+      scaleTo={0.97}
+      style={styles.tile}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View style={[styles.tileWell, !!solid && { backgroundColor: solid }]}>
+        {emoji ? (
+          <Text style={styles.tileEmoji}>{emoji}</Text>
+        ) : (
+          <Icon
+            name={icon!}
+            size={20}
+            color={solid ? COLORS.white : (glyphColor ?? COLORS.white)}
+            strokeWidth={2}
+          />
+        )}
+        {dot && <View style={styles.tileDot} />}
+      </View>
+      <Text style={styles.tileLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </PressableScale>
+  );
+}
+
+function SectionHead({
+  title,
+  count,
+  onSeeAll,
+}: {
+  title: string;
+  count?: number;
+  onSeeAll?: () => void;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>
+        {title}
+        {count !== undefined ? ` · ${count}` : ''}
+      </Text>
+      {onSeeAll && (
+        // Was a bare `<Text onPress>` — no hit-slop, no pressed state.
+        <PressableScale
+          scaleTo={0.94}
+          onPress={onSeeAll}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`See all ${title.toLowerCase()}`}
+        >
+          <Text style={styles.seeAll}>See all</Text>
+        </PressableScale>
+      )}
+    </View>
+  );
+}
 
 export default function HostPanelScreen() {
   // celebrate=1 is passed only right after the in-map creation flow finishes:
@@ -54,6 +202,8 @@ export default function HostPanelScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
 
   const { data: event, isLoading } = useQuery({
     queryKey: queryKeys.eventDetail.of(eventId),
@@ -101,6 +251,52 @@ export default function HostPanelScreen() {
     qc.invalidateQueries({ queryKey: queryKeys.myEvents.all });
   };
 
+  // ─── The hero's motion ─────────────────────────────────────────────────────
+  const heroHeight = coverUri ? width * HERO_RATIO : width * FALLBACK_RATIO;
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+
+  // Two branches, one job: the photo's bottom edge never parts from the sheet.
+  const photoStyle = useAnimatedStyle(() => {
+    const y = scrollY.value;
+    if (y < 0) {
+      // Pull-down. `transformOrigin: bottom` pins the bottom edge to the sheet
+      // and grows the photo upward by exactly the overscroll distance.
+      return { transform: [{ scale: 1 - y / heroHeight }] };
+    }
+    // Scroll up: the window travels at `y`, the photo at half that, so the
+    // photo lags and its bottom is clipped rather than sliding under the glass.
+    return { transform: [{ translateY: y * PARALLAX }] };
+  });
+
+  // Its own layer *inside* the parallax one. The two motions have different
+  // origins — parallax scales from the bottom to stay welded, Ken Burns from the
+  // centre so it creeps — and one combined transform breaks both.
+  const ken = useSharedValue(1);
+  useEffect(() => {
+    if (!coverUri) return;
+    ken.value = withRepeat(
+      withTiming(KEN_BURNS_SCALE, {
+        duration: KEN_BURNS_MS,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true
+    );
+  }, [ken, coverUri]);
+  const kenStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: ken.value }],
+  }));
+
+  // The frost lives inside the sheet, and the sheet scrolls — so it is
+  // counter-translated by the sheet's own offset. Real glass does not drag its
+  // reflection along with it.
+  const frostStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: scrollY.value - heroHeight + SHEET_RADIUS }],
+  }));
+
   if (isLoading || !event) {
     return (
       <Screen>
@@ -113,7 +309,6 @@ export default function HostPanelScreen() {
     // Not this user's event — nothing to manage here.
     return (
       <Screen>
-        <ScreenHeader tone="transparent" />
         <Text style={styles.notHostText}>
           Only the host can manage this event.
         </Text>
@@ -121,165 +316,182 @@ export default function HostPanelScreen() {
     );
   }
 
+  const cat = categoryStyle(event.activity);
+  const boosted = isBoosted(event);
+
   return (
-    <Screen>
-      <ScreenHeader
-        title={celebrate === '1' ? 'Your new event' : 'Manage event'}
-        tone="transparent"
-        right={
-          <Button
-            label="Edit"
-            icon="edit"
-            size="sm"
-            variant="tertiary"
-            onPress={() => router.push(`/events/edit/${event.id}`)}
-          />
-        }
-      />
-
-      <ScrollView
-        contentContainerStyle={styles.scroll}
+    // `edges={['top']}` only: this route is outside the tab navigator, so the
+    // bottom inset is applied to the sheet's own padding instead — insetting
+    // here as well would pad it twice.
+    <Screen
+      edges={[]}
+      statusBar="light"
+      background={COLORS.accent}
+      style={styles.screen}
+    >
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
-        {celebrate === '1' && (
+        {/* The photo lives INSIDE the scroll layer, in a window that clips it,
+            so it can lag behind the sheet without ever parting from it. Pinning
+            it looks identical at rest and wrong the moment you scroll. A plain
+            View, not a Pressable: a lightbox is a new surface, and this is a
+            reskin. */}
+        <View style={[styles.photoWindow, { height: heroHeight + PHOTO_BLEED }]}>
           <Animated.View
-            entering={FadeInDown.duration(400)}
-            style={styles.congratsCard}
+            style={[
+              styles.photoInner,
+              { height: heroHeight },
+              // No parallax on the fallback: motion on a flat field is visibly
+              // fake.
+              coverUri ? photoStyle : null,
+            ]}
           >
-            <Text style={styles.congratsEmoji}>🎉</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.congratsTitle}>You&apos;re hosting!</Text>
-              <Text style={styles.congratsSub}>
-                Your event is live on the map. We&apos;ll let you know as people
-                join — this is your event HQ.
-              </Text>
-            </View>
-          </Animated.View>
-        )}
+            {coverUri ? (
+              <Animated.View style={[StyleSheet.absoluteFill, kenStyle]}>
+                <Image
+                  source={{ uri: coverUri }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={200}
+                />
+              </Animated.View>
+            ) : (
+              <View
+                style={[styles.photoFallback, { backgroundColor: cat.tint }]}
+              >
+                <ActivityGlyph
+                  activity={event.activity}
+                  size={64}
+                  color={cat.accent}
+                />
+              </View>
+            )}
 
-        {/* Event info */}
-        <Animated.View entering={FadeInDown.duration(350)} style={styles.card}>
-          {/* The host's own face when the event has no photo — this is the
-              first screen after publishing, and it was the one place a
-              photo-less event looked like it had failed to save one. With
-              neither, the category glyph on its tint: an intentional-looking
-              cover rather than a gap where an image should be. */}
-          {coverUri ? (
-            <Image
-              source={{ uri: coverUri }}
-              style={styles.cover}
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            <View
-              style={[
-                styles.cover,
-                styles.coverPlaceholder,
-                { backgroundColor: categoryStyle(event.activity).tint },
-              ]}
-            >
-              <ActivityGlyph
-                activity={event.activity}
-                size={40}
-                color={categoryStyle(event.activity).accent}
-              />
-            </View>
-          )}
-          <View style={styles.titleRow}>
-            <CategoryTile activity={event.activity} size={44} radius={13} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.title}>{event.title}</Text>
-              <View style={styles.metaRow}>
-                <Icon name="clock" size={13} color={inkAlpha(0.6)} />
-                <Text style={styles.metaText}>
+            {/* Darkens the top so the chips and the status bar stay legible on a
+                bright photo. Rides with the photo rather than being pinned, or
+                its top edge would band as the sheet comes up. */}
+            <Svg style={styles.photoTopFade}>
+              <Defs>
+                <LinearGradient id="hostTopFade" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={COLORS.ink} stopOpacity={0.55} />
+                  <Stop offset="1" stopColor={COLORS.ink} stopOpacity={0} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#hostTopFade)" />
+            </Svg>
+          </Animated.View>
+
+          {/* A sibling of `photoInner`, anchored to the window's bottom — not a
+              child. An event's title belongs to its image, but as a child it
+              would inherit the pull-down scale and balloon on overscroll. */}
+          <View style={styles.caption} pointerEvents="none">
+            <Text style={styles.eyebrow}>
+              {ended ? (
+                `Ended · ${formatEventWhen(event.starts_at)}`
+              ) : (
+                <>
+                  <Text style={styles.livePulse}>● </Text>
                   {formatEventWhen(event.starts_at)}
+                </>
+              )}
+            </Text>
+            <Text style={styles.title} numberOfLines={2}>
+              {event.title}
+            </Text>
+            {event.location_name ? (
+              <View style={styles.captionMeta}>
+                <Icon name="location" size={13} color={COLORS.textOnDark} />
+                <Text style={styles.captionMetaText} numberOfLines={1}>
+                  {event.location_name}
                 </Text>
               </View>
-            </View>
-            <View style={styles.spotsPill}>
-              <Text style={styles.spotsPillText}>
-                {event.participant_count}
-                {event.max_people ? `/${event.max_people}` : ''} going
-              </Text>
-            </View>
+            ) : null}
           </View>
+        </View>
 
-          {event.location_name && (
-            <View style={styles.locationRow}>
-              <Icon name="location" size={15} color={COLORS.primary} />
-              <Text style={styles.location} numberOfLines={1}>
-                {event.location_name}
-              </Text>
-            </View>
-          )}
-
-          {event.description && (
-            <Text style={styles.description}>{event.description}</Text>
-          )}
-        </Animated.View>
-
-        {/* Door check-in — hidden once the event has wrapped */}
-        {!ended && (
-          <Animated.View entering={FadeInDown.delay(20).duration(350)}>
-            <PressableScale
-              scaleTo={0.98}
-              style={styles.checkinCard}
-              onPress={() => router.push(`/events/checkin/${event.id}`)}
-              accessibilityRole="button"
-              accessibilityLabel="Open door check-in"
+        <Glass
+          tier="onPhoto"
+          radius={SHEET_RADIUS}
+          edge="top"
+          // The pane frosts itself rather than blurring what is behind it. This
+          // route is outside the tabs tree, so there is no <AppBackground>
+          // here — an ordinary panel would blur flat grey and read as a white
+          // box. With a backdrop, what sits behind stops mattering, and an image
+          // blur needs no platform support, so iOS and Android match.
+          //
+          // The fallback still gets one: a 16:9 field leaves the sheet blurring
+          // whatever is past it and printing an edge where the field stops.
+          backdrop={
+            coverUri ? (
+              <Animated.View
+                style={[styles.frost, { height }, frostStyle]}
+                pointerEvents="none"
+              >
+                <Image
+                  source={{ uri: coverUri }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  blurRadius={60}
+                />
+                <View style={styles.frostVeil} />
+              </Animated.View>
+            ) : (
+              <View
+                style={[StyleSheet.absoluteFill, { backgroundColor: cat.tint }]}
+              />
+            )
+          }
+          style={[
+            styles.sheet,
+            {
+              minHeight: height - heroHeight + SHEET_RADIUS + SHEET_UNDERHANG,
+              paddingBottom: SPACING[8] + insets.bottom + SHEET_UNDERHANG,
+              marginBottom: -SHEET_UNDERHANG,
+            },
+          ]}
+        >
+          {celebrate === '1' && (
+            <Animated.View
+              entering={FadeInDown.duration(400)}
+              style={styles.congrats}
             >
-              <View style={styles.checkinIcon}>
-                <Icon name="scan" size={22} color="#fff" strokeWidth={2} />
-              </View>
+              <Text style={styles.congratsEmoji}>🎉</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.checkinTitle}>Check in guests</Text>
-                <Text style={styles.checkinSub}>
-                  Show your QR — guests scan to check in
+                <Text style={styles.congratsTitle}>You&apos;re hosting!</Text>
+                <Text style={styles.congratsSub}>
+                  Your event is live on the map. We&apos;ll let you know as
+                  people join — this is your event HQ.
                 </Text>
               </View>
-              <Icon name="chevronRight" size={20} color={COLORS.textMuted} />
-            </PressableScale>
-          </Animated.View>
-        )}
+            </Animated.View>
+          )}
 
-        {/* Boost — sell the ₹69 boost, or show the live boost's impact */}
-        <Animated.View entering={FadeInDown.delay(30).duration(350)}>
-          <BoostCard
-            event={event}
-            saversCount={saversCount}
-            onBoosted={invalidate}
-          />
-        </Animated.View>
-
-        {/* Post-event: how it landed */}
-        {ended && (
-          <Animated.View entering={FadeInDown.delay(45).duration(350)}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>After the event</Text>
-            </View>
-            <View style={styles.wrapPanel}>
+          {/* ── Position 1 ─────────────────────────────────────────────────
+              Live: the pulse strip. Ended: how it landed, and the way in to
+              the wrap — live counts are history by then. */}
+          {ended ? (
+            <Animated.View
+              entering={FadeInDown.duration(350)}
+              style={styles.lift}
+            >
               <View style={styles.wrapStatsRow}>
-                <View style={styles.wrapStat}>
-                  <Text style={styles.wrapStatValue}>
-                    👍 {feedbackSummary?.upCount ?? 0}
-                  </Text>
-                  <Text style={styles.wrapStatLabel}>loved it</Text>
-                </View>
-                <View style={styles.wrapStatDivider} />
-                <View style={styles.wrapStat}>
-                  <Text style={styles.wrapStatValue}>
-                    👎 {feedbackSummary?.downCount ?? 0}
-                  </Text>
-                  <Text style={styles.wrapStatLabel}>not great</Text>
-                </View>
-                <View style={styles.wrapStatDivider} />
-                <View style={styles.wrapStat}>
-                  <Text style={styles.wrapStatValue}>
-                    🔁 {wrapStatus?.encoreCount ?? 0}
-                  </Text>
-                  <Text style={styles.wrapStatLabel}>want it again</Text>
-                </View>
+                <Pulse
+                  value={feedbackSummary?.upCount ?? 0}
+                  label="👍 loved it"
+                />
+                <View style={styles.pulseDivider} />
+                <Pulse
+                  value={feedbackSummary?.downCount ?? 0}
+                  label="👎 not great"
+                />
+                <View style={styles.pulseDivider} />
+                <Pulse
+                  value={wrapStatus?.encoreCount ?? 0}
+                  label="🔁 rewind"
+                />
               </View>
               {(feedbackSummary?.notes?.length ?? 0) > 0 && (
                 <View style={styles.wrapNotes}>
@@ -295,145 +507,206 @@ export default function HostPanelScreen() {
               )}
               <Button
                 label="Open the event wrap"
-                variant="tertiary"
-                height={44}
+                variant="primary"
+                height={46}
+                fullWidth
                 onPress={() => router.push(`/events/wrap/${event.id}`)}
               />
-            </View>
-          </Animated.View>
-        )}
+            </Animated.View>
+          ) : (
+            <Animated.View
+              entering={FadeInDown.duration(350)}
+              style={[styles.lift, styles.pulseStrip]}
+            >
+              <Pulse value={event.participant_count} label="going" />
+              <View style={styles.pulseDivider} />
+              <Pulse
+                value={requests.length}
+                label="requests"
+                alert={requests.length > 0}
+              />
+              <View style={styles.pulseDivider} />
+              <Pulse value={saversCount} label="wishlisted" />
+            </Animated.View>
+          )}
 
-        {/* Join requests */}
-        {requests.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(60).duration(350)}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Requests · {requests.length}
-              </Text>
-              {requests.length > PREVIEW_COUNT && (
-                <Text
-                  style={styles.seeAll}
-                  onPress={() =>
-                    router.push(
-                      `/events/attendees/${event.id}?tab=requests`
-                    )
-                  }
-                >
-                  See all
-                </Text>
-              )}
-            </View>
-            <View style={styles.rows}>
-              {requests.slice(0, PREVIEW_COUNT).map((p) => (
-                <ParticipantRow
-                  key={p.id}
-                  eventId={event.id}
-                  person={p}
-                  onChanged={invalidate}
-                />
-              ))}
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Wishlist insight (Mello+): who saved this event */}
-        {saversCount > 0 && (
-          <Animated.View entering={FadeInDown.delay(90).duration(350)}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Wishlisted · {saversCount}
-              </Text>
-            </View>
-            {premium ? (
-              <View style={styles.saversCard}>
-                {savers.slice(0, 8).map((s) => (
-                  <PressableScale
-                    key={s.id}
-                    scaleTo={0.94}
-                    style={styles.saverChip}
-                    onPress={() => router.push(`/friends/${s.id}`)}
-                  >
-                    <Avatar name={s.name} photoUrl={s.photo_url} size={24} />
-                    <Text style={styles.saverName} numberOfLines={1}>
-                      {s.name}
-                    </Text>
-                  </PressableScale>
-                ))}
-                {savers.length > 8 && (
-                  <View style={styles.saverChip}>
-                    <Text style={styles.saverName}>+{savers.length - 8}</Text>
-                  </View>
+          {/* ── Position 2 · what a host does here ──────────────────────────
+              Check-in and boost are meaningless after the event, so the ended
+              screen keeps only the chat. */}
+          {!ended && (
+            <Animated.View
+              entering={FadeInDown.delay(30).duration(350)}
+              style={styles.tiles}
+            >
+              <ActionTile
+                icon="scan"
+                label="Check in"
+                onPress={() => router.push(`/events/checkin/${event.id}`)}
+              />
+              <BoostCard
+                event={event}
+                saversCount={saversCount}
+                onBoosted={invalidate}
+                renderTrigger={(open) => (
+                  <ActionTile
+                    emoji={BOOST_EMOJI}
+                    label={boosted ? 'Boosted' : 'Boost'}
+                    onPress={open}
+                    // A filled well, not a dot: a dot cannot say "23h left".
+                    solid={boosted ? BOOST_ACCENT : undefined}
+                    glyphColor={BOOST_ACCENT}
+                  />
                 )}
+              />
+            </Animated.View>
+          )}
+
+          {/* D3: chat keeps its full-width button rather than becoming a third
+              tile. It is the one thing a host comes back to this screen for. */}
+          <Animated.View entering={FadeInDown.delay(45).duration(350)}>
+            <Button
+              label="Open event chat"
+              icon="chat"
+              variant="secondary"
+              fullWidth
+              onPress={() => openEventChat(event.id)}
+              style={styles.chatCta}
+            />
+          </Animated.View>
+
+          {/* ── Position 3 · requests, above the rest. Urgency, not feature ──
+              D1: gone entirely once the event has ended. Admitting someone to
+              an event that already happened is not a decision worth surfacing. */}
+          {!ended && requests.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+              <SectionHead
+                title="Requests"
+                count={requests.length}
+                onSeeAll={
+                  requests.length > PREVIEW_COUNT
+                    ? () =>
+                        router.push(
+                          `/events/attendees/${event.id}?tab=requests`
+                        )
+                    : undefined
+                }
+              />
+              <View style={styles.rowStack}>
+                {requests.slice(0, PREVIEW_COUNT).map((p, i) => (
+                  <ParticipantRow
+                    key={p.id}
+                    eventId={event.id}
+                    person={p}
+                    surface="row"
+                    first={i === 0}
+                    onChanged={invalidate}
+                  />
+                ))}
+              </View>
+            </Animated.View>
+          )}
+
+          {/* ── Attendees ───────────────────────────────────────────────── */}
+          <Animated.View entering={FadeInDown.delay(90).duration(350)}>
+            <SectionHead
+              title="Attendees"
+              count={attendees.length}
+              onSeeAll={
+                attendees.length > PREVIEW_COUNT
+                  ? () =>
+                      router.push(`/events/attendees/${event.id}?tab=attendees`)
+                  : undefined
+              }
+            />
+            {attendees.length === 0 ? (
+              <View style={styles.lift}>
+                <EmptyState
+                  icon="userPlus"
+                  title="No one yet"
+                  body="Share your event to get it going."
+                  onDark
+                />
               </View>
             ) : (
-              <PressableScale
-                scaleTo={0.98}
-                style={styles.saversLocked}
-                onPress={() => router.push('/premium?reason=wishlist')}
-                accessibilityRole="button"
-                accessibilityLabel="See who wishlisted this event with Mello+"
-              >
-                <View style={styles.saversLockedIcon}>
-                  <Icon name="crown" size={18} color={PREMIUM_GOLD} strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.saversLockedTitle}>
-                    {saversCount} {saversCount === 1 ? 'person has' : 'people have'}{' '}
-                    wishlisted this
-                  </Text>
-                  <Text style={styles.saversLockedSub}>
-                    See who with Mello+
-                  </Text>
-                </View>
-                <Icon name="chevronRight" size={18} color={PREMIUM_GOLD} />
-              </PressableScale>
+              <View style={styles.rowStack}>
+                {attendees.slice(0, PREVIEW_COUNT).map((p, i) => (
+                  <ParticipantRow
+                    key={p.id}
+                    eventId={event.id}
+                    person={p}
+                    surface="row"
+                    first={i === 0}
+                    showAddFriend
+                    onChanged={invalidate}
+                  />
+                ))}
+              </View>
             )}
           </Animated.View>
-        )}
 
-        {/* Attendees */}
-        <Animated.View entering={FadeInDown.delay(120).duration(350)}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              Attendees · {attendees.length}
-            </Text>
-            {attendees.length > PREVIEW_COUNT && (
-              <Text
-                style={styles.seeAll}
-                onPress={() =>
-                  router.push(`/events/attendees/${event.id}?tab=attendees`)
-                }
-              >
-                See all
-              </Text>
-            )}
-          </View>
-          {attendees.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>
-                No one has joined yet. Share your event to get it going!
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.rows}>
-              {attendees.slice(0, PREVIEW_COUNT).map((p) => (
-                <ParticipantRow
-                  key={p.id}
-                  eventId={event.id}
-                  person={p}
-                  onChanged={invalidate}
+          {/* ── Wishlist · dead information once the event has happened ──── */}
+          {!ended && saversCount > 0 && (
+            <Animated.View entering={FadeInDown.delay(120).duration(350)}>
+              <SectionHead title="Wishlisted" count={saversCount} />
+              {premium ? (
+                <View style={styles.rowStack}>
+                  {savers.slice(0, PREVIEW_COUNT).map((s, i) => (
+                    <PressableScale
+                      key={s.id}
+                      scaleTo={0.98}
+                      style={[styles.saverRow, i > 0 && styles.rowDivider]}
+                      onPress={() => router.push(`/friends/${s.id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${s.name}'s profile`}
+                    >
+                      <Avatar name={s.name} photoUrl={s.photo_url} size={38} />
+                      <Text style={styles.saverName} numberOfLines={1}>
+                        {s.name}
+                      </Text>
+                      <Icon
+                        name="chevronRight"
+                        size={16}
+                        color={COLORS.textOnDarkMuted}
+                      />
+                    </PressableScale>
+                  ))}
+                </View>
+              ) : (
+                <LockedWishlist
+                  count={saversCount}
+                  onUnlock={() => router.push('/premium?reason=wishlist')}
                 />
-              ))}
-            </View>
+              )}
+            </Animated.View>
           )}
-        </Animated.View>
+        </Glass>
+      </Animated.ScrollView>
 
-        <Button
-          label="Open event chat"
-          onPress={() => openEventChat(event.id)}
-          style={{ marginTop: SPACING[1.5] }}
-        />
-      </ScrollView>
+      {/* Chrome over the photo. Absolute rather than a ScreenHeader: the hero
+          runs to the top edge, and a header bar would put a band of chrome
+          across it. */}
+      <View style={[styles.chrome, { top: insets.top + SPACING[2] }]}>
+        <PressableScale
+          scaleTo={0.9}
+          style={styles.chip}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Icon name="back" size={20} color={COLORS.white} strokeWidth={2.2} />
+        </PressableScale>
+        <View style={{ flex: 1 }} />
+        <PressableScale
+          scaleTo={0.94}
+          style={[styles.chip, styles.chipWide]}
+          onPress={() => router.push(`/events/edit/${event.id}`)}
+          accessibilityRole="button"
+          accessibilityLabel="Edit event"
+        >
+          <Icon name="edit" size={15} color={COLORS.white} strokeWidth={2.2} />
+          <Text style={styles.chipLabel}>Edit</Text>
+        </PressableScale>
+      </View>
 
       {/* One-shot confetti burst over the whole screen right after creation. */}
       {celebrate === '1' && (
@@ -449,129 +722,238 @@ export default function HostPanelScreen() {
   );
 }
 
+/**
+ * The locked wishlist: the same row stack as requests and attendees, frosted
+ * over, with the crown and a Mello+ pill on top.
+ *
+ * **The rows behind the frost are placeholders, and that is the point.**
+ * `getEventSavers` is `enabled: isHost && premium`, so a free host never
+ * receives the list — correct, not a limitation to work around. A blur is a
+ * visual effect, not a security boundary: fetch the names to blur them and they
+ * are in the response, the cache and the tree. Bones driven by the count give
+ * the real number with no real identities.
+ */
+function LockedWishlist({
+  count,
+  onUnlock,
+}: {
+  count: number;
+  onUnlock: () => void;
+}) {
+  return (
+    <PressableScale
+      scaleTo={0.98}
+      onPress={onUnlock}
+      accessibilityRole="button"
+      accessibilityLabel={`See who wishlisted this event with Mello+`}
+      style={styles.lockedWrap}
+    >
+      <View style={styles.rowStack} pointerEvents="none">
+        <SkeletonGroup>
+          <SkeletonPersonRow count={Math.min(Math.max(count, 1), 3)} onDark />
+        </SkeletonGroup>
+      </View>
+
+      {/* One pane over the stack, not one per row. Android falls back to a flat
+          fill, which is fine — the job is to obscure, and what it obscures is a
+          placeholder. */}
+      <Glass
+        tier="onPhoto"
+        radius={RADIUS['2xl']}
+        style={StyleSheet.absoluteFill}
+        shadow={false}
+      >
+        <View style={styles.lockedInner}>
+          <View style={styles.lockedCrown}>
+            <Icon name="crown" size={18} color={PREMIUM_GOLD} strokeWidth={2} />
+          </View>
+          <Text style={styles.lockedTitle}>
+            {count} {count === 1 ? 'person has' : 'people have'} wishlisted this
+          </Text>
+          <View style={styles.lockedPill}>
+            <Text style={styles.lockedPillText}>See who with Mello+</Text>
+          </View>
+        </View>
+      </Glass>
+    </PressableScale>
+  );
+}
+
 const styles = themedStyles(() => ({
+  screen: { backgroundColor: COLORS.accent },
   notHostText: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: SPACING[10],
-    paddingHorizontal: SPACING[10],
+    marginTop: SPACING[12],
   },
-  scroll: { padding: SPACING[5], paddingTop: SPACING[2], gap: SPACING[4], paddingBottom: SPACING[8] },
-  congratsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[3],
-    backgroundColor: COLORS.primaryTint,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: alpha(COLORS.primary, 0.25) ?? COLORS.primary,
-    padding: SPACING[3.5],
-  },
-  congratsEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 36 },
-  celebrationOverlay: {
+
+  // ─── Hero ──────────────────────────────────────────────────────────────
+  // Taller than the photo by PHOTO_BLEED and pulled up by the same amount, so
+  // the extra sits off the top of the screen at rest and costs no scroll.
+  photoWindow: { marginTop: -PHOTO_BLEED, overflow: 'hidden' },
+  // Anchored to the window's *bottom* — the edge that has to stay welded to the
+  // sheet. `transformOrigin` keeps it there through the pull-down scale, and
+  // without it a hairline of what is behind shows through while dragging.
+  photoInner: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 10,
-    pointerEvents: 'none',
+    transformOrigin: 'bottom',
   },
-  checkinCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[3],
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: alpha(COLORS.primary, 0.28) ?? COLORS.primary,
-    padding: SPACING[3.5],
-  },
-  checkinIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primary,
+  photoFallback: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkinTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.body,
-    color: COLORS.textPrimary,
+  photoTopFade: { position: 'absolute', top: 0, left: 0, right: 0, height: 150 },
+
+  caption: {
+    position: 'absolute',
+    left: SPACING[5],
+    right: SPACING[5],
+    bottom: SHEET_RADIUS + SPACING[4],
+    gap: SPACING[1],
   },
-  checkinSub: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textSecondary,
+  eyebrow: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.textOnDark,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  livePulse: { color: COLORS.primary },
+  title: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.h1,
+    lineHeight: TYPE_SIZE.h1 * 1.1,
+    letterSpacing: -0.6,
+    color: COLORS.white,
+  },
+  captionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1.5],
     marginTop: SPACING[0.5],
   },
+  captionMetaText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textOnDark,
+  },
+
+  frost: { position: 'absolute', top: 0, left: 0, right: 0 },
+  // Knocks the frost back so white type stays legible over a bright photo.
+  // `inkVeil` (0.28) rather than `scrim` (0.45): the photo's colour should carry
+  // through the glass, and 0.45 kills it.
+  frostVeil: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.inkVeil },
+
+  // Pulled up so its rounded corners sit over the photo's last SHEET_RADIUS.
+  sheet: {
+    marginTop: -SHEET_RADIUS,
+    paddingHorizontal: SPACING[5],
+    paddingTop: SPACING[5],
+    gap: SPACING[4],
+  },
+
+  // ─── The on-dark ramp inside the sheet ─────────────────────────────────
+  // Cards nested here are a translucent white lift, never a second <Glass>: a
+  // blur inside a blur is a native blur view per row and reads as mud.
+  lift: {
+    backgroundColor: COLORS.fillOnDark,
+    borderRadius: RADIUS['2xl'],
+    borderWidth: 1,
+    borderColor: COLORS.borderOnDark,
+    padding: SPACING[4],
+    gap: SPACING[3.5],
+  },
+
+  congrats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[3],
+    backgroundColor: COLORS.fillOnDark,
+    borderRadius: RADIUS['2xl'],
+    borderWidth: 1,
+    borderColor: COLORS.borderOnDark,
+    padding: SPACING[4],
+  },
+  congratsEmoji: { fontSize: 30 },
   congratsTitle: {
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.bodyLg,
-    color: COLORS.textPrimary,
+    color: COLORS.white,
   },
   congratsSub: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.caption,
     lineHeight: 17,
-    color: COLORS.textSecondary,
+    color: COLORS.textOnDark,
     marginTop: SPACING[0.5],
   },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: inkAlpha(0.07),
-    padding: SPACING[3.5],
-    gap: SPACING[3],
+
+  // ─── Pulse strip ───────────────────────────────────────────────────────
+  pulseStrip: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  pulse: { flex: 1, alignItems: 'center', gap: SPACING[0.5] },
+  pulseValue: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.titleLg,
+    color: COLORS.white,
   },
-  cover: { width: '100%', height: 160, borderRadius: RADIUS.md },
-  coverPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[3] },
-  title: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.sectionLg,
-    lineHeight: 23,
-    color: COLORS.textPrimary,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1],
-    marginTop: SPACING[1],
-  },
-  metaText: {
+  // The whole attention mechanism: the number itself, coral above zero.
+  pulseValueAlert: { color: COLORS.primary },
+  pulseLabel: {
     fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: inkAlpha(0.6),
-  },
-  spotsPill: {
-    backgroundColor: COLORS.successTint,
-    paddingHorizontal: SPACING[2.5],
-    paddingVertical: SPACING[1],
-    borderRadius: RADIUS.full,
-  },
-  spotsPillText: {
-    fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
-    color: COLORS.success,
+    color: COLORS.textOnDarkMuted,
   },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
-  location: {
+  pulseDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: COLORS.borderOnDark,
+  },
+
+  // ─── Action tiles ──────────────────────────────────────────────────────
+  tiles: { flexDirection: 'row', gap: SPACING[3] },
+  tile: {
     flex: 1,
+    alignItems: 'center',
+    gap: SPACING[2],
+    backgroundColor: COLORS.fillOnDark,
+    borderRadius: RADIUS['2xl'],
+    borderWidth: 1,
+    borderColor: COLORS.borderOnDark,
+    paddingVertical: SPACING[3.5],
+  },
+  tileWell: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.fillOnDarkStrong,
+  },
+  tileDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+  },
+  tileEmoji: { fontSize: 20 },
+  tileLabel: {
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: COLORS.textPrimary,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.white,
   },
-  description: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodyMd,
-    lineHeight: 20,
-    color: COLORS.textPrimary,
-  },
+  chatCta: { marginTop: -SPACING[1] },
+
+  // ─── Sections ──────────────────────────────────────────────────────────
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -580,124 +962,123 @@ const styles = themedStyles(() => ({
   },
   sectionTitle: {
     fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.body,
-    color: COLORS.textPrimary,
+    fontSize: TYPE_SIZE.bodyLg,
+    color: COLORS.white,
   },
   seeAll: {
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.caption,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
   },
-  wrapPanel: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
+  // Six attendees means one surface, not six.
+  rowStack: {
+    backgroundColor: COLORS.fillOnDark,
+    borderRadius: RADIUS['2xl'],
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING[4],
-    gap: SPACING[3.5],
+    borderColor: COLORS.borderOnDark,
+    overflow: 'hidden',
   },
-  wrapStatsRow: {
+  rowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderOnDark,
+  },
+
+  saverRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    gap: SPACING[3],
+    paddingHorizontal: SPACING[3.5],
+    paddingVertical: SPACING[2.5],
   },
-  wrapStat: { alignItems: 'center', flex: 1 },
-  wrapStatValue: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.section,
-    color: COLORS.textPrimary,
+  saverName: {
+    flex: 1,
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.white,
   },
-  wrapStatLabel: {
-    fontFamily: FONTS.medium,
+
+  // ─── Locked wishlist ───────────────────────────────────────────────────
+  lockedWrap: { position: 'relative', overflow: 'hidden', borderRadius: RADIUS['2xl'] },
+  lockedInner: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[5],
+  },
+  lockedCrown: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: premiumGoldTint(),
+  },
+  lockedTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.white,
+    textAlign: 'center',
+  },
+  lockedPill: {
+    paddingHorizontal: SPACING[3],
+    paddingVertical: SPACING[1.5],
+    borderRadius: RADIUS.full,
+    backgroundColor: premiumGoldTint(),
+  },
+  lockedPillText: {
+    fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
-    marginTop: SPACING[0.5],
+    color: PREMIUM_GOLD,
   },
-  wrapStatDivider: { width: 1, height: 30, backgroundColor: COLORS.border },
-  wrapNotes: {
-    gap: SPACING[1.5],
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.sm,
-    padding: SPACING[3],
-  },
+
+  // ─── Post-event ────────────────────────────────────────────────────────
+  wrapStatsRow: { flexDirection: 'row', alignItems: 'center' },
+  wrapNotes: { gap: SPACING[1.5] },
   wrapNoteText: {
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    lineHeight: 18,
-    color: COLORS.textPrimary,
+    fontSize: TYPE_SIZE.bodySm,
+    lineHeight: 19,
+    color: COLORS.textOnDark,
+    fontStyle: 'italic',
   },
   wrapNotesHint: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.micro,
-    color: COLORS.textMuted,
+    color: COLORS.textOnDarkMuted,
   },
-  rows: { gap: SPACING[2] },
-  emptyCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: inkAlpha(0.07),
-    padding: SPACING[4],
-  },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    color: COLORS.textSecondary,
-  },
-  saversCard: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING[2],
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: inkAlpha(0.07),
-    padding: SPACING[3],
-  },
-  saverChip: {
+
+  // ─── Chrome ────────────────────────────────────────────────────────────
+  chrome: {
+    position: 'absolute',
+    left: SPACING[4],
+    right: SPACING[4],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING[1.5],
-    height: 34,
-    paddingLeft: SPACING[1],
-    paddingRight: SPACING[3],
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.background,
-    maxWidth: 160,
   },
-  saverName: {
-    flexShrink: 1,
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textPrimary,
-  },
-  saversLocked: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[3],
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: 'rgba(201,147,10,0.35)',
-    padding: SPACING[3],
-  },
-  saversLockedIcon: {
-    width: 38,
+  chip: {
     height: 38,
-    borderRadius: RADIUS.sm,
-    backgroundColor: premiumGoldTint(),
+    minWidth: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.glassOnPhoto,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorderOnPhoto,
   },
-  saversLockedTitle: {
+  chipWide: {
+    flexDirection: 'row',
+    gap: SPACING[1.5],
+    paddingHorizontal: SPACING[3.5],
+  },
+  chipLabel: {
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: COLORS.textPrimary,
-  },
-  saversLockedSub: {
-    fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,
-    color: PREMIUM_GOLD,
-    marginTop: SPACING[0.5],
+    color: COLORS.white,
+  },
+
+  celebrationOverlay: {
+    ...StyleSheet.absoluteFill,
+    pointerEvents: 'none',
   },
 }));

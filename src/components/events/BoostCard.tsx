@@ -37,10 +37,21 @@ export default function BoostCard({
   event,
   saversCount,
   onBoosted,
+  renderTrigger,
 }: {
   event: EventDetail;
   saversCount: number;
   onBoosted: () => void;
+  /**
+   * Draw the thing that opens the sheet, instead of this component's own
+   * collapsed card. The host panel passes an action tile.
+   *
+   * A render prop rather than a `variant`: the two call sites want completely
+   * different objects — a card with a pitch, and a 44pt glyph well — and the
+   * only thing they share is what opening does. Everything below the trigger
+   * (the sheet, the credits, the purchase) is untouched by this.
+   */
+  renderTrigger?: (open: () => void) => React.ReactNode;
 }) {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
@@ -110,6 +121,121 @@ export default function BoostCard({
     }
   }
 
+  // The sheet, hoisted out of the return so both the built-in card and a
+  // caller's own trigger can render it. Untouched otherwise — credits, packs
+  // and the purchase flow are explicitly out of scope for the redesign.
+  const sheet = (
+        <Modal
+          visible={open}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.overlay}
+            activeOpacity={1}
+            onPress={() => !pending && setOpen(false)}
+          >
+            <TouchableOpacity activeOpacity={1} style={styles.sheet}>
+              <View style={styles.sheetIcon}>
+                <Text style={styles.sheetIconEmoji}>{BOOST_EMOJI}</Text>
+              </View>
+
+              {creditsLoading ? (
+                <ActivityIndicator color={BOOST_ACCENT} style={{ marginVertical: SPACING[6] }} />
+              ) : view === 'use' ? (
+                <>
+                  <Text style={styles.sheetTitle}>
+                    You have {credits} boost{credits === 1 ? '' : 's'}
+                  </Text>
+                  <Text style={styles.sheetSub}>
+                    Use 1 boost to put this event on top of the map, Explore and
+                    the swipe deck for {BOOST_HOURS} hours.
+                  </Text>
+                  <Button
+                    variant="primary"
+                    label="Use 1 boost"
+                    onPress={handleUse}
+                    loading={pending}
+                    style={styles.sheetBtn}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setView('buy')}
+                    hitSlop={8}
+                    disabled={pending}
+                  >
+                    <Text style={styles.link}>Buy more boosts</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.sheetTitle}>
+                    {credits > 0 ? 'Buy more boosts' : "You're out of boosts"}
+                  </Text>
+                  <Text style={styles.sheetSub}>
+                    Boosts put your events on top of the map, Explore and the
+                    swipe deck for {BOOST_HOURS} hours each.
+                  </Text>
+                  <View style={styles.packs}>
+                    {BOOST_PACKS.map((p) => {
+                      const sel = pack === p.id;
+                      return (
+                        <PressableScale
+                          key={p.id}
+                          scaleTo={0.97}
+                          style={[styles.pack, sel && styles.packSel]}
+                          onPress={() => setPack(p.id)}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.packLabel, sel && styles.packLabelSel]}>
+                              {p.label}
+                            </Text>
+                            {p.note && <Text style={styles.packNote}>{p.note}</Text>}
+                          </View>
+                          <Text style={[styles.packPrice, sel && styles.packLabelSel]}>
+                            ₹{p.price}
+                          </Text>
+                        </PressableScale>
+                      );
+                    })}
+                  </View>
+                  <Button
+                    variant="primary"
+                    label={`Buy for ₹${BOOST_PACKS.find((p) => p.id === pack)!.price}`}
+                    onPress={handleBuy}
+                    loading={pending}
+                    style={styles.sheetBtn}
+                  />
+                  {credits > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setView('use')}
+                      hitSlop={8}
+                      disabled={pending}
+                    >
+                      <Text style={styles.link}>
+                        Use one of my {credits} boost{credits === 1 ? '' : 's'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+  );
+
+  // With a custom trigger the caller owns *both* states — the tile carries
+  // "boosted" by going solid, and the pitch that used to live in this card now
+  // lives in the sheet the tile opens.
+  if (renderTrigger) {
+    return (
+      <>
+        {renderTrigger(openSheet)}
+        {sheet}
+      </>
+    );
+  }
+
   if (boosted) {
     return (
       <View style={styles.activeCard}>
@@ -168,103 +294,7 @@ export default function BoostCard({
         )}
       </PressableScale>
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => !pending && setOpen(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={styles.sheet}>
-            <View style={styles.sheetIcon}>
-              <Text style={styles.sheetIconEmoji}>{BOOST_EMOJI}</Text>
-            </View>
-
-            {creditsLoading ? (
-              <ActivityIndicator color={BOOST_ACCENT} style={{ marginVertical: SPACING[6] }} />
-            ) : view === 'use' ? (
-              <>
-                <Text style={styles.sheetTitle}>
-                  You have {credits} boost{credits === 1 ? '' : 's'}
-                </Text>
-                <Text style={styles.sheetSub}>
-                  Use 1 boost to put this event on top of the map, Explore and
-                  the swipe deck for {BOOST_HOURS} hours.
-                </Text>
-                <Button
-                  variant="primary"
-                  label="Use 1 boost"
-                  onPress={handleUse}
-                  loading={pending}
-                  style={styles.sheetBtn}
-                />
-                <TouchableOpacity
-                  onPress={() => setView('buy')}
-                  hitSlop={8}
-                  disabled={pending}
-                >
-                  <Text style={styles.link}>Buy more boosts</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.sheetTitle}>
-                  {credits > 0 ? 'Buy more boosts' : "You're out of boosts"}
-                </Text>
-                <Text style={styles.sheetSub}>
-                  Boosts put your events on top of the map, Explore and the
-                  swipe deck for {BOOST_HOURS} hours each.
-                </Text>
-                <View style={styles.packs}>
-                  {BOOST_PACKS.map((p) => {
-                    const sel = pack === p.id;
-                    return (
-                      <PressableScale
-                        key={p.id}
-                        scaleTo={0.97}
-                        style={[styles.pack, sel && styles.packSel]}
-                        onPress={() => setPack(p.id)}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.packLabel, sel && styles.packLabelSel]}>
-                            {p.label}
-                          </Text>
-                          {p.note && <Text style={styles.packNote}>{p.note}</Text>}
-                        </View>
-                        <Text style={[styles.packPrice, sel && styles.packLabelSel]}>
-                          ₹{p.price}
-                        </Text>
-                      </PressableScale>
-                    );
-                  })}
-                </View>
-                <Button
-                  variant="primary"
-                  label={`Buy for ₹${BOOST_PACKS.find((p) => p.id === pack)!.price}`}
-                  onPress={handleBuy}
-                  loading={pending}
-                  style={styles.sheetBtn}
-                />
-                {credits > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setView('use')}
-                    hitSlop={8}
-                    disabled={pending}
-                  >
-                    <Text style={styles.link}>
-                      Use one of my {credits} boost{credits === 1 ? '' : 's'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      {sheet}
     </>
   );
 }
