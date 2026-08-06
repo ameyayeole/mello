@@ -63,7 +63,9 @@ The parts that were reasoned about rather than seen.
 | A2 | **`backdrop` renders the same on both.** Compare the two platforms side by side. This is the prediction the whole design rests on. | | |
 | A3 | **Pull down past the top.** The photo must grow upward and stay welded to the sheet — no gap at the top, no hairline at the join. Checks `PHOTO_BLEED` and `transformOrigin: 'bottom'` together. | | |
 | A4 | **Pull up past the bottom.** More sheet, never bare screen. Checks `SHEET_UNDERHANG` and its cancelling negative margin. | | |
-| A5 | **Chips on a blown-out sky.** Back and Edit over a very bright photo. If the back chip is hard to find, the 150pt top fade is too weak. | | |
+| A5 | **Chips on a blown-out sky.** Back and Edit over a very bright photo. If the back chip is hard to find, the 150pt top fade is too weak. The fade now only has the chips to protect — the title moved off the photo. | | |
+| A5a | **Nothing is written on the photo.** Title, date and location are the first block *inside* the sheet, not overlaid. The photo carries the chips and nothing else. | | |
+| A5b | A long title, and a long description, in the sheet header | Wraps and pushes the pulse strip down. Nothing clipped, nothing overlapping the photo above it. | | |
 | A6 | **Ken Burns survives a busy frame.** Scroll hard while it drifts. It runs on the UI thread; it should not stutter with JS. | | |
 | A7 | **Nothing sits under the status bar** on Android. `react-native`'s core `SafeAreaView` is a no-op there and the hero now runs to the top edge. | | |
 

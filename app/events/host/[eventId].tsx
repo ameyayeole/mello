@@ -415,32 +415,6 @@ export default function HostPanelScreen() {
             </Svg>
           </Animated.View>
 
-          {/* A sibling of `photoInner`, anchored to the window's bottom — not a
-              child. An event's title belongs to its image, but as a child it
-              would inherit the pull-down scale and balloon on overscroll. */}
-          <View style={styles.caption} pointerEvents="none">
-            <Text style={styles.eyebrow}>
-              {ended ? (
-                `Ended · ${formatEventWhen(event.starts_at)}`
-              ) : (
-                <>
-                  <Text style={styles.livePulse}>● </Text>
-                  {formatEventWhen(event.starts_at)}
-                </>
-              )}
-            </Text>
-            <Text style={styles.title} numberOfLines={2}>
-              {event.title}
-            </Text>
-            {event.location_name ? (
-              <View style={styles.captionMeta}>
-                <Icon name="location" size={13} color={COLORS.textOnDark} />
-                <Text style={styles.captionMetaText} numberOfLines={1}>
-                  {event.location_name}
-                </Text>
-              </View>
-            ) : null}
-          </View>
         </View>
 
         <Glass
@@ -484,6 +458,37 @@ export default function HostPanelScreen() {
             },
           ]}
         >
+          {/* The event's identity, in the sheet rather than over the photo.
+              Type on an image is only as legible as the image lets it be — a
+              bright or busy cover makes a title a guess, and the fade that would
+              fix it has to be heavy enough to hide the photograph you chose. On
+              the sheet it is on a surface built for text, and the photo is left
+              to be a photo. */}
+          <View style={styles.header}>
+            <Text style={styles.eyebrow}>
+              {ended ? (
+                `Ended · ${formatEventWhen(event.starts_at)}`
+              ) : (
+                <>
+                  <Text style={styles.livePulse}>● </Text>
+                  {formatEventWhen(event.starts_at)}
+                </>
+              )}
+            </Text>
+            <Text style={styles.title}>{event.title}</Text>
+            {event.location_name ? (
+              <View style={styles.headerMeta}>
+                <Icon name="location" size={14} color={COLORS.textOnDark} />
+                <Text style={styles.headerMetaText} numberOfLines={1}>
+                  {event.location_name}
+                </Text>
+              </View>
+            ) : null}
+            {event.description ? (
+              <Text style={styles.headerDescription}>{event.description}</Text>
+            ) : null}
+          </View>
+
           {celebrate === '1' && (
             <Animated.View
               entering={FadeInDown.duration(400)}
@@ -869,13 +874,9 @@ const styles = themedStyles(() => ({
   },
   photoTopFade: { position: 'absolute', top: 0, left: 0, right: 0, height: 150 },
 
-  caption: {
-    position: 'absolute',
-    left: SPACING[5],
-    right: SPACING[5],
-    bottom: SHEET_RADIUS + SPACING[4],
-    gap: SPACING[1],
-  },
+  // The title block, first thing in the sheet. No absolute positioning any
+  // more — it is content now, and it lays out with everything under it.
+  header: { gap: SPACING[1] },
   eyebrow: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
@@ -891,17 +892,26 @@ const styles = themedStyles(() => ({
     letterSpacing: -0.6,
     color: COLORS.white,
   },
-  captionMeta: {
+  headerMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[1.5],
-    marginTop: SPACING[0.5],
+    marginTop: SPACING[1],
   },
-  captionMetaText: {
+  headerMetaText: {
     flex: 1,
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textOnDark,
+  },
+  // The description came off the old info card and had nowhere to go while the
+  // title was over the photo — there is room for it here.
+  headerDescription: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodySm,
+    lineHeight: 20,
+    color: COLORS.textOnDarkMuted,
+    marginTop: SPACING[1.5],
   },
 
   frost: { position: 'absolute', top: 0, left: 0, right: 0 },
