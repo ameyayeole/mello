@@ -234,12 +234,19 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  approveBtnText: { fontFamily: FONTS.bold, color: '#fff', fontSize: TYPE_SIZE.caption },
+  approveBtnText: {
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+    fontSize: TYPE_SIZE.caption,
+  },
   iconBtn: {
     width: 34,
     height: 34,
     borderRadius: RADIUS.xs,
-    backgroundColor: '#F0F1F3',
+    // Was a literal `#F0F1F3` — a light grey inside a `themedStyles` factory,
+    // which is exactly the bug the palette proxy cannot see: the chip stayed
+    // near-white on the dark theme while the glyph inside it stayed ink.
+    backgroundColor: COLORS.inkSubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },

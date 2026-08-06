@@ -27,6 +27,7 @@ import { getBoostCredits, spendBoost } from '@/services/boost.service';
 import { Button, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
+import { alpha } from '@/utils/color';
 
 // Host-only card on the manage-event panel. Boosts are credits now (028):
 // "Boost event" opens a sheet showing the host's balance — spend one from
@@ -311,7 +312,7 @@ const styles = themedStyles(() => ({
   creditsPillText: {
     fontFamily: FONTS.heavy,
     fontSize: TYPE_SIZE.bodySm,
-    color: '#fff',
+    color: COLORS.white,
   },
   overlay: {
     flex: 1,
@@ -324,7 +325,8 @@ const styles = themedStyles(() => ({
     borderRadius: RADIUS['3xl'],
     padding: SPACING[5],
     alignItems: 'center',
-    shadowColor: '#000',
+    // Never neutral: a grey shadow over a tinted background reads as a smudge.
+    shadowColor: COLORS.ink,
     shadowOpacity: 0.2,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 8 },
@@ -413,7 +415,8 @@ const styles = themedStyles(() => ({
     paddingHorizontal: SPACING[2.5],
     paddingVertical: SPACING[1],
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(255,106,43,0.18)',
+    // Derived from the boost accent rather than a second copy of it in hex.
+    backgroundColor: alpha(BOOST_ACCENT, 0.18) ?? BOOST_ACCENT,
   },
   timePillText: {
     fontFamily: FONTS.bold,

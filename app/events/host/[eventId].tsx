@@ -39,6 +39,7 @@ import {
 } from '@/components/ui';
 import { openEventChat } from '@/utils/chatActions';
 import { themedStyles } from '@/theme';
+import { alpha } from '@/utils/color';
 
 // How many attendees / requests show inline before "See all" takes over.
 const PREVIEW_COUNT = 3;
@@ -465,7 +466,7 @@ const styles = themedStyles(() => ({
     backgroundColor: COLORS.primaryTint,
     borderRadius: RADIUS.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255,94,91,0.25)',
+    borderColor: alpha(COLORS.primary, 0.25) ?? COLORS.primary,
     padding: SPACING[3.5],
   },
   congratsEmoji: { fontSize: TYPE_SIZE.h1, lineHeight: 36 },
@@ -485,7 +486,7 @@ const styles = themedStyles(() => ({
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255,94,91,0.28)',
+    borderColor: alpha(COLORS.primary, 0.28) ?? COLORS.primary,
     padding: SPACING[3.5],
   },
   checkinIcon: {
@@ -548,7 +549,7 @@ const styles = themedStyles(() => ({
     color: inkAlpha(0.6),
   },
   spotsPill: {
-    backgroundColor: 'rgba(31,164,99,0.10)',
+    backgroundColor: COLORS.successTint,
     paddingHorizontal: SPACING[2.5],
     paddingVertical: SPACING[1],
     borderRadius: RADIUS.full,
