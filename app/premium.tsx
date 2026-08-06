@@ -23,7 +23,7 @@ import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   isPremium,
   PREMIUM_GOLD,
-  PREMIUM_GOLD_TINT,
+  premiumGoldTint,
   PREMIUM_PLANS,
 } from '@/utils/premium';
 import {
@@ -306,7 +306,7 @@ const styles = themedStyles(() => ({
     paddingHorizontal: SPACING[3],
     paddingVertical: SPACING[1.5],
     borderRadius: RADIUS.full,
-    backgroundColor: PREMIUM_GOLD_TINT,
+    backgroundColor: premiumGoldTint(),
   },
   activePillText: {
     fontFamily: FONTS.bold,
@@ -334,7 +334,7 @@ const styles = themedStyles(() => ({
     width: 38,
     height: 38,
     borderRadius: RADIUS.sm,
-    backgroundColor: PREMIUM_GOLD_TINT,
+    backgroundColor: premiumGoldTint(),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -350,7 +350,7 @@ const styles = themedStyles(() => ({
     marginTop: SPACING[0.5],
   },
   reasonPill: {
-    backgroundColor: PREMIUM_GOLD_TINT,
+    backgroundColor: premiumGoldTint(),
     paddingHorizontal: SPACING[2],
     paddingVertical: SPACING[1],
     borderRadius: RADIUS.full,
@@ -380,7 +380,7 @@ const styles = themedStyles(() => ({
     borderRadius: RADIUS.full,
     marginBottom: SPACING[2],
   },
-  planHintActive: { backgroundColor: PREMIUM_GOLD_TINT },
+  planHintActive: { backgroundColor: premiumGoldTint() },
   planHintText: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.nano,

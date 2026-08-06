@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useUIStore } from '@/stores/uiStore';
 import { useAuthStore } from '@/stores/authStore';
-import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { isPremium, PREMIUM_GOLD, premiumGoldTint } from '@/utils/premium';
 import { ACTIVITIES } from '@/constants/activities';
 import { categoryStyle } from '@/constants/categoryStyle';
 import { COLORS } from '@/constants/colors';
@@ -346,7 +346,7 @@ const plusStyles = themedStyles(() => ({
     paddingHorizontal: SPACING[2],
     paddingVertical: SPACING[0.5],
     borderRadius: RADIUS.full,
-    backgroundColor: PREMIUM_GOLD_TINT,
+    backgroundColor: premiumGoldTint(),
   },
   tagText: {
     fontFamily: FONTS.bold,

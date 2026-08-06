@@ -96,6 +96,10 @@ interface SheetTarget {
 function previewText(content: string, type: string): string {
   if (type === 'image') return 'Photo';
   if (type === 'announcement') return `Announcement: ${content}`;
+  // A poll's content is its question, which reads as a plain message here
+  // otherwise — "Where are we meeting?" looks like someone asking, not like a
+  // poll waiting for a vote.
+  if (type === 'poll') return `Poll: ${content}`;
   return content;
 }
 

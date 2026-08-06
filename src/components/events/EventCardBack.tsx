@@ -8,7 +8,7 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { formatEventWhen } from '@/utils/time';
 import { formatDistance } from '@/utils/distance';
 import { neighbourhood } from '@/utils/location';
-import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { PREMIUM_GOLD, premiumGoldTint } from '@/utils/premium';
 import type { EventDetail } from '@/types/models';
 import {
   AttendeeStack,
@@ -187,7 +187,11 @@ export function EventCardBack({
 }
 
 const styles = themedStyles(() => ({
-  face: { flex: 1, backgroundColor: COLORS.white },
+  // `surface`, not `white`. The token `white` means the colour white and stays
+  // white on both themes — correct for a glyph on coral, wrong for the sheet a
+  // card's back is made of. On the dark theme this was a white page with white
+  // text on it: everything except the avatars and the two ink buttons vanished.
+  face: { flex: 1, backgroundColor: COLORS.surface },
   content: { padding: SPACING[5], paddingBottom: SPACING[8], gap: SPACING[5] },
   section: { gap: SPACING[2.5] },
   // Verbatim from EventBottomSheet.tsx's `premiumPill`/`premiumPillText`/
@@ -200,7 +204,7 @@ const styles = themedStyles(() => ({
     paddingHorizontal: SPACING[2.5],
     paddingVertical: SPACING[1.5],
     borderRadius: RADIUS.full,
-    backgroundColor: PREMIUM_GOLD_TINT,
+    backgroundColor: premiumGoldTint(),
   },
   premiumPillText: {
     fontFamily: FONTS.bold,

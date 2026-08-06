@@ -74,11 +74,15 @@ import { hasSeenFlag, markFlagSeen } from '@/services/seenFlags';
 // deck do the same job, so it is entirely possible to use this feature without
 // ever learning the card can be thrown — or that throwing it right is what puts
 // an event on your wishlist.
+//
+// Retuning it is one number: the three legs keep their durations and
+// `NUDGE_REST_MS` absorbs the difference, so the rock itself never changes speed
+// — only how often it happens.
 const NUDGE_X = 14;
 const NUDGE_OUT_MS = 260;
 const NUDGE_ACROSS_MS = 420;
 const NUDGE_BACK_MS = 260;
-const NUDGE_CYCLE_MS = 2500;
+const NUDGE_CYCLE_MS = 4000;
 const NUDGE_REST_MS =
   NUDGE_CYCLE_MS - NUDGE_OUT_MS - NUDGE_ACROSS_MS - NUDGE_BACK_MS;
 // How far a real drag travels before the nudge is fully out of the way. A ramp

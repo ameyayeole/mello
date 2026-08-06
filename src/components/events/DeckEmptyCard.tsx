@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { RADIUS, SPACING } from '@/constants/spacing';
-import { PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { PREMIUM_GOLD, premiumGoldTint } from '@/utils/premium';
 import { Button, Icon } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
@@ -134,7 +134,7 @@ const styles = themedStyles(() => ({
     backgroundColor: COLORS.primaryTint,
     marginBottom: SPACING[1],
   },
-  iconPremium: { backgroundColor: PREMIUM_GOLD_TINT },
+  iconPremium: { backgroundColor: premiumGoldTint() },
   title: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.title,

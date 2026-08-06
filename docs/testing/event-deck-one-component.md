@@ -271,7 +271,7 @@ enough to light the save badge, holds it long enough to read, comes back, and
 does the same to the left. That is the entire tutorial.
 
 **The idle nudge.** After that, the card rocks right → left → settles once every
-2.5s while the deck is open, until the first swipe of the session retires it.
+4s while the deck is open, until the first swipe of the session retires it.
 
 All three ride one shared value (`nudge`), which is deliberately **not** `dx`:
 `dx` belongs to the pan, and a hint written into it would be indistinguishable
@@ -290,7 +290,7 @@ second one. (The same rule the flip hit; see `minimize`.)
 | G3 | Close and reopen the deck. Then kill the app and reopen | The demo does not replay. The idle nudge runs instead | It replays — the flag is not being written | ☐ | ☐ |
 | G4 | Sign out, sign in as someone else, open the deck | The demo runs again — the flag is per user | ☐ | ☐ | |
 | G5 | Interrupt the demo: swipe a card while it is mid-swing | Your swipe wins immediately, no fight over the card | The card stutters or snaps back | ☐ | ☐ |
-| G6 | After the demo, watch the top card for ~8 seconds | A small rock right → left → settle, roughly every 2.5s, with a slight tilt — the same ratio a real drag tilts at | No movement, a slide with no tilt, or a fidget faster than ~2.5s | ☐ | ☐ |
+| G6 | After the demo, watch the top card for ~8 seconds | A small rock right → left → settle, roughly every 4s, with a slight tilt — the same ratio a real drag tilts at | No movement, a slide with no tilt, or a fidget faster than ~4s | ☐ | ☐ |
 | G7 | Start dragging mid-rock | The card follows your finger cleanly, no jump as the hint gets out of the way | A visible snap at touch-down | ☐ | ☐ |
 | G8 | Drag slowly right, then left, without releasing | The badges light and dim with the travel, and swap sides as you cross the middle | Both lit at once, or one stuck on | ☐ | ☐ |
 | G9 | Swipe one card away, then watch | The nudge **stops** for the rest of the session. One line (`swipedOnce`) if it should keep going | It keeps rocking | ☐ | ☐ |

@@ -22,7 +22,7 @@ import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { formatEventWhen } from '@/utils/time';
 import { eventImageUri } from '@/utils/events';
-import { isPremium, PREMIUM_GOLD, PREMIUM_GOLD_TINT } from '@/utils/premium';
+import { isPremium, PREMIUM_GOLD, premiumGoldTint } from '@/utils/premium';
 import { categoryStyle } from '@/constants/categoryStyle';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import BoostCard from '@/components/events/BoostCard';
@@ -684,7 +684,7 @@ const styles = themedStyles(() => ({
     width: 38,
     height: 38,
     borderRadius: RADIUS.sm,
-    backgroundColor: PREMIUM_GOLD_TINT,
+    backgroundColor: premiumGoldTint(),
     alignItems: 'center',
     justifyContent: 'center',
   },

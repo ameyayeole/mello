@@ -31,6 +31,7 @@ import { useReactions } from '@/hooks/useReactions';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useBackToInbox } from '@/hooks/useBackToInbox';
 import { useChatScroll } from '@/hooks/useChatScroll';
+import { useMessagePolls } from '@/hooks/useMessagePolls';
 import { useAuthStore } from '@/stores/authStore';
 import {
   getEventDetail,
@@ -78,6 +79,8 @@ import {
   PinnedMessageBanner,
   MentionAutocomplete,
   Mentionable,
+  PollBubble,
+  PollComposer,
   ReplyComposerBar,
   Ticks,
   TickStatus,
@@ -203,6 +206,8 @@ function GroupChatScreen() {
   // whole row would keep a deleted message alive in state.
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [attachVisible, setAttachVisible] = useState(false);
+  const [pollComposerOpen, setPollComposerOpen] = useState(false);
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const profileSheet = useRef<ProfileBottomSheetRef>(null);
@@ -256,6 +261,7 @@ function GroupChatScreen() {
     sendImage,
     retry,
     remove,
+    sendPoll,
     loading: messagesLoading,
   } = useEventChat(
     eventId,
@@ -310,6 +316,10 @@ function GroupChatScreen() {
   useEffect(() => {
     for (const m of messages) seen.current.add(m.id);
   }, [messages]);
+
+  // Polls in this thread, and their live counts. Does nothing at all in a thread
+  // with no polls, which is most of them.
+  const { polls, vote } = useMessagePolls(eventId, messages);
 
   const chatScroll = useChatScroll(listRef, messages);
 
@@ -498,6 +508,25 @@ function GroupChatScreen() {
     if (!user) return;
     const uri = await pickChatImage();
     if (uri) sendImage(user.id, uri);
+  }
+
+  // The composer's `+` now has two things behind it, so it opens a menu rather
+  // than going straight to the photo picker. `OptionSheet` is the same list the
+  // long-press menu uses — two entry points, one shape.
+  function attachOptions(): SheetOption[] {
+    return [
+      {
+        icon: 'image',
+        label: 'Photo',
+        onPress: handleAttach,
+      },
+      {
+        icon: 'poll',
+        label: 'Poll',
+        sub: 'Ask the group to pick',
+        onPress: () => setPollComposerOpen(true),
+      },
+    ];
   }
 
   function reportMessage(message: Message) {
@@ -703,6 +732,15 @@ function GroupChatScreen() {
 
       {pinnedMessage && (
         <PinnedMessageBanner
+          // The same jump a reply's quote makes. `scrollToMessage` no-ops when
+          // the message is not in the loaded page, so the prop is only handed
+          // over when there is somewhere to go — otherwise the bar would be a
+          // button that does nothing.
+          onPress={
+            messages.some((m) => m.id === pinnedMessage.id)
+              ? () => chatScroll.scrollToMessage(pinnedMessage.id)
+              : undefined
+          }
           senderName={pinnedMessage.sender?.name}
           content={pinnedMessage.content}
           isImage={pinnedMessage.type === 'image'}
@@ -770,6 +808,24 @@ function GroupChatScreen() {
                 <>
                   {divider}
                   <SystemRow content={item.content} />
+                </>
+              );
+
+            // A poll is addressed to the room, so it renders full width like a
+            // system notice or an announcement rather than as one person's
+            // bubble. Its question lives on `content`, which is also what every
+            // preview of it shows — the Inbox row, a reply quote, the pinned bar.
+            if (item.type === 'poll')
+              return (
+                <>
+                  {divider}
+                  <PollBubble
+                    question={item.content}
+                    poll={polls?.get(item.id)}
+                    onVote={(optionId) => vote(item.id, optionId)}
+                    senderName={item.sender?.name}
+                    showName={!isMine}
+                  />
                 </>
               );
 
@@ -956,10 +1012,10 @@ function GroupChatScreen() {
             <PressableScale
               scaleTo={0.85}
               style={styles.attachBtn}
-              onPress={handleAttach}
-              accessibilityLabel="Send a photo"
+              onPress={() => setAttachVisible(true)}
+              accessibilityLabel="Attach a photo or a poll"
             >
-              <Icon name="image" size={20} color={COLORS.textSecondary} />
+              <Icon name="plus" size={22} color={COLORS.textSecondary} />
             </PressableScale>
             <TextInput
               ref={inputRef}
@@ -1006,6 +1062,20 @@ function GroupChatScreen() {
         }
         options={messageSheet ? messageOptions(messageSheet) : []}
         onClose={() => setMessageSheet(null)}
+      />
+      <OptionSheet
+        visible={attachVisible}
+        title="Add to the chat"
+        options={attachOptions()}
+        onClose={() => setAttachVisible(false)}
+      />
+      <PollComposer
+        visible={pollComposerOpen}
+        onClose={() => setPollComposerOpen(false)}
+        onCreate={(question, options) => {
+          setPollComposerOpen(false);
+          if (user) sendPoll(user.id, question, options);
+        }}
       />
       <OptionSheet
         visible={menuVisible}

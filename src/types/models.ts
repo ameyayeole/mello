@@ -215,7 +215,9 @@ export interface Message {
   event_id: string;
   sender_id: string;
   content: string;
-  type: 'text' | 'system' | 'location' | 'image' | 'announcement';
+  // 'poll' carries its question in `content`, so every surface that already
+  // shows a message preview shows the question with no extra work.
+  type: 'text' | 'system' | 'location' | 'image' | 'announcement' | 'poll';
   created_at: string;
   sender?: Profile;
   // Reply (migration 072). The quoted text and author are a snapshot taken when
@@ -254,6 +256,23 @@ export interface ReplyTarget {
   id: string;
   preview: string;
   senderName: string;
+}
+
+// A poll attached to a chat message (migration 073). The question lives on the
+// message's `content`; this is everything below it.
+export interface MessagePollOption {
+  id: string;
+  idx: number;
+  label: string;
+  vote_count: number;
+}
+
+export interface MessagePoll {
+  message_id: string;
+  options: MessagePollOption[];
+  // The option this viewer picked, or null if they have not voted. Votes are
+  // readable only by their owner (RLS), so this is genuinely per-viewer.
+  my_option_id: string | null;
 }
 
 // Which of the two chats a reaction hangs off. The table stores it as one of

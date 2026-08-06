@@ -25,3 +25,5 @@ export {
 export type { Mentionable } from './MentionAutocomplete';
 export { default as ReplyQuote } from './ReplyQuote';
 export { default as ReplyComposerBar } from './ReplyComposerBar';
+export { default as PollBubble } from './PollBubble';
+export { default as PollComposer } from './PollComposer';

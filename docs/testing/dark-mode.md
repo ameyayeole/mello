@@ -56,7 +56,8 @@ for text you can barely read, dividers that vanish, and icons that disappear.
 | B5 | Inbox list, an event chat, a DM | Your own bubbles are `accent` — a raised charcoal on dark, white text, the way a dark-mode chat normally looks. They must be clearly separate from the background | ☐ | ☐ |
 | B6 | Profile | Should look essentially unchanged — it was already this treatment | ☐ | ☐ |
 | B7 | Settings, and every row's destination | ☐ | ☐ | |
-| B8 | The dealt event card, front and back | ☐ | ☐ | |
+| B8 | The dealt event card, front and back | The **back** especially: it was a white sheet with invisible text until `face` stopped being `COLORS.white` | ☐ | ☐ |
+| B8a | Flip a card in the swipe deck, in dark | Same — a dark sheet, legible text, and the gold "Mello+" pill a dim wash rather than a cream rectangle | ☐ | ☐ |
 | B9 | Wishlist, notifications, search | ☐ | ☐ | |
 | B10 | The create-event flow, all steps | Its steps are `React.memo`'d — if it is the one thing still light, that is why (they are behind a flow you cannot be inside while toggling, so a remount should have caught them) | ☐ | ☐ |
 | B11 | Onboarding and auth (sign out to reach them) | These have the most hardcoded colours left — see D | ☐ | ☐ |
@@ -87,6 +88,17 @@ colours** the migration deliberately did not guess at:
 - Two places using `accent` as *ink* rather than as a surface — community's
   active tab label and the wordmark in `MelloLogo`. Both are charcoal-on-black on
   the dark theme, and both should be `textPrimary`.
+
+**Fixed since, both the same mistake:** a surface painted with a token that means
+a *colour* rather than a *role*.
+
+- `EventCardBack.face` was `COLORS.white`, which stays white on both themes — so
+  a flipped card was a white page with white text on it. Now `COLORS.surface`.
+  Worth remembering as the rule: `white` is for a glyph on coral; `surface` is
+  what a sheet is made of.
+- `PREMIUM_GOLD_TINT` was a pale cream constant behind every gold pill in the
+  app — a tint on white, a bright patch on near-black. It is now
+  `premiumGoldTint()`, an alpha wash of the same hue on dark, at all 16 sites.
 
 | # | Do | Expect | iOS | Android |
 | --- | --- | --- | :-: | :-: |

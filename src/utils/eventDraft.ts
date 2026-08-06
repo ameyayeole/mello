@@ -7,7 +7,14 @@
 // duplicate is gone; this is the only copy.
 
 export const TITLE_MAX = 60;
-export const DESCRIPTION_MAX = 500;
+// 300, down from 500. The column is a plain TEXT with no constraint, so this is
+// the only place the limit exists — both the create flow and the edit screen
+// read it, and `draftStateFrom` below truncates a restored draft to it.
+//
+// A description longer than this already in the database still loads and still
+// displays; the cap only stops it growing. That is the right way round: it is a
+// UI rule about how much anyone will read, not a data rule.
+export const DESCRIPTION_MAX = 300;
 
 export const MIN_PEOPLE = 2;
 export const MAX_PEOPLE = 50;

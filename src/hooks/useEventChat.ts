@@ -14,6 +14,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { Message, ReplyTarget } from '@/types/models';
 import { CONFIG } from '@/constants/config';
 import { newId } from '@/utils/id';
+import { createMessagePoll } from '@/services/chatPolls.service';
+import { showError } from '@/utils/errors';
 import { replyOf } from '@/utils/chatActions';
 
 export function useEventChat(eventId: string, clearedAt?: string | null) {
@@ -175,6 +177,51 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
     [eventId]
   );
 
+  /**
+   * Send a poll: one `type='poll'` message whose content is the question, then
+   * the options behind it.
+   *
+   * Sequential, and the order is the security model — `message_polls`'s RLS
+   * checks the message is yours, so the message has to exist first (see
+   * chatPolls.service). The optimistic bubble shows the question immediately
+   * with its options still loading, which is what they genuinely are.
+   *
+   * On failure the row is marked failed like any other send. There is no retry
+   * path that re-creates the options, so the message is dropped rather than left
+   * as a poll nobody can vote in.
+   */
+  const sendPoll = useCallback(
+    (senderId: string, question: string, options: string[]) => {
+      const id = newId();
+      const optimistic: Message = {
+        id,
+        event_id: eventId,
+        sender_id: senderId,
+        content: question,
+        type: 'poll',
+        created_at: new Date().toISOString(),
+        _status: 'sending',
+      };
+      setMessages((prev) => [...prev, optimistic]);
+
+      sendMessage(eventId, senderId, question, id, 'poll')
+        .then(() => createMessagePoll(id, options))
+        .then(() => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === id ? { ...m, _status: undefined } : m))
+          );
+        })
+        .catch(() => {
+          setMessages((prev) => prev.filter((m) => m.id !== id));
+          showError(
+            "Your poll wasn't sent. Check your connection and try again.",
+            "Couldn't send poll"
+          );
+        });
+    },
+    [eventId]
+  );
+
   // Image send: optimistic bubble shows the local file immediately; the public
   // URL from the upload replaces it via the realtime echo.
   const sendImage = useCallback(
@@ -230,6 +277,7 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
   }, []);
 
   return {
+    sendPoll,
     // The first fetch, for the thread's skeleton. `messages` starts as `[]`,
     // which a screen cannot tell apart from a conversation with nothing in it.
     loading: isPending,

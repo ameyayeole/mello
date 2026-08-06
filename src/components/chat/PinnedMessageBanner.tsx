@@ -7,23 +7,44 @@ import { Icon, PressableScale } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
 // Slim pinned-message bar shown under the chat header.
+//
+// The whole bar is the tap target, and tapping it goes *to* the message. A
+// pinned message that only shows you its first line is a bookmark you cannot
+// open — the point of pinning "meet at 8 by the north gate" is to be able to get
+// back to it, and to whatever was said around it.
+//
+// The unpin button sits inside that target and stops the press from reaching it:
+// two actions on one surface, and the small explicit one wins.
 
 export default function PinnedMessageBanner({
   senderName,
   content,
   isImage,
   isAnnouncement,
+  onPress,
   onUnpin,
 }: {
   senderName?: string;
   content: string;
   isImage?: boolean;
   isAnnouncement?: boolean;
+  // Jump to the pinned message. Absent when it is no longer in the thread — the
+  // bar still shows what was pinned, it just has nowhere to send you.
+  onPress?: () => void;
   // Present only for users allowed to unpin.
   onUnpin?: () => void;
 }) {
   return (
-    <View style={styles.bar}>
+    <PressableScale
+      scaleTo={onPress ? 0.985 : 1}
+      onPress={onPress}
+      disabled={!onPress}
+      style={styles.bar}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={
+        onPress ? `Go to the pinned message: ${content}` : undefined
+      }
+    >
       <Icon
         name={isAnnouncement ? 'megaphone' : 'pin'}
         size={15}
@@ -43,12 +64,15 @@ export default function PinnedMessageBanner({
           scaleTo={0.85}
           style={styles.unpinBtn}
           onPress={onUnpin}
+          // Wider than the glyph: it is a 13pt icon inside a bar that is itself
+          // a button, so the two targets have to be told apart by a thumb.
+          hitSlop={10}
           accessibilityLabel="Unpin message"
         >
           <Icon name="close" size={13} color={COLORS.textSecondary} />
         </PressableScale>
       )}
-    </View>
+    </PressableScale>
   );
 }
 

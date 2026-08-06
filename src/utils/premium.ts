@@ -1,8 +1,23 @@
 import { Profile } from '@/types/models';
 
 // Mello+ gold — used by the badge, the paywall and every locked-feature chip.
+import { activePaletteName } from '@/constants/colors';
+
 export const PREMIUM_GOLD = '#C9930A';
-export const PREMIUM_GOLD_TINT = '#FBF3DC';
+
+/**
+ * The wash behind a gold glyph or pill.
+ *
+ * A function, not a constant, because it depends on the theme: `#FBF3DC` is a
+ * pale cream — a tint on a white surface, and a bright patch on a near-black
+ * one. The dark form is the same hue as an alpha wash instead, so it lifts off
+ * whatever it is on. Called at render, like every other palette read.
+ */
+export function premiumGoldTint(): string {
+  return activePaletteName() === 'dark'
+    ? 'rgba(201, 147, 10, 0.20)'
+    : '#FBF3DC';
+}
 // The same gold lifted for dark surfaces. #C9930A is tuned to carry on white;
 // on the profile sheet it goes muddy brown, and the tint disappears entirely.
 export const PREMIUM_GOLD_ON_DARK = '#E0B45E';
