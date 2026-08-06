@@ -23,7 +23,11 @@ import {
   getEventSavers,
 } from '@/services/events.service';
 import { getEventUnreadCount } from '@/services/chat.service';
-import { getEventFeedback, hasWrapped } from '@/services/wrap.service';
+import {
+  getEventFeedback,
+  getEventNotes,
+  hasWrapped,
+} from '@/services/wrap.service';
 import { useWrap } from '@/hooks/useWrap';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants/colors';
@@ -35,6 +39,7 @@ import { categoryStyle } from '@/constants/categoryStyle';
 import { BOOST_ACCENT, BOOST_EMOJI, isBoosted } from '@/utils/boost';
 import ParticipantRow from '@/components/events/ParticipantRow';
 import BoostCard from '@/components/events/BoostCard';
+import HostNotesCarousel from '@/components/events/HostNotesCarousel';
 import {
   ActivityGlyph,
   Avatar,
@@ -263,6 +268,14 @@ export default function HostPanelScreen() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId])
   );
+
+  // The notes left for this host, for this event only.
+  const { data: notes = [] } = useQuery({
+    queryKey: ['eventNotes', eventId, user?.id],
+    queryFn: () => getEventNotes(user!.id, eventId),
+    enabled: isHost && ended && !!user,
+    staleTime: 60_000,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: queryKeys.eventDetail.of(eventId) });
@@ -603,6 +616,22 @@ export default function HostPanelScreen() {
               )}
             </View>
           </Animated.View>
+
+          {/* ── Position 3 (ended) · the notes this host was left ──────────
+              Absent when there are none. Authored by construction: `wrap_notes`
+              carries a sender, unlike the feedback above it, which is anonymous
+              and stays that way. */}
+          {ended && notes.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(60).duration(350)}>
+              <SectionHead title="Notes for you" count={notes.length} />
+              <View style={styles.lift}>
+                <HostNotesCarousel
+                  notes={notes}
+                  sheetWidth={width - SPACING[5] * 2 - SPACING[4] * 2}
+                />
+              </View>
+            </Animated.View>
+          )}
 
           {/* ── Position 3 · requests, above the rest. Urgency, not feature ──
               D1: gone entirely once the event has ended. Admitting someone to

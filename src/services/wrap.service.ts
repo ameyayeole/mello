@@ -160,6 +160,32 @@ export async function getReceivedNotes(userId: string): Promise<WrapNote[]> {
   })) as WrapNote[];
 }
 
+/**
+ * Notes received for **one** event.
+ *
+ * A separate query rather than filtering `getReceivedNotes` in the component:
+ * that one returns every note from every event a person has ever been to, and
+ * the host panel wants the handful from this one. Over-fetching to throw most
+ * of it away is a cost paid on every open of the screen.
+ */
+export async function getEventNotes(
+  userId: string,
+  eventId: string
+): Promise<WrapNote[]> {
+  const { data, error } = await supabase
+    .from('wrap_notes')
+    .select('*, sender:profiles!sender_id(*), event:events(title)')
+    .eq('recipient_id', userId)
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    eventTitle: row.event?.title,
+  })) as WrapNote[];
+}
+
 export async function markNoteOpened(noteId: string): Promise<void> {
   const { error } = await supabase
     .from('wrap_notes')
