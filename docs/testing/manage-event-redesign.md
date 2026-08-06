@@ -26,6 +26,19 @@ else is confirming that a thing known to work still works. If time is short, run
 | Wishlist | Locked state is now a frosted row stack, not a gold-ringed banner. |
 | Ended state | Feedback + coral CTA first, chat lift, then a `wrap_notes` carousel. |
 
+**Three decisions were answered differently from the brief's proposal.** Where a
+row below assumes the brief's version, this overrides it:
+
+| # | Brief proposed | Shipped |
+| --- | --- | --- |
+| D1 | Requests collapse to a muted "N requests expired" on an ended event | **The requests section is gone entirely once ended.** Nothing to check for expired rows; check only that the section is absent. |
+| D2 | Ship with the chat tile unable to badge | **A per-event unread count was added** (`getEventUnreadCount`, `queryKeys.eventUnread`), refetched on focus. |
+| D3 | Chat becomes one of three equal tiles | **Chat keeps a full-width CTA** below two tiles (check-in, boost), with the unread badge on it. |
+
+Also merged: the brief's commits 2 and 3 landed as one, because the screen is a
+full rewrite and the intermediate — new chrome with the old order — is not a
+state anyone would ship or bisect to. Commits 1, D2 and 6 are separate.
+
 **Setup:**
 
 | Need | Why |
@@ -103,3 +116,20 @@ The parts that were reasoned about rather than seen.
 ## Notes / failures
 
 <!-- Record anything that failed, with device + OS version. A BLOCKED row goes here too. -->
+
+---
+
+## G — The three decisions, as shipped
+
+| # | Check | iOS | Android |
+| --- | --- | --- | --- |
+| G1 | **D1.** Open an event that has ended and had pending requests. The Requests section must be absent — not empty, not muted, gone. The wishlist section is gone too. | | |
+| G2 | **D2.** Have someone send to the event chat, then open this screen. A coral badge on the chat CTA with the count; "9+" past nine. | | |
+| G3 | **D2, the refetch.** From this screen, open the chat, read it, come back. The badge must clear — it refetches on focus, which is the only thing that clears it. | | |
+| G4 | **D2, your own messages.** Send a message yourself, come back. No badge — you have read what you sent. | | |
+| G5 | **D2, never opened.** A host who has never opened the chat sees the full count of everyone else's messages, not zero. | | |
+| G6 | **D3.** The live screen: two tiles (check in, boost) above a full-width **Open event chat**. Not three tiles. | | |
+| G7 | **D3, ended.** Check-in and boost are gone; the chat CTA remains, under the feedback block. | | |
+| G8 | The boost tile when the event **is** boosted: the well goes solid orange with the flame on it. Tapping it still opens the same sheet, with credits and packs untouched. | | |
+| G9 | The notes carousel: swipe through every note. Slide height must not change between a note with a photo and one without. | | |
+| G10 | A note marked opened: swipe to it once, leave, come back. It should not still read as new in the wrap. | | |
