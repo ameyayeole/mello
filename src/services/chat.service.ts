@@ -92,6 +92,45 @@ export async function getMessageById(id: string): Promise<Message | null> {
   return data as unknown as Message | null;
 }
 
+/**
+ * How many messages in this event chat the viewer has not read.
+ *
+ * Two round trips rather than one, because there is no RPC for it and no view:
+ * read the watermark, then count what came after it. `head: true` asks Postgres
+ * for the count and no rows, so the second call carries a number, not a page of
+ * messages.
+ *
+ * Own messages never count — you have read what you just sent. No watermark at
+ * all means the chat has never been opened, so everything from everyone else is
+ * unread, which is the honest answer for a chat you have never looked at.
+ */
+export async function getEventUnreadCount(
+  eventId: string,
+  userId: string
+): Promise<number> {
+  const { data: read } = await supabase
+    .from('chat_reads')
+    .select('last_read_at')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  let query = supabase
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .neq('sender_id', userId);
+
+  const lastRead = (read as { last_read_at?: string } | null)?.last_read_at;
+  if (lastRead) query = query.gt('created_at', lastRead);
+
+  const { count, error } = await query;
+  // A count that fails is not worth an error state on a badge — no badge is a
+  // better wrong answer than a broken screen.
+  if (error) return 0;
+  return count ?? 0;
+}
+
 // Read watermarks for one event chat (migration 031): user_id → last_read_at.
 // A message shows ✓✓ once every other member's watermark passes it.
 export async function getChatReads(

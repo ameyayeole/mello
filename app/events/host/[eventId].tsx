@@ -1,11 +1,11 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
@@ -22,6 +22,7 @@ import {
   getEventDetail,
   getEventSavers,
 } from '@/services/events.service';
+import { getEventUnreadCount } from '@/services/chat.service';
 import { getEventFeedback, hasWrapped } from '@/services/wrap.service';
 import { useWrap } from '@/hooks/useWrap';
 import { useAuthStore } from '@/stores/authStore';
@@ -245,6 +246,23 @@ export default function HostPanelScreen() {
     enabled: isHost && premium,
     retry: 1,
   });
+
+  // D2: the chat CTA's unread count. Refetched whenever the screen comes back
+  // into focus, which is precisely when it can have changed — you left this
+  // screen for the thread, read it, and came back.
+  const unread = useQuery({
+    queryKey: queryKeys.eventUnread.of(eventId),
+    queryFn: () => getEventUnreadCount(eventId, user!.id),
+    enabled: isHost && !!user,
+    staleTime: 30_000,
+  });
+  useFocusEffect(
+    useCallback(() => {
+      unread.refetch();
+      // Refetching is the effect; `unread` changes identity every render.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [eventId])
+  );
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: queryKeys.eventDetail.of(eventId) });
@@ -564,14 +582,26 @@ export default function HostPanelScreen() {
           {/* D3: chat keeps its full-width button rather than becoming a third
               tile. It is the one thing a host comes back to this screen for. */}
           <Animated.View entering={FadeInDown.delay(45).duration(350)}>
-            <Button
-              label="Open event chat"
-              icon="chat"
-              variant="secondary"
-              fullWidth
-              onPress={() => openEventChat(event.id)}
-              style={styles.chatCta}
-            />
+            <View>
+              <Button
+                label="Open event chat"
+                icon="chat"
+                variant="secondary"
+                fullWidth
+                onPress={() => openEventChat(event.id)}
+                style={styles.chatCta}
+              />
+              {(unread.data ?? 0) > 0 && (
+                // Coral, like the pulse strip's requests figure and the tiles'
+                // dot — one colour for "there is something here" across the
+                // whole screen.
+                <View style={styles.chatBadge} pointerEvents="none">
+                  <Text style={styles.chatBadgeText}>
+                    {unread.data! > 9 ? '9+' : unread.data}
+                  </Text>
+                </View>
+              )}
+            </View>
           </Animated.View>
 
           {/* ── Position 3 · requests, above the rest. Urgency, not feature ──
@@ -952,6 +982,23 @@ const styles = themedStyles(() => ({
     color: COLORS.white,
   },
   chatCta: { marginTop: -SPACING[1] },
+  chatBadge: {
+    position: 'absolute',
+    top: -SPACING[2],
+    right: -SPACING[1],
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: SPACING[1.5],
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  chatBadgeText: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.micro,
+    color: COLORS.white,
+  },
 
   // ─── Sections ──────────────────────────────────────────────────────────
   sectionHeader: {

@@ -44,6 +44,12 @@ export const queryKeys = {
   // Distinct from `joinedEvents`, which is approved-only on purpose (a pending
   // request must not open the event chat) and so cannot answer "have I already
   // requested this?".
+  // Unread messages in one event's chat, for the host panel's chat CTA.
+  // Per event, unlike `unreadDms`, which is a single number for every DM.
+  eventUnread: {
+    all: ['eventUnread'] as const,
+    of: (eventId: Id) => ['eventUnread', eventId] as const,
+  },
   myParticipation: {
     all: ['myParticipation'] as const,
     of: (userId: Id) => ['myParticipation', userId] as const,
