@@ -116,3 +116,28 @@ changes.
 | D1 | An **announcement** in an event chat, in dark | Amber on cream — deliberately unchanged, and probably too bright. Note whether it reads as a mistake or as a highlight | ☐ | ☐ |
 | D2 | Onboarding, check-in, event edit, the SOS modal | List anything that reads as light-mode debris. These are the files to convert next, in this order | ☐ | ☐ |
 | D3 | Anything else that looks wrong | The fix is almost always the same: a literal that should be a token, or a token that should be `inkAlpha` | ☐ | ☐ |
+
+---
+
+## I · `tertiary` on a surface the theme does not touch (2026-08-07)
+
+The third instance of the same mistake, after `onWhite` and `buttonSecondary`.
+`tertiary` is the white button, and it gets its fill from `COLORS.surface` — so
+on the dark theme it turns near-black. That is right on a page, which also went
+dark. It is wrong on a photo card or the wrap sheet's app-black panel, because
+**those did not change**: a near-black button on a dark picture.
+
+`Button` now takes `onDark`, which pins `tertiary` to `buttonOnDark` (white at
+94%, so the image shows faintly through) with an `onWhite` label and no border.
+It is about what is *behind* the button, not about which theme is on — same
+distinction as `SkeletonBone`'s prop of the same name.
+
+| # | Do | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| I1 | Profile → the hosted-event hero card, **dark mode** | "Manage" is white with black text and a black pencil. This is the reported bug | ☐ | ☐ |
+| I2 | The same card, **light mode** | Unchanged — it was already white | ☐ | ☐ |
+| I3 | An **ended** hosted event in that slot | "View wrap" gets the same treatment, camera glyph included | ☐ | ☐ |
+| I4 | The same card on the **home** screen ("Your plans") | Identical — one component, both screens | ☐ | ☐ |
+| I5 | Over a **light** photo (a bright daytime picture) | Still legible: the scrim under the band carries it, but this is the worst case for a 94% white button | ☐ | ☐ |
+| I6 | Open a wrap sheet in dark mode | "View chat" is white on the app-black card, not near-black on near-black | ☐ | ☐ |
+| I7 | Any *other* `tertiary` — Settings, the auth screens, a confirm dialog | Still follows the theme. Nothing outside the two files above should have moved | ☐ | ☐ |

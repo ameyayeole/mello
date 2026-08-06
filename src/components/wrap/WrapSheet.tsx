@@ -102,6 +102,9 @@ export function WrapSheet({
       <Button
         label="View chat"
         variant="tertiary"
+        // The sheet's card is the app black in both themes; an unpinned
+        // `tertiary` goes near-black on it and disappears.
+        onDark
         fullWidth
         onPress={onClose}
         style={styles.viewChat}

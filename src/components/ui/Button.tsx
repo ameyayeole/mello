@@ -71,14 +71,16 @@ const SIZES = {
 
 // A function, not a `Record`: an object built here would read the palette once,
 // at import, and freeze to whichever theme booted first.
-function labelColorFor(variant: Variant): string {
+function labelColorFor(variant: Variant, onDark: boolean): string {
   // Coral is coral on both themes, and white reads on it either way.
   if (variant === 'primary') return COLORS.white;
   // `secondary` flips: near-black with a white label on the light theme, white
   // glass with an ink label on the dark one. The pair moves together — see the
   // tokens in constants/colors.
   if (variant === 'secondary') return COLORS.onButtonSecondary;
-  return COLORS.textPrimary;
+  // `tertiary` is the white button, and on a dark surface it has to stay white
+  // — what is under it did not change with the theme, so nor can it.
+  return onDark ? COLORS.onWhite : COLORS.textPrimary;
 }
 
 export function Button({
@@ -92,6 +94,7 @@ export function Button({
   disabled = false,
   loading = false,
   fullWidth = false,
+  onDark = false,
   height,
   style,
 }: {
@@ -105,6 +108,18 @@ export function Button({
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
+  /**
+   * The button sits on a surface that is dark in BOTH themes — a photo card, an
+   * app-black panel. Pins `tertiary` to white with an ink label instead of
+   * letting it follow the theme, which on the dark one turns it into a
+   * near-black button on a near-black surface.
+   *
+   * Not "the dark theme", exactly as `SkeletonBone`'s `onDark` is not: this is
+   * about what is *behind* the button. Only `tertiary` changes — `primary` is
+   * coral either way, and `secondary` is the one variant that is *supposed* to
+   * flip, so on a dark surface you wanted `tertiary onDark`.
+   */
+  onDark?: boolean;
   // Explicit height override. Prefer `size`.
   height?: number;
   style?: StyleProp<ViewStyle>;
@@ -124,7 +139,7 @@ export function Button({
     ? COLORS.textMuted
     : destructive && variant === 'tertiary'
       ? COLORS.error
-      : labelColorFor(variant);
+      : labelColorFor(variant, onDark);
 
   const glyph = icon ? (
     <Icon name={icon} size={spec.icon} color={labelColor} />
@@ -145,6 +160,7 @@ export function Button({
         },
         fullWidth && styles.fullWidth,
         styles[variant],
+        onDark && variant === 'tertiary' && styles.tertiaryOnDark,
         // After styles[variant] so it overrides the fill, before `disabled` so
         // a disabled destructive button still greys out.
         destructive && variant !== 'tertiary' && styles.destructive,
@@ -185,6 +201,13 @@ const styles = themedStyles(() => ({
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  // No border: `border` is a hairline meant to separate white from a near-white
+  // page, and on a photo it is either invisible or a grey outline around the
+  // one bright thing on the card.
+  tertiaryOnDark: {
+    backgroundColor: COLORS.buttonOnDark,
+    borderColor: 'transparent',
   },
 
   // Also clears `primary`'s coral glow — a red button haloed in coral reads as

@@ -122,6 +122,9 @@ export default function FeaturedPlanCard({
           <Button
             label={ended ? 'View wrap' : 'Manage'}
             variant="tertiary"
+            // The card is a photo under a dark scrim in both themes, so the
+            // button cannot follow the theme the way `tertiary` normally does.
+            onDark
             size="md"
             icon={ended ? 'camera' : 'edit'}
             style={styles.manageBtn}

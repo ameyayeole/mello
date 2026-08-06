@@ -60,6 +60,14 @@ export const LIGHT = {
   onWhite: '#1A1D24',
   onWhiteMuted: 'rgba(15, 24, 44, 0.55)',
 
+  // The white button, on a surface that is dark in BOTH themes — a photo card,
+  // the wrap sheet's app-black panel. Same value in both palettes for the same
+  // reason as the pair above, and translucent for the same reason as the dark
+  // `buttonSecondary`: it takes a little of what is behind it, so it reads as a
+  // pane of glass laid on the picture rather than a white rectangle pasted over
+  // it. Its label is `onWhite`.
+  buttonOnDark: 'rgba(255, 255, 255, 0.94)',
+
   // Borders
   border: 'rgba(0, 0, 0, 0.10)',
   borderSoft: 'rgba(0, 0, 0, 0.06)',
@@ -284,6 +292,14 @@ export const DARK: Palette = {
   // bug this pair exists to stop — it inverts to white and the label vanishes.
   onWhite: '#1A1D24',
   onWhiteMuted: 'rgba(15, 24, 44, 0.55)',
+
+  // The white button, on a surface that is dark in BOTH themes — a photo card,
+  // the wrap sheet's app-black panel. Same value in both palettes for the same
+  // reason as the pair above, and translucent for the same reason as the dark
+  // `buttonSecondary`: it takes a little of what is behind it, so it reads as a
+  // pane of glass laid on the picture rather than a white rectangle pasted over
+  // it. Its label is `onWhite`.
+  buttonOnDark: 'rgba(255, 255, 255, 0.94)',
 
   border: 'rgba(255, 255, 255, 0.12)',
   borderSoft: 'rgba(255, 255, 255, 0.07)',
