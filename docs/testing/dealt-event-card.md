@@ -442,3 +442,31 @@ all** — and the second-order one, that the card appears but its dialogs do not
 as skipped now have their own sections — K and L — after a review pointed
 out that "byte-identical strings" says nothing about whether the newly-built
 wiring around them actually works. See the note at the top of each.)
+
+---
+
+## H · The primary button's colour (2026-08-07)
+
+The card's primary action used to be coral for everything that was not gated —
+including **Manage event** and **Open chat**, which are navigation to a place you
+already own. Every card looked like it was asking for a commitment.
+
+The variant now follows what the action *does* (`primaryVariant`, derived from
+`primaryKind` in `useEventCard`), not what the gate is:
+
+| Action | Variant | Why |
+| --- | --- | --- |
+| Join / Request to join | `primary` (coral) | The one real decision. AGENTS.md's rule for coral. |
+| Join with Mello+ | `primary` | Navigation, but still asking you to decide. |
+| Manage event / Open chat / Open the wrap | `secondary` | Black on light, **white glass on dark**. |
+| Request pending / Event full / Female-only | `tertiary` | Unchanged. |
+
+| # | Do | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| H1 | Deal a card for an event you **host**, in dark mode | "Manage event" is a white glass button with dark text, not coral | ☐ | ☐ |
+| H2 | The same in light mode | Black button, white text — unchanged from before | ☐ | ☐ |
+| H3 | A card for an event you have **joined** | "Open chat", same treatment as H1/H2 | ☐ | ☐ |
+| H4 | A card you have **not** joined | "Join event" is still coral. This is the one that must not have changed | ☐ | ☐ |
+| H5 | A card beyond the Mello+ distance gate | "Join with Mello+" is still coral | ☐ | ☐ |
+| H6 | A full event, a female-only event, a pending request | Still the muted tertiary, still disabled where it was | ☐ | ☐ |
+| H7 | The same six on the **swipe deck's** top card | Identical — both surfaces read the variant from the same hook | ☐ | ☐ |

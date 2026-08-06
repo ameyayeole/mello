@@ -124,6 +124,7 @@ export function EventDealtCard() {
     event,
     gate,
     primaryLabel,
+    primaryVariant,
     onPrimary,
     queue,
     confirmQueued,
@@ -257,11 +258,7 @@ export function EventDealtCard() {
                     onPress={onPrimary}
                     fullWidth
                     size="md"
-                    variant={
-                      gate === 'full' || gate === 'womenOnly' || gate === 'pending'
-                        ? 'tertiary'
-                        : 'primary'
-                    }
+                    variant={primaryVariant}
                     disabled={gate === 'full' || gate === 'womenOnly'}
                   />
                 ) : undefined

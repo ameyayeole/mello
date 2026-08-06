@@ -226,6 +226,28 @@ export function useEventCard(eventId: string | null) {
               ? 'navigate'
               : 'join';
 
+  /**
+   * Which button the primary action deserves, derived from what it does rather
+   * than from the gate.
+   *
+   * AGENTS.md's rule: coral is for a screen's one real decision — "sign in,
+   * host, pay, check in, save… reaching for this should feel like a decision".
+   * Joining is that. **Manage event** and **Open chat** are navigation to a
+   * place you already own, and dressing them in the join colour made every card
+   * look like it was asking for a commitment. They take `secondary`, the
+   * workhorse — black on the light theme, white glass on the dark one, and in
+   * both cases the thing that lifts furthest off the card.
+   */
+  const primaryVariant: 'primary' | 'secondary' | 'tertiary' =
+    // `premiumDistance` is technically navigation — it pushes the paywall — but
+    // it is the one navigation on this card that is still asking you to decide
+    // something, so it keeps the coral.
+    primaryKind === 'join' || gate === 'premiumDistance'
+      ? 'primary'
+      : primaryKind === 'navigate'
+        ? 'secondary'
+        : 'tertiary';
+
   const onPrimary = useCallback(() => {
     if (!event) return;
     if (wrapped && (isParticipant || isHost)) {
@@ -278,6 +300,7 @@ export function useEventCard(eventId: string | null) {
     gate,
     primaryLabel,
     primaryKind,
+    primaryVariant,
     onPrimary,
     queue,
     confirmQueued,

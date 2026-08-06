@@ -315,6 +315,7 @@ function DeckBody({
     gate,
     primaryLabel,
     primaryKind,
+    primaryVariant,
     onPrimary,
     queue,
     confirmQueued,
@@ -857,11 +858,7 @@ function DeckBody({
                     }}
                     fullWidth
                     size="md"
-                    variant={
-                      gate === 'full' || gate === 'womenOnly' || gate === 'pending'
-                        ? 'tertiary'
-                        : 'primary'
-                    }
+                    variant={primaryVariant}
                     disabled={gate === 'full' || gate === 'womenOnly'}
                   />
                 ) : undefined
