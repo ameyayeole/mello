@@ -17,6 +17,7 @@ import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
+  FadeOut,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -50,6 +51,7 @@ import {
   NavButton,
   PremiumBadge,
   PressableScale,
+  SkeletonGroup,
 } from '@/components/ui';
 import { MoneyGuardBanner, useMoneyGuard } from '@/components/safety';
 import {
@@ -81,6 +83,7 @@ import {
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+import { SkeletonBubble } from '@/components/skeletons';
 
 // How much of a pull past the gutter actually moves the thread, and the spring
 // that returns it. Slightly overdamped: it should settle, not wobble — this is
@@ -133,7 +136,13 @@ function DirectChatScreen() {
   });
   const pref = prefsQuery.data?.get(chatKey('dm', friendId));
 
-  const { messages, send, sendImage, remove } = useDirectChat(
+  const {
+    messages,
+    send,
+    sendImage,
+    remove,
+    loading: messagesLoading,
+  } = useDirectChat(
     friendId,
     pref?.cleared_at ?? null
   );
@@ -483,6 +492,14 @@ function DirectChatScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        {messagesLoading ? (
+          // See the event thread: bones rather than an empty room.
+          <Animated.View style={styles.flex} exiting={FadeOut.duration(150)}>
+            <SkeletonGroup>
+              <SkeletonBubble />
+            </SkeletonGroup>
+          </Animated.View>
+        ) : (
         <GestureDetector gesture={revealPan}>
         <FlatList
           ref={listRef}
@@ -593,6 +610,7 @@ function DirectChatScreen() {
           }
         />
         </GestureDetector>
+        )}
 
         <MoneyGuardBanner
           visible={moneyGuard.visible}

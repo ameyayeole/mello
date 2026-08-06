@@ -7,6 +7,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, {
+  FadeIn,
+  FadeOut,
   Extrapolation,
   FadeInDown,
   interpolate,
@@ -39,13 +41,14 @@ import {
   Glass,
   Icon,
   IconName,
-  Loader,
   PressableScale,
+  SkeletonGroup,
 } from '@/components/ui';
 import { NOTIFICATION_ICONS } from '@/constants/notificationStyle';
 import { openDmChat, openEventChat } from '@/utils/chatActions';
 import { themedStyles } from '@/theme';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+import { SkeletonNotifRow } from '@/components/skeletons';
 
 // ── The transition ───────────────────────────────────────────────────────────
 //
@@ -826,79 +829,89 @@ export default function NotificationsScreen() {
 
         <Animated.View style={[styles.fill, listStyle]}>
           {isLoading ? (
-            <Loader />
+            <Animated.View exiting={FadeOut.duration(150)}>
+              <SkeletonGroup>
+                <SkeletonNotifRow />
+              </SkeletonGroup>
+            </Animated.View>
           ) : (
-            <FlatList
-              data={items}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                styles.list,
-                { paddingBottom: insets.bottom + SPACING[8] },
-              ]}
-              renderItem={({ item, index }) =>
-                item.kind === 'header' ? (
-                  <View style={styles.sectionRow}>
-                    <Text style={styles.sectionLabel}>{item.label}</Text>
-                    {item.markAll && (
-                      <Text
-                        style={styles.markAll}
-                        onPress={() => markAll.mutate()}
-                        suppressHighlighting
-                      >
-                        Mark all read
-                      </Text>
-                    )}
-                  </View>
-                ) : (
-                  <View
-                    ref={(el) => {
-                      notifRefs.current[item.notif.id] = el;
-                    }}
-                    collapsable={false}
-                  >
-                    <NotifRow
-                      notif={item.notif}
-                      index={index}
-                      action={openRequest(item.notif)}
-                      links={{
-                        person: item.notif.sender_id
-                          ? () => openPerson(item.notif.sender_id!)
-                          : undefined,
-                        event: item.notif.event_id
-                          ? () => openEvent(item.notif.event_id!)
-                          : undefined,
+            <Animated.View
+              style={styles.fill}
+              entering={FadeIn.duration(200)}
+            >
+              <FlatList
+                data={items}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[
+                  styles.list,
+                  { paddingBottom: insets.bottom + SPACING[8] },
+                ]}
+                renderItem={({ item, index }) =>
+                  item.kind === 'header' ? (
+                    <View style={styles.sectionRow}>
+                      <Text style={styles.sectionLabel}>{item.label}</Text>
+                      {item.markAll && (
+                        <Text
+                          style={styles.markAll}
+                          onPress={() => markAll.mutate()}
+                          suppressHighlighting
+                        >
+                          Mark all read
+                        </Text>
+                      )}
+                    </View>
+                  ) : (
+                    <View
+                      ref={(el) => {
+                        notifRefs.current[item.notif.id] = el;
                       }}
-                      onPress={() => {
-                        const node = notifRefs.current[item.notif.id];
-                        if (!node) {
-                          onPressNotif(item.notif, null);
-                          return;
-                        }
-                        node.measureInWindow((x, y, width, height) =>
-                          onPressNotif(item.notif, { x, y, width, height })
-                        );
-                      }}
-                    />
-                  </View>
-                )
-              }
-              ListEmptyComponent={
-                <EmptyState
-                  icon="bell"
-                  title={
-                    filter === 'all'
-                      ? "You're all caught up"
-                      : 'Nothing here yet'
-                  }
-                  body={
-                    filter === 'all'
-                      ? 'RSVP updates, messages and reminders land here.'
-                      : 'Try another filter — All has everything.'
-                  }
-                />
-              }
-            />
+                      collapsable={false}
+                    >
+                      <NotifRow
+                        notif={item.notif}
+                        index={index}
+                        action={openRequest(item.notif)}
+                        links={{
+                          person: item.notif.sender_id
+                            ? () => openPerson(item.notif.sender_id!)
+                            : undefined,
+                          event: item.notif.event_id
+                            ? () => openEvent(item.notif.event_id!)
+                            : undefined,
+                        }}
+                        onPress={() => {
+                          const node = notifRefs.current[item.notif.id];
+                          if (!node) {
+                            onPressNotif(item.notif, null);
+                            return;
+                          }
+                          node.measureInWindow((x, y, width, height) =>
+                            onPressNotif(item.notif, { x, y, width, height })
+                          );
+                        }}
+                      />
+                    </View>
+                  )
+                }
+                ListEmptyComponent={
+                  <EmptyState
+                    icon="bell"
+                    title={
+                      filter === 'all'
+                        ? "You're all caught up"
+                        : 'Nothing here yet'
+                    }
+                    body={
+                      filter === 'all'
+                        ? 'RSVP updates, messages and reminders land here.'
+                        : 'Try another filter — All has everything.'
+                    }
+                  />
+                }
+              />
+          
+            </Animated.View>
           )}
         </Animated.View>
       </View>

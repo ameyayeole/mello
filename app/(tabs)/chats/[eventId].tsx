@@ -17,6 +17,7 @@ import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
+  FadeOut,
   FadeInUp,
   useAnimatedStyle,
   useSharedValue,
@@ -58,6 +59,7 @@ import {
   IconButton,
   NavButton,
   PressableScale,
+  SkeletonGroup,
 } from '@/components/ui';
 import {
   MoneyGuardBanner,
@@ -95,6 +97,7 @@ import {
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+import { SkeletonBubble } from '@/components/skeletons';
 
 // How much of a pull past the gutter actually moves the thread, and the spring
 // that returns it. Slightly overdamped: it should settle, not wobble — this is
@@ -246,7 +249,15 @@ function GroupChatScreen() {
   });
   const pref = prefsQuery.data?.get(chatKey('event', eventId));
 
-  const { messages, reads, send, sendImage, retry, remove } = useEventChat(
+  const {
+    messages,
+    reads,
+    send,
+    sendImage,
+    retry,
+    remove,
+    loading: messagesLoading,
+  } = useEventChat(
     eventId,
     pref?.cleared_at ?? null
   );
@@ -715,6 +726,15 @@ function GroupChatScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        {messagesLoading ? (
+          // A thread with no loading state showed an empty room and then filled
+          // it. The bones sit bottom-up, like the inverted list they stand in for.
+          <Animated.View style={styles.flex} exiting={FadeOut.duration(150)}>
+            <SkeletonGroup>
+              <SkeletonBubble />
+            </SkeletonGroup>
+          </Animated.View>
+        ) : (
         <GestureDetector gesture={revealPan}>
         <FlatList
           ref={listRef}
@@ -871,6 +891,7 @@ function GroupChatScreen() {
           removeClippedSubviews={Platform.OS === 'ios'}
         />
         </GestureDetector>
+        )}
 
         <MoneyGuardBanner
           visible={moneyGuard.visible}

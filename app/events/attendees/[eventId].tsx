@@ -13,8 +13,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import ParticipantRow from '@/components/events/ParticipantRow';
-import { Loader, PressableScale, Screen, ScreenHeader } from '@/components/ui';
+import {
+  PressableScale,
+  Screen,
+  ScreenHeader,
+  SkeletonGroup,
+} from '@/components/ui';
 import { themedStyles } from '@/theme';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { SkeletonPersonRow } from '@/components/skeletons';
 
 type Tab = 'attendees' | 'requests';
 
@@ -75,33 +82,46 @@ export default function EventAttendeesScreen() {
       </View>
 
       {isLoading || !event ? (
-        <Loader />
+        <Animated.View exiting={FadeOut.duration(150)}>
+          <SkeletonGroup>
+            <SkeletonPersonRow />
+          </SkeletonGroup>
+        </Animated.View>
       ) : (
-        <FlatList
-          data={list}
-          keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <ParticipantRow
-              eventId={event.id}
-              person={item}
-              onChanged={invalidate}
-            />
-          )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {tab === 'attendees'
-                ? 'No attendees yet.'
-                : 'No pending requests.'}
-            </Text>
-          }
-        />
+        <Animated.View
+          style={styles.fill}
+          entering={FadeIn.duration(200)}
+        >
+          <FlatList
+            data={list}
+            keyExtractor={(p) => p.id}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => (
+              <ParticipantRow
+                eventId={event.id}
+                person={item}
+                onChanged={invalidate}
+              />
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                {tab === 'attendees'
+                  ? 'No attendees yet.'
+                  : 'No pending requests.'}
+              </Text>
+            }
+          />
+      
+        </Animated.View>
       )}
     </Screen>
   );
 }
 
 const styles = themedStyles(() => ({
+  // The crossfade's container: the content fades in as one piece where the
+  // skeleton faded out. `flex: 1` so wrapping a list does not collapse it.
+  fill: { flex: 1 },
   tabs: {
     flexDirection: 'row',
     gap: SPACING[2],

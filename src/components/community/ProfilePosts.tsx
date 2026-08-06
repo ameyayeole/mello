@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { View,
   Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Button } from '@/components/ui';
+import { Button, SkeletonGroup } from '@/components/ui';
+import { SkeletonPostCard } from '@/components/skeletons';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING } from '@/constants/spacing';
@@ -107,7 +108,14 @@ export function ProfilePosts({
 
   return (
     <View>
-      {posts.length === 0 ? (
+      {/* Same bug as the Inbox list, same fix: this branched on `length === 0`
+          only, so a profile with posts showed "No posts yet." until the fetch
+          landed. */}
+      {q.isPending ? (
+        <SkeletonGroup>
+          <SkeletonPostCard count={2} />
+        </SkeletonGroup>
+      ) : posts.length === 0 ? (
         <Text style={[styles.empty, onDark && styles.emptyOnDark]}>
           No posts yet.
         </Text>

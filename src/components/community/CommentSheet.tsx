@@ -11,11 +11,11 @@ import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanim
 import * as Haptics from 'expo-haptics';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Sheet,
-  NavButton,
-  Loader,
   EmptyState,
+  NavButton,
   PressableScale,
+  Sheet,
+  SkeletonGroup,
 } from '@/components/ui';
 import { reportComment, ReportReason } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
@@ -33,6 +33,7 @@ import { useThreadMentionables } from '@/hooks/useMentions';
 import { CommentRow } from './CommentRow';
 import { CommentComposer } from './CommentComposer';
 import { themedStyles } from '@/theme';
+import { SkeletonPersonRow } from '@/components/skeletons';
 
 // The comment thread for one post: a capped, scrollable list of top-level
 // CommentRows (each with lazy replies) + a pinned composer. The post's author
@@ -194,48 +195,56 @@ export function CommentSheet({
       </View>
 
       {comments.isLoading ? (
-        <View style={styles.loading}>
-          <Loader />
-        </View>
+        <Animated.View style={styles.loading} exiting={FadeOut.duration(150)}>
+          <SkeletonGroup>
+            <SkeletonPersonRow count={4} />
+          </SkeletonGroup>
+        </Animated.View>
       ) : (
-        // Animated.FlatList, not FlatList: `itemLayoutAnimation` is a Reanimated
-        // prop and is silently ignored on the plain list.
-        <Animated.FlatList
-          data={data}
-          keyExtractor={(item: PostComment) => item.id}
-          style={{ maxHeight: listMax }}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          // Optimistic comments land at the end of the list, so a row that
-          // arrives mid-thread pushes the rest down; `layout` makes that a slide
-          // rather than a jump. Deletion fades instead of vanishing under the
-          // finger that confirmed it.
-          itemLayoutAnimation={LinearTransition.duration(220)}
-          renderItem={({ item }: { item: PostComment }) => (
-            <Animated.View
-              entering={FadeIn.duration(220)}
-              exiting={FadeOut.duration(160)}
-            >
-              <CommentRow
-                comment={item}
-                postId={post.id}
-                meId={meId}
-                isPostAuthor={isPostAuthor}
-                mentionables={mentionables}
-                onReply={onReply}
-                onOverflow={onOverflow}
+        <Animated.View
+          style={styles.fill}
+          entering={FadeIn.duration(200)}
+        >
+          {/* Animated.FlatList, not FlatList: `itemLayoutAnimation` is a
+              Reanimated prop and is silently ignored on the plain list. */}
+          <Animated.FlatList
+            data={data}
+            keyExtractor={(item: PostComment) => item.id}
+            style={{ maxHeight: listMax }}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            // Optimistic comments land at the end of the list, so a row that
+            // arrives mid-thread pushes the rest down; `layout` makes that a slide
+            // rather than a jump. Deletion fades instead of vanishing under the
+            // finger that confirmed it.
+            itemLayoutAnimation={LinearTransition.duration(220)}
+            renderItem={({ item }: { item: PostComment }) => (
+              <Animated.View
+                entering={FadeIn.duration(220)}
+                exiting={FadeOut.duration(160)}
+              >
+                <CommentRow
+                  comment={item}
+                  postId={post.id}
+                  meId={meId}
+                  isPostAuthor={isPostAuthor}
+                  mentionables={mentionables}
+                  onReply={onReply}
+                  onOverflow={onOverflow}
+                />
+              </Animated.View>
+            )}
+            ListEmptyComponent={
+              <EmptyState
+                icon="chat"
+                title="No comments yet"
+                body="Be the first to say something."
               />
-            </Animated.View>
-          )}
-          ListEmptyComponent={
-            <EmptyState
-              icon="chat"
-              title="No comments yet"
-              body="Be the first to say something."
-            />
-          }
-        />
+            }
+          />
+      
+        </Animated.View>
       )}
 
       {commentsOn ? (
@@ -257,6 +266,8 @@ export function CommentSheet({
 }
 
 const styles = themedStyles(() => ({
+  // The crossfade's container — see the skeleton branch above.
+  fill: { flex: 1 },
   card: { padding: SPACING[5], gap: SPACING[4] },
   header: {
     flexDirection: 'row',

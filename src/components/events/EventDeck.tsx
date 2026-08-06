@@ -29,6 +29,7 @@ import { COLORS } from '@/constants/colors';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { useUIStore } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useEventCard } from '@/hooks/useEventCard';
 import { useSwipeDeck, useRecordSwipe, useSwipeQuota } from '@/hooks/useSwipeDeck';
 import { shareEvent } from '@/utils/shareEvent';
@@ -64,6 +65,54 @@ import { DeckActions, DeckHeader } from './DeckChrome';
 import { DeckEmptyCard, type DeckEmptyReason } from './DeckEmptyCard';
 import { MINI_W, FAN_W, deckVisible, expandedSlot, miniSlot } from './deckSlots';
 import { themedStyles } from '@/theme';
+import { hasSeenFlag, markFlagSeen } from '@/services/seenFlags';
+
+// ─── The nudge ───────────────────────────────────────────────────────────────
+//
+// The open deck rocks its top card right, then left, then settles, once every
+// NUDGE_CYCLE_MS. The gesture is otherwise invisible: the two buttons under the
+// deck do the same job, so it is entirely possible to use this feature without
+// ever learning the card can be thrown — or that throwing it right is what puts
+// an event on your wishlist.
+const NUDGE_X = 14;
+const NUDGE_OUT_MS = 260;
+const NUDGE_ACROSS_MS = 420;
+const NUDGE_BACK_MS = 260;
+const NUDGE_CYCLE_MS = 2500;
+const NUDGE_REST_MS =
+  NUDGE_CYCLE_MS - NUDGE_OUT_MS - NUDGE_ACROSS_MS - NUDGE_BACK_MS;
+// How far a real drag travels before the nudge is fully out of the way. A ramp
+// rather than a switch, so the hint yields to the finger continuously instead of
+// snapping out from under it.
+const NUDGE_YIELD = 40;
+
+// ─── The first-run demo ──────────────────────────────────────────────────────
+//
+// The same rock as the nudge, but far enough and slow enough to *read*: the card
+// travels until the save badge is fully lit, holds there long enough to look at,
+// comes back, and does the same to the left. It is the tutorial, without a word
+// of copy — you are shown the gesture and what each direction does, on the card
+// itself.
+//
+// It rides the same `nudge` channel as the idle hint, so it can never commit a
+// swipe: `nudge` is not `dx`, and only `dx` reaches the threshold.
+const DEMO_X = 78;
+const DEMO_OUT_MS = 520;
+const DEMO_HOLD_MS = 460;
+const DEMO_BACK_MS = 420;
+// Between the right leg and the left one, at rest in the middle.
+const DEMO_BETWEEN_MS = 260;
+// Before it starts, so the deck has finished growing and the card is still.
+const DEMO_LEAD_MS = 620;
+
+// How far a card has to travel before its badge is fully lit. Well inside the
+// commit threshold (0.28 × screen width), so the badge is a running commentary
+// on the drag rather than a verdict announced at the end.
+const BADGE_FULL_AT = 64;
+
+// The one-time flag. Scoped and stored by services/seenFlags.
+const TUTORIAL_SCOPE = 'tutorial';
+const TUTORIAL_FLAG = 'swipeDeck';
 
 /**
  * The event deck: the fan in the map's bottom-left corner AND the open swipe
@@ -282,6 +331,11 @@ function DeckBody({
   // The parked fan's breathing. Multiplied by (1 - expand) below, so it stops
   // as soon as the deck starts opening.
   const sway = useSharedValue(0);
+  // The open deck's swipe hint — see the NUDGE_* constants. Its own value, not
+  // `dx`: `dx` belongs to the pan, and a hint that wrote to it would be
+  // indistinguishable from a drag to everything downstream (the threshold, the
+  // rotation, the pass/save commit).
+  const nudge = useSharedValue(0);
 
   // The fan's arrival on the map, carried over from `SwipeDeckTeaser`'s
   // `FadeInUp.delay(350).duration(450)`, which this branch dropped — the fan
@@ -305,7 +359,15 @@ function DeckBody({
   // Which face is MOUNTED, as opposed to which way the card is facing. Swapped
   // at the edge-on crossing — see the flip gesture for why one face at a time
   // rather than two cross-faded.
+  const userId = useAuthStore((s) => s.user?.id);
   const [backMounted, setBackMounted] = useState(false);
+  // Whether this session has seen a swipe. The nudge is a hint, and a hint that
+  // keeps going after you have demonstrably understood it is a fidget — one
+  // line to remove if it should run forever instead.
+  const [swipedOnce, setSwipedOnce] = useState(false);
+  // null = the stored flag has not been read yet, so neither show it nor decide
+  // it has been seen. The read is one SecureStore hit on mount.
+  const [tutorialSeen, setTutorialSeen] = useState<boolean | null>(null);
 
   // The single interpolation. `expanded` drives it from an effect rather than
   // from the press handler so that `expand` is written in exactly one place:
@@ -329,6 +391,114 @@ function DeckBody({
       }
     );
   }, [expanded, expand]);
+
+  // The tutorial's flag, read once. `userId` in the deps rather than a bare
+  // mount: switching accounts on one phone should show it to the new person.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    hasSeenFlag(TUTORIAL_SCOPE, userId, TUTORIAL_FLAG).then((seen) => {
+      if (!cancelled) setTutorialSeen(seen);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+
+  // ─── Who owns `nudge` ─────────────────────────────────────────────────────
+  //
+  // Two hints share one channel: the first-run demo, and the idle rock that
+  // follows it forever after. One effect decides between them, and that is not
+  // tidiness — every write to a shared value has to happen in a single hook, or
+  // React's immutability rule rejects the second one for touching a value the
+  // first already passed to a hook. (The same rule the flip hit; see `minimize`.)
+  //
+  // `tutorialSeen === false` means the flag has been read and says "never
+  // shown". `null` is "still reading" and must start nothing.
+  const demoing = expanded && tutorialSeen === false;
+  const nudging = expanded && tutorialSeen === true && !swipedOnce;
+
+  useEffect(() => {
+    // The demo: right, hold, back, left, hold, back. Far enough and slow enough
+    // that the badge on each side has time to light up and be read — that is the
+    // whole tutorial, and it has no words in it.
+    if (demoing) {
+      nudge.value = withDelay(
+        DEMO_LEAD_MS,
+        withSequence(
+          withTiming(DEMO_X, {
+            duration: DEMO_OUT_MS,
+            easing: Easing.out(Easing.cubic),
+          }),
+          withDelay(DEMO_HOLD_MS, withTiming(DEMO_X, { duration: 0 })),
+          withTiming(0, {
+            duration: DEMO_BACK_MS,
+            easing: Easing.inOut(Easing.cubic),
+          }),
+          withDelay(DEMO_BETWEEN_MS, withTiming(0, { duration: 0 })),
+          withTiming(-DEMO_X, {
+            duration: DEMO_OUT_MS,
+            easing: Easing.out(Easing.cubic),
+          }),
+          withDelay(DEMO_HOLD_MS, withTiming(-DEMO_X, { duration: 0 })),
+          withTiming(
+            0,
+            { duration: DEMO_BACK_MS, easing: Easing.inOut(Easing.cubic) },
+            (finished) => {
+              // Handing the channel over to the idle rock. From the animation's
+              // own callback rather than from the effect body, because a
+              // `setState` there cascades a second render on every open.
+              if (finished) runOnJS(setTutorialSeen)(true);
+            }
+          )
+        )
+      );
+      // The *stored* flag is written at the start, not at the end. Someone who
+      // opens the deck and swipes straight away has interrupted the demo, and
+      // replaying it on their next launch would be tutoring a person already
+      // using the feature. It means "we have shown this", not "they watched it"
+      // — and if they close the deck mid-demo it still replays this session,
+      // which is the friendlier half of that trade.
+      if (userId) markFlagSeen(TUTORIAL_SCOPE, userId, TUTORIAL_FLAG);
+      return;
+    }
+
+    // The idle rock, once every NUDGE_CYCLE_MS.
+    if (nudging) {
+      nudge.value = withDelay(
+        NUDGE_REST_MS,
+        withRepeat(
+          withSequence(
+            withTiming(NUDGE_X, {
+              duration: NUDGE_OUT_MS,
+              easing: Easing.out(Easing.quad),
+            }),
+            withTiming(-NUDGE_X, {
+              duration: NUDGE_ACROSS_MS,
+              easing: Easing.inOut(Easing.quad),
+            }),
+            withTiming(0, {
+              duration: NUDGE_BACK_MS,
+              easing: Easing.in(Easing.quad),
+            }),
+            // The rest between cycles, as a fourth leg, so the period is one
+            // `withRepeat` rather than a timer re-arming itself.
+            withDelay(NUDGE_REST_MS, withTiming(0, { duration: 0 }))
+          ),
+          -1,
+          false
+        )
+      );
+      return;
+    }
+
+    // Nobody owns it: settle. Assigning a new animation is what cancels the
+    // running one, which is also why there is no `cancelAnimation` here — that
+    // would be a second write site.
+    nudge.value = withTiming(0, { duration: 180 });
+  }, [demoing, nudging, nudge, userId]);
+
 
   useEffect(() => {
     sway.value = withDelay(
@@ -373,11 +543,29 @@ function DeckBody({
   // must not be left hidden with nothing on screen explaining why.
   useEffect(() => () => setDeckExpanded(false), [setDeckExpanded]);
 
-  const minimize = useCallback(() => {
-    setExpanded(false);
+
+  /**
+   * Close the deck, front-facing.
+   *
+   * The `flip.value = 0` is a bug fix, not tidiness. This used to mount the front
+   * face without turning the card back — `setBackMounted(false)` with `flip` left
+   * at 1 — so the front rendered on a box still rotated 180°, and a 180° box
+   * renders its contents **mirrored**: photo, title, everything. Reopening kept
+   * it, because `flip` was only ever reset in `flingOff`, i.e. by swiping the
+   * card away, which is the one exit nobody takes when they just want out.
+   *
+   * A plain function rather than a `useCallback`, for the reason `flingOff`
+   * already is one: `flip` in a dependency array makes React's immutability rule
+   * flag every write to it anywhere in this component. Nothing here needs the
+   * memo — the gesture objects and the JSX below are rebuilt each render anyway.
+   */
+  function minimize() {
+    flip.value = 0;
     setBackMounted(false);
+    setExpanded(false);
     setDeckExpanded(false);
-  }, [setExpanded, setDeckExpanded]);
+  }
+
 
   // Records the swipe and lets the live deck drop the card. The quota guard is
   // belt-and-braces rather than a route to the paywall: `outOfSwipes` turns
@@ -424,12 +612,18 @@ function DeckBody({
   // "View host profile" — the one safety popup with a navigation side effect.
   // The deck has to come home first: it is in a window-level overlay, so a
   // pushed profile would render underneath it.
-  const handleViewHostProfile = useCallback(() => {
+  //
+  // Plain, like `minimize` and `flingOff`. Memoising it would put `minimize` in
+  // a dependency array, and `minimize` writes `flip.value` — which is enough for
+  // React's immutability rule to then reject every *other* write to `flip` in
+  // this component, including the flip animation itself. The memo buys nothing:
+  // this is a prop on a popup that is mounted only while it is open.
+  function handleViewHostProfile() {
     if (!cardEvent) return;
     dismissQueue();
     minimize();
     router.push(`/friends/${cardEvent.host_id}`);
-  }, [cardEvent, dismissQueue, minimize, router]);
+  }
 
   // ─── The top card's gestures ───────────────────────────────────────────────
 
@@ -453,6 +647,8 @@ function DeckBody({
   // equivalent (`commit`) is a plain function for the same reason.
   function flingOff(direction: 1 | -1) {
     if (direction === 1) haptic('save');
+    // The hint has done its job the moment a card is actually thrown.
+    setSwipedOnce(true);
     dx.value = withTiming(direction * width * 1.4, { duration: 300 }, (done) => {
       if (done) {
         dx.value = 0;
@@ -769,6 +965,7 @@ function DeckBody({
                   miniCentreX={miniCentreX}
                   miniCentreY={miniCentreY}
                   miniScale={miniScale}
+                  nudge={nudge}
                   front={c.front}
                   back={c.back}
                   backMounted={backMounted}
@@ -974,6 +1171,7 @@ function DeckCardLayer({
   cardH,
   expand,
   flip,
+  nudge,
   dx,
   dy,
   sway,
@@ -991,6 +1189,9 @@ function DeckCardLayer({
   cardH: number;
   expand: SharedValue<number>;
   flip: SharedValue<number>;
+  // The idle swipe hint — see the NUDGE_* constants. Applied only to the top
+  // card, and faded out by any real drag.
+  nudge: SharedValue<number>;
   dx: SharedValue<number>;
   dy: SharedValue<number>;
   sway: SharedValue<number>;
@@ -1055,6 +1256,12 @@ function DeckCardLayer({
   const boxStyle = useAnimatedStyle(() => {
     const e = expand.value;
     const flipValue = isTop ? flip.value : 0;
+    // The hint, yielding to the finger: at rest it is the whole nudge, and it is
+    // gone by the time a drag has travelled NUDGE_YIELD. Only the top card has
+    // one, for the same reason only the top card flips.
+    const hint = isTop
+      ? nudge.value * (1 - Math.min(1, Math.abs(dx.value) / NUDGE_YIELD))
+      : 0;
     const x = interpolate(e, [0, 1], [miniX, openX.value], Extrapolation.CLAMP);
     const y = interpolate(e, [0, 1], [miniY, openY.value], Extrapolation.CLAMP);
     const scale = interpolate(
@@ -1068,13 +1275,19 @@ function DeckCardLayer({
       // The fan's breath, on its way out as the deck opens.
       (sway.value * 3 - 1.5) * (1 - e);
 
+    // How far through a turn the *deck* is: 0 with the top card resting on
+    // either face, 1 edge-on. Read from `flip` directly rather than from
+    // `flipValue`, because the cards underneath need it too and theirs is
+    // pinned to 0.
+    const turning = Math.sin(flip.value * Math.PI);
+
     // The shadow has to fade through the turn. A shadow is drawn from the
     // layer's own rectangle, and a 3D rotation foreshortens the card without
     // narrowing that rectangle — so from ~30° on it spills past both edges as
     // two dark bands, worst edge-on where the card is a sliver and its shadow
     // is still full width. sin() is 0 at both rest positions and 1 at 90°,
     // which is exactly the shape of the problem.
-    const shadow = 1 - Math.sin(flipValue * Math.PI);
+    const shadow = 1 - turning;
 
     return {
       // The fan's arrival, folded into the opacity the card already has rather
@@ -1086,7 +1299,15 @@ function DeckCardLayer({
           [0, 1],
           [mini.opacity, openOpacity.value],
           Extrapolation.CLAMP
-        ) * interpolate(e, [0, 1], [entry.value, 1], Extrapolation.CLAMP),
+        ) *
+        interpolate(e, [0, 1], [entry.value, 1], Extrapolation.CLAMP) *
+        // The cards underneath recede while the top one turns, and come back as
+        // it lands. Correct compositing stops the stack *interleaving* with the
+        // flip, but it cannot stop it being visible: at 90° the top card is a
+        // sliver and whatever is behind it fills the screen — which meant a
+        // stranger's photo flashing through the middle of your flip. The curve
+        // is the shadow's, reused deliberately: one turn, one thing happening.
+        (isTop ? 1 : 1 - turning),
       shadowOpacity: CARD_SHADOW_OPACITY * shadow,
       // Android draws no shadow from `shadowOpacity`; `elevation` is its knob
       // and it has the same spill.
@@ -1106,7 +1327,7 @@ function DeckCardLayer({
       // flip reads as a cross-fade inside a static box.
       transform: [
         { perspective: 1200 },
-        { translateX: x + (isTop ? dx.value : 0) },
+        { translateX: x + (isTop ? dx.value + hint : 0) },
         // The rise is scaled by (1 - e) as well as by the entry, so a tap
         // inside the first 800ms grows the card from where it actually is
         // rather than fighting the expand.
@@ -1116,11 +1337,34 @@ function DeckCardLayer({
             (isTop ? dy.value : 0) +
             (1 - entry.value) * (1 - e) * FAN_ENTRY_RISE,
         },
-        { rotateZ: `${rotate + (isTop ? dx.value / 22 : 0)}deg` },
+        // The hint tilts with the same ratio a drag does, so the rock reads as a
+        // small version of the gesture it is advertising rather than as a slide.
+        { rotateZ: `${rotate + (isTop ? (dx.value + hint) / 22 : 0)}deg` },
         { rotateY: `${flipValue * 180}deg` },
         { scale },
       ],
     };
+  });
+
+  // The two swipe badges: a coral bookmark to the right, a neutral cross to the
+  // left, each fading and growing in as the card travels that way.
+  //
+  // This is the wordless half of the tutorial, and it earns its place outside of
+  // it: a drag had no feedback at all before — you found out what a swipe did by
+  // completing one. Driven by `dx + hint`, so the first-run demo lights them the
+  // same way a finger does.
+  const saveBadgeStyle = useAnimatedStyle(() => {
+    if (!isTop) return { opacity: 0 };
+    const travel = dx.value + nudge.value;
+    const on = Math.min(1, Math.max(0, travel) / BADGE_FULL_AT);
+    return { opacity: on, transform: [{ scale: 0.7 + on * 0.3 }] };
+  });
+
+  const passBadgeStyle = useAnimatedStyle(() => {
+    if (!isTop) return { opacity: 0 };
+    const travel = dx.value + nudge.value;
+    const on = Math.min(1, Math.max(0, -travel) / BADGE_FULL_AT);
+    return { opacity: on, transform: [{ scale: 0.7 + on * 0.3 }] };
   });
 
   const faceStyle = useAnimatedStyle(() => ({
@@ -1158,6 +1402,36 @@ function DeckCardLayer({
         ) : (
           <View style={StyleSheet.absoluteFill}>{front(emerge)}</View>
         )}
+        {/* Inside the face so they travel and tilt with the card, and above its
+            content so a photo cannot swallow them. Never tap targets — the
+            buttons under the deck are the tappable version of both. */}
+        {isTop && (
+          <>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.badge, styles.badgeSave, saveBadgeStyle]}
+            >
+              <Icon
+                name="bookmarkFilled"
+                size={26}
+                color={COLORS.white}
+                strokeWidth={2.2}
+              />
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.badge, styles.badgePass, passBadgeStyle]}
+            >
+              <Icon
+                name="close"
+                size={26}
+                color={COLORS.white}
+                strokeWidth={2.6}
+              />
+            </Animated.View>
+          </>
+        )}
+
         <Animated.View pointerEvents="none" style={[styles.shade, shadeStyle]} />
         {/* No radius of its own — the face clips it, so the border comes out
             rounded to whatever corner the card currently has. */}
@@ -1173,8 +1447,37 @@ function DeckCardLayer({
     </Animated.View>
   );
 
-  if (!gesture) return body;
-  return <GestureDetector gesture={gesture}>{body}</GestureDetector>;
+  const card = gesture ? (
+    <GestureDetector gesture={gesture}>{body}</GestureDetector>
+  ) : (
+    body
+  );
+
+  // The wrapper is the fix for the flip's depth fight, and it is the same one
+  // the dim already needed (see the note on `dimWrap` in the stage).
+  //
+  // The card's own transform carries `perspective`, so under a `rotateY` its two
+  // halves genuinely move in z — one towards the viewer, one away. Its siblings
+  // in the stack are flat planes sitting at z = 0 in that *same* space, so the
+  // half turning away gets depth-sorted behind the next card: the card below
+  // shows through, with a hard vertical seam where the two surfaces cross.
+  // Nothing about paint order fixes that, because the compositor is not using
+  // paint order — it is using depth.
+  //
+  // An untransformed parent per card ends the argument. The rotation resolves
+  // inside this view, which then composites as one flat layer against its
+  // siblings, and `zIndex` (zPosition on iOS) decides the order instead of z.
+  //
+  // `box-none`, or the topmost wrapper would swallow the taps meant for the dim
+  // behind the deck.
+  return (
+    <View
+      style={[styles.layerBox, { zIndex: STACK_DEPTH + 2 - depth }]}
+      pointerEvents="box-none"
+    >
+      {card}
+    </View>
+  );
 }
 
 /**
@@ -1232,6 +1535,14 @@ const styles = themedStyles(() => ({
   // stage's own centring, same as `DealtCard`'s — resolves against the whole
   // surface rather than against some smaller wrapper.
   hintChrome: { ...StyleSheet.absoluteFill, zIndex: 2 },
+  // One per card. Untransformed on purpose — see the note where it is rendered.
+  // Reproduces the stage's centring, since the card inside is absolutely
+  // positioned and takes its origin from its parent's alignment.
+  layerBox: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: {
     position: 'absolute',
     backgroundColor: COLORS.surface,
@@ -1249,6 +1560,20 @@ const styles = themedStyles(() => ({
   // rasterise this layer, which is what left the back face looking blurred
   // while the front stayed sharp.
   backFace: { transform: [{ scaleX: -1 }] },
+  // Top corners, inset by the card's own radius so neither sits on the curve.
+  badge: {
+    position: 'absolute',
+    top: SPACING[4],
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeSave: { right: SPACING[4], backgroundColor: COLORS.primary },
+  // Ink rather than a light chip: it has to hold a white glyph over an
+  // arbitrary photo, which is the same problem `scrimOnPhoto` solves.
+  badgePass: { left: SPACING[4], backgroundColor: COLORS.scrimOnPhoto },
   shade: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.ink },
   miniFrame: { ...StyleSheet.absoluteFill, borderColor: COLORS.white },
   emptyFace: {

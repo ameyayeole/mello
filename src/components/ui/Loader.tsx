@@ -13,8 +13,19 @@ import { themedStyles } from '@/theme';
 // `inset` collapses that to one value. Pass `inline` for a spinner sitting in a
 // row of content rather than standing in for a whole screen.
 //
-// Deliberately not a skeleton. Skeletons need to know the shape of the content
-// they stand in for, which means one per surface, not one shared component.
+// **The rule, now that skeletons exist:** an inline spinner reporting on an
+// action in flight is a `Loader`; anything standing in for content that is
+// coming is a skeleton (`ui/Skeleton` and the shapes in `components/skeletons`).
+//
+// This file used to say skeletons were not worth it because they "need to know
+// the shape of the content they stand in for, which means one per surface, not
+// one shared component". The premise was right and the conclusion was wrong: the
+// shapes are shared per *family* — a person row, a chat row, a post card — not
+// per screen, so six of them cover every list in the app.
+//
+// What is still a spinner: the seven `inline` sites (saving a profile, confirming
+// a scan, sending), and the four screens whose layout a skeleton cannot predict
+// — `events/edit`, `events/host`, `events/checkin`, `events/scan`.
 export function Loader({
   inline = false,
   color = COLORS.primary,

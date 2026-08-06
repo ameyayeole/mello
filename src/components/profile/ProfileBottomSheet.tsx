@@ -24,11 +24,12 @@ import {
   Avatar,
   Button,
   Icon,
-  Loader,
   PremiumBadge,
+  SkeletonGroup,
   VerifiedBadge,
 } from '@/components/ui';
 import { themedStyles } from '@/theme';
+import { SkeletonPersonRow } from '@/components/skeletons';
 
 // A person, without leaving where you are. Opened from a chat avatar and from
 // the Inbox search when the person isn't a friend yet.
@@ -172,7 +173,9 @@ const ProfileBottomSheet = forwardRef<ProfileBottomSheetRef, object>(
       >
         <BottomSheetView style={styles.body}>
           {isLoading || !profile ? (
-            <Loader />
+            <SkeletonGroup>
+              <SkeletonPersonRow count={3} />
+            </SkeletonGroup>
           ) : (
             <>
               <View style={styles.head}>

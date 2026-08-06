@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import Animated, {
+  FadeOut,
   Extrapolation,
   FadeInDown,
   interpolate,
@@ -40,15 +41,16 @@ import {
   EmptyState,
   Glass,
   Icon,
-  Loader,
-  NavButton,
   NAV_BUTTON_SIZE,
+  NavButton,
   PressableScale,
   SectionLabel,
+  SkeletonGroup,
 } from '@/components/ui';
 import { openDmChat, openEventChat } from '@/utils/chatActions';
 import { themedStyles } from '@/theme';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+import { SkeletonPersonRow } from '@/components/skeletons';
 
 // The height the field settles at. Its *starting* height comes from the
 // hand-off, not from here — the home screen's search bar happens to be this
@@ -339,7 +341,11 @@ export default function SearchScreen() {
               }
             />
           ) : isLoading ? (
-            <Loader />
+            <Animated.View exiting={FadeOut.duration(150)}>
+              <SkeletonGroup>
+                <SkeletonPersonRow count={5} />
+              </SkeletonGroup>
+            </Animated.View>
           ) : noResults ? (
             <EmptyState
               icon="search"

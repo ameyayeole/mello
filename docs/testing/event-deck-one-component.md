@@ -206,3 +206,96 @@ also why E10 is worth doing in the same pass rather than assuming.
 | F1 | Fan position relative to the floating tab bar | Sits correctly above it, same tuck as before (`SwipeDeckTeaser` parity) | — | ☐ |
 | F2 | Expand the deck | Portal's Android path (plain `<Stack>` sibling) still paints above the map | — | ☐ |
 | F3 | Expand the deck with the on-screen nav bar showing | No clipping/misalignment from `SafeAreaView` being a no-op here | — | ☐ |
+
+---
+
+## F · The flip's depth fight, and the mirrored face (2026-08-07)
+
+Two bugs reported together on the open deck. Both are fixed; neither is verified.
+
+**What was wrong:**
+
+1. **The card below showed through, with a vertical band down each side
+   mid-turn.** The card's transform carries `perspective`, so under `rotateY`
+   its halves genuinely move in z — and its siblings in the stack are flat
+   planes at z = 0 in that *same* space. The half turning away was depth-sorted
+   behind the next card. Paint order cannot fix that, because the compositor is
+   not using paint order. This is the identical failure the **dim** hit and
+   solved with its own wrapper (`dimWrap`); the cards never got the same
+   treatment.
+2. **The photo came back mirrored.** Closing the deck mounted the front face
+   without turning the card back — `setBackMounted(false)` with `flip` left at
+   1 — and a 180° box renders its contents mirrored. `flip` was only reset in
+   `flingOff`, i.e. by swiping the card away, which is the one exit nobody takes
+   when they just want to close the deck. It survived reopening, too.
+
+**The fixes:** an untransformed `layerBox` wrapper per card, with an explicit
+`zIndex`, so each card's rotation resolves inside its own compositing context
+and the stack sorts by order rather than by depth. The cards underneath also now
+fade out through the turn (the shadow's `sin` curve, reused) — correct
+compositing stops the stack *interleaving* with the flip, but at 90° the top card
+is a sliver and a stranger's photo would still fill the screen behind it.
+`minimize` resets `flip`, and became a plain function to do it — see its comment
+for why a `useCallback` there poisons every other write to `flip` in the file.
+
+| # | Do | Expect | Fails if | iOS | Android |
+| --- | --- | --- | --- | :-: | :-: |
+| F1 | Open the deck, flip the top card. Watch the **edges** through the turn | Clean rotation. No vertical band down either side, no seam, no slice of the next card's photo appearing through the turning one | Any hard-edged band — the wrapper is not isolating the card | ☐ | ☐ |
+| F2 | Same, watching the **cards behind** | They fade out as the top card turns and come back as it lands. At 90° the backdrop is the dim, not another event | Another card visible edge-on | ☐ | ☐ |
+| F3 | Flip, then flip back | Both directions clean, no ghosting at the crossing | ☐ | ☐ | |
+| F4 | Flip to the back, then tap **outside** the card to send the deck home. Open it again | The front, the right way round. The photo, title and buttons are **not** mirrored | Mirrored content — the reset did not run on that exit | ☐ | ☐ |
+| F5 | Flip to the back, then fling the card **down** to close | Same as F4 | ☐ | ☐ | |
+| F6 | Flip to the back, then swipe the card **away** (left or right) | The next card arrives front-facing, unmirrored — this path always worked, and must keep working | ☐ | ☐ | |
+| F7 | Flip to the back, then tap a safety popup's "View host profile" | The deck comes home, the profile pushes, and coming back shows a front-facing deck | ☐ | ☐ | |
+| F8 | With the deck **parked** in the corner, check the fan | Three cards, correct order, shadows intact. The new per-card wrapper must not have changed the fan's geometry | Cards mis-stacked, mis-centred, or shadowless | ☐ | ☐ |
+| F9 | Tap the dim behind an open deck | Still closes. The wrappers are `box-none`; if the topmost one swallows the tap, the dim stops working | ☐ | ☐ |
+| F10 | Swipe, drag, and long-press the top card | All gestures still land — the detector now sits inside the wrapper | ☐ | ☐ |
+
+---
+
+## G · The swipe hint and the first-run demo (2026-08-07)
+
+The deck's gesture had no affordance: the two buttons underneath do the same
+job, so it was possible to use the whole feature without learning the card can
+be thrown — or that throwing it *right* is what fills your wishlist.
+
+Three parts, and **none of them is text**:
+
+**Badges on the card.** A coral bookmark to the right, a dark cross to the left,
+fading and growing in as the card travels that way (`BADGE_FULL_AT`, well inside
+the commit threshold). They earn their place outside the tutorial too: a drag had
+no feedback at all before — you found out what a swipe did by completing one.
+
+**The first-run demo.** On the first open ever, the top card swings right far
+enough to light the save badge, holds it long enough to read, comes back, and
+does the same to the left. That is the entire tutorial.
+
+**The idle nudge.** After that, the card rocks right → left → settles once every
+2.5s while the deck is open, until the first swipe of the session retires it.
+
+All three ride one shared value (`nudge`), which is deliberately **not** `dx`:
+`dx` belongs to the pan, and a hint written into it would be indistinguishable
+from a real drag to the threshold, the rotation and the commit. It also means no
+animation can ever throw a card by itself. A real drag fades the hint out over
+its first 40pt (`NUDGE_YIELD`), so finger and hint never fight over a pixel.
+
+One effect owns the channel and picks between demo and nudge — every write to a
+shared value has to be in a single hook, or React's immutability rule rejects the
+second one. (The same rule the flip hit; see `minimize`.)
+
+| # | Do | Expect | Fails if | iOS | Android |
+| --- | --- | --- | --- | :-: | :-: |
+| G1 | Fresh install (or clear app data), open the deck for the first time | After a beat, the card swings **right** — coral bookmark lights up — holds, returns; then **left** — dark cross — holds, returns | Nothing moves, or it starts before the deck has finished growing | ☐ | ☐ |
+| G2 | Watch the badges during the demo | Each fades and scales in as the card travels, fully lit at the hold, gone by the time it is centred | A badge that pops on, or one that stays lit | ☐ | ☐ |
+| G3 | Close and reopen the deck. Then kill the app and reopen | The demo does not replay. The idle nudge runs instead | It replays — the flag is not being written | ☐ | ☐ |
+| G4 | Sign out, sign in as someone else, open the deck | The demo runs again — the flag is per user | ☐ | ☐ | |
+| G5 | Interrupt the demo: swipe a card while it is mid-swing | Your swipe wins immediately, no fight over the card | The card stutters or snaps back | ☐ | ☐ |
+| G6 | After the demo, watch the top card for ~8 seconds | A small rock right → left → settle, roughly every 2.5s, with a slight tilt — the same ratio a real drag tilts at | No movement, a slide with no tilt, or a fidget faster than ~2.5s | ☐ | ☐ |
+| G7 | Start dragging mid-rock | The card follows your finger cleanly, no jump as the hint gets out of the way | A visible snap at touch-down | ☐ | ☐ |
+| G8 | Drag slowly right, then left, without releasing | The badges light and dim with the travel, and swap sides as you cross the middle | Both lit at once, or one stuck on | ☐ | ☐ |
+| G9 | Swipe one card away, then watch | The nudge **stops** for the rest of the session. One line (`swipedOnce`) if it should keep going | It keeps rocking | ☐ | ☐ |
+| G10 | Close the deck and reopen (without swiping) | The nudge resumes | ☐ | ☐ | |
+| G11 | Flip a card to its back, then watch | No rocking while flipped or mid-flip — the two would fight over the same transform | The back face rocking | ☐ | ☐ |
+| G12 | The **parked fan** on the map | Its own slow breathing (`sway`), unchanged. No rocking, no badges | Badges visible on the fan | ☐ | ☐ |
+| G13 | With the deck open and idle, leave it alone for a minute | A hint never commits a swipe on its own — 14pt (or the demo's 78) against a threshold of 28% of the screen | A card leaving by itself | ☐ | ☐ |
+| G14 | Reduced Motion on (Settings → Accessibility) | **Known gap:** neither the demo nor the nudge is gated on it, unlike the skeletons. Note whether they read as intrusive | — | ☐ | ☐ |

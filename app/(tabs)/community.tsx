@@ -6,7 +6,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient, InfiniteData } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -25,12 +25,12 @@ import { useImpressionTracker } from '@/hooks/useImpressionTracker';
 import { useAuthStore } from '@/stores/authStore';
 import { CommunityPost } from '@/types/models';
 import {
-  EmptyState,
-  Loader,
-  Screen,
-  IconButton,
   Dialog,
+  EmptyState,
+  IconButton,
   PressableScale,
+  Screen,
+  SkeletonGroup,
   useTabBarInset,
 } from '@/components/ui';
 import { PostCard } from '@/components/community/PostCard';
@@ -39,6 +39,7 @@ import { EventsRail } from '@/components/community/EventsRail';
 import { CommentSheet } from '@/components/community/CommentSheet';
 import { errorMessage } from '@/utils/errors';
 import { themedStyles } from '@/theme';
+import { SkeletonPostCard } from '@/components/skeletons';
 
 // How often the events rail is woven into the feed (spec §8). Consumed by
 // both the inline weave in `renderItem` and the footer's duplicate-rail
@@ -264,105 +265,119 @@ export default function CommunityScreen() {
         </View>
 
         {feed.isLoading ? (
-          <Loader />
+          <Animated.View
+            style={styles.skeleton}
+            exiting={FadeOut.duration(150)}
+          >
+            <SkeletonGroup>
+              <SkeletonPostCard />
+            </SkeletonGroup>
+          </Animated.View>
         ) : (
-          <FlatList
-            ref={listRef}
-            data={posts}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-            onScroll={(e) => {
-              scrollY.current = e.nativeEvent.contentOffset.y;
-            }}
-            onViewableItemsChanged={impressions.onViewableItemsChanged}
-            viewabilityConfig={impressions.viewabilityConfig}
-            ListHeaderComponent={
-              showNudge ? (
-                <CommunityNudgeCard
-                  onCompose={openCompose}
-                  onFindFriends={() => router.push('/friends')}
-                  onDismiss={() => setNudgeDismissed(true)}
-                />
-              ) : null
-            }
-            renderItem={({ item, index }) => (
-              <>
-                <Animated.View
-                  entering={FadeInDown.delay(Math.min(index, 6) * 60).duration(350)}
-                >
+          <Animated.View
+            style={styles.fill}
+            entering={FadeIn.duration(200)}
+          >
+            <FlatList
+              ref={listRef}
+              data={posts}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                scrollY.current = e.nativeEvent.contentOffset.y;
+              }}
+              onViewableItemsChanged={impressions.onViewableItemsChanged}
+              viewabilityConfig={impressions.viewabilityConfig}
+              ListHeaderComponent={
+                showNudge ? (
+                  <CommunityNudgeCard
+                    onCompose={openCompose}
+                    onFindFriends={() => router.push('/friends')}
+                    onDismiss={() => setNudgeDismissed(true)}
+                  />
+                ) : null
+              }
+              renderItem={({ item, index }) => (
+                <>
+                  {/* No per-post `entering`. It used to stagger by 60ms a card,
+                      which on a full screen is most of a second of posts landing
+                      one after another — and it now follows a skeleton, so it
+                      would be the same content arriving twice. The list fades in
+                      as one piece instead; see the `FadeIn` on the container. */}
                   <PostCard
                     post={item}
                     onOverflow={onOverflow}
                     onComment={onComment}
                     mentionables={mentionables}
                   />
-                </Animated.View>
-                {/* City events rail woven in every ~9 posts (spec §8); it
-                    self-hides when nothing is nearby. */}
-                {(index + 1) % EVENTS_RAIL_CADENCE === 0 ? <EventsRail /> : null}
-              </>
-            )}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={COLORS.primary}
-              />
-            }
-            onEndReachedThreshold={0.5}
-            onEndReached={loadMore}
-            ListFooterComponent={
-              feed.isFetchingNextPage ? (
-                <ActivityIndicator
-                  color={COLORS.primary}
-                  style={{ marginVertical: SPACING[4] }}
+                  {/* City events rail woven in every ~9 posts (spec §8); it
+                      self-hides when nothing is nearby. */}
+                  {(index + 1) % EVENTS_RAIL_CADENCE === 0 ? <EventsRail /> : null}
+                </>
+              )}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={COLORS.primary}
                 />
-              ) : !feed.hasNextPage && posts.length > 0 && !showNudge ? (
-                /* The end of the tail. Every tier is exhausted and no seen post
-                   is ever re-served, so this is a real stopping point rather
-                   than a spinner that never resolves.
-                   `!showNudge` (reused, not re-derived) covers the thin-feed
-                   case the `posts.length > 0` guard alone misses: with 1-2
-                   posts and every tier exhausted, the nudge is already telling
-                   the user their feed needs help — "all caught up" would
-                   contradict it right below, and the nudge is the more useful,
-                   actionable message here. */
-                <View style={styles.caughtUp}>
-                  <Text style={styles.caughtUpTitle}>You&apos;re all caught up</Text>
-                  <Text style={styles.caughtUpBody}>
-                    Check back later, or find something to do nearby.
-                  </Text>
-                  {/* Skip the rail if the inline weave (every EVENTS_RAIL_CADENCE-th
-                      post, in renderItem above) already placed one right before
-                      this — posts.length % EVENTS_RAIL_CADENCE === 0 means the
-                      last post rendered its own EventsRail, so two would land
-                      back to back with nothing between them. */}
-                  {posts.length % EVENTS_RAIL_CADENCE !== 0 ? <EventsRail /> : null}
-                </View>
-              ) : null
-            }
-            ListEmptyComponent={
-              feed.isError ? (
-                <EmptyState
-                  icon="close"
-                  title="Couldn't load Community"
-                  body={errorMessage(feed.error)}
-                  actionLabel="Retry"
-                  onAction={() => feed.refetch()}
-                />
-              ) : (
-                <EmptyState
-                  icon="edit"
-                  title="Nothing here yet"
-                  body="Be the first to post in your city."
-                  actionLabel="Post"
-                  onAction={openCompose}
-                />
-              )
-            }
-          />
+              }
+              onEndReachedThreshold={0.5}
+              onEndReached={loadMore}
+              ListFooterComponent={
+                feed.isFetchingNextPage ? (
+                  <ActivityIndicator
+                    color={COLORS.primary}
+                    style={{ marginVertical: SPACING[4] }}
+                  />
+                ) : !feed.hasNextPage && posts.length > 0 && !showNudge ? (
+                  /* The end of the tail. Every tier is exhausted and no seen post
+                     is ever re-served, so this is a real stopping point rather
+                     than a spinner that never resolves.
+                     `!showNudge` (reused, not re-derived) covers the thin-feed
+                     case the `posts.length > 0` guard alone misses: with 1-2
+                     posts and every tier exhausted, the nudge is already telling
+                     the user their feed needs help — "all caught up" would
+                     contradict it right below, and the nudge is the more useful,
+                     actionable message here. */
+                  <View style={styles.caughtUp}>
+                    <Text style={styles.caughtUpTitle}>You&apos;re all caught up</Text>
+                    <Text style={styles.caughtUpBody}>
+                      Check back later, or find something to do nearby.
+                    </Text>
+                    {/* Skip the rail if the inline weave (every EVENTS_RAIL_CADENCE-th
+                        post, in renderItem above) already placed one right before
+                        this — posts.length % EVENTS_RAIL_CADENCE === 0 means the
+                        last post rendered its own EventsRail, so two would land
+                        back to back with nothing between them. */}
+                    {posts.length % EVENTS_RAIL_CADENCE !== 0 ? <EventsRail /> : null}
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                feed.isError ? (
+                  <EmptyState
+                    icon="close"
+                    title="Couldn't load Community"
+                    body={errorMessage(feed.error)}
+                    actionLabel="Retry"
+                    onAction={() => feed.refetch()}
+                  />
+                ) : (
+                  <EmptyState
+                    icon="edit"
+                    title="Nothing here yet"
+                    body="Be the first to post in your city."
+                    actionLabel="Post"
+                    onAction={openCompose}
+                  />
+                )
+              }
+            />
+        
+          </Animated.View>
         )}
       </Screen>
 
@@ -444,6 +459,12 @@ export default function CommunityScreen() {
 }
 
 const styles = themedStyles(() => ({
+  // The crossfade's container: the content fades in as one piece where the
+  // skeleton faded out. `flex: 1` so wrapping a list does not collapse it.
+  fill: { flex: 1 },
+  // Same inset as the list it stands in for, so the bones start where the
+  // first post will.
+  skeleton: { paddingHorizontal: SPACING[4], paddingTop: SPACING[2] },
   root: { flex: 1 },
   // Floating coral pill, centred under the header. `top` is set inline from the
   // safe-area inset so it clears the notch + header on every device.

@@ -28,7 +28,7 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
   const userId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
 
-  const { data: initial } = useQuery({
+  const { data: initial, isPending } = useQuery({
     queryKey: ['dm', userId, friendId, clearedAt ?? null],
     queryFn: () =>
       getDirectMessages(userId!, friendId, CONFIG.messagesPageSize, clearedAt),
@@ -235,5 +235,10 @@ export function useDirectChat(friendId: string, clearedAt?: string | null) {
     [sendImageMutation]
   );
 
-  return { messages, send, sendImage, remove };
+  return {
+    // The first fetch, for the thread's skeleton. `messages` starts as `[]`,
+    // which a screen cannot tell apart from a conversation with nothing in it.
+    loading: isPending,
+    messages, send, sendImage, remove,
+  };
 }

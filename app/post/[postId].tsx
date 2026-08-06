@@ -6,12 +6,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
+  Dialog,
+  EmptyState,
+  PressableScale,
   Screen,
   ScreenHeader,
-  Loader,
-  EmptyState,
-  Dialog,
-  PressableScale,
+  SkeletonGroup,
 } from '@/components/ui';
 import { PostCard } from '@/components/community/PostCard';
 import { CommentSheet } from '@/components/community/CommentSheet';
@@ -25,6 +25,8 @@ import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { SPACING, RADIUS } from '@/constants/spacing';
 import { themedStyles } from '@/theme';
+import Animated, { FadeOut } from 'react-native-reanimated';
+import { SkeletonPostCard } from '@/components/skeletons';
 
 // A single-post screen reached at mello://post/<id> (deep link) and from a
 // notification tap. It's a one-post Community screen: the same PostCard plus the
@@ -87,7 +89,11 @@ export default function PostDetailScreen() {
     <Screen>
       <ScreenHeader title="Post" />
       {q.isLoading ? (
-        <Loader />
+        <Animated.View style={styles.skeleton} exiting={FadeOut.duration(150)}>
+          <SkeletonGroup>
+            <SkeletonPostCard count={1} />
+          </SkeletonGroup>
+        </Animated.View>
       ) : !post ? (
         <EmptyState
           icon="close"
@@ -170,6 +176,7 @@ export default function PostDetailScreen() {
 }
 
 const styles = themedStyles(() => ({
+  skeleton: { padding: SPACING[4] },
   scroll: { padding: SPACING[4], paddingBottom: SPACING[8] },
   dialogTitle: {
     fontFamily: FONTS.heavy,

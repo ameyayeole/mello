@@ -7,7 +7,7 @@ import {
   queryKeys,
 } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { getBlockedUsers, unblockUser } from '@/services/moderation.service';
 import { COLORS } from '@/constants/colors';
@@ -18,11 +18,12 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
-  Loader,
+  SkeletonGroup,
 } from '@/components/ui';
 import { SettingsPanel } from '@/components/profile/SettingsPanel';
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
+import { SkeletonPersonRow } from '@/components/skeletons';
 
 export default function BlockedUsersScreen() {
   const me = useAuthStore((s) => s.user);
@@ -81,21 +82,31 @@ export default function BlockedUsersScreen() {
     <SettingsPanel title="Blocked users">
 
       {isLoading ? (
-        <Loader />
+        <Animated.View exiting={FadeOut.duration(150)}>
+          <SkeletonGroup>
+            <SkeletonPersonRow count={4} />
+          </SkeletonGroup>
+        </Animated.View>
       ) : (
-        <FlatList
-          data={blocked ?? []}
-          keyExtractor={(p) => p.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <EmptyState
-              icon="shield"
-              title="No blocked users"
-              body="People you block will show up here."
-            />
-          }
-        />
+        <Animated.View
+          style={styles.fill}
+          entering={FadeIn.duration(200)}
+        >
+          <FlatList
+            data={blocked ?? []}
+            keyExtractor={(p) => p.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <EmptyState
+                icon="shield"
+                title="No blocked users"
+                body="People you block will show up here."
+              />
+            }
+          />
+      
+        </Animated.View>
       )}
 
       <ConfirmDialog
@@ -113,6 +124,9 @@ export default function BlockedUsersScreen() {
 }
 
 const styles = themedStyles(() => ({
+  // The crossfade's container: the content fades in as one piece where the
+  // skeleton faded out. `flex: 1` so wrapping a list does not collapse it.
+  fill: { flex: 1 },
   list: { padding: SPACING[4], gap: SPACING[2.5] },
   row: {
     flexDirection: 'row',

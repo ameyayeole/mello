@@ -18,7 +18,7 @@ import { replyOf } from '@/utils/chatActions';
 
 export function useEventChat(eventId: string, clearedAt?: string | null) {
   const userId = useAuthStore((s) => s.user?.id);
-  const { data: initial } = useQuery({
+  const { data: initial, isPending } = useQuery({
     queryKey: ['messages', eventId, clearedAt ?? null],
     queryFn: () => getMessages(eventId, CONFIG.messagesPageSize, clearedAt),
   });
@@ -229,5 +229,10 @@ export function useEventChat(eventId: string, clearedAt?: string | null) {
     });
   }, []);
 
-  return { messages, reads, send, sendImage, retry, remove };
+  return {
+    // The first fetch, for the thread's skeleton. `messages` starts as `[]`,
+    // which a screen cannot tell apart from a conversation with nothing in it.
+    loading: isPending,
+    messages, reads, send, sendImage, retry, remove,
+  };
 }

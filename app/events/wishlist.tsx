@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getMyParticipation,
@@ -30,12 +30,13 @@ import {
   Avatar,
   Button,
   Icon,
-  Loader,
   PressableScale,
   Screen,
   ScreenHeader,
+  SkeletonGroup,
 } from '@/components/ui';
 import { themedStyles } from '@/theme';
+import { SkeletonEventCard } from '@/components/skeletons';
 
 function WishlistCard({
   event,
@@ -244,96 +245,109 @@ export default function WishlistScreen() {
       />
 
       {isLoading ? (
-        <Loader />
+        <Animated.View style={styles.list} exiting={FadeOut.duration(150)}>
+          <SkeletonGroup>
+            <SkeletonEventCard />
+          </SkeletonGroup>
+        </Animated.View>
       ) : (
-        <FlatList
-          data={wishlist}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <Animated.View
-              entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(320)}
-            >
-              {/* Plain View, not the Animated.View above: the ref this
-                  measures needs a real host node — see useOpenOverlay's
-                  comment on why an animated component's ref isn't one to
-                  rely on for measureInWindow. */}
-              <View
-                ref={(el) => {
-                  cardRefs.current[item.id] = el;
-                }}
-                collapsable={false}
+        <Animated.View
+          style={styles.fill}
+          entering={FadeIn.duration(200)}
+        >
+          <FlatList
+            data={wishlist}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <Animated.View
+                entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(320)}
               >
-                <WishlistCard
-                  event={item}
-                  status={participation?.[item.id]}
-                  // Deal, then dismiss — the order search.tsx and
-                  // notifications.tsx already use, and not a style choice.
-                  //
-                  // This screen is `presentation: 'modal'`, so it is a *presented*
-                  // view controller, and the dealt card is a window-level layer
-                  // that sits above it. Everything the card needs to open after
-                  // that is `Modal`-based — the pre-join safety popups, the leave
-                  // dialog — and UIKit will not present a second modal from a
-                  // controller that is already presenting one. So Join silently
-                  // did nothing: the safety queue was set, no popup ever
-                  // appeared, and the queue being non-empty leaves `CardPortal`
-                  // *suspended* — opacity 0 but still mounted, a full-screen
-                  // layer over the whole app. That is what read as the map
-                  // freezing on the way back to it.
-                  //
-                  // Dealing over a screen that is on its way out has none of
-                  // that: by the time there is a Join to tap, this modal is gone
-                  // and the card is over the tabs like any other.
-                  onPress={() => {
-                    const node = cardRefs.current[item.id];
-                    if (!node) {
-                      useUIStore.getState().dealCard(item.id, null);
-                      router.back();
-                      return;
-                    }
-                    node.measureInWindow((x, y, width, height) => {
-                      useUIStore
-                        .getState()
-                        .dealCard(item.id, { x, y, width, height });
-                      router.back();
-                    });
+                {/* Plain View, not the Animated.View above: the ref this
+                    measures needs a real host node — see useOpenOverlay's
+                    comment on why an animated component's ref isn't one to
+                    rely on for measureInWindow. */}
+                <View
+                  ref={(el) => {
+                    cardRefs.current[item.id] = el;
                   }}
-                  onRemove={() => remove.mutate(item.id)}
+                  collapsable={false}
+                >
+                  <WishlistCard
+                    event={item}
+                    status={participation?.[item.id]}
+                    // Deal, then dismiss — the order search.tsx and
+                    // notifications.tsx already use, and not a style choice.
+                    //
+                    // This screen is `presentation: 'modal'`, so it is a *presented*
+                    // view controller, and the dealt card is a window-level layer
+                    // that sits above it. Everything the card needs to open after
+                    // that is `Modal`-based — the pre-join safety popups, the leave
+                    // dialog — and UIKit will not present a second modal from a
+                    // controller that is already presenting one. So Join silently
+                    // did nothing: the safety queue was set, no popup ever
+                    // appeared, and the queue being non-empty leaves `CardPortal`
+                    // *suspended* — opacity 0 but still mounted, a full-screen
+                    // layer over the whole app. That is what read as the map
+                    // freezing on the way back to it.
+                    //
+                    // Dealing over a screen that is on its way out has none of
+                    // that: by the time there is a Join to tap, this modal is gone
+                    // and the card is over the tabs like any other.
+                    onPress={() => {
+                      const node = cardRefs.current[item.id];
+                      if (!node) {
+                        useUIStore.getState().dealCard(item.id, null);
+                        router.back();
+                        return;
+                      }
+                      node.measureInWindow((x, y, width, height) => {
+                        useUIStore
+                          .getState()
+                          .dealCard(item.id, { x, y, width, height });
+                        router.back();
+                      });
+                    }}
+                    onRemove={() => remove.mutate(item.id)}
+                  />
+                </View>
+              </Animated.View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <Icon name="bookmark" size={34} color={COLORS.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
+                <Text style={styles.emptyText}>
+                  Swipe right on events you like — or tap the bookmark — and
+                  they&apos;ll be waiting for you here.
+                </Text>
+                <Button
+                  label="Find events"
+                  height={44}
+                  // The swipe deck is no longer a screen of its own — it is the
+                  // dealt card, opened from the map's "Up for it?" fan. So this
+                  // sends you to the map rather than to a route that no longer
+                  // exists.
+                  onPress={() => router.push('/(tabs)/map')}
+                  style={{ marginTop: SPACING[1.5] }}
                 />
               </View>
-            </Animated.View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Icon name="bookmark" size={34} color={COLORS.primary} />
-              </View>
-              <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
-              <Text style={styles.emptyText}>
-                Swipe right on events you like — or tap the bookmark — and
-                they&apos;ll be waiting for you here.
-              </Text>
-              <Button
-                label="Find events"
-                height={44}
-                // The swipe deck is no longer a screen of its own — it is the
-                // dealt card, opened from the map's "Up for it?" fan. So this
-                // sends you to the map rather than to a route that no longer
-                // exists.
-                onPress={() => router.push('/(tabs)/map')}
-                style={{ marginTop: SPACING[1.5] }}
-              />
-            </View>
-          }
-        />
+            }
+          />
+      
+        </Animated.View>
       )}
     </Screen>
   );
 }
 
 const styles = themedStyles(() => ({
+  // The crossfade's container: the content fades in as one piece where the
+  // skeleton faded out. `flex: 1` so wrapping a list does not collapse it.
+  fill: { flex: 1 },
   list: { padding: SPACING[4], paddingTop: SPACING[2], gap: SPACING[3.5], flexGrow: 1 },
   card: {
     backgroundColor: COLORS.surface,

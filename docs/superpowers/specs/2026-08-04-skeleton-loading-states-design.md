@@ -1,7 +1,13 @@
 # Skeleton loading states
 
 **Date:** 2026-08-04
-**Status:** approved, not yet implemented
+**Status:** implemented 2026-08-06. Device sheet at `docs/testing/skeleton-loading.md`.
+
+Two deviations from the spec, both because dark mode landed in between:
+`skeletonBone`/`skeletonSheen` exist in **both** palettes (inverted for dark, with
+a dimmer sheen — 45% white over an 8% bone is a flash, not a highlight), and
+`SkeletonBubble` lays its bones out bottom-up because the chat threads became
+`inverted` lists.
 
 ## Problem
 

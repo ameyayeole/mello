@@ -1,39 +1,20 @@
 import * as SecureStore from 'expo-secure-store';
+import { hasSeenFlag, markFlagSeen } from './seenFlags';
 
-// ─── SEEN-FLAG STORE ─────────────────────────────────────────────────────────
-// Tracks which safety popups a user has already seen, per the frequency rules
-// in the safety spec: "once ever" (plain flag), "once per event/host" (flag
-// keyed by the entity id). Stored on-device in SecureStore, namespaced per
-// user so switching accounts on one phone re-shows the popups.
+// ─── SEEN FLAGS ──────────────────────────────────────────────────────────────
+// Which safety popups this user has already seen, per the frequency rules in
+// the safety spec: "once ever" (plain flag), "once per event/host" (flag keyed
+// by the entity id).
+//
+// The store itself is `seenFlags.ts` — the same question is now asked by the
+// swipe deck's one-time tutorial, under its own scope. These two keep the
+// `safety` scope, which is the key format already on every device.
 
-// SecureStore keys may only contain [A-Za-z0-9._-]; user/event ids are UUIDs
-// so they pass through unchanged.
-function flagKey(userId: string, flag: string): string {
-  return `safety.${userId}.${flag}`.replace(/[^A-Za-z0-9._-]/g, '_');
-}
+export const hasSeenSafetyFlag = (userId: string, flag: string) =>
+  hasSeenFlag('safety', userId, flag);
 
-export async function hasSeenSafetyFlag(
-  userId: string,
-  flag: string
-): Promise<boolean> {
-  try {
-    return (await SecureStore.getItemAsync(flagKey(userId, flag))) != null;
-  } catch {
-    // Fail open: a storage error should never block the user, just re-show.
-    return false;
-  }
-}
-
-export async function markSafetyFlagSeen(
-  userId: string,
-  flag: string
-): Promise<void> {
-  try {
-    await SecureStore.setItemAsync(flagKey(userId, flag), '1');
-  } catch {
-    // Non-fatal — worst case the popup shows again next time.
-  }
-}
+export const markSafetyFlagSeen = (userId: string, flag: string) =>
+  markFlagSeen('safety', userId, flag);
 
 // A host is considered "new" (popup #5) if their profile is younger than this.
 export const NEW_HOST_DAYS = 14;
@@ -77,8 +58,13 @@ export function looksLikeMoneyRequest(text: string): boolean {
   return MONEY_PATTERN.test(text);
 }
 
+// The money guard stores a *date* rather than a bare "seen", so it keeps its own
+// key — but in the same `safety` scope and the same shape as the flags above.
 function moneyGuardKey(userId: string, conversationId: string): string {
-  return flagKey(userId, `moneyguard.${conversationId}`);
+  return `safety.${userId}.moneyguard.${conversationId}`.replace(
+    /[^A-Za-z0-9._-]/g,
+    '_'
+  );
 }
 
 // True if the banner may be shown for this conversation (not yet shown today).

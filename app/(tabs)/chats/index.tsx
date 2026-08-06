@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
-  FadeInDown,
+  FadeOut,
   LinearTransition,
   useAnimatedStyle,
   useSharedValue,
@@ -77,6 +77,8 @@ import { showError } from '@/utils/errors';
 import { openDmChat, openEventChat } from '@/utils/chatActions';
 import { themedStyles } from '@/theme';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+import { SkeletonGroup } from '@/components/ui';
+import { SkeletonChatRow } from '@/components/skeletons';
 
 type Tab = 'events' | 'friends';
 
@@ -102,37 +104,6 @@ function previewText(content: string, type: string): string {
 function hostingLine(event: NearbyEvent, myUserId?: string): string {
   if (event.host_id === myUserId) return "You're hosting this event";
   return `${event.host_name ?? 'The host'} is hosting this event`;
-}
-
-/**
- * True only while this screen is being *arrived at* from another main tab.
- *
- * The row stagger is an arrival animation — it introduces the screen. It was
- * replaying on two things that are not arrivals: the Events/Direct switcher
- * (each row's key is prefixed with its tab, so flipping the segment unmounts
- * every row and mounts a new set) and popping back out of a chat. A list that
- * re-staggers under your thumb reads as a flicker, not as motion.
- *
- * Keyed on the pathname rather than on focus, because `useFocusEffect` fires
- * for the stack pop too — which is the case being excluded. A previous path
- * already under `/chats` means we never left this tab, so it is not an arrival.
- * The first render counts as one: that is the app opening onto this screen.
- *
- * State rather than a ref, and adjusted during render rather than in an effect
- * — React's documented pattern for deriving from a changed input. A ref read at
- * render time is unsafe under concurrent rendering, and the effect version
- * cascades a second render *after* the rows have already mounted, which is one
- * frame too late to gate their entering animation.
- */
-function useArrivalAnimation(): boolean {
-  const pathname = usePathname();
-  const [seen, setSeen] = useState<string | null>(null);
-  const [arriving, setArriving] = useState(true);
-  if (seen !== pathname) {
-    setSeen(pathname);
-    setArriving(seen === null || !seen.startsWith('/chats'));
-  }
-  return arriving;
 }
 
 function PrefGlyphs({ pref }: { pref?: ChatPref }) {
@@ -162,18 +133,19 @@ function PrefGlyphs({ pref }: { pref?: ChatPref }) {
 //
 // `layout` is what makes a re-sort *move*: when a new message lifts a chat to
 // the top, its row and the ones it passes glide to their new places instead of
-// snapping. `entering` is the arrival stagger and is gated separately — see
-// `animate`. Both ride the same Animated.View; that's safe because the view
-// carries no `style` of its own — Reanimated only warns about a layout
-// animation clobbering styles when they share the very component the animation
-// is attached to, and here the styles live one level down on the row `View`.
+// snapping. It stays — that is motion marking a *change*, which is a different
+// thing from motion marking an arrival.
+//
+// The arrival stagger is gone, along with the `useArrivalAnimation` hook that
+// gated it. Rows used to enter on a 45ms-per-row delay, so a full screen spent
+// close to half a second landing one row at a time; the skeleton now holds the
+// shape while the data is in flight and the list crossfades in as one piece.
+// A stagger after a skeleton is the same content arriving twice.
 //
 // Unread is weight, not decoration: bold ink for the message and the time,
 // regular grey once read.
 function ChatRow({
-  index,
   first,
-  animate,
   thumb,
   title,
   preview,
@@ -183,11 +155,7 @@ function ChatRow({
   onPress,
   onLongPress,
 }: {
-  index: number;
   first: boolean;
-  // See useArrivalAnimation: the stagger introduces the screen, so it plays on
-  // arrival and not on the in-place remounts that happen while you are here.
-  animate: boolean;
   thumb: React.ReactNode;
   title: string;
   // "Ana: see you there" in a group, just the message in a DM.
@@ -200,11 +168,6 @@ function ChatRow({
 }) {
   return (
     <Animated.View
-      entering={
-        animate
-          ? FadeInDown.delay(Math.min(index, 8) * 45).duration(320)
-          : undefined
-      }
       layout={LinearTransition.springify().damping(20).stiffness(180).mass(0.7)}
     >
       <PressableScale
@@ -345,7 +308,6 @@ export default function ChatsListScreen() {
   const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset();
   const [tab, setTab] = useState<Tab>('events');
-  const rowsAnimate = useArrivalAnimation();
 
   const openOverlay = useOpenOverlay();
   const handedOver = useHandedOver();
@@ -428,6 +390,14 @@ export default function ChatsListScreen() {
     queryFn: () => getFriendConversations(user!.id),
     enabled: !!user,
   });
+
+  // The first load of whichever tab is showing. `isPending` rather than
+  // `isFetching`: a background refetch of a list already on screen is not a
+  // reason to replace it with bones.
+  const loading =
+    tab === 'events'
+      ? joinedQuery.isPending || myEventsQuery.isPending
+      : conversationsQuery.isPending;
 
   const prefsQuery = useQuery({
     queryKey: queryKeys.chatPrefs.of(user?.id),
@@ -625,9 +595,7 @@ export default function ChatsListScreen() {
     return (
       <ChatRow
         key={`event:${event.id}`}
-        index={index}
         first={index === 0}
-        animate={rowsAnimate}
         thumb={<EventThumb event={event} last={last} />}
         title={event.title}
         // Who said it, then what they said — a group chat's preview is useless
@@ -662,9 +630,7 @@ export default function ChatsListScreen() {
     return (
       <ChatRow
         key={`dm:${friend.id}`}
-        index={index}
         first={index === 0}
-        animate={rowsAnimate}
         thumb={
           <Avatar
             name={friend.name}
@@ -846,7 +812,18 @@ export default function ChatsListScreen() {
           }
         >
           {header}
-          {items.length === 0 ? (
+          {/* Loading is its own branch, ahead of the empty one. It used to fall
+              through to "No event chats yet" — `items.length === 0` is true for
+              a fetch in flight exactly as it is for a user with no chats — so
+              anyone with conversations was told they had none, for the length of
+              the request, and then had them appear. */}
+          {loading ? (
+            <Animated.View exiting={FadeOut.duration(150)}>
+              <SkeletonGroup>
+                <SkeletonChatRow />
+              </SkeletonGroup>
+            </Animated.View>
+          ) : items.length === 0 ? (
             tab === 'events' ? (
               <EmptyState
                 icon="chat"

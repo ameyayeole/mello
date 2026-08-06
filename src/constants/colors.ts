@@ -150,6 +150,13 @@ export const LIGHT = {
   fillOnDarkStrong: 'rgba(255, 255, 255, 0.16)',
   borderOnDark: 'rgba(255, 255, 255, 0.14)',
 
+  // ── Skeletons ────────────────────────────────────────────────────────────
+  // The placeholder fill, and the light that sweeps it. Stronger than
+  // `inkSubtle` (7%), which is tuned for a selected chip and disappears against
+  // `glassPanel` — a bone has to read as a shape, not as a smudge.
+  skeletonBone: 'rgba(15, 24, 44, 0.10)',
+  skeletonSheen: 'rgba(255, 255, 255, 0.45)',
+
   // Status
   success: '#17915A',
   successTint: '#E4F1EB',
@@ -300,6 +307,14 @@ export const DARK: Palette = {
   fillOnDark: 'rgba(255, 255, 255, 0.08)',
   fillOnDarkStrong: 'rgba(255, 255, 255, 0.16)',
   borderOnDark: 'rgba(255, 255, 255, 0.14)',
+
+  // ── Skeletons ────────────────────────────────────────────────────────────
+  // Inverted: the bone is a white lift off the dark surface, matching how this
+  // theme carries every other raised surface. The sheen has to be *dimmer* than
+  // the light theme's, not brighter — a 45% white band over an 8% white bone is
+  // a flash, where on the light theme it is a highlight.
+  skeletonBone: 'rgba(255, 255, 255, 0.09)',
+  skeletonSheen: 'rgba(255, 255, 255, 0.16)',
 
   // ── Status ───────────────────────────────────────────────────────────────
   // Lifted for contrast against near-black; the tints become washes.
