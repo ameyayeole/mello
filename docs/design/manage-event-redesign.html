@@ -437,7 +437,7 @@ footer { margin-top: 76px; padding-top: 26px; border-top: 1px solid var(--hair-s
 <div class="wrap">
 
 <header class="mast">
-  <div class="eyebrow"><span class="dot"></span> Mello · design spec · 07 Aug 2026 · v4</div>
+  <div class="eyebrow"><span class="dot"></span> Mello · design spec · 07 Aug 2026 · v5</div>
   <h1>Manage&nbsp;event,<br>with the photo<br>in charge.</h1>
   <p class="lede">
     The host panel is the last screen still built in the old language — a 160pt
@@ -972,12 +972,51 @@ footer { margin-top: 76px; padding-top: 26px; border-top: 1px solid var(--hair-s
           A blur is a visual effect, not a security boundary: fetch the names to blur them
           and they are sitting in the response, in the query cache and in the component
           tree, one React DevTools session from being read. <strong>Do not enable that
-          query for non-premium hosts.</strong> Skeleton rows driven by
+          query for non-premium hosts.</strong> Placeholder rows driven by
           <code>saversCount</code> — real count, no real identities.
         </p>
       </div>
+      <div class="callout good">
+        <span class="h">Use <code>SkeletonPersonRow</code> — it landed while this spec was being written</span>
+        <p class="prose">
+          <code>5aa65af</code> added <code>SkeletonGroup</code> / <code>SkeletonBone</code>
+          to <code>ui/</code> and a set of composed shapes in
+          <code>components/skeletons/</code>. <code>SkeletonPersonRow</code> is described in
+          its own header as "the shape behind friends, blocked, attendees, search results" —
+          which is this, exactly. Wrap it in a group so every bone shares one clock rather
+          than starting its own driver and drifting out of phase.
+        </p>
+        <p class="prose">
+          Its avatar bone is 44 where the sheet's rows are 38. <strong>Leave it.</strong>
+          The stack sits behind a blur pane; 6pt on a shape nobody can resolve is not worth
+          a prop.
+        </p>
+      </div>
+      <div class="callout warn">
+        <span class="h">But the bones are the wrong colour on this surface — the same bug as finding&nbsp;1</span>
+        <p class="prose">
+          <code>COLORS.skeletonBone</code> is <code>rgba(15, 24, 44, 0.10)</code> on the
+          light palette: dark ink, for a light surface. The locked wishlist sits on the
+          <code>onPhoto</code> sheet, which is <strong>dark in both themes</strong> — so on
+          the light theme these bones would be near-invisible. It is exactly the trap
+          <code>ParticipantRow</code>'s <code>#F0F1F3</code> fell into, one level up.
+        </p>
+        <p class="prose">
+          Add the on-dark pair to <strong>both</strong> palettes with the same value in
+          each — the way <code>fillOnDark</code> and <code>borderOnDark</code> already are,
+          because they describe a surface that does not change:
+          <code>skeletonBoneOnDark: 'rgba(255,255,255,0.09)'</code>,
+          <code>skeletonSheenOnDark: 'rgba(255,255,255,0.16)'</code>. The dark palette's
+          existing values already <em>are</em> these; copy them up. Then give
+          <code>SkeletonBone</code> an <code>onDark</code> prop and thread it through
+          <code>SkeletonPersonRow</code>. <strong>Add the prop, do not fork either
+          component</strong> — and ship it as its own commit, because <code>ui/</code> has
+          other callers.
+        </p>
+      </div>
       <div class="specs">
-        <div><span class="k2">Locked</span><span class="v2"><code>saversCount</code> skeleton rows (cap 3) + <strong>one</strong> blur pane over the stack — not one per row</span></div>
+        <div><span class="k2">Locked</span><span class="v2"><code>&lt;SkeletonGroup&gt;&lt;SkeletonPersonRow count={Math.min(saversCount, 3)} onDark /&gt;&lt;/SkeletonGroup&gt;</code> + <strong>one</strong> blur pane over the stack — not one per row</span></div>
+        <div><span class="k2">Prereq</span><span class="v2"><code>onDark</code> on <code>SkeletonBone</code> + <code>SkeletonPersonRow</code>, and two new tokens. Own commit, before this one.</span></div>
         <div><span class="k2">Android</span><span class="v2">Falls back to a flat fill. Fine here: the job is to obscure, and what it obscures is placeholder anyway.</span></div>
         <div><span class="k2">Unlocked</span><span class="v2">The same <code>ParticipantRow surface="row"</code> stack as attendees, cap 8 + "See all"</span></div>
         <div><span class="k2">Gold</span><span class="v2">Crown on <code>PREMIUM_GOLD_TINT_ON_DARK</code> + the pill. The <code>rgba(201,147,10,0.35)</code> ring goes.</span></div>
@@ -1318,6 +1357,8 @@ footer { margin-top: 76px; padding-top: 26px; border-top: 1px solid var(--hair-s
     <div class="r"><span class="id">D2</span><span class="w"><b>Approve / decline still invalidates.</b> <code>eventDetail</code> and <code>myEvents</code>. Fails silently — no type error, no crash, just a count that stops moving.</span><span class="tag observed">observed</span></div>
     <div class="r"><span class="id">D3</span><span class="w"><b>Bare glyph hit targets.</b> Three glyphs per attendee row, no chips. Confirm hit-slop gives each ≥44pt, and that a long name truncates instead of shoving them off the row.</span><span class="tag reason">reasoning</span></div>
     <div class="r"><span class="id">E1</span><span class="w"><b>Locked wishlist leaks nothing.</b> Free host, <code>saversCount &gt; 0</code>. Inspect the network response and the query cache: no saver names or ids may be present. This is the row that stops a paywall becoming a data leak.</span><span class="tag reason">reasoning</span></div>
+    <div class="r"><span class="id">E1b</span><span class="w"><b>Skeleton bones are visible on the sheet, in the <em>light</em> theme.</b> The <code>onDark</code> prop is what makes this pass. Without it the bones are dark ink on a dark sheet and the locked state looks empty — and only in one theme, which is how it would ship unnoticed.</span><span class="tag reason">reasoning</span></div>
+    <div class="r"><span class="id">E1c</span><span class="w"><b>Other skeleton callers did not regress.</b> <code>onDark</code> is a new prop on a <code>ui/</code> primitive. Load the chats list, friends, notifications and the post feed — every existing skeleton must look exactly as it did.</span><span class="tag observed">observed</span></div>
     <div class="r"><span class="id">E2</span><span class="w"><b>Add-friend knows the existing state.</b> An attendee you are already friends with, one with a pending request, one you have never met. The glyph must not offer to add all three.</span><span class="tag reason">reasoning</span></div>
     <div class="r"><span class="id">E3</span><span class="w"><b>Notes carousel.</b> Zero notes (section absent), one note (no pager), several (swipe + pager tracks). Confirm opening a slide fires <code>markNoteOpened</code> once, not on every re-render.</span><span class="tag observed">observed</span></div>
     <div class="r"><span class="id">E4</span><span class="w"><b>A note with a photo.</b> <code>photo_url</code> is nullable on <code>wrap_notes</code>. Slide height must not jump between a note with one and a note without as you swipe.</span><span class="tag reason">reasoning</span></div>
@@ -1325,7 +1366,7 @@ footer { margin-top: 76px; padding-top: 26px; border-top: 1px solid var(--hair-s
 </section>
 
 <footer>
-  <span>Mello · host panel redesign v4 · spec for review, not an implementation plan</span>
+  <span>Mello · host panel redesign v5 · spec for review, not an implementation plan</span>
   <span>Rendered in Bricolage Grotesque 800 &amp; Plus Jakarta Sans — the app's own faces</span>
 </footer>
 

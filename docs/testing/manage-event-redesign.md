@@ -91,6 +91,8 @@ The parts that were reasoned about rather than seen.
 | # | Check | iOS | Android |
 | --- | --- | --- | --- |
 | E1 | **The locked wishlist leaks nothing.** Free host, `saversCount > 0`. Inspect the network response **and** the React Query cache: no saver names or ids may be present anywhere. This is the row that stops a paywall becoming a data leak. | | |
+| E1b | **Skeleton bones are visible on the sheet, in the _light_ theme.** The `onDark` prop is what makes this pass. Without it they are dark ink on a dark sheet and the locked state looks empty — in one theme only, which is how it ships unnoticed. | | |
+| E1c | **Other skeleton callers did not regress.** `onDark` is a new prop on a `ui/` primitive. Load chats, friends, notifications and the post feed — every existing skeleton must look exactly as it did. | | |
 | E2 | **Add-friend knows the existing state.** An attendee you are already friends with, one with a pending request, one neither. The glyph must not offer to add all three. | | |
 | E3 | **Row hit targets.** Three bare glyphs per attendee row, no chips. Each ≥44pt of touchable area, and a long name truncates rather than shoving them off the row. | | |
 | E4 | **The attendees screen did not regress.** It shares `ParticipantRow` and keeps `surface="card"`. Both tabs, approve and decline still work. | | |

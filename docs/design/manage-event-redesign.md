@@ -35,6 +35,10 @@ exceptions, both called out below.
 | D3 | **"Open event chat" loses its full-width button** and becomes one of three tiles, leaving the live screen with no full-width CTA. Deliberate — a host makes no single decision on this page. Disagree and it goes back. | Commit 3 |
 | D4 | **Attributable event feedback.** Out of scope here. `get_event_feedback` returns `{ upCount, downCount, notes: string[] }` with no author, and the UI tells people it is anonymous. Making individual votes attributable needs a schema change plus a cutover where existing submissions stay anonymous. Separate piece of work. | Nothing in this brief |
 
+**One prerequisite** (not a decision, just an ordering note): commit 5 needs an `onDark`
+prop on `SkeletonBone` / `SkeletonPersonRow` plus two new colour tokens. Details in that
+section. Ship it as its own commit — it touches `ui/`, which has other callers.
+
 ---
 
 ## Commit order
@@ -180,8 +184,40 @@ rows — not today's chip cloud. One row treatment across all three people-secti
 `enabled: isHost && premium` — a free host never receives the list, and that is correct, not
 a limitation to work around. A blur is a visual effect, not a security boundary: fetch the
 names to blur them and they sit in the response, the query cache and the component tree.
-**Do not enable that query for non-premium hosts.** Skeleton rows driven by `saversCount`
+**Do not enable that query for non-premium hosts.** Placeholder rows driven by `saversCount`
 give the real count with no real identities.
+
+**Use `SkeletonPersonRow`, do not hand-roll the bones.** It landed in `5aa65af` and is
+exactly this shape — "avatar + name + subtitle: the shape behind friends, blocked,
+attendees, search results". Wrap it in a `SkeletonGroup` so the bones share one clock:
+
+```tsx
+<SkeletonGroup>
+  <SkeletonPersonRow count={Math.min(saversCount, 3)} onDark />
+</SkeletonGroup>
+```
+
+Its avatar bone is 44 where our sheet rows use 38. **Leave it.** The stack sits behind a
+blur pane; a 6pt difference in a shape nobody can resolve is not worth a prop.
+
+> **This needs a small primitive change first, and it is the same bug as commit 1.**
+> `COLORS.skeletonBone` is `rgba(15, 24, 44, 0.10)` on the light palette — dark ink, for a
+> light surface. The locked wishlist sits on the **`onPhoto` sheet, which is dark in both
+> themes**, so on the light theme the bones would be near-invisible.
+>
+> Add the on-dark pair to **both** palettes with the same values in each, exactly as
+> `fillOnDark` / `borderOnDark` already are — those tokens are identical across palettes
+> because they were built for a surface that does not change:
+>
+> ```ts
+> skeletonBoneOnDark:  'rgba(255, 255, 255, 0.09)',
+> skeletonSheenOnDark: 'rgba(255, 255, 255, 0.16)',
+> ```
+>
+> (The dark palette's existing `skeletonBone` / `skeletonSheen` are already these values —
+> copy them up.) Then give `SkeletonBone` an `onDark?: boolean` that picks the pair, and
+> thread it through `SkeletonPersonRow`. **Add the prop; do not fork either component.**
+> Ship it as its own commit before this one — it is a `ui/` change with other callers.
 
 One blur pane over the stack, not one per row. Android falls back to a flat fill, which is
 fine — the job is to obscure, and what it obscures is placeholder.
