@@ -187,7 +187,8 @@ between client versions.
 ## 5. The contribution flow
 
 Today the four steps are four routes reached from a checklist. They become **one
-flow**, entered from a single "Contribute to the Wrap" CTA.
+flow**, entered from a single **"Wrap it up"** CTA that lives **on the card
+itself**, not below it.
 
 ```
 Turn → Photos → Rate people (swipe + superlatives + notes) → Rewind → Feedback → Done
@@ -203,9 +204,18 @@ this section as the record, not that file).
 
 ### 5.0 The turn — entering the flow
 
-Tapping **Contribute to the Wrap** flips the dealt card to its logo face, holds,
-then scales that face up until it fills the viewport and *becomes* the flow.
-One continuous gesture carries you in: no navigation push, no modal seam.
+**"Wrap it up" sits on the card**, on its lower face — not on a button below it.
+Tapping it flips the card to its logo face, holds, then scales that face up
+until it fills the viewport and *becomes* the flow. One continuous gesture
+carries you in: no navigation push, no modal seam.
+
+**Why the CTA is on the card.** A button underneath makes the card an
+illustration and the button the thing you press — two objects, one of them
+decorative. With the label on its face the card *is* the affordance, so the
+thing you touched is the thing that turns, and the animation reads as a
+consequence of the tap rather than a cutscene that follows it.
+
+That also means the whole card face is the hit target, not just the label.
 
 - Flip ≈ 650ms, hold ≈ 150ms, scale-to-fill ≈ 550ms; the first step is
   interactive by ~1.5s.
@@ -407,8 +417,14 @@ root-mounted for the same reason: to clear navigation barriers.
   again**. SecureStore is the app's only KV store and `themeStore.ts:26`
   documents that as a deliberate choice — follow that pattern, do not add
   AsyncStorage.
-- **Tap:** the wrap hub, with **Contribute to the Wrap** as a
-  `Button variant="primary"`.
+- **CTA:** **"Wrap it up"** on the card's lower face — a
+  `Button variant="primary"` laid on the card, not a button beneath it. The
+  whole face is the hit target (§5.0).
+- **Tap:** turns the card and runs the flow (§5.0), rather than pushing the hub.
+
+The same label is used everywhere the wrap is offered — the chat pin (§7.2) and
+the Home card (§7.3) — so one phrase means one thing. Once you have contributed
+it becomes **"View wrap"**.
 
 ### 7.2 Event chat — permanent pin, no takeover
 
