@@ -201,7 +201,7 @@ export async function markNoteOpened(noteId: string): Promise<void> {
 export async function getWrapPhotos(eventId: string): Promise<WrapPhoto[]> {
   const { data, error } = await supabase
     .from('event_photos')
-    .select('*, uploader:profiles!uploader_id(*)')
+    .select('*, uploader:profiles!uploader_id(*), reactions:photo_reactions(*)')
     .eq('event_id', eventId)
     .order('like_count', { ascending: false })
     .order('created_at', { ascending: true });
@@ -237,34 +237,31 @@ export async function deleteWrapPhoto(photoId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function getMyPhotoLikes(
-  eventId: string,
-  userId: string
-): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('wrap_photo_likes')
-    .select('photo_id, photo:event_photos!inner(event_id)')
-    .eq('user_id', userId)
-    .eq('photo.event_id', eventId);
+// One reaction per person per photo — upsert on the unique index (077) so
+// tapping a second emoji replaces the first rather than stacking, the way chat
+// does it. The onConflict target must name that index's columns exactly; get it
+// wrong and reactions stack with no error.
+export async function reactToPhoto(
+  photoId: string,
+  userId: string,
+  emoji: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('photo_reactions')
+    .upsert(
+      { photo_id: photoId, user_id: userId, emoji },
+      { onConflict: 'photo_id,user_id' }
+    );
 
   if (error) throw error;
-  return (data ?? []).map((r: any) => r.photo_id);
 }
 
-export async function likePhoto(photoId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('wrap_photo_likes')
-    .insert({ photo_id: photoId, user_id: userId });
-
-  if (error && error.code !== '23505') throw error;
-}
-
-export async function unlikePhoto(
+export async function unreactPhoto(
   photoId: string,
   userId: string
 ): Promise<void> {
   const { error } = await supabase
-    .from('wrap_photo_likes')
+    .from('photo_reactions')
     .delete()
     .eq('photo_id', photoId)
     .eq('user_id', userId);
@@ -298,6 +295,15 @@ export async function commentPhoto(args: {
     content: args.content.trim(),
     mentions: args.mentions ?? [],
   });
+
+  if (error) throw error;
+}
+
+export async function deletePhotoComment(commentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('wrap_photo_comments')
+    .delete()
+    .eq('id', commentId);
 
   if (error) throw error;
 }

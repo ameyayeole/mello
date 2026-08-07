@@ -18,6 +18,8 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useWrapGallery } from '@/hooks/useWrapGallery';
 import WrapPhotoTile from '@/components/wrap/WrapPhotoTile';
 import OptionSheet, { SheetOption } from '@/components/chat/OptionSheet';
+import ReactionBar from '@/components/chat/ReactionBar';
+import ReactionPills from '@/components/chat/ReactionPills';
 import {
   isMediaLibraryAvailable,
   saveImagesToLibrary,
@@ -53,7 +55,7 @@ export default function WrapGalleryScreen() {
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const user = useAuthStore((s) => s.user);
-  const { sortedPhotos, photosQuery, like, comment, report } =
+  const { sortedPhotos, photosQuery, react, comment, removeComment, report } =
     useWrapGallery(eventId);
 
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -70,7 +72,6 @@ export default function WrapGalleryScreen() {
     () => sortedPhotos.find((p) => p.id === viewerId) ?? null,
     [sortedPhotos, viewerId]
   );
-  const myComment = viewer?.comments?.find((c) => c.user_id === user?.id);
 
   async function handleDownloadAll() {
     try {
@@ -252,80 +253,91 @@ export default function WrapGalleryScreen() {
                     <Text style={styles.viewerCaption}>{viewer.caption}</Text>
                   ) : null}
 
+                  {/* The same four tapbacks as chat, via the same component —
+                      a react has to mean the same thing on a photo as in a
+                      message. */}
                   <View style={styles.viewerActions}>
-                    <PressableScale
-                      scaleTo={0.9}
-                      style={[styles.likeBtn, viewer.myLike && styles.likeBtnOn]}
-                      onPress={() =>
-                        like.mutate({ photoId: viewer.id, liked: !!viewer.myLike })
+                    <ReactionBar
+                      mine={viewer.myReaction ?? undefined}
+                      onPick={(emoji) =>
+                        react.mutate({
+                          photoId: viewer.id,
+                          // Tapping the emoji you already have takes it back.
+                          emoji: viewer.myReaction === emoji ? null : emoji,
+                        })
                       }
-                      accessibilityRole="button"
-                      accessibilityLabel={viewer.myLike ? 'Unlike' : 'Like'}
-                    >
-                      <Icon
-                        name="heart"
-                        size={18}
-                        color={viewer.myLike ? '#fff' : COLORS.primary}
-                        strokeWidth={2.2}
-                      />
-                      <Text
-                        style={[styles.likeText, viewer.myLike && styles.likeTextOn]}
-                      >
-                        {viewer.like_count}
-                      </Text>
-                    </PressableScale>
+                    />
                   </View>
+
+                  <ReactionPills
+                    reactions={viewer.reactions ?? []}
+                    myUserId={user?.id}
+                  />
 
                   {(viewer.comments?.length ?? 0) > 0 && (
                     <ScrollView style={styles.commentList} keyboardShouldPersistTaps="handled">
+                      {/* Keyed by id, not photo+user: one person can comment
+                          more than once now, so the old composite key would
+                          collide. */}
                       {(viewer.comments ?? []).map((c) => (
-                        <PressableScale
-                          key={`${c.photo_id}-${c.user_id}`}
-                          scaleTo={0.99}
-                          style={styles.commentRow}
-                          onPress={() => openProfile(c.user_id)}
-                        >
-                          <Avatar name={c.author?.name} photoUrl={c.author?.photo_url} size={26} />
-                          <Text style={styles.commentText} numberOfLines={2}>
-                            <Text style={styles.commentAuthor}>
-                              {c.author?.name ?? 'Someone'}
-                            </Text>{' '}
-                            {c.content}
-                          </Text>
-                        </PressableScale>
+                        <View key={c.id} style={styles.commentRow}>
+                          <PressableScale
+                            scaleTo={0.99}
+                            style={styles.commentBody}
+                            onPress={() => openProfile(c.user_id)}
+                          >
+                            <Avatar name={c.author?.name} photoUrl={c.author?.photo_url} size={26} />
+                            <Text style={styles.commentText} numberOfLines={2}>
+                              <Text style={styles.commentAuthor}>
+                                {c.author?.name ?? 'Someone'}
+                              </Text>{' '}
+                              {c.content}
+                            </Text>
+                          </PressableScale>
+                          {c.user_id === user?.id ? (
+                            <IconButton
+                              icon="trash"
+                              variant="plain"
+                              size={30}
+                              onPress={() =>
+                                removeComment.mutate({
+                                  photoId: viewer.id,
+                                  commentId: c.id,
+                                })
+                              }
+                              accessibilityLabel="Delete your comment"
+                            />
+                          ) : null}
+                        </View>
                       ))}
                     </ScrollView>
                   )}
 
-                  {!myComment ? (
-                    <View style={styles.commentComposer}>
-                      <TextInput
-                        style={styles.commentInput}
-                        placeholder="One comment each. Make it count…"
-                        placeholderTextColor="rgba(255,255,255,0.5)"
-                        value={commentDraft}
-                        onChangeText={(t) => setCommentDraft(t.slice(0, 300))}
-                      />
-                      <IconButton
-                        icon="send"
-                        variant="tint"
-                        onPress={() => {
-                          if (!commentDraft.trim()) return;
-                          comment.mutate({
-                            photoId: viewer.id,
-                            content: commentDraft.trim(),
-                            mentions: [],
-                          });
-                          setCommentDraft('');
-                        }}
-                        accessibilityLabel="Send comment"
-                      />
-                    </View>
-                  ) : (
-                    <Text style={styles.commentedNote}>
-                      You&apos;ve used your one comment on this photo.
-                    </Text>
-                  )}
+                  {/* No one-per-person guard any more — migration 078 made
+                      these a thread. */}
+                  <View style={styles.commentComposer}>
+                    <TextInput
+                      style={styles.commentInput}
+                      placeholder="Say something…"
+                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      value={commentDraft}
+                      onChangeText={(t) => setCommentDraft(t.slice(0, 300))}
+                    />
+                    <IconButton
+                      icon="send"
+                      variant="tint"
+                      onPress={() => {
+                        if (!commentDraft.trim()) return;
+                        comment.mutate({
+                          photoId: viewer.id,
+                          content: commentDraft.trim(),
+                          mentions: [],
+                        });
+                        setCommentDraft('');
+                      }}
+                      accessibilityLabel="Send comment"
+                    />
+                  </View>
                 </Animated.View>
               </KeyboardAvoidingView>
             </SafeAreaView>
@@ -408,6 +420,14 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     gap: SPACING[2],
     paddingVertical: SPACING[1],
+  },
+  // The tappable part of the row — the delete button sits outside it so
+  // tapping the comment opens the author rather than deleting.
+  commentBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
   },
   commentAuthor: { fontFamily: FONTS.bold, color: '#fff' },
   commentText: {

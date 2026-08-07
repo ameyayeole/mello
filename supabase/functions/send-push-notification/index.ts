@@ -99,7 +99,7 @@ function composeCopy(
     case 'photo_liked':
       return {
         title: `${eventTitle}`,
-        body: `${senderName} liked your photo`,
+        body: `${senderName} reacted to your photo`,
       };
     case 'photo_commented':
       return {

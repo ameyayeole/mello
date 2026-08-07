@@ -90,8 +90,11 @@ export function notificationCopy(
         title: 'You got a note 💌',
         body: `Someone from ${eventTitle} left you a note`,
       };
+    // The enum value keeps its name: renaming a notification_type means a
+    // migration and a backfill of existing rows, for a string. Only the copy
+    // changes — there are no likes any more (077).
     case 'photo_liked':
-      return { title: eventTitle, body: `${senderName} liked your photo` };
+      return { title: eventTitle, body: `${senderName} reacted to your photo` };
     case 'photo_commented':
       return { title: eventTitle, body: `${senderName} commented on your photo` };
     case 'encore_requested':

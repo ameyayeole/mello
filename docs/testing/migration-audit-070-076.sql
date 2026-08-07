@@ -29,10 +29,14 @@ WITH checks AS (
          EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'get_post'
                    AND pg_get_functiondef(oid) LIKE '%ref_event_id%')
   UNION ALL
+  -- COALESCE both sides: an INSERT policy has no USING clause, so `qual` is
+  -- NULL, and `NULL || with_check` is NULL — which made this row report
+  -- MISSING on a policy that was perfectly correct.
   SELECT '070', 'posts_insert policy guards ref_event_id',
          EXISTS (SELECT 1 FROM pg_policies
                   WHERE tablename = 'posts' AND policyname = 'posts_insert'
-                    AND qual || with_check LIKE '%ref_event_id%')
+                    AND COALESCE(qual, '') || COALESCE(with_check, '')
+                        LIKE '%ref_event_id%')
 
   -- ── 072: message replies ──────────────────────────────────────────────────
   UNION ALL

@@ -3,12 +3,12 @@ import { queryKeys } from '@/constants/queryKeys';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   commentPhoto,
-  getMyPhotoLikes,
+  deletePhotoComment,
   getPhotoComments,
   getWrapPhotos,
-  likePhoto,
+  reactToPhoto,
   reportPhoto,
-  unlikePhoto,
+  unreactPhoto,
 } from '@/services/wrap.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useFriends } from '@/hooks/useFriends';
@@ -30,15 +30,14 @@ export function useWrapGallery(eventId: string | undefined) {
     queryKey: photosKey,
     queryFn: async (): Promise<WrapPhoto[]> => {
       const photos = await getWrapPhotos(eventId!);
-      const [comments, myLikes] = await Promise.all([
-        getPhotoComments(photos.map((p) => p.id)),
-        getMyPhotoLikes(eventId!, user!.id),
-      ]);
-      const liked = new Set(myLikes);
+      const comments = await getPhotoComments(photos.map((p) => p.id));
+      // Reactions arrive embedded on the photo now, so the separate
+      // "which did I like" round trip getMyPhotoLikes did is gone.
       return photos.map((p) => ({
         ...p,
         comments: comments.filter((c) => c.photo_id === p.id),
-        myLike: liked.has(p.id),
+        myReaction:
+          (p.reactions ?? []).find((r) => r.user_id === user!.id)?.emoji ?? null,
       }));
     },
     enabled: !!eventId && !!user,
@@ -84,18 +83,59 @@ export function useWrapGallery(eventId: string | undefined) {
     qc.invalidateQueries({ queryKey: queryKeys.wrap.of(eventId, user?.id) });
   };
 
-  const like = useMutation({
-    mutationFn: (args: { photoId: string; liked: boolean }) =>
-      args.liked
-        ? unlikePhoto(args.photoId, user!.id)
-        : likePhoto(args.photoId, user!.id),
-    onMutate: async ({ photoId, liked }) => {
+  // `emoji: null` means "take mine back". Kept optimistic: a reaction that
+  // waits for a round trip feels broken.
+  const react = useMutation({
+    mutationFn: (args: { photoId: string; emoji: string | null }) =>
+      args.emoji
+        ? reactToPhoto(args.photoId, user!.id, args.emoji)
+        : unreactPhoto(args.photoId, user!.id),
+    onMutate: async ({ photoId, emoji }) => {
+      await qc.cancelQueries({ queryKey: photosKey });
+      const prev = qc.getQueryData<WrapPhoto[]>(photosKey);
+      patchPhoto(photoId, (p) => {
+        const had = !!p.myReaction;
+        // Swapping one emoji for another leaves the total alone — only adding a
+        // first reaction or taking it back moves like_count.
+        const delta = emoji ? (had ? 0 : 1) : had ? -1 : 0;
+        const others = (p.reactions ?? []).filter(
+          (r) => r.user_id !== user!.id
+        );
+        return {
+          ...p,
+          myReaction: emoji,
+          reactions: emoji
+            ? [
+                ...others,
+                {
+                  id: `optimistic-${photoId}`,
+                  photo_id: photoId,
+                  user_id: user!.id,
+                  emoji,
+                  created_at: new Date().toISOString(),
+                },
+              ]
+            : others,
+          like_count: Math.max(0, p.like_count + delta),
+        };
+      });
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(photosKey, ctx.prev);
+    },
+    onSettled: invalidate,
+  });
+
+  const removeComment = useMutation({
+    mutationFn: (args: { photoId: string; commentId: string }) =>
+      deletePhotoComment(args.commentId),
+    onMutate: async ({ photoId, commentId }) => {
       await qc.cancelQueries({ queryKey: photosKey });
       const prev = qc.getQueryData<WrapPhoto[]>(photosKey);
       patchPhoto(photoId, (p) => ({
         ...p,
-        myLike: !liked,
-        like_count: Math.max(0, p.like_count + (liked ? -1 : 1)),
+        comments: (p.comments ?? []).filter((c) => c.id !== commentId),
       }));
       return { prev };
     },
@@ -125,6 +165,10 @@ export function useWrapGallery(eventId: string | undefined) {
         comments: [
           ...(p.comments ?? []),
           {
+            // Replaced by the server's id on the next invalidate. Distinct per
+            // comment so a second one in the same thread doesn't collide on
+            // React's key.
+            id: `optimistic-${photoId}-${Date.now()}`,
             photo_id: photoId,
             user_id: user!.id,
             content,
@@ -173,8 +217,9 @@ export function useWrapGallery(eventId: string | undefined) {
   return {
     photosQuery,
     sortedPhotos,
-    like,
+    react,
     comment,
+    removeComment,
     report,
   };
 }

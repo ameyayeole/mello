@@ -4,7 +4,7 @@ import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { MessageReaction } from '@/types/models';
+import { ReactionLike } from '@/types/models';
 import { PressableScale } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
@@ -20,10 +20,13 @@ export default function ReactionPills({
   isMine,
   onPress,
 }: {
-  reactions: MessageReaction[];
+  // Widened from MessageReaction so the wrap gallery's PhotoReaction renders
+  // through this same component. A second pills component would drift.
+  reactions: ReactionLike[];
   myUserId?: string;
   // Which side of the thread the bubble is on — the pills hug its outer edge.
-  isMine: boolean;
+  // Optional because a photo has no side; it defaults to the left.
+  isMine?: boolean;
   onPress?: () => void;
 }) {
   // Grouped in first-reacted order, so a pill doesn't jump position when

@@ -281,12 +281,18 @@ export interface MessagePoll {
 export type ReactionTarget = 'event' | 'dm';
 
 // A tapback (migration 041). One row per person per message.
-export interface MessageReaction {
+// The minimum ReactionPills needs to group and count a reaction. Both
+// MessageReaction and PhotoReaction satisfy it, which is what lets one pills
+// component serve chat and the wrap gallery — two copies would drift.
+export interface ReactionLike {
+  user_id: string;
+  emoji: string;
+}
+
+export interface MessageReaction extends ReactionLike {
   id: string;
   message_id: string | null;
   dm_id: string | null;
-  user_id: string;
-  emoji: string;
   created_at: string;
 }
 
@@ -400,6 +406,7 @@ export interface WrapNote {
 }
 
 export interface WrapPhotoComment {
+  id: string;
   photo_id: string;
   user_id: string;
   content: string;
@@ -420,7 +427,18 @@ export interface WrapPhoto {
   created_at: string;
   uploader?: Profile;
   comments?: WrapPhotoComment[];
-  myLike?: boolean;
+  reactions?: PhotoReaction[];
+  // The emoji I picked, if any. Null rather than false — "which one" replaced
+  // "whether", and a boolean here would quietly discard the choice.
+  myReaction?: string | null;
+}
+
+// Same shape as MessageReaction (041) minus the two-target check — a photo
+// reaction has exactly one parent.
+export interface PhotoReaction extends ReactionLike {
+  id: string;
+  photo_id: string;
+  created_at: string;
 }
 
 export interface SuperlativeWinner {

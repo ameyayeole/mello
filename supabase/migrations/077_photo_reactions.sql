@@ -102,8 +102,46 @@ CREATE TRIGGER photo_reactions_count
   AFTER INSERT OR DELETE OR UPDATE ON photo_reactions
   FOR EACH ROW EXECUTE FUNCTION bump_photo_reaction_count();
 
+-- Reacting tells the photo's owner, the way liking used to.
+--
+-- Without this the notification dies quietly: on_wrap_photo_like (032) is still
+-- attached to wrap_photo_likes, and nothing writes to that table any more, so
+-- 'photo_liked' would never fire again and its copy would be dead text. That
+-- trigger is left in place but is now dormant — it is also the only other thing
+-- that maintains like_count, so if anything ever writes to wrap_photo_likes
+-- again the two counters will disagree.
+--
+-- AFTER INSERT only: swapping one emoji for another is an UPDATE via the
+-- upsert, and re-notifying on every change of mind is spam.
+CREATE OR REPLACE FUNCTION on_photo_reaction()
+RETURNS TRIGGER AS $$
+DECLARE
+  photo RECORD;
+BEGIN
+  SELECT event_id, uploader_id INTO photo
+    FROM event_photos WHERE id = NEW.photo_id;
+
+  IF photo.uploader_id <> NEW.user_id THEN
+    INSERT INTO notifications (recipient_id, sender_id, type, event_id, payload)
+    VALUES (photo.uploader_id, NEW.user_id, 'photo_liked', photo.event_id,
+            jsonb_build_object('eventTitle',
+              (SELECT title FROM events WHERE id = photo.event_id)));
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS photo_reactions_notify ON photo_reactions;
+CREATE TRIGGER photo_reactions_notify
+  AFTER INSERT ON photo_reactions
+  FOR EACH ROW EXECUTE FUNCTION on_photo_reaction();
+
 -- Backfill so top_photos is correct the moment this lands. Runs after the
 -- migrating INSERT above, which predates the trigger.
+--
+-- The migrating INSERT also predates photo_reactions_notify, which is why it
+-- sits above this line: backfilling hearts must not fire a notification for
+-- every like anyone ever gave.
 UPDATE event_photos p
    SET like_count = (
      SELECT COUNT(*) FROM photo_reactions r WHERE r.photo_id = p.id
