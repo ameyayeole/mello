@@ -68,6 +68,12 @@ export function openNotificationTarget(
     router.push(`/events/wrap/${eventId}`);
     return;
   }
+  // Straight to the recap, not the hub — it is open now, so the hub is a tap
+  // in the way.
+  if (type === 'wrap_unlocked' && eventId) {
+    router.push(`/events/wrap/recap/${eventId}`);
+    return;
+  }
   if ((type === 'photo_liked' || type === 'photo_commented') && eventId) {
     router.push(`/events/wrap/gallery/${eventId}`);
     return;

@@ -78,7 +78,12 @@ export function notificationCopy(
     case 'wrap_ready':
       return {
         title: `How was ${eventTitle}?`,
-        body: 'Rate the people, drop your best photos, vote superlatives',
+        body: 'Add your photos and the people you met — wrap it up',
+      };
+    case 'wrap_unlocked':
+      return {
+        title: 'The wrap is open',
+        body: `Enough of you showed up for ${eventTitle} — go see it`,
       };
     case 'note_received':
       return {

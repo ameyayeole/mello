@@ -68,6 +68,7 @@ export type NotificationType =
   | 'mention'
   // Post-event wrap (migration 032)
   | 'wrap_ready'
+  | 'wrap_unlocked'
   | 'note_received'
   | 'photo_liked'
   | 'photo_commented'

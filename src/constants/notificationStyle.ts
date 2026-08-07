@@ -19,6 +19,9 @@ export const NOTIFICATION_ICONS: Record<
   mention: { icon: 'chat', color: '#4F7DF9', tint: '#EDF2FE' },
   // Post-event wrap (migration 032)
   wrap_ready: { icon: 'camera', color: '#FF5E5B', tint: '#FFF0EF' },
+  // 'gallery' is not a registered IconName — reusing wrap_ready's camera
+  // rather than adding a glyph in this task.
+  wrap_unlocked: { icon: 'camera', color: '#FF5E5B', tint: '#FFF0EF' },
   note_received: { icon: 'chat', color: '#D6478E', tint: '#FBE7F1' },
   photo_liked: { icon: 'heart', color: '#FF5E5B', tint: '#FFF0EF' },
   photo_commented: { icon: 'chat', color: '#4F7DF9', tint: '#EDF2FE' },
