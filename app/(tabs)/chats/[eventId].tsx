@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TextInput,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -87,9 +88,6 @@ import {
   activeMentionQuery,
   insertMention,
 } from '@/components/chat';
-import ProfileBottomSheet, {
-  ProfileBottomSheetRef,
-} from '@/components/profile/ProfileBottomSheet';
 import { WrapSheet } from '@/components/wrap/WrapSheet';
 import {
   messageExcerpt,
@@ -210,7 +208,18 @@ function GroupChatScreen() {
   const [pollComposerOpen, setPollComposerOpen] = useState(false);
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  const profileSheet = useRef<ProfileBottomSheetRef>(null);
+
+  // Tapping someone's photo opens their profile, the whole page — not the
+  // summary sheet this used to raise. In a group chat the person is usually a
+  // stranger, and the question being asked is "who is this", which is exactly
+  // what the page answers and the sheet only previews.
+  //
+  // Dismiss first: on Android the keyboard survives a push and ends up sitting
+  // over the profile.
+  function openProfile(userId: string) {
+    Keyboard.dismiss();
+    router.push(`/friends/${userId}`);
+  }
 
   // Full event detail: header info, host, participants (mentions + host
   // controls), chat lock + pinned message (migration 030 columns).
@@ -885,7 +894,7 @@ function GroupChatScreen() {
                 onReadersPress={() => setReceiptFor(item)}
                 onRetry={() => retry(item)}
                 onLongPress={longPress}
-                onAvatarPress={() => profileSheet.current?.open(item.sender_id)}
+                onAvatarPress={() => openProfile(item.sender_id)}
                 reply={
                   item.reply_to_id
                     ? {
@@ -1109,8 +1118,6 @@ function GroupChatScreen() {
         }}
         onClose={() => setReacting(null)}
       />
-      <ProfileBottomSheet ref={profileSheet} />
-
       {event && hasWrapped(event) && (
         <WrapSheet
           visible={wrapSheetOpen}
