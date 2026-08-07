@@ -516,6 +516,73 @@ This also removes the one place this design was going to ship deliberate
 duplication against `AGENTS.md`'s anti-fork rule. Nothing now needs to be built
 twice and deleted.
 
+### 7.4 The wrap itself — what all of this opens
+
+Everything above is machinery for opening a door. This is what is behind it, and
+it had no design until 2026-08-07 — the gate, the flow and the surfaces were all
+specified first.
+
+Today that is `app/events/wrap/recap/[eventId].tsx` (307 lines): a title, three
+stat cards, superlative winners, a photo strip, one footer button. It is not a
+payoff for something you had to earn.
+
+#### The shape falls out of the RLS, not out of taste
+
+"Show everything from the contribution" is impossible, because the flow
+deliberately gathers private things. What each one permits:
+
+| Gathered | RLS | On the page |
+|---|---|---|
+| Photos | attendees | **shared** |
+| Superlative votes | anonymous; winner revealed at **3+ votes** (`033:140`) | **shared** — winners only, never voters |
+| Rewind | `is_event_attendee` | **shared** — the count |
+| Thumbs | `USING (rater_id = auth.uid())` (`032:69`) | **yours** — only *"N people thumbed you up"* |
+| Notes | `USING (auth.uid() IN (sender_id, recipient_id))` (`032:125`) | **yours** — only notes written to you |
+| Event feedback | `USING (user_id = auth.uid())` (`032:436`) | **neither** — host-only aggregate, elsewhere |
+
+So the wrap is **half shared, half yours**: the same night, a different page per
+person. That is a better idea than showing everything and it was not invented —
+it is what the schema already permits. Do not try to widen it.
+
+```
+   That's a wrap
+   Sunrise trek to Skandagiri · Sat 8 Aug
+
+   ── the night ───────────────────────  identical for everyone
+   12 photos · 8 people · 34 reactions
+   [ photo grid — tap through to the gallery ]
+   Superlatives — the four winners
+   5 people want to run it back
+
+   ── yours ───────────────────────────  only you see this
+   6 people thumbed you up
+   2 notes left for you   (sealed — tap to open)
+```
+
+`SealedNoteRow` and `useWrapNotes` already exist for the last block.
+
+#### Highlights = comments and reactions on photos
+
+**Comments already ship**: `wrap_photo_comments` with mentions, RLS, composer
+and list, wired into the gallery (`gallery/[eventId].tsx:279`). Two changes:
+
+- **Threads.** The table's `PRIMARY KEY (photo_id, user_id)` allows exactly one
+  comment per person per photo. Replace it with an `id` so a conversation can
+  happen under a photo.
+- **Reactions replace the like.** Photos currently have a binary
+  `wrap_photo_likes`. Chat already has a full tapback system — `message_reactions`
+  (`041`) plus `ReactionBar`, `ReactionPills`, `ReactionOverlay`. Reuse all of
+  it, including **the same four emoji**: `ReactionBar`'s `TAPBACKS` is
+  `['❤️','👍','👎','😂']`, and its comment explains the count — *"Four, not six.
+  More turns a one-glance choice into a menu."* A react should mean the same
+  thing in a photo as in a message.
+
+**`like_count` becomes a total reaction count.** It is denormalised on
+`event_photos` and it is what orders `top_photos` — which is what a shared wrap
+card shows in the Community feed (`get_explore_wraps`, `get_wrap_card`).
+Something must still decide which six photos represent the night; keeping the
+column and redefining what it counts leaves that working untouched.
+
 ---
 
 ## 8. Icons
@@ -533,12 +600,14 @@ The 📸 at `chats/[eventId].tsx:734` goes too.
 ## 9. Out of scope
 
 - **A photo picker for sharing.** Shared wraps keep `top_photos` — the six most
-  liked, auto-selected. Manual selection would need chosen IDs stored on the
-  post; explicitly deferred.
-- Reactions and emoji on wrap content — those belong to *viewing*, not
-  contributing.
-- Voting on highlights / favourite moments — also view-time.
-- Any change to `get_explore_wraps` or the public wrap surface.
+  reacted-to, auto-selected. Manual selection would need chosen IDs stored on
+  the post; explicitly deferred.
+- Any change to `get_explore_wraps` or the public wrap surface. Phase 4
+  redefines what `like_count` *counts* precisely so this stays true.
+
+Reactions and highlights were previously listed here as out of scope for being
+"view-time". They now have a home — **§7.4, Phase 4**. Deferring them without a
+phase to land in was how they nearly got lost.
 
 ---
 
@@ -599,8 +668,17 @@ range would mean a regression could not be bisected to either.
 `seenFlags.ts`, not a new key format); the chat banner upgrade and the removal
 of its auto-open; and the Home row's copy, hide rule and destination.
 
-Phase 1 must land before 2 and 3 — both read `contributorCount`. Phases 2 and 3
-are independent of each other.
+**Phase 4 — the wrap itself.** The "That's a wrap" page (§7.4) with its
+shared/yours split; photo reactions replacing the binary like, reusing chat's
+tapback components; and comment threads under photos.
+
+Phase 1 must land before 2, 3 and 4 — they all read `contributorCount`. Phases
+2, 3 and 4 are independent of each other.
+
+**Build 4 early, not last.** It is the only phase a user actually *sees* as a
+reward, and the other three are gates in front of it. Shipping the machinery
+first and the payoff last means every device test until then is judging a lock
+with nothing behind it.
 
 ---
 

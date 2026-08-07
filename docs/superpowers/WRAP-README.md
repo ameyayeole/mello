@@ -47,6 +47,8 @@ The wrap changes from a **private checklist** into a **group artifact**:
    `wrap_contributions` row.
 3. A **dealt card** at launch becomes the one post-event takeover; the chat's
    auto-opening sheet is retired.
+4. What it opens is a **"That's a wrap" page** — the night everyone shares, then
+   a half only you see — with emoji reactions and comment threads on its photos.
 
 **Tone:** playful and energetic. Lottie character animation is the hero.
 
@@ -57,24 +59,32 @@ The wrap changes from a **private checklist** into a **group artifact**:
 | Read | For |
 | --- | --- |
 | **[spec](specs/2026-08-07-wrap-social-gate-design.md)** | the design and every *why*. Read before any plan. |
-| [Lottie manifest](specs/2026-08-07-wrap-lottie-manifest.md) | the 7 motion assets, 2 blocking |
+| [Lottie manifest](specs/2026-08-07-wrap-lottie-manifest.md) | the 7 motion assets — none blocking |
 | [Phase 1 plan](plans/2026-08-07-wrap-social-gate-phase-1.md) | the gate — migrations, RPC, unlock rule |
 | [Phase 2a plan](plans/2026-08-07-wrap-social-gate-phase-2a.md) | the flow shell + the marker write |
 | [Phase 2b plan](plans/2026-08-07-wrap-social-gate-phase-2b.md) | carousel, note-on-card, reasons, hold |
 | [Phase 3 plan](plans/2026-08-07-wrap-social-gate-phase-3.md) | launch card, chat pin, Home |
+| [Phase 4 plan](plans/2026-08-07-wrap-social-gate-phase-4.md) | **the wrap itself** — the page, reactions, threads |
 
 **Order is not optional.** Phase 1 builds the gate; **2a is what makes it
 useful** — until the marker row is written, no wrap ever opens except by
-force-unlock. 2b and 3 are independent of each other but both need 2a.
+force-unlock. 2b, 3 and 4 are independent of each other but all need 1.
 
 ```
 Phase 1 ──▶ Phase 2a ──┬──▶ Phase 2b
-  gate       the flow   └──▶ Phase 3
+  gate       the flow   ├──▶ Phase 3
+   │                    │
+   └────────────────────┴──▶ Phase 4  ← build this early
 ```
+
+**Build Phase 4 early, not last.** Phases 1–3 are all machinery for *opening* a
+door; Phase 4 is what is behind it, and it is the only one a user experiences as
+a reward. Ship the gates first and every device test until the end is judging a
+lock with nothing behind it.
 
 ---
 
-## The five decisions most likely to get quietly undone
+## The six decisions most likely to get quietly undone
 
 Each of these looks like arbitrary friction from inside the code. Each has a
 reason, and the reason is in the spec.
@@ -98,6 +108,12 @@ reason, and the reason is in the spec.
 
 5. **The threshold `N` lives in SQL only.** If the client also computed it, two
    app versions could disagree about whether a wrap is unlocked. Spec §4.2.
+
+6. **The wrap page is half shared, half yours.** Thumbs, notes and event
+   feedback are viewer-scoped *by RLS* — everyone sees the same photos and
+   winners, then a slice only they can see. `recapSections`
+   (`src/utils/wrapRecap.ts`) is a tested pure function precisely because a leak
+   here renders as a perfectly good-looking page. Spec §7.4.
 
 ---
 
@@ -127,8 +143,8 @@ npm run lint        # 0 errors / 65 warnings pre-existing — don't add
 **There is no component or screen test coverage** — Reanimated 4 throws on
 import under Jest — so **`tsc` passing does not mean the UI is right.** That is
 why every phase extracts its rules into pure functions (`wrapGate.ts`,
-`wrapRating.ts`, `wrapDeal.ts`, `wrapFlowStore.ts`) and why every phase ends
-with a device sheet in `docs/testing/`.
+`wrapRating.ts`, `wrapDeal.ts`, `wrapRecap.ts`, `wrapFlowStore.ts`) and why every
+phase ends with a device sheet in `docs/testing/`.
 
 **Test on Android specifically.** `SafeAreaView` is a no-op there, there is no
 true backdrop blur so `Glass` falls back to a flat fill, and that whole class of
