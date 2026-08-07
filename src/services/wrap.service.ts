@@ -48,7 +48,13 @@ export async function getCoAttendees(
         .single(),
       supabase
         .from('event_participants')
-        .select('user_id, status, profile:profiles(*)')
+        // `profiles!user_id`, not plain `profiles`: event_participants has TWO
+        // foreign keys to profiles — user_id and checked_in_by — so an
+        // unqualified embed is ambiguous and PostgREST answers 300 PGRST201
+        // rather than 200. That rejected this whole Promise.all, so the wrap
+        // hub sat on a spinner with no checklist and no error. The check-in
+        // feature added the second FK; nothing in TypeScript can see this.
+        .select('user_id, status, profile:profiles!user_id(*)')
         .eq('event_id', eventId)
         .eq('status', 'approved'),
     ]);

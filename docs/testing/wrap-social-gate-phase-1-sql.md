@@ -98,7 +98,19 @@ this.
 > ⚠️ **`auth.uid()` is NULL in the SQL editor.** You run as `postgres`, not as a
 > logged-in user, so there is no JWT to read a subject from. A check written
 > `... = auth.uid()` therefore matches **nothing** and reports a cheerful,
-> meaningless pass. B3 and B4 below pick a real user id from the data instead.
+> meaningless pass.
+>
+> Since **migration 079** this matters more: `get_wrap_gate` now refuses any
+> caller whose `auth.uid()` is not `p_user_id`, so calling it as plain `postgres`
+> always raises — B3 would "pass" for the wrong reason. Both blocks below adopt
+> the caller's identity first:
+>
+> ```sql
+> SET LOCAL request.jwt.claims = '{"sub":"<user-uuid>","role":"authenticated"}';
+> SET LOCAL ROLE authenticated;
+> ```
+>
+> That is the only way to reproduce what the app actually does.
 
 ### B3. The non-attendee guard
 
@@ -148,19 +160,47 @@ SELECT * FROM _b3_log;
 If `result` is `RETURNED ROWS — LEAK`, stop — the function leaks contributor
 lists for events the caller never attended.
 
-### B4. The happy path
-
-No procedural code needed — this one is a plain query.
+### B4. The happy path — and that impersonation is refused (079)
 
 ```sql
-WITH me AS (
-  SELECT ep.user_id, ep.event_id
+DROP TABLE IF EXISTS _b4_log;
+CREATE TEMP TABLE _b4_log (check_name TEXT, result TEXT, expected TEXT);
+
+DO $$
+DECLARE v_user UUID; v_event UUID; v_other UUID; r RECORD; msg TEXT;
+BEGIN
+  SELECT ep.user_id, ep.event_id INTO v_user, v_event
+    FROM event_participants ep WHERE ep.status='approved' LIMIT 1;
+  SELECT ep.user_id INTO v_other
     FROM event_participants ep
-   WHERE ep.status = 'approved'
-   LIMIT 1
-)
-SELECT g.*
-  FROM me, LATERAL get_wrap_gate(me.event_id, me.user_id) g;
+   WHERE ep.event_id = v_event AND ep.user_id <> v_user LIMIT 1;
+
+  -- as yourself: must succeed
+  EXECUTE format('SET LOCAL request.jwt.claims = %L',
+    json_build_object('sub', v_user, 'role','authenticated')::text);
+  SET LOCAL ROLE authenticated;
+  SELECT * INTO r FROM get_wrap_gate(v_event, v_user);
+  RESET ROLE;
+  INSERT INTO _b4_log VALUES ('as self',
+    format('have=%s need=%s hrs=%s', r.contributor_count, r.contributors_needed, r.hours_since_end),
+    'one row, plausible numbers');
+
+  -- as someone else: must be refused
+  BEGIN
+    EXECUTE format('SET LOCAL request.jwt.claims = %L',
+      json_build_object('sub', v_other, 'role','authenticated')::text);
+    SET LOCAL ROLE authenticated;
+    PERFORM * FROM get_wrap_gate(v_event, v_user);
+    RESET ROLE;
+    INSERT INTO _b4_log VALUES ('impersonating another user','ALLOWED — HOLE OPEN','refused');
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS msg = MESSAGE_TEXT; RESET ROLE;
+    INSERT INTO _b4_log VALUES ('impersonating another user', msg,
+      'get_wrap_gate may only be called for the authenticated user');
+  END;
+END $$;
+
+SELECT * FROM _b4_log;
 ```
 
 **Expected:** one row. `contributor_count` 0, `contributors_needed` per the
