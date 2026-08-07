@@ -1,7 +1,9 @@
 # Wrap — social gate, contribution flow and post-event surfaces
 
 **Date:** 2026-08-07
-**Status:** design, approved in brainstorm; not yet planned
+**Status:** approved. Phase 1 planned →
+`docs/superpowers/plans/2026-08-07-wrap-social-gate-phase-1.md`.
+Phases 2 and 3 not yet planned.
 
 ---
 
@@ -59,7 +61,7 @@ is the correction.
 ## 3. What is actually new
 
 1. `wrap_contributions` table + contributor count/list (§4)
-2. A server-side `get_wrap_status` RPC (§4.4) — the client cannot count other
+2. A server-side `get_wrap_gate` RPC (§4.4) — the client cannot count other
    people's completion
 3. The 48-hour clock and the force-unlock path (§4.3)
 4. The turn: card flip → **scale-to-fill** entry into the flow (§5.0)
@@ -144,11 +146,29 @@ most likely way the feature fails in the wild.
 
 Three clocks, held apart on purpose:
 
-| Clock | Value | Controls |
-|---|---|---|
-| Contribution window | **48h** | urgency to contribute |
-| Force-unlock | **after 48h** | the "unlock anyway" prompt |
-| Home entry card | **7d** | how long the card stays on Home |
+| Clock | Value | Controls | Owned by |
+|---|---|---|---|
+| **Force-unlock** | 48h | when "unlock anyway" appears | new, this phase |
+| Contribution window | **7 days, unchanged** | how long you may contribute | `wrap_window_open()` |
+| Home entry card | 7 days | how long the card stays on Home | `getLatestWrappableEvent` |
+
+#### 48h is the unlock clock only — contributing stays open all week
+
+**Decided 2026-08-07 after checking the schema.** `wrap_window_open()`
+(`supabase/migrations/032_wrap.sql:31`) gates **seven** RLS policies — photos,
+ratings, notes, superlative votes, feedback and both encore policies. Dropping
+it to 48 hours would close all seven at once: open the app on day three and you
+could not add a photo.
+
+**Do not change `wrap_window_open`.** This phase adds no restriction on
+contributing; it only adds a way out of the lock.
+
+The consequence is deliberate and good: because contributing stays open for
+seven days, `contributorCount` can still cross `N` on day four and open the wrap
+**naturally**. The gate stays live all week, and force-unlock remains the
+exception rather than the normal path. Had contribution frozen at 48h, the count
+would freeze with it and force-unlock would become the only route for most
+events — making the social gate decorative after day two.
 
 At 48h the Home card **flips copy** — "Wrap up last night" → "View wrap" — rather
 than disappearing. Urgency is short; the tail for revisiting is long.
@@ -163,18 +183,32 @@ queries with no RPC. Counting other people's completion client-side would requir
 reading every attendee's ratings, photos and votes — not possible under RLS and
 not desirable if it were.
 
-Add `get_wrap_status(p_event_id, p_user_id)` as `SECURITY DEFINER`, returning the
-existing `WrapStatus` fields plus:
+Add `get_wrap_gate(p_event_id, p_user_id)` as `SECURITY DEFINER`, returning
+**only what the client cannot derive**:
 
 ```
-contributorCount   INT
-contributorsNeeded INT      -- N, computed server-side
-contributors       JSONB    -- [{id, name, photo_url}] for the incentive list
-hoursSinceEnd      INT
+contributor_count   BIGINT   -- cast to Number on the client; BIGINT arrives as a string
+contributors_needed INT      -- N, computed server-side
+contributors        JSONB    -- [{id, name, photo_url}] for the incentive list
+hours_since_end     INT
 ```
 
-`contributorsNeeded` is computed **server-side** so the threshold cannot drift
+`getWrapStatus` gains a ninth parallel call to this and merges the result, so
+there is still one status object and one call site.
+
+`contributors_needed` is computed **server-side** so the threshold cannot drift
 between client versions.
+
+**Lean and additive, not a replacement.** An earlier draft of this section
+proposed a full `get_wrap_status` RPC subsuming all eight existing client
+queries. That was rejected while planning: reproducing eight working queries in
+SQL is a refactor smuggled inside a feature, it triples the blast radius, and it
+buys no capability the lean version lacks. `AGENTS.md` — don't mix a refactor
+with a redesign.
+
+Because it is `SECURITY DEFINER`, the function must **re-assert
+`is_event_attendee` itself** — it bypasses RLS, so without that check it would
+hand contributor lists to anyone who guessed an event id.
 
 ### 4.5 Type change
 
@@ -506,7 +540,7 @@ path. Split it into three phases, each with its own plan and its own device
 pass. Each phase leaves the app shippable.
 
 **Phase 1 — the gate.** Migrations 074 (`wrap_contributions`) and 075
-(`get_wrap_status` RPC); `WrapStatus` gains its four fields; `recapUnlocked`
+(`get_wrap_gate` RPC); `WrapStatus` gains its four fields; `recapUnlocked`
 moves to the §4.3 expression; the force-unlock prompt; contributor count and
 list surfaced in the existing hub. No new screens. *This phase is the one with
 real risk — everything else is UI on top of it.*
@@ -531,7 +565,7 @@ are independent of each other.
 - `npm test` → green
 - `npm run lint` → no new warnings beyond the pre-existing 65
 - Migrations **074** (`wrap_contributions` + RLS) and **075**
-  (`get_wrap_status` RPC) applied whole-file in the Supabase SQL editor
+  (`get_wrap_gate` RPC) applied whole-file in the Supabase SQL editor
 
 There is no component-test coverage — Reanimated 4 throws under Jest — so
 **`tsc` passing does not mean the UI is right.** A device test sheet goes in
