@@ -1,5 +1,29 @@
 # Phase 4 — SQL to apply and verify
 
+## Run — 2026-08-08, all green
+
+077 and 078 were **already applied**, including the three corrections this repo
+made to the plan (the UPDATE policy, the `TG_OP` branch, and
+`photo_reactions_notify`). Verified with `npm run sql`.
+
+The first pass of A1/A2/B1 passed **trivially** — every table was empty, so
+"0 likes became 0 hearts" proved nothing. `supabase/seed_iris_wrap.sql` was
+written to give them real rows, and they were re-run against it:
+
+| | check | result |
+|---|---|---|
+| A2 | `like_count` vs reaction rows, over 9 real reactions | `mismatched = 0` ✅ — the count trigger fires on insert |
+| B1 | comments vs distinct ids, over 4 real comments | `4 = 4` ✅ — the volatile default did rewrite per row |
+| — | two comments by one person on one photo | srishank ×2 ✅ — impossible before 078 |
+| — | awards decided at 3+ votes | all four categories ✅ |
+
+Still not exercised: **A4** (reaction notifies once, re-reacting does not) and
+**B2** (two comments insert). The seed disables `photo_reactions_notify` while
+it runs, so the notification path specifically has not been observed — A4 is
+still worth running on its own.
+
+
+
 Run in the Supabase SQL editor, in order, and paste the output back. As with
 Phase 1, the build environment has no database access, so none of this has been
 observed.
