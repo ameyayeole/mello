@@ -435,21 +435,34 @@ async function getWrapGate(
   eventId: string,
   userId: string
 ): Promise<WrapGateRow> {
+  // Locked, not open: if the gate cannot be read we must not guess the group
+  // showed up. The 48h escape hatch still releases the recap either way.
+  const locked: WrapGateRow = {
+    contributor_count: 0,
+    contributors_needed: 2,
+    contributors: [],
+    hours_since_end: 0,
+  };
+
   const { data, error } = await supabase.rpc('get_wrap_gate', {
     p_event_id: eventId,
     p_user_id: userId,
   });
 
-  if (error) throw error;
+  // Deliberately swallowed. getWrapStatus is a single Promise.all, so throwing
+  // here takes the other eight queries down with it and the wrap hub sits on a
+  // spinner forever — no checklist, no photos, no error, nothing to act on.
+  // That is not hypothetical: it happened on 2026-08-08, when PostgREST was
+  // still serving a schema cache from before migration 075 and every rpc() call
+  // 404'd. One new RPC should not be able to brick a screen that has eight
+  // working queries on it.
+  if (error) {
+    console.warn('[wrap] get_wrap_gate unavailable, treating as locked:', error.message);
+    return locked;
+  }
+
   const rows = (data ?? []) as WrapGateRow[];
-  return (
-    rows[0] ?? {
-      contributor_count: 0,
-      contributors_needed: 2,
-      contributors: [],
-      hours_since_end: 0,
-    }
-  );
+  return rows[0] ?? locked;
 }
 
 // Everything the checklist needs, fetched in parallel.
