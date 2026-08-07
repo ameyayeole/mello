@@ -342,6 +342,14 @@ export type PhotoReportReason =
   | 'remove_me'
   | 'other';
 
+// Someone who finished the wrap's contribution flow. Shown on the wrap hub so
+// the people who have not yet contributed can see who has.
+export interface WrapContributor {
+  id: string;
+  name: string;
+  photo_url: string | null;
+}
+
 // The caller's progress through the wrap checklist for one event.
 export interface WrapStatus {
   coAttendeeCount: number;
@@ -353,6 +361,16 @@ export interface WrapStatus {
   viewCount: number;
   encoreRequested: boolean;
   encoreCount: number;
+  // ── The social gate (get_wrap_gate, migration 075) ────────────────────────
+  // How many people finished the whole contribution flow.
+  contributorCount: number;
+  // How many are required before the recap opens. Computed SERVER-SIDE and
+  // never recomputed here — two app versions must not disagree about whether a
+  // wrap is unlocked.
+  contributorsNeeded: number;
+  contributors: WrapContributor[];
+  // Negative before the event ends. Only compared against 48 (see wrapGate.ts).
+  hoursSinceEnd: number;
 }
 
 export interface CoAttendee {

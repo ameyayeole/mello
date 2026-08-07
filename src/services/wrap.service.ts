@@ -11,6 +11,7 @@ import {
   WrapNote,
   WrapPhoto,
   WrapPhotoComment,
+  WrapContributor,
   WrapStatus,
   WrapSummary,
 } from '@/types/models';
@@ -413,6 +414,38 @@ export async function withdrawEncore(
 
 // ── Status, views, recap ─────────────────────────────────────────────────────
 
+interface WrapGateRow {
+  contributor_count: number;
+  contributors_needed: number;
+  contributors: WrapContributor[];
+  hours_since_end: number;
+}
+
+// The part of the wrap's state the client cannot derive: how many other people
+// finished the flow, and the threshold. Counting other people's completion is
+// impossible client-side under RLS — hence an RPC. The threshold comes back
+// from the server rather than being recomputed here on purpose.
+async function getWrapGate(
+  eventId: string,
+  userId: string
+): Promise<WrapGateRow> {
+  const { data, error } = await supabase.rpc('get_wrap_gate', {
+    p_event_id: eventId,
+    p_user_id: userId,
+  });
+
+  if (error) throw error;
+  const rows = (data ?? []) as WrapGateRow[];
+  return (
+    rows[0] ?? {
+      contributor_count: 0,
+      contributors_needed: 2,
+      contributors: [],
+      hours_since_end: 0,
+    }
+  );
+}
+
 // Everything the checklist needs, fetched in parallel.
 export async function getWrapStatus(
   eventId: string,
@@ -427,6 +460,7 @@ export async function getWrapStatus(
     { data: view, error: viewErr },
     { data: encores, error: encoreErr },
     { data: event, error: eventErr },
+    gate,
   ] = await Promise.all([
     getCoAttendees(eventId, userId),
     getMyRatings(eventId, userId),
@@ -450,6 +484,7 @@ export async function getWrapStatus(
       .maybeSingle(),
     supabase.from('encore_requests').select('user_id').eq('event_id', eventId),
     supabase.from('events').select('host_id').eq('id', eventId).single(),
+    getWrapGate(eventId, userId),
   ]);
 
   if (photosErr) throw photosErr;
@@ -468,6 +503,10 @@ export async function getWrapStatus(
     viewCount: (view as any)?.view_count ?? 0,
     encoreRequested: (encores ?? []).some((e: any) => e.user_id === userId),
     encoreCount: (encores ?? []).length,
+    contributorCount: Number(gate.contributor_count ?? 0),
+    contributorsNeeded: gate.contributors_needed ?? 2,
+    contributors: gate.contributors ?? [],
+    hoursSinceEnd: gate.hours_since_end ?? 0,
   };
 }
 
