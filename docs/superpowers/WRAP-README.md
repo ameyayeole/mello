@@ -136,10 +136,15 @@ bug is invisible on iOS.
 
 ---
 
-## Still outstanding, and not the implementer's to decide
+## Still outstanding
 
-- **The brand logo has not been delivered.** `MelloLogo` stands in on the launch
-  card. **Lottie L1 is blocked on it** — it animates over that mark.
+**One thing, and it needs a device rather than a decision.**
+
 - **Which Home treatment survives** (§7.3). Both get built and compared on a
-  device; the loser is deleted before merge. If both are still in the tree at
+  real feed; the loser is deleted before merge. If both are still in the tree at
   review, Phase 3 Task 5 is not finished.
+
+The logo question is **closed** — `MelloPin` (`@/components/ui`) is the mark on
+the launch card. Note the file `MelloLogo.tsx` exports `MelloPin` and
+`MelloWordmark`; **there is no component called `MelloLogo`**. Nothing in these
+plans is blocked, including Lottie L1.

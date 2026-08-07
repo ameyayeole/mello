@@ -246,16 +246,24 @@ git commit -m "feat(wrap): decide whether to deal the launch card"
 - Modify: `app/_layout.tsx`
 
 **Interfaces:**
-- Consumes: `useWrapDeal`, `DealtCard`, `MelloLogo`.
+- Consumes: `useWrapDeal`, `DealtCard`, `MelloPin` (from `@/components/ui`).
 - Produces: `<WrapDealtCard />` — no props, root-mounted.
 
 Spec §5.0 and §7.1.
 
 - [ ] **Step 1: Build the card.** Face carries **"Wrap it up"** on its lower
-      third; the whole face is the hit target. Back carries the brand logo —
-      **not yet supplied, so use `MelloLogo`**. Tapping flips to the logo face,
-      holds ~150ms, then scales that face to fill the viewport and pushes
-      `/events/wrap/flow/{eventId}`.
+      third; the whole face is the hit target. Back carries **`MelloPin`**
+      (`import { MelloPin } from '@/components/ui'`) — the brand mark, not a
+      placeholder. Tapping flips to the pin face, holds ~150ms, then scales that
+      face to fill the viewport and pushes `/events/wrap/flow/{eventId}`.
+
+  **The component is `MelloPin`, not `MelloLogo`.** `MelloLogo.tsx` is the file;
+  its exports are `MelloPin`, `MelloWordmark` and `CoralGlow`. Use the pin —
+  the wordmark is for auth screens, where the app is introducing itself.
+
+  Do not extend the pin's gradient onto the card body. `MelloLogo.tsx` states
+  the rule: *"Gradient is reserved for the logo pin only."* The card is a
+  surface; the pin is the mark.
 
 ```tsx
 // The app's one uninvited full-screen moment, and it fires once per event.
@@ -278,12 +286,12 @@ Spec §5.0 and §7.1.
       never deal again for that event**, including after an app restart — that
       is the whole point of the flag.
 
-- [ ] **Step 3: Leave the Lottie hook.** Where the logo face reveals:
+- [ ] **Step 3: Leave the Lottie hook.** Where the pin face reveals:
 
 ```tsx
-        {/* Lottie L1 goes here, played once on the reveal. Blocked on the
-            brand logo — it animates over that mark, so commissioning it first
-            means the two get designed against each other. See
+        {/* Lottie L1 goes here, played once on the reveal, over the pin.
+            `celebration.json` stands in until it exists — the card works
+            without it, it just lands flat. See
             docs/superpowers/specs/2026-08-07-wrap-lottie-manifest.md. */}
 ```
 
@@ -506,6 +514,7 @@ git commit -m "docs(wrap): device sheet for the wrap surfaces"
 
 ## After this phase
 
-The spec's §7.3 open question is closed by Task 5, and §13's remaining unknown —
-the brand logo — is still outstanding. Lottie **L1** cannot be commissioned
-until it lands.
+The spec's §7.3 open question is closed by Task 5. **No design questions
+remain** — the logo question closed on 2026-08-07 with `MelloPin` as the mark,
+so Lottie L1 can be commissioned whenever you want it. Everything ships without
+it; the card just lands flat until it exists.

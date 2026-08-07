@@ -28,11 +28,15 @@ Priority: **P0** blocks the phase · **P1** ships better with it · **P2** polis
 - **Where:** §5.0 the turn; §7.1 the launch dealt card
 - **Moment:** plays as the card lands on its logo face, before the scale-to-fill
 - **Length:** ≤ 1.0s, **must not loop**
-- **Notes:** this is the hero. It plays over the user-supplied logo, so it needs
-  a transparent background and must not fight a mark it cannot see yet. Ask for
-  it as a character *entering and reacting*, not a full-frame burst.
-- **Blocked on:** the logo. Commission after the logo lands, or the two will be
-  designed against each other.
+- **Notes:** this is the hero. It plays over **`MelloPin`** — the brand pin,
+  which is the mark (decided 2026-08-07; there is no separate logo coming). Give
+  the designer the pin's actual geometry from
+  `src/components/ui/MelloLogo.tsx`: a 364×520 teardrop pin filled with the
+  `COLORS.primary → COLORS.secondary` gradient.
+- **Ask for** a character *entering and reacting to* the pin, not a full-frame
+  burst — the pin must stay readable throughout, and it must not be recoloured.
+  That gradient is the app's only sanctioned one and belongs to the pin alone.
+- **Not blocked.** This was previously waiting on a logo that was never coming.
 
 ### L2 · Rewind hold — **P0**
 
@@ -104,8 +108,7 @@ Priority: **P0** blocks the phase · **P1** ships better with it · **P2** polis
 
 ## Open
 
-- **The logo is not delivered.** L1 is blocked on it; the prototype uses a
-  placeholder mark.
+- **Nothing is blocked.** The logo question is closed — `MelloPin` is the mark.
 - Nobody has been briefed yet. L1 and L2 are the only P0s — the flow can ship
   behind static glyphs for everything else, and probably should on the first
   device pass so the motion can be judged against something.

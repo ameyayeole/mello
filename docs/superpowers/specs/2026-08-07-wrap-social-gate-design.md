@@ -75,7 +75,8 @@ is the correction.
 
 Motion assets are tracked separately in
 **`2026-08-07-wrap-lottie-manifest.md`** — two of them (the card reveal and the
-rewind hold) are P0 and one is blocked on the logo.
+rewind hold) are P0. None are blocked; every phase ships without them, just
+flatter.
 
 ---
 
@@ -243,6 +244,16 @@ Tapping it flips the card to its logo face, holds, then scales that face up
 until it fills the viewport and *becomes* the flow. One continuous gesture
 carries you in: no navigation push, no modal seam.
 
+**The logo face is `MelloPin`** (`src/components/ui/MelloLogo.tsx`, exported
+from `@/components/ui`). Decided 2026-08-07: the brand pin *is* the mark, so
+there is nothing to wait for. Note the file exports `MelloPin` and
+`MelloWordmark` — **there is no component called `MelloLogo`.**
+
+The pin carries the one sanctioned gradient in the app —
+`COLORS.primary → COLORS.secondary`, and `MelloLogo.tsx` states the rule
+plainly: *"Gradient is reserved for the logo pin only."* Do not extend that
+gradient onto the card body; the card is a surface, the pin is the mark.
+
 **Why the CTA is on the card.** A button underneath makes the card an
 illustration and the button the thing you press — two objects, one of them
 decorative. With the label on its face the card *is* the affordance, so the
@@ -255,7 +266,8 @@ That also means the whole card face is the hit target, not just the label.
   interactive by ~1.5s.
 - `DealtCard` already owns the turn and the tilt. **Only the scale-to-fill is
   new.**
-- The logo is user-supplied and not yet delivered — `MelloLogo` stands in.
+- The mark is `MelloPin`, decided rather than deferred — nothing is waiting on
+  a logo.
 
 ### 5.1 Photos — a fixed-ratio carousel
 
@@ -443,9 +455,10 @@ Composes `DealtCard` (`src/components/ui/DealtCard.tsx`). Mounted at root in
 `app/_layout.tsx` alongside `EventDealtCard` and `InAppNotification`, which are
 root-mounted for the same reason: to clear navigation barriers.
 
-- **Card back:** the brand logo. **Placeholder until supplied** — use
-  `MelloLogo` meanwhile.
-- **Reveal:** Lottie character; `assets/lottie/celebration.json` stands in.
+- **Card back:** `MelloPin` from `@/components/ui` — the brand mark, not a
+  placeholder (§5.0).
+- **Reveal:** Lottie **L1**, playing over the pin. `celebration.json` stands in
+  until L1 exists.
 - **Trigger:** `useWrapEntry()` returns an event, within 48h of end, not yet dealt.
 - **Dismiss:** marks the event seen via **`src/services/seenFlags.ts`** —
   `markFlagSeen('wrapDeal', userId, eventId)` — and **never deals again**.
@@ -608,9 +621,11 @@ tested without a renderer — the pattern `participationMutations` uses in
 **None blocking.** Event feedback — the last item held open — was resolved on
 2026-08-07: it sits between Rewind and Done, guests only. See §5.5.
 
-Two things remain unknown but do not block planning:
+The logo question closed the same day: **`MelloPin` is the mark** (§5.0), so
+nothing — including Lottie L1 — is waiting on an asset.
 
-- **The logo has not been delivered.** §5.0 and §7.1 both render it; `MelloLogo`
-  stands in, and Lottie **L1** is blocked on it (see the Lottie manifest).
+One thing remains open, and it needs a device rather than a decision:
+
 - **Which Home treatment survives** (§7.3). Deliberately deferred to a device
-  comparison — it cannot be judged in a browser.
+  comparison — whether the wrap earns the top of a real feed cannot be judged
+  in a browser or against an empty account.
