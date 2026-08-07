@@ -12,8 +12,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useWrapSummary } from '@/hooks/useWrap';
+import { useWrap, useWrapSummary } from '@/hooks/useWrap';
 import { useWrapGallery } from '@/hooks/useWrapGallery';
+import { useWrapNotes } from '@/hooks/useWrapNotes';
+import { SealedNoteRow } from '@/components/wrap/SealedNoteRow';
+import { recapSections } from '@/utils/wrapRecap';
 import { getEventDetail } from '@/services/events.service';
 import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
@@ -58,14 +61,33 @@ function AwardCard({ winner }: { winner: SuperlativeWinner }) {
   );
 }
 
-// The one dark, celebratory moment: the night's numbers, award winners and a
-// glimpse of the gallery. Unlocked by finishing the wrap checklist.
+// The one dark, celebratory moment — and the only screen that is half public
+// and half private. Everything above the "yours" divider is the same for every
+// attendee; everything below it is scoped to the viewer by RLS.
+//
+// The split comes from recapSections (src/utils/wrapRecap.ts) and `summary` is
+// deliberately NOT read directly below — that is how a private field ends up
+// above the line, and a leak here renders as a perfectly good-looking page.
 export default function WrapRecapScreen() {
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const summaryQuery = useWrapSummary(eventId, true);
   const summary = summaryQuery.data;
+  const { status } = useWrap(eventId);
   const { sortedPhotos } = useWrapGallery(eventId);
+  const { notesQuery, open } = useWrapNotes();
+
+  const sections = summary ? recapSections(summary, status) : null;
+
+  // Notes are fetched for the whole inbox, so narrow them to this event.
+  const eventNotes = (notesQuery.data ?? []).filter(
+    (n) => n.event_id === eventId
+  );
+
+  // A viewer with no thumbs and no notes should not see a "yours" heading
+  // over nothing.
+  const hasYours =
+    !!sections && (sections.yours.thumbsReceived > 0 || eventNotes.length > 0);
 
   const { data: event } = useQuery({
     queryKey: queryKeys.eventDetail.of(eventId),
@@ -99,7 +121,7 @@ export default function WrapRecapScreen() {
           />
         </View>
 
-        {summaryQuery.isLoading || !summary ? (
+        {summaryQuery.isLoading || !summary || !sections ? (
           <View style={styles.center}>
             <Loader inline />
           </View>
@@ -108,6 +130,8 @@ export default function WrapRecapScreen() {
             contentContainerStyle={styles.scroll}
             showsVerticalScrollIndicator={false}
           >
+            {/* Lottie L5 (wrap unlock) plays here on first open. See
+                docs/superpowers/specs/2026-08-07-wrap-lottie-manifest.md. */}
             <Animated.View entering={FadeInDown.duration(350)}>
               <Text style={styles.overline}>That&apos;s a wrap</Text>
               <Text style={styles.title}>{event?.title ?? 'Your night'}</Text>
@@ -120,29 +144,58 @@ export default function WrapRecapScreen() {
               )}
             </Animated.View>
 
+            <Text style={styles.divider}>The night</Text>
+
             <Animated.View
               entering={FadeInDown.delay(80).duration(350)}
               style={styles.stats}
             >
-              <StatCard value={summary.photoCount} label="Photos" color={COLORS.primary} />
-              <StatCard value={summary.attendeeCount} label="People" color={COLORS.secondary} />
-              <StatCard value={summary.likeCount} label="Likes" color={COLORS.success} />
+              <StatCard
+                value={sections.shared.photoCount}
+                label="Photos"
+                color={COLORS.primary}
+              />
+              <StatCard
+                value={sections.shared.attendeeCount}
+                label="People"
+                color={COLORS.secondary}
+              />
+              {/* "Reactions", not "Likes" — migration 077 redefined what
+                  like_count counts. */}
+              <StatCard
+                value={sections.shared.reactionCount}
+                label="Reactions"
+                color={COLORS.success}
+              />
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(160).duration(350)}>
-              <Text style={styles.sectionTitle}>Superlatives 🏆</Text>
-              {summary.superlatives.length > 0 ? (
+              <Text style={styles.sectionTitle}>Awards 🏆</Text>
+              {/* Winners only. recapSections already dropped the categories
+                  that never reached 3 votes — an unfiltered map renders those
+                  as blank cards with no name. */}
+              {sections.shared.superlatives.length > 0 ? (
                 <View style={styles.awardRow}>
-                  {summary.superlatives.slice(0, 2).map((w) => (
+                  {sections.shared.superlatives.slice(0, 2).map((w) => (
                     <AwardCard key={w.category} winner={w} />
                   ))}
                 </View>
               ) : (
                 <Text style={styles.noVotes}>
-                  No superlative votes yet. Rally the group!
+                  No awards decided — they need 3 votes each.
                 </Text>
               )}
             </Animated.View>
+
+            {sections.shared.encoreCount > 0 && (
+              <Animated.View entering={FadeInDown.delay(200).duration(350)}>
+                <Text style={styles.encoreLine}>
+                  {sections.shared.encoreCount}{' '}
+                  {sections.shared.encoreCount === 1 ? 'person wants' : 'people want'}{' '}
+                  to run it back
+                </Text>
+              </Animated.View>
+            )}
 
             {sortedPhotos.length > 0 && (
               <Animated.View
@@ -175,6 +228,42 @@ export default function WrapRecapScreen() {
                     </PressableScale>
                   );
                 })}
+              </Animated.View>
+            )}
+
+            {/* ── Yours ────────────────────────────────────────────────────
+                Everything below here is viewer-scoped BY RLS, not by this
+                component: thumbs are readable only by the rater, notes only by
+                their sender and recipient. Two accounts on the same event must
+                see an identical half above and a different half here. */}
+            {hasYours && (
+              <Animated.View
+                entering={FadeInDown.delay(280).duration(350)}
+                style={styles.yours}
+              >
+                <Text style={styles.divider}>Yours</Text>
+
+                {sections.yours.thumbsReceived > 0 && (
+                  <Text style={styles.yoursLine}>
+                    {sections.yours.thumbsReceived}{' '}
+                    {sections.yours.thumbsReceived === 1 ? 'person' : 'people'}{' '}
+                    thumbed you up
+                  </Text>
+                )}
+
+                {eventNotes.length > 0 && (
+                  <View style={styles.noteList}>
+                    {eventNotes.map((n) => (
+                      <SealedNoteRow
+                        key={n.id}
+                        note={n}
+                        onOpen={(note) => {
+                          if (!note.opened_at) open.mutate(note.id);
+                        }}
+                      />
+                    ))}
+                  </View>
+                )}
               </Animated.View>
             )}
           </ScrollView>
@@ -250,6 +339,26 @@ const styles = themedStyles(() => ({
     color: '#fff',
     marginBottom: SPACING[3],
   },
+  // The line between what everyone sees and what only you do.
+  divider: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.micro,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.4)',
+  },
+  encoreLine: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  yours: { gap: SPACING[3] },
+  yoursLine: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: '#fff',
+  },
+  noteList: { gap: SPACING[2] },
   awardRow: { flexDirection: 'row', gap: SPACING[2.5] },
   awardCard: {
     flex: 1,
