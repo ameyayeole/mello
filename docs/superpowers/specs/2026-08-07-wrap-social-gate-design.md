@@ -447,10 +447,15 @@ root-mounted for the same reason: to clear navigation barriers.
   `MelloLogo` meanwhile.
 - **Reveal:** Lottie character; `assets/lottie/celebration.json` stands in.
 - **Trigger:** `useWrapEntry()` returns an event, within 48h of end, not yet dealt.
-- **Dismiss:** persists `wrapDealt:<eventId>` to SecureStore and **never deals
-  again**. SecureStore is the app's only KV store and `themeStore.ts:26`
-  documents that as a deliberate choice — follow that pattern, do not add
-  AsyncStorage.
+- **Dismiss:** marks the event seen via **`src/services/seenFlags.ts`** —
+  `markFlagSeen('wrapDeal', userId, eventId)` — and **never deals again**.
+
+  That module already solves exactly this: per-user namespacing so switching
+  accounts on one phone starts over, SecureStore key sanitising, and a
+  fail-open `try/catch` so a keychain error re-shows rather than blocking. An
+  earlier draft of this spec invented a `wrapDealt:<eventId>` key; that would
+  have been a second implementation of the same format, which is the kind of
+  duplication that drifts — one side gets the try/catch and the other does not.
 - **CTA:** **"Wrap it up"** on the card's lower face — a
   `Button variant="primary"` laid on the card, not a button beneath it. The
   whole face is the hit target (§5.0).
