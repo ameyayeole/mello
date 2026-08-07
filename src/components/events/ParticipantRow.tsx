@@ -34,6 +34,7 @@ export default function ParticipantRow({
   surface = 'card',
   first = false,
   showAddFriend = false,
+  canManage = true,
 }: {
   eventId: string;
   person: EventParticipant;
@@ -54,6 +55,13 @@ export default function ParticipantRow({
    * let them in, so a request row keeps Approve / ✕ and nothing else.
    */
   showAddFriend?: boolean;
+  /**
+   * The viewer runs this event. Defaults true because every original caller of
+   * this row was the host panel — the attendee list is now also reachable by
+   * the attendees themselves, and "Remove from event" on a row you cannot
+   * remove is an option that only exists to fail against RLS.
+   */
+  canManage?: boolean;
 }) {
   const onDark = surface === 'row';
   const router = useRouter();
@@ -133,9 +141,17 @@ export default function ParticipantRow({
 
   function openMenu() {
     Alert.alert(person.name, undefined, [
-      { text: 'Remove from event', style: 'destructive', onPress: confirmRemove },
+      ...(canManage
+        ? [
+            {
+              text: 'Remove from event',
+              style: 'destructive' as const,
+              onPress: confirmRemove,
+            },
+          ]
+        : []),
       { text: 'Report', onPress: () => setReportIntroVisible(true) },
-      { text: 'Cancel', style: 'cancel' },
+      { text: 'Cancel', style: 'cancel' as const },
     ]);
   }
 

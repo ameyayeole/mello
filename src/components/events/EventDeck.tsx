@@ -313,6 +313,7 @@ function DeckBody({
   const {
     event: detail,
     gate,
+    isMember,
     primaryLabel,
     primaryKind,
     primaryVariant,
@@ -887,8 +888,11 @@ function DeckBody({
           i === 0 && detail?.id === row.id ? (
             <EventCardBack
               event={detail}
-              isMember={gate === 'none'}
+              isMember={isMember}
               tooFar={gate === 'premiumDistance'}
+              // No `onSeeAll` — the deck deliberately offers no action that
+              // leaves it (see the note under `secondaryActions` below), and
+              // the top card is on its way past either way.
               // No secondary actions here on purpose. Leave / check in /
               // approve belong to the pin's dealt card, which is the surface
               // for an event you are already in; the deck is for events you

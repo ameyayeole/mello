@@ -470,3 +470,53 @@ The variant now follows what the action *does* (`primaryVariant`, derived from
 | H5 | A card beyond the Mello+ distance gate | "Join with Mello+" is still coral | ☐ | ☐ |
 | H6 | A full event, a female-only event, a pending request | Still the muted tertiary, still disabled where it was | ☐ | ☐ |
 | H7 | The same six on the **swipe deck's** top card | Identical — both surfaces read the variant from the same hook | ☐ | ☐ |
+
+---
+
+## I · The card back's roster, and who can reach the list (2026-08-07)
+
+Three changes, one section, because the third is only safe because of the
+second.
+
+**The face pile replaces the name rows.** For a member the back drew one
+full-width row per attendee. On a twelve-person event that pushed the
+description, the actions and everything else off the bottom of a card whose
+whole job is to be glanceable. Both branches now draw the same overlapping
+`AttendeeStack` — the pile every other surface in the app already uses — and
+what differs is only what sits under it: **See all attendees** for members, the
+join gate for everyone else.
+
+**`isMember` is now a real question.** Both faces read `gate === 'none'` for it.
+`'none'` means "nothing is stopping you joining", which is also true of an open
+event you have never touched — so **the full roster was showing to strangers**,
+against the comment sitting directly above it. It is `isHost || isParticipant`
+now, out of `useEventCard`. Rows I5/I6 are the ones that catch this.
+
+**The attendee list has a second kind of viewer.** `/events/attendees/[eventId]`
+was written for the host. A plain attendee arriving there got a Requests tab
+they cannot use and "Remove from event" in every row's overflow — an option that
+exists only to fail against RLS. Both are now behind `isHost`.
+
+| # | Do | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| I1 | Open the back of a card for an event you have **joined**, 3+ attendees | Overlapping face pile, host's face first, then "See all attendees" | ☐ | ☐ |
+| I2 | Tap **See all attendees** | The card closes, then the list pushes. Not the list appearing under a card still sitting on top of it | ☐ | ☐ |
+| I3 | Back from that list | Lands on whatever the card was dealt over — the map, the feed — not on a re-dealt card | ☐ | ☐ |
+| I4 | The back of an event with **12+ attendees** | The section is one pile plus one link. The old failure was the description and actions being pushed off the scroll | ☐ | ☐ |
+| I5 | The back of an **open event you have not joined** | Face pile + "Join to see the full list of attendees". **No** See all. This is the leak — it previously showed every name | ☐ | ☐ |
+| I6 | Join it, reopen the back | Now See all. The gate flips on join, not on the distance/full/female-only gate | ☐ | ☐ |
+| I7 | An event with **no attendees yet** | "Be the first to join", no See all, no empty pile | ☐ | ☐ |
+| I8 | As a **host**, See all from the manage panel | Both tabs, Approve/Decline on requests, "Remove from event" in the overflow — all unchanged | ☐ | ☐ |
+| I9 | As a plain **attendee**, See all from the card | No tab strip at all, and no band of empty padding where it was | ☐ | ☐ |
+| I10 | As a plain attendee, the **⋯** on a row | "Report" and "Cancel" only. No "Remove from event" | ☐ | ☐ |
+| I11 | The add-friend glyph on a row there | Works, and reads correctly for someone you already added | ☐ | ☐ |
+| I12 | The **swipe deck's** card back | Same pile. No See all even when you are a member — the deck offers nothing that leaves it, by design | ☐ | ☐ |
+
+### Also in this batch
+
+| # | Do | Expect | iOS | Android |
+| --- | --- | --- | :-: | :-: |
+| I13 | Tap someone's photo in an **event chat** | Their full profile pushes. No summary sheet in between | ☐ | ☐ |
+| I14 | The same with the **keyboard open** | Keyboard is gone by the time the profile is up. This is the Android-specific one | ☐ | ☐ |
+| I15 | Back from that profile | Returns to the chat, scrolled where you left it | ☐ | ☐ |
+| I16 | A **DM** avatar, and a **search** result | Still the summary sheet. Neither was in scope and neither should have moved | ☐ | ☐ |

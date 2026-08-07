@@ -132,6 +132,7 @@ export function EventDealtCard() {
     saved,
     toggleSave,
     isHost,
+    isMember,
     pending,
     approve,
     reject,
@@ -228,7 +229,6 @@ export function EventDealtCard() {
   // event's chat. "Manage event" only shows for a host whose event hasn't
   // wrapped, so this is that same condition without re-deriving `wrapped`.
   const canHostChat = isHost && primaryLabel === 'Manage event';
-  const isMember = gate === 'none';
   const hasSecondaryActions =
     canHostChat || canLeave || (isHost && pending.length > 0);
 
@@ -277,6 +277,12 @@ export function EventDealtCard() {
               event={event}
               isMember={isMember}
               tooFar={gate === 'premiumDistance'}
+              // Close first: this face lives in a card that would otherwise
+              // still be sitting over the attendee list when you came back.
+              onSeeAll={() => {
+                close();
+                router.push(`/events/attendees/${event.id}`);
+              }}
               secondaryActions={
                 hasSecondaryActions ? (
                   <>

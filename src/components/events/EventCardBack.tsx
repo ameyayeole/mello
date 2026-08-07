@@ -12,10 +12,9 @@ import { PREMIUM_GOLD, premiumGoldTint } from '@/utils/premium';
 import type { EventDetail } from '@/types/models';
 import {
   AttendeeStack,
-  Avatar,
   Icon,
+  PressableScale,
   SectionLabel,
-  Tag,
 } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
@@ -37,6 +36,15 @@ export interface EventCardBackProps {
   // This face renders them; it owns none of the mutations behind them — see
   // EventBottomSheet.tsx's "Actions" block for the set this replaces.
   secondaryActions?: ReactNode;
+  /**
+   * Open the full attendee list. Members only — it is the roster's gate, and
+   * the link is hidden without it.
+   *
+   * A callback rather than a route, because this face is inside a card that
+   * has to be dismissed before anything is pushed: the composing surface owns
+   * that (`close()` then push), the same way it owns every other action here.
+   */
+  onSeeAll?: () => void;
 }
 
 // The roster row's avatar size — matches the sheet's `GOING_AVATAR`.
@@ -55,17 +63,18 @@ export function EventCardBack({
   isMember,
   tooFar,
   secondaryActions,
+  onSeeAll,
 }: EventCardBackProps) {
   const approved = event.participants.filter((p) => p.status === 'approved');
 
-  // The card's person rows. Order comes from the server — `event_attendees_preview`
-  // ranks by `ep.joined_at, pr.id`, and migration 043 gives the host a
-  // participant row at creation time, so the host already sorts first and the
-  // rest follow by join time. The pin below is belt-and-braces: the RLS-visible
-  // rows are merged into that list by id, and if a merge ever reordered them the
-  // host tag would silently land on the wrong person. There is no join timestamp
-  // on the client objects to re-sort by, so this is the one thing worth pinning.
-  const goingRows = [...approved].sort(
+  // Host first, then the rest by join time. Order comes from the server —
+  // `event_attendees_preview` ranks by `ep.joined_at, pr.id`, and migration 043
+  // gives the host a participant row at creation time, so the host already
+  // sorts first. The pin is belt-and-braces: the RLS-visible rows are merged
+  // into that list by id, and a merge that reordered them would drop the host
+  // out of a five-face pile on a busy event. There is no join timestamp on the
+  // client objects to re-sort by, so this is the one thing worth pinning.
+  const going = [...approved].sort(
     (a, b) => Number(b.id === event.host_id) - Number(a.id === event.host_id)
   );
 
@@ -140,43 +149,51 @@ export function EventCardBack({
           )}
         </View>
 
-        {isMember ? (
-          goingRows.length > 0 ? (
-            goingRows.map((person) => (
-              <View key={person.id} style={styles.rosterRow}>
-                <Avatar
-                  name={person.name}
-                  photoUrl={person.photo_url}
-                  size={ROSTER_AVATAR}
+        {/* One face pile either way. It used to be a column of full-width
+            name rows for members — on a card whose whole job is to be
+            glanceable, twelve attendees pushed everything under them off the
+            bottom, and the names were the least of what you came for. The
+            overlapping stack is what every other surface in the app already
+            uses to say "these people"; the list itself is a tap away.
+
+            What still differs is only what sits under it: members get the way
+            through to the names, everyone else gets the gate. The roster stays
+            behind joining, as it always has — the preview faces are public,
+            the list is not. */}
+        <View style={styles.rosterGate}>
+          <AttendeeStack
+            people={going}
+            count={event.participant_count}
+            max={5}
+            size={ROSTER_AVATAR}
+            emptyLabel="Be the first to join"
+          />
+          {isMember ? (
+            going.length > 0 &&
+            onSeeAll && (
+              <PressableScale
+                scaleTo={0.96}
+                onPress={onSeeAll}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="See all attendees"
+                style={styles.seeAllRow}
+              >
+                <Text style={styles.seeAll}>See all attendees</Text>
+                <Icon
+                  name="chevronRight"
+                  size={15}
+                  color={COLORS.primary}
+                  strokeWidth={2.5}
                 />
-                <Text style={styles.rosterName} numberOfLines={1}>
-                  {person.name}
-                </Text>
-                {person.id === event.host_id && (
-                  <Tag label="Host" color={COLORS.primary} />
-                )}
-              </View>
-            ))
+              </PressableScale>
+            )
           ) : (
-            <Text style={styles.rosterHint}>Be the first to join</Text>
-          )
-        ) : (
-          // Not joined: the face pile and the gate. The roster stays behind
-          // joining, as it always has — the preview faces are public, the
-          // list is not. Same gate `GoingStack` applied in the sheet.
-          <View style={styles.rosterGate}>
-            <AttendeeStack
-              people={approved}
-              count={event.participant_count}
-              max={5}
-              size={ROSTER_AVATAR}
-              emptyLabel="Be the first to join"
-            />
             <Text style={styles.rosterHint}>
               Join to see the full list of attendees
             </Text>
-          </View>
-        )}
+          )}
+        </View>
       </View>
 
       {secondaryActions && (
@@ -246,15 +263,21 @@ const styles = themedStyles(() => ({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textSecondary,
   },
-  rosterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2.5] },
-  rosterName: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-  },
   rosterGate: { gap: SPACING[2] },
+  // `alignSelf: 'flex-start'` so the touch target is the words, not the width
+  // of the card — a full-bleed invisible button under a face pile eats the
+  // taps meant for the faces.
+  seeAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: SPACING[1],
+  },
+  seeAll: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.primary,
+  },
   rosterHint: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.caption,

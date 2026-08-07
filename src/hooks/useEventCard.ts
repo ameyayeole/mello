@@ -67,6 +67,19 @@ export function useEventCard(eventId: string | null) {
   const isParticipant = myStatus === 'approved';
   const isPending = myStatus === 'pending';
 
+  /**
+   * In this event: its host, or an approved participant. What the attendee
+   * roster is gated on.
+   *
+   * Both card faces used to read `gate === 'none'` for this, which is not the
+   * same question. `'none'` means "nothing is stopping you joining", and an
+   * open event you have never touched has no gate either — so the full
+   * attendee list, and now the "See all" that leads to it, were showing to
+   * strangers. `EventCardBack`'s own comment says the roster stays behind
+   * joining; this is the flag that actually makes it.
+   */
+  const isMember = isHost || isParticipant;
+
   const gate = event
     ? joinGate({
         event,
@@ -308,6 +321,7 @@ export function useEventCard(eventId: string | null) {
     saved,
     toggleSave,
     isHost,
+    isMember,
     pending,
     approve,
     reject,
