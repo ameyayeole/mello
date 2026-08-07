@@ -1,5 +1,40 @@
 # Wrap social gate — Phase 1 device sheet
 
+## Found on device, 2026-08-08 — two bugs `tsc`, `jest` and `eslint` all missed
+
+**1. The wrap hub never loaded.** `getCoAttendees` embedded `profile:profiles(*)`
+off `event_participants`. The check-in feature had since given that table a
+*second* foreign key to `profiles` (`checked_in_by`), so PostgREST answers
+**300 PGRST201 "ambiguous embedding"** instead of 200. That rejected
+`getWrapStatus`'s `Promise.all`, `status` stayed `undefined`, and the hub sat on
+a spinner — no checklist, no error, nothing to act on. Fixed by naming the FK:
+`profiles!user_id(*)`.
+
+The tell was in the copy: the card read *"Finish **4** more steps"* on an event
+whose viewer was the host, and a host's total is **3**. 4 is
+`wrapStepTotal(undefined)`. A wrong number on screen was the only visible
+evidence that the query had failed.
+
+Two lessons worth keeping:
+- **A schema change three features away can break a query with no code change.**
+  Adding an FK is enough. Nothing in TypeScript, lint or the test suite can see
+  it; only a real HTTP call does.
+- **One new call inside a `Promise.all` can take down eight working ones.**
+  `getWrapGate` now degrades to "locked" instead of throwing.
+
+**2. `get_wrap_gate` leaked contributor lists to anyone.** Its guard asked
+whether the *claimed* `p_user_id` attended — never whether the caller *was* that
+user — and Postgres grants `EXECUTE` to `PUBLIC` by default, which 075 never
+revoked. A plain `curl` with the shipped anon key returned names and avatar URLs
+for any event. **Migration 079** asserts `auth.uid() = p_user_id` and revokes
+`PUBLIC`/`anon`. Verified after: anon → 401, impersonation → raises, all six
+real attendees → still fine.
+
+Also checked and clean: the `SUPABASE_DB_URL` added to `.env` for `npm run sql`
+is **not** in the shipped bundle — searched all 46 exported files binary-safe,
+with a control probe to prove the search worked.
+
+
 Migrations **074**, **075** and **076** must be applied before any of this.
 Tick per platform. Rows marked ⚠️ are checking reasoning, not an observed bug —
 they are the ones worth someone's time.
