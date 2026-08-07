@@ -545,10 +545,24 @@ moves to the §4.3 expression; the force-unlock prompt; contributor count and
 list surfaced in the existing hub. No new screens. *This phase is the one with
 real risk — everything else is UI on top of it.*
 
-**Phase 2 — the contribution flow.** Merge superlatives into the rating step;
-wire the four routes into one flow ending in a `wrap_contributions` write;
-`wrapStepsDone`/`wrapStepTotal` arithmetic; thumbs-down reason chips and the
-`reports` split; add the `thumbsDown` glyph and replace the emoji.
+**Phase 2 — the contribution flow.** Split in two while planning; it was too
+large for one plan and has a genuine ship point in the middle.
+
+- **2a, the shell** *(planned)*: `wrapFlowStore` + one file per step, mirroring
+  the create wizard (`AGENTS.md` makes that shape mandatory here); the four
+  routes moved in as-is; superlatives folded into the rating step; the
+  `thumbsDown` glyph and the end of emoji; `wrapStepsDone`/`wrapStepTotal`
+  arithmetic; and **the `wrap_contributions` write**. Until 2a ships nothing
+  writes that row, so Phase 1's gate never opens except by force-unlock — 2a is
+  what makes Phase 1 useful.
+- **2b, the interactions**: the 4:5 photo carousel, "leave a note" moved onto
+  the card, Skip above 15 people, thumbs-down reason chips and the `reports`
+  split, and the press-and-hold rewind. This is what makes it match the
+  approved prototype.
+
+The split is along a real seam: 2a **moves** working screens and changes
+structure; 2b **changes behaviour** inside them. Keeping those in one commit
+range would mean a regression could not be bisected to either.
 
 **Phase 3 — the surfaces.** The launch dealt card and its SecureStore flag;
 chat banner upgrade and auto-open removal; both Home variants, compared on
