@@ -44,8 +44,8 @@ a user experiences as a reward rather than a gate.
 
 | File | Responsibility |
 | --- | --- |
-| `supabase/migrations/076_photo_reactions.sql` | reactions table; `like_count` becomes a reaction count |
-| `supabase/migrations/077_photo_comment_threads.sql` | comments get an `id`; many per person |
+| `supabase/migrations/077_photo_reactions.sql` | reactions table; `like_count` becomes a reaction count |
+| `supabase/migrations/078_photo_comment_threads.sql` | comments get an `id`; many per person |
 | `src/types/models.ts` | `PhotoReaction`; `WrapPhoto.myLike` → `myReaction` |
 | `src/services/wrap.service.ts` | `reactToPhoto`, `unreactPhoto`; comment CRUD by id |
 | `src/hooks/useWrapGallery.ts` | reactions replace the like mutation |
@@ -53,13 +53,14 @@ a user experiences as a reward rather than a gate.
 | `src/utils/__tests__/wrapRecap.test.ts` | **new** — its tests |
 | `app/events/wrap/recap/[eventId].tsx` | the "That's a wrap" page |
 | `app/events/wrap/gallery/[eventId].tsx` | reaction bar + threaded comments |
+| `src/utils/notificationCopy.ts` | `photo_liked` copy stops saying "liked" |
 
 ---
 
-### Task 1: Migration 076 — reactions replace the like
+### Task 1: Migration 077 — reactions replace the like
 
 **Files:**
-- Create: `supabase/migrations/076_photo_reactions.sql`
+- Create: `supabase/migrations/077_photo_reactions.sql`
 
 **Interfaces:**
 - Produces: `photo_reactions(id, photo_id, user_id, emoji, created_at)`;
@@ -186,16 +187,16 @@ Community feed's `top_photos` ordering is already wrong — stop and fix here.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add supabase/migrations/076_photo_reactions.sql
-git commit -m "feat(wrap): photo reactions replace the binary like (076)"
+git add supabase/migrations/077_photo_reactions.sql
+git commit -m "feat(wrap): photo reactions replace the binary like (077)"
 ```
 
 ---
 
-### Task 2: Migration 077 — comments become threads
+### Task 2: Migration 078 — comments become threads
 
 **Files:**
-- Create: `supabase/migrations/077_photo_comment_threads.sql`
+- Create: `supabase/migrations/078_photo_comment_threads.sql`
 
 **Interfaces:**
 - Produces: `wrap_photo_comments` gains `id UUID PRIMARY KEY`; the
@@ -247,8 +248,8 @@ Expected: the two numbers are equal and match the pre-migration count.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add supabase/migrations/077_photo_comment_threads.sql
-git commit -m "feat(wrap): photo comments become threads (077)"
+git add supabase/migrations/078_photo_comment_threads.sql
+git commit -m "feat(wrap): photo comments become threads (078)"
 ```
 
 ---
@@ -470,7 +471,7 @@ export function recapSections(
     shared: {
       photoCount: summary.photoCount,
       attendeeCount: summary.attendeeCount,
-      // `likeCount` counts reactions since migration 076 — the column kept its
+      // `likeCount` counts reactions since migration 077 — the column kept its
       // name so `top_photos` ordering did not have to change.
       reactionCount: summary.likeCount,
       messageCount: summary.messageCount,
@@ -557,12 +558,35 @@ git commit -m "feat(wrap): the recap's shared/private split, as a tested rule"
       can comment on the same photo; you can delete your own comment and not
       anyone else's.
 
-- [ ] **Step 5: Typecheck, test, lint, commit**
+- [ ] **Step 5: Fix the notification copy that is now wrong.** In
+      `src/utils/notificationCopy.ts`, `photo_liked` reads
+      *"{sender} liked your photo"*. There are no likes any more:
+
+```ts
+    case 'photo_liked':
+      return { title: eventTitle, body: `${senderName} reacted to your photo` };
+```
+
+  Leave the `photo_liked` **type name** alone — renaming a `notification_type`
+  enum value means a migration and a backfill of existing rows, for a string.
+
+- [ ] **Step 6: Check the public wrap still works.** `app/wrap/[eventId].tsx` is
+      a **public, read-only** gallery of an event's six most-liked photos, fed by
+      `getPublicWrap` and reachable from Explore by people who did not attend.
+      It reads the same `like_count` this phase redefined.
+
+  Nothing should need changing — the column kept its name and its ordering
+  semantics — but **this is a public surface affected by a migration**, so open
+  it and confirm it still shows six sensible photos. It is the one place a
+  mistake here is visible to strangers.
+
+- [ ] **Step 7: Typecheck, test, lint, commit**
 
 ```bash
 npm run typecheck && npm test && npm run lint
 git add "app/events/wrap/gallery/[eventId].tsx" src/hooks/useWrapGallery.ts \
-        src/components/chat/ReactionPills.tsx src/types/models.ts
+        src/components/chat/ReactionPills.tsx src/types/models.ts \
+        src/utils/notificationCopy.ts
 git commit -m "feat(wrap): react to photos and talk under them"
 ```
 
@@ -640,7 +664,7 @@ git commit -m "feat(wrap): that's a wrap — the night, and your half of it"
 ```markdown
 # The wrap itself (Phase 4) — device sheet
 
-Migrations 076 + 077 applied. ⚠️ rows check reasoning, not an observed bug.
+Migrations 077 + 078 applied. ⚠️ rows check reasoning, not an observed bug.
 
 ## 1. The private half (highest risk — a leak looks like a working page)
 | | iOS | Android |
@@ -661,6 +685,8 @@ Migrations 076 + 077 applied. ⚠️ rows check reasoning, not an observed bug.
 | Counts match the number of people | | |
 | ⚠️ Old likes survived as ❤️ | | |
 | ⚠️ Community shared-wrap cards still show six photos, ordered sensibly | | |
+| ⚠️ The **public** wrap (`app/wrap/[eventId].tsx`, from Explore) still shows six | | |
+| ⚠️ A photo-reaction notification says "reacted", not "liked" | | |
 
 ## 3. Comment threads
 | | iOS | Android |
@@ -698,7 +724,7 @@ git commit -m "docs(wrap): device sheet for the wrap page"
 - `npm run typecheck` → 0
 - `npm test` → green (7 new in `wrapRecap.test.ts`; earlier phases still pass)
 - `npm run lint` → 0 errors, no new warnings
-- Migrations **076** and **077** applied whole-file; both verification queries
+- Migrations **077** and **078** applied whole-file; both verification queries
   in Tasks 1 and 2 return the expected values
 - The two-account comparison in Task 6 Step 5 has actually been done
 
@@ -716,6 +742,9 @@ git commit -m "docs(wrap): device sheet for the wrap page"
    it, and only if the upsert names the right `onConflict`.
 5. **A second `ReactionPills` for photos.** Two copies of one component drift;
    widen the type instead.
+6. **The public wrap forgotten.** `app/wrap/[eventId].tsx` serves strangers from
+   Explore off the same `like_count`. It needs no code change, which is exactly
+   why it gets skipped when someone checks their own work.
 
 ## Out of scope
 

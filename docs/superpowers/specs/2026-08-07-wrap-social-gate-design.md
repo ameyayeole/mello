@@ -211,7 +211,37 @@ Because it is `SECURITY DEFINER`, the function must **re-assert
 `is_event_attendee` itself** — it bypasses RLS, so without that check it would
 hand contributor lists to anyone who guessed an event id.
 
-### 4.5 Type change
+### 4.5 Somebody has to be told it opened
+
+Without this the whole mechanic pays off **invisibly**. The people who
+contributed first are exactly the people who wait longest, and nothing tells
+them the wait ended — they have to happen to reopen the app and happen to look.
+
+A new `wrap_unlocked` notification, fired **once per event** when
+`contributorCount` first reaches `N`.
+
+**Who gets it: the people who contributed.** For them the wrap genuinely just
+opened — §4.3's rule is `myStepsDone AND contributorCount >= N`, and they have
+already satisfied the first half.
+
+**Who does not: everyone else.** For someone who has not contributed the wrap
+is *still locked*, and "the wrap is open!" would be false. Nagging a
+non-contributor is what the Home card and the chat pin are for; a push that
+announces a door they cannot walk through teaches people to ignore the channel.
+
+The existing `wrap_ready` notification already establishes the shape to copy
+(`032_wrap.sql:537-571`): a `wrap_ready_notified BOOLEAN` column guards
+once-only delivery. Mirror it with `wrap_unlocked_notified`.
+
+> **How was {event}?** → the existing `wrap_ready`, ~when the event ends
+> **The wrap is open** → new `wrap_unlocked`, when the group arrives
+
+`wrap_ready`'s current body — *"Rate the people, drop your best photos, vote
+superlatives"* — is wrong after §5: awards stop being a separate step and the
+CTA everywhere else is **"Wrap it up"**. It is the first thing a user sees
+post-event, so it is rewritten in the same phase.
+
+### 4.6 Type change
 
 `WrapStatus` (`src/types/models.ts:346`) gains the four fields above.
 `recapUnlocked` at `app/events/wrap/[eventId].tsx:65` changes from
@@ -283,11 +313,36 @@ decision would be made independently in four places.
 The flow will not advance on an empty grid: a wrap with no photos is not worth
 unlocking.
 
-### 5.2 Superlatives move into the rating step
+### 5.2 Awards — in the rating step, and optional
 
-Per decision: superlatives are voted **while rating people**, not as a separate
-screen. The four categories (`src/constants/superlatives.ts`) are cast against
-the same deck of co-attendees you are already swiping through.
+They are called **"Awards"** in every user-facing string. "Superlatives" is a
+word from an American high-school yearbook; most people have to work out what it
+means, and the four categories explain themselves better than the label does.
+
+**The code keeps the old name.** `superlative_votes`, `SuperlativeCategory`,
+`SUPERLATIVES`, `SuperlativeBadge`, `voteSuperlative` and the `033` RPC all stay
+as they are. Renaming a table, an enum, an RPC and six symbols to change a label
+is a large blast radius for zero user benefit, and this codebase has a rule
+about not mixing a rename into a feature. **Rename the strings, not the schema**
+— and expect to read "superlative" in code while seeing "Awards" on screen.
+
+The four categories (`src/constants/superlatives.ts`) are voted **while rating
+people**, against the same deck you are already swiping through — not on a
+separate screen.
+
+**Awards are optional and do not gate anything.** You may finish the rating step
+having voted none of them.
+
+> **Why optional.** The flow is mandatory to unlock the wrap. Four forced
+> choices about *who was most likely to host next* is the point where a person
+> stops answering and starts clicking — and a forced award is worse than a
+> missing one, because a winner nobody meant is still displayed as a winner.
+> This is the same reasoning as §5.3 (Skip) and §6 (reason chips): never make
+> the honest path the expensive one.
+
+Awards already have their own quorum — a winner is revealed only at **3+ votes**
+(`033_wrap_rpcs.sql:140`), so a category nobody cared about simply never
+resolves. That mechanism only works if the votes are willing.
 
 ### 5.3 The rating deck — note on the card, skip on big events
 
@@ -393,14 +448,23 @@ the spec, kept by inference. It is now explicit.
 
 `wrapStepsDone` / `wrapStepTotal` (`src/hooks/useWrap.ts:19-32`) become:
 
-- `total = isHost ? 2 : 3` — photos, rate (incl. superlatives), [event feedback]
+- `total = isHost ? 2 : 3` — photos, rate people, [event feedback]
 - `done` — `myPhotoCount > 0`, plus
-  `ratedCount >= coAttendeeCount && votedCategories.length >= 4`, plus
+  `coAttendeeCount > 0 && ratedCount >= coAttendeeCount`, plus
   `feedbackDone` when not host
 
-**These two functions must change together.** Changing one produces no type
-error and no test failure — just a checklist that never completes or completes
-early.
+**Awards are not in this arithmetic at all** (§5.2). The old
+`votedCategories.length >= 4` clause is removed, not moved — an optional thing
+that still gates completion is not optional.
+
+`WrapChecklist` (`src/components/wrap/WrapChecklist.tsx`) must lose its
+`superlatives` row in the same change. It builds its own list independently of
+these two functions, so leaving it alone gives you four rows under a "2/3"
+summary — visibly wrong, with no type error.
+
+**All three must change together.** Changing one produces no type error and no
+test failure — just a checklist that never completes, completes early, or
+disagrees with its own heading.
 
 ---
 

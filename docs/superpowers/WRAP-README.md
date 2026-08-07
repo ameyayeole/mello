@@ -34,6 +34,9 @@ Before you build **anything** here:
 | Solar icon set | `Icon.tsx` → `react-native-solar-icons` |
 | Lottie | `lottie-react-native`, `assets/lottie/celebration.json` |
 | Seen-once flags | `src/services/seenFlags.ts` |
+| Emoji tapbacks | `src/components/chat/Reaction{Bar,Pills,Overlay}.tsx` |
+| Photo comments + mentions | `wrap_photo_comments`, wired in the gallery |
+| Public read-only wrap | `app/wrap/[eventId].tsx` (from Explore) |
 
 ---
 
@@ -84,7 +87,7 @@ lock with nothing behind it.
 
 ---
 
-## The six decisions most likely to get quietly undone
+## The seven decisions most likely to get quietly undone
 
 Each of these looks like arbitrary friction from inside the code. Each has a
 reason, and the reason is in the spec.
@@ -109,7 +112,13 @@ reason, and the reason is in the spec.
 5. **The threshold `N` lives in SQL only.** If the client also computed it, two
    app versions could disagree about whether a wrap is unlocked. Spec §4.2.
 
-6. **The wrap page is half shared, half yours.** Thumbs, notes and event
+6. **Awards are optional, and called "Awards" only on screen.** The schema keeps
+   `superlative*` — renaming a table, an enum and an RPC for a label is blast
+   radius for nothing. And nothing gates on them: four forced choices is where
+   people stop answering and start clicking, and a winner nobody meant is still
+   shown as a winner. Spec §5.2.
+
+7. **The wrap page is half shared, half yours.** Thumbs, notes and event
    feedback are viewer-scoped *by RLS* — everyone sees the same photos and
    winners, then a slice only they can see. `recapSections`
    (`src/utils/wrapRecap.ts`) is a tested pure function precisely because a leak

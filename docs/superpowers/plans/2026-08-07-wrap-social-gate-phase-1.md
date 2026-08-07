@@ -50,6 +50,8 @@ was the actual requirement.
 | --- | --- |
 | `supabase/migrations/074_wrap_contributions.sql` | the marker table + its RLS |
 | `supabase/migrations/075_wrap_gate.sql` | `get_wrap_gate` RPC — count, threshold, contributors, hours |
+| `supabase/migrations/076_wrap_unlocked_notification.sql` | tells contributors the moment it opens |
+| `src/utils/notificationCopy.ts` | `wrap_unlocked` copy; `wrap_ready` rewritten |
 | `src/types/models.ts` | `WrapStatus` gains four fields; new `WrapContributor` |
 | `src/services/wrap.service.ts` | `getWrapGate`, `markWrapContributed`; merged into `getWrapStatus` |
 | `src/utils/wrapGate.ts` | **new** — the unlock rule as a pure function |
@@ -737,7 +739,177 @@ git commit -m "feat(wrap): the recap opens on the group, with a 48h way out"
 
 ---
 
-### Task 6: The device test sheet
+### Task 6: Migration 076 — tell the contributors it opened
+
+**Files:**
+- Create: `supabase/migrations/076_wrap_unlocked_notification.sql`
+- Modify: `src/types/models.ts` (`NotificationType` union, ~:70)
+- Modify: `src/utils/notificationCopy.ts`
+- Modify: `src/constants/notificationStyle.ts`
+- Modify: `src/hooks/useNotifications.ts` (tap routing, ~:67)
+
+**Interfaces:**
+- Produces: `notification_type` gains `'wrap_unlocked'`;
+  `events.wrap_unlocked_notified BOOLEAN`; a trigger on `wrap_contributions`.
+
+Without this the mechanic pays off **invisibly** (spec §4.5). The people who
+contribute first wait the longest, and nothing tells them the wait ended.
+
+**Only contributors are notified.** For anyone else the wrap is still locked —
+§4.3 is `myStepsDone AND contributorCount >= N` — so "the wrap is open" would be
+false, and a push announcing a door you cannot walk through teaches people to
+ignore the channel.
+
+- [ ] **Step 1: Write the migration**
+
+```sql
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WRAP UNLOCKED. Fires once per event, the moment the contributor count first
+-- reaches the threshold, to the people who contributed.
+--
+-- Only contributors: for everyone else the recap is still locked (their own
+-- steps are unfinished), so "the wrap is open" would be a lie. The Home card
+-- and the chat pin are what nag a non-contributor.
+--
+-- Guarded by a once-only column in the same shape as wrap_ready_notified (032).
+-- Run this whole file in the Supabase SQL editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'wrap_unlocked';
+
+ALTER TABLE events
+  ADD COLUMN IF NOT EXISTS wrap_unlocked_notified BOOLEAN DEFAULT FALSE;
+
+CREATE OR REPLACE FUNCTION notify_wrap_unlocked()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_size    INT;
+  v_needed  INT;
+  v_count   INT;
+  v_flagged BOOLEAN;
+BEGIN
+  SELECT e.wrap_unlocked_notified INTO v_flagged
+    FROM events e WHERE e.id = NEW.event_id;
+  IF v_flagged THEN RETURN NULL; END IF;
+
+  -- Same size and threshold arithmetic as get_wrap_gate (075). Duplicated
+  -- deliberately: a trigger cannot call a RETURNS TABLE function cheaply, and
+  -- the alternative is a SECURITY DEFINER round trip per contribution.
+  -- If the formula in 075 changes, change it HERE TOO — nothing will error.
+  SELECT 1 + (
+    SELECT COUNT(*) FROM event_participants ep
+     WHERE ep.event_id = e.id
+       AND ep.status   = 'approved'
+       AND ep.user_id <> e.host_id
+  ) INTO v_size
+    FROM events e WHERE e.id = NEW.event_id;
+
+  v_needed := LEAST(v_size, GREATEST(2, LEAST(5, CEIL(v_size / 2.0)::INT)));
+
+  SELECT COUNT(*) INTO v_count
+    FROM wrap_contributions wc WHERE wc.event_id = NEW.event_id;
+
+  IF v_count < v_needed THEN RETURN NULL; END IF;
+
+  INSERT INTO notifications (user_id, actor_id, type, event_id, created_at)
+  SELECT wc.user_id, NULL, 'wrap_unlocked', NEW.event_id, NOW()
+    FROM wrap_contributions wc
+   WHERE wc.event_id = NEW.event_id;
+
+  UPDATE events SET wrap_unlocked_notified = TRUE WHERE id = NEW.event_id;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS wrap_contributions_unlock ON wrap_contributions;
+CREATE TRIGGER wrap_contributions_unlock
+  AFTER INSERT ON wrap_contributions
+  FOR EACH ROW EXECUTE FUNCTION notify_wrap_unlocked();
+```
+
+  **Confirm the `notifications` insert columns against an existing sender** —
+  copy the column list from `032_wrap.sql:559` (the `wrap_ready` insert) rather
+  than trusting the shape above.
+
+- [ ] **Step 2: Apply it** whole-file. `ALTER TYPE ... ADD VALUE` cannot run
+      inside a transaction block in older Postgres — if the editor complains,
+      run that one line on its own first.
+
+- [ ] **Step 3: Add the type.** In `src/types/models.ts`, add to the
+      `NotificationType` union beside `'wrap_ready'`:
+
+```ts
+  | 'wrap_unlocked'
+```
+
+- [ ] **Step 4: Add the copy.** In `src/utils/notificationCopy.ts`, beside the
+      `wrap_ready` case:
+
+```ts
+    case 'wrap_unlocked':
+      return {
+        title: 'The wrap is open',
+        body: `Enough of you showed up for ${eventTitle} — go see it`,
+      };
+```
+
+  **Also fix `wrap_ready`'s body in the same edit.** It currently reads
+  *"Rate the people, drop your best photos, vote superlatives"*, which is wrong
+  once awards stop being a separate step and the CTA becomes "Wrap it up":
+
+```ts
+    case 'wrap_ready':
+      return {
+        title: `How was ${eventTitle}?`,
+        body: 'Add your photos and the people you met — wrap it up',
+      };
+```
+
+- [ ] **Step 5: Add the style.** In `src/constants/notificationStyle.ts`, beside
+      the `wrap_ready` entry:
+
+```ts
+  wrap_unlocked: { icon: 'gallery', color: '#FF5E5B', tint: '#FFF0EF' },
+```
+
+  Confirm `gallery` is a registered `IconName`; if not, reuse `'camera'` as
+  `wrap_ready` does rather than adding a glyph in this task.
+
+- [ ] **Step 6: Route the tap.** In `src/hooks/useNotifications.ts` (~:67), the
+      `wrap_ready` branch routes to the wrap. Send `wrap_unlocked` to the recap
+      itself — it is open now, so landing on the hub adds a tap:
+
+```ts
+  if (type === 'wrap_unlocked' && eventId) {
+    router.push(`/events/wrap/recap/${eventId}`);
+    return;
+  }
+```
+
+- [ ] **Step 7: Verify by hand** in the SQL editor. On a test event, insert
+      `wrap_contributions` rows one at a time and confirm **no** notifications
+      appear until the threshold row lands, then exactly one per contributor,
+      then none ever again:
+
+```sql
+SELECT type, COUNT(*) FROM notifications
+ WHERE event_id = '<test event>' AND type = 'wrap_unlocked'
+ GROUP BY type;
+```
+
+- [ ] **Step 8: Typecheck, lint, commit**
+
+```bash
+npm run typecheck && npm run lint
+git add supabase/migrations/076_wrap_unlocked_notification.sql \
+        src/types/models.ts src/utils/notificationCopy.ts \
+        src/constants/notificationStyle.ts src/hooks/useNotifications.ts
+git commit -m "feat(wrap): tell the contributors when the wrap opens (076)"
+```
+
+---
+
+### Task 7: The device test sheet
 
 **Files:**
 - Create: `docs/testing/wrap-social-gate-phase-1.md`
@@ -752,7 +924,7 @@ quantity; without one it is a guess that reads like a result.
 ```markdown
 # Wrap social gate — Phase 1 device sheet
 
-Migrations **074** + **075** must be applied before any of this.
+Migrations **074**, **075** and **076** must be applied before any of this.
 Tick per platform. Rows marked ⚠️ are checking reasoning, not an observed bug —
 they are the ones worth someone's time.
 
@@ -780,7 +952,17 @@ they are the ones worth someone's time.
 | ⚠️ More than 5 contributors → list caps at 5 without overflowing the row | | |
 | ⚠️ A contributor with no photo renders an initial, not a blank circle | | |
 
-## 4. Regressions — the seven policies NOT changed
+## 4. The unlock notification
+| | iOS | Android |
+|---|---|---|
+| ⚠️ Nothing fires until the threshold row lands | | |
+| ⚠️ At the threshold, every contributor gets exactly one | | |
+| ⚠️ A non-contributor gets **none** — the wrap is still shut for them | | |
+| ⚠️ Further contributions after the threshold fire nothing | | |
+| Tapping it opens the recap, not the hub | | |
+| `wrap_ready`'s body no longer mentions superlatives | | |
+
+## 5. Regressions — the seven policies NOT changed
 | | iOS | Android |
 |---|---|---|
 | ⚠️ Adding a photo on day 3 still works (wrap_window_open untouched) | | |
@@ -789,11 +971,12 @@ they are the ones worth someone's time.
 | The wrap hub still loads for an event with zero contributors | | |
 | A non-attendee still hits the "this wrap is for attendees" guard | | |
 
-## 5. Android-specific
+## 6. Android-specific
 | | Android |
 |---|---|
 | ⚠️ Contributor row legible on flat glass (no backdrop blur on Android) | |
 | ⚠️ ConfirmDialog body text not clipped at the longest copy | |
+| ⚠️ The unlock notification opens the recap from a cold start | |
 ```
 
 - [ ] **Step 2: Commit**
@@ -810,7 +993,8 @@ git commit -m "docs(wrap): device test sheet for the social gate"
 - `npm run typecheck` → 0
 - `npm test` → green (10 new tests in `wrapGate.test.ts`)
 - `npm run lint` → 0 errors, no new warnings
-- Migrations **074** and **075** applied whole-file in the Supabase SQL editor
+- Migrations **074**, **075** and **076** applied whole-file in the Supabase SQL
+  editor
 - The threshold table in Task 2 Step 3 matches spec §4.2 exactly
 - `get_wrap_gate` raises for a non-attendee (Task 2 Step 4)
 - The device sheet in `docs/testing/` is filled in, or its gaps stated plainly

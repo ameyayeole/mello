@@ -73,6 +73,7 @@ flow **as they are**; 2b makes them feel like the approved prototype.
 | `src/components/wrap/flow/steps/StepFeedback.tsx` | **new** — moved, guests only |
 | `src/components/wrap/flow/steps/StepDone.tsx` | **new** — writes the marker |
 | `src/hooks/useWrap.ts` | `wrapStepsDone` / `wrapStepTotal` arithmetic |
+| `src/components/wrap/WrapChecklist.tsx` | loses the awards row; photo count fixed |
 
 ---
 
@@ -657,15 +658,29 @@ git commit -m "feat(wrap): photos as the flow's first step"
       `app/events/wrap/rate/[eventId].tsx:41-175` into `StepRate.tsx`, `memo`'d
       and reading `eventId` from the store.
 
-- [ ] **Step 2: Fold in the superlatives.** After the deck empties (`allDone`),
-      render the four categories from `SUPERLATIVES`
-      (`src/constants/superlatives.ts` — ids `mvp`, `first_to_arrive`,
-      `next_host`, `best_vibes`) against the same `getCoAttendees` list the deck
-      used, casting votes with `useWrap().vote`. Advance only once
-      `myVotes.size >= SUPERLATIVES.length`.
+- [ ] **Step 2: Fold in the awards.** After the deck empties (`allDone`), render
+      the four categories from `SUPERLATIVES` (`src/constants/superlatives.ts` —
+      ids `mvp`, `first_to_arrive`, `next_host`, `best_vibes`) against the same
+      `getCoAttendees` list the deck used, casting votes with `useWrap().vote`.
 
   Reuse the picker UI from `app/events/wrap/superlatives/[eventId].tsx:75+`
   rather than writing a second one.
+
+  **Two things about this block:**
+
+  **They are called "Awards" on screen, "superlatives" in the code.** Every
+  user-facing string says Awards — the heading here, the checklist row, the
+  recap section. The table, type, constants and RPC keep the old name; renaming
+  `superlative_votes`, `SuperlativeCategory`, `SUPERLATIVES`, `SuperlativeBadge`,
+  `voteSuperlative` and the `033` RPC to change a label is a large blast radius
+  for zero user benefit. **Rename the strings, not the schema** (spec §5.2).
+
+  **They are optional.** The step advances on the ratings alone — voting zero
+  awards is a complete rating step. Do **not** gate `next()` on
+  `myVotes.size >= SUPERLATIVES.length`. Four forced choices about who was most
+  likely to host next is where people stop answering and start clicking, and a
+  winner nobody meant is still displayed as a winner. A category already needs
+  3+ votes to resolve (`033:140`), which only works if the votes are willing.
 
 - [ ] **Step 3: Render it** — `{step === 'rate' ? <StepRate /> : null}`.
 
@@ -810,9 +825,12 @@ git commit -m "feat(wrap): finishing the flow marks you a contributor"
 - [ ] **Step 1: Update both functions together.** In `src/hooks/useWrap.ts`:
 
 ```ts
-// Photos, the people (ratings + awards, now one step), and — guests only — how
-// the event was. Rewind is deliberately absent: it is a preference, and a
-// preference cannot be a required step.
+// Photos, the people you met, and — guests only — how the event was.
+//
+// Rewind is deliberately absent: it is a preference, and a preference cannot be
+// a required step. Awards are absent for the same reason (spec §5.2) — the old
+// `votedCategories.length >= 4` clause is REMOVED, not moved. An optional thing
+// that still gates completion is not optional.
 export function wrapStepTotal(status: WrapStatus | undefined): number {
   return status?.isHost ? 2 : 3;
 }
@@ -821,19 +839,37 @@ export function wrapStepsDone(status: WrapStatus | undefined): number {
   if (!status) return 0;
   let done = 0;
   if (status.myPhotoCount > 0) done += 1;
-  if (
-    status.coAttendeeCount > 0 &&
-    status.ratedCount >= status.coAttendeeCount &&
-    status.votedCategories.length >= 4
-  )
+  if (status.coAttendeeCount > 0 && status.ratedCount >= status.coAttendeeCount)
     done += 1;
   if (!status.isHost && status.feedbackDone) done += 1;
   return done;
 }
 ```
 
-  **These two must change together.** Changing one produces no type error and no
-  failing test — just a checklist that never completes, or completes early.
+- [ ] **Step 1b: Fix the checklist to match.** `WrapChecklist`
+      (`src/components/wrap/WrapChecklist.tsx`) builds its own list, independent
+      of the two functions above — so leaving it alone gives you **four rows
+      under a "2/3" summary**. Visibly wrong, no type error.
+
+  - Narrow the type at `:11` — drop `'superlatives'`:
+
+```ts
+export type WrapStep = 'rate' | 'photos' | 'feedback';
+```
+
+  - Delete the whole `id: 'superlatives'` row from `buildSteps` (`:45-51`).
+  - Rename the rate row's title to **"Rate the people you met"** (unchanged) and
+    fold the awards into its subtitle only if you want them mentioned at all —
+    they are optional, so the checklist should not imply otherwise.
+  - Fix the photos row's stale subtitle at `:43`: it says
+    `'Up to 4 · top 6 go to Explore'`, and Phase 2b's carousel has **five**
+    slots. Make it `'Up to 5 · top 6 go to Explore'`.
+
+  `WrapSheet` renders this same component, so both surfaces are fixed by this
+  one edit.
+
+  **All three of these must change together** — the two functions and the
+  checklist. Any one alone leaves the hub disagreeing with itself.
 
 - [ ] **Step 2: Send the old entry points to the flow.** In
       `app/events/wrap/[eventId].tsx` and `src/components/wrap/WrapSheet.tsx`,
@@ -860,7 +896,8 @@ done` now fails, the `isHost` branch above is wrong.
 
 ```bash
 npm run typecheck && npm test && npm run lint
-git add src/hooks/useWrap.ts "app/events/wrap/[eventId].tsx" src/components/wrap/WrapSheet.tsx
+git add src/hooks/useWrap.ts src/components/wrap/WrapChecklist.tsx \
+        "app/events/wrap/[eventId].tsx" src/components/wrap/WrapSheet.tsx
 git commit -m "feat(wrap): three steps, and every door opens the flow"
 ```
 
@@ -901,7 +938,11 @@ Phase 1 migrations 074 + 075 must be applied. Tick per platform.
 |---|---|---|
 | Photos pick, upload, tag | | |
 | Deck swipes, stamps, undo | | |
-| All four superlatives castable; step blocks until all four | | |
+| Awards castable, labelled **Awards** not "superlatives" | | |
+| ⚠️ Voting **zero** awards still completes the rating step | | |
+| ⚠️ Hub checklist shows 3 rows (guest) / 2 (host) — no awards row | | |
+| ⚠️ Checklist summary count matches the number of rows shown | | |
+| Photos row reads "Up to 5", not "Up to 4" | | |
 | Rewind writes an encore; Skip does not | | |
 | ⚠️ Rewind's count matches the hub's for the same event | | |
 | Feedback advances on a rating alone, with no note | | |
@@ -940,8 +981,9 @@ git commit -m "docs(wrap): device sheet for the contribution flow"
 
 1. **A step given a prop.** `memo` stops holding, every step re-renders on every
    store change, and the gesture deck starts dropping frames. No error, no test.
-2. **`wrapStepsDone` / `wrapStepTotal` drifting apart** — a checklist that never
-   completes, or completes early. They changed together in Task 9.
+2. **`wrapStepsDone`, `wrapStepTotal` and `WrapChecklist` drifting apart** — a
+   checklist that never completes, completes early, or shows more rows than its
+   own summary counts. All three changed together in Task 9.
 3. **Missing invalidation after `markWrapContributed`** — the contributor count
    sticks and the wrap looks locked to someone who just contributed.
 4. **`reset` dropped from the route's unmount** — a second event's flow resumes
