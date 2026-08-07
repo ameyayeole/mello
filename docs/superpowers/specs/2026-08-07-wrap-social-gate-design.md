@@ -190,9 +190,9 @@ Today the four steps are four routes reached from a checklist. They become **one
 flow**, entered from a single "Contribute to the Wrap" CTA.
 
 ```
-Turn  →  Photos  →  Rate people (swipe + superlatives + notes)  →  Rewind  →  Done
-                                                                               │
-                                                             writes wrap_contributions
+Turn → Photos → Rate people (swipe + superlatives + notes) → Rewind → Feedback → Done
+                                                                    (guests only)   │
+                                                                  writes wrap_contributions
 ```
 
 Every step is **centre-weighted** — the content sits in the middle of the
@@ -283,7 +283,25 @@ It is also not answerable in the negative in a durable way today:
 indistinguishable from "not asked". Completion is marked by reaching Done, never
 by answering this.
 
-### 5.5 Checklist arithmetic
+### 5.5 Event feedback — last, and guests only
+
+`app/events/wrap/feedback/[eventId].tsx` already ships. It becomes the **final
+step before Done**: thumbs up/down on the event itself, plus an optional note.
+
+**Hosts skip it entirely** — they do not rate their own event — so the host's
+flow runs Rewind → Done. This matches the existing `isHost ? 3 : 4` split in
+`wrapStepTotal`.
+
+**Why last.** It is the only step that judges the *event* rather than the
+people or the night's artefacts, and it is the one a guest is least motivated
+to complete. Putting it in front of Done means the momentum of four finished
+steps carries it, rather than it standing between a guest and the flow they
+actually came for.
+
+**Placement decided 2026-08-07** — this step was previously an open question in
+the spec, kept by inference. It is now explicit.
+
+### 5.6 Checklist arithmetic
 
 `wrapStepsDone` / `wrapStepTotal` (`src/hooks/useWrap.ts:19-32`) become:
 
@@ -484,10 +502,14 @@ tested without a renderer — the pattern `participationMutations` uses in
 
 ---
 
-## 13. Open question
+## 13. Open questions
 
-**Event feedback (rate the event) is currently step 4 for non-hosts**
-(`app/events/wrap/feedback/[eventId].tsx`). It was not mentioned when the flow
-was described. This design keeps it as the final screen for non-hosts because it
-already ships and is useful — but it is the one step included by inference
-rather than instruction. Strike it if that is wrong.
+**None blocking.** Event feedback — the last item held open — was resolved on
+2026-08-07: it sits between Rewind and Done, guests only. See §5.5.
+
+Two things remain unknown but do not block planning:
+
+- **The logo has not been delivered.** §5.0 and §7.1 both render it; `MelloLogo`
+  stands in, and Lottie **L1** is blocked on it (see the Lottie manifest).
+- **Which Home treatment survives** (§7.3). Deliberately deferred to a device
+  comparison — it cannot be judged in a browser.
