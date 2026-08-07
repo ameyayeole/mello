@@ -45,9 +45,7 @@ surfaces already ship and are edited in place.
 | `src/components/wrap/WrapDealtCard.tsx` | **new** — the launch card, root-mounted |
 | `app/_layout.tsx` | mount it beside `EventDealtCard` |
 | `app/(tabs)/chats/[eventId].tsx` | pin upgrade; auto-open removed |
-| `src/components/wrap/WrapEntryCard.tsx` | Home variant A |
-| `src/components/wrap/WrapRail.tsx` | **new** — Home variant B |
-| `app/(tabs)/index.tsx` | render whichever variant is being trialled |
+| `src/components/wrap/WrapEntryCard.tsx` | the Home row — copy, hide rule, destination |
 
 ---
 
@@ -367,62 +365,88 @@ git commit -m "feat(wrap): the chat pins the wrap instead of ambushing you"
 
 ---
 
-### Task 5: Home — build both, delete one
+### Task 5: Home — upgrade the banner row
 
 **Files:**
-- Modify: `src/components/wrap/WrapEntryCard.tsx` (variant A)
-- Create: `src/components/wrap/WrapRail.tsx` (variant B)
-- Modify: `app/(tabs)/index.tsx`
+- Modify: `src/components/wrap/WrapEntryCard.tsx`
 
 **Interfaces:**
-- Produces: `<WrapRail />` — no props.
+- Produces: none. `WrapEntryCard` still takes only `style`.
 
-**This task ships deliberate duplication.** `AGENTS.md` forbids forking, and
-this breaks that rule on purpose and temporarily: the choice is about how much
-weight the wrap deserves against "Your plans" on a real feed, which cannot be
-judged in a browser. **The losing variant is deleted before this branch merges.**
-If both are still present at review, the task is not done.
+`WrapEntryCard` already ships and is already rendered at
+`app/(tabs)/index.tsx:572`, so **there is no new component and no wiring** —
+this task only changes what the existing row says.
 
-- [ ] **Step 1: Variant A — upgrade the existing card.** In `WrapEntryCard.tsx`:
-      add the contributor count beside the progress pill, and flip the copy past
-      48 hours:
+An earlier draft of this plan had you build a second variant (a horizontal rail)
+and delete one after comparing on device. **Cut, unbuilt** — see spec §7.3: a
+rail is a shelf for a plural thing and the wrap is singular
+(`getLatestWrappableEvent` returns one event), so a rail holding one card is
+strictly a worse row.
 
-```tsx
-  // Past the deal window the card stops being a summons and becomes a way back
-  // in. The card itself stays for seven days (getLatestWrappableEvent).
-  const past = (status?.hoursSinceEnd ?? 0) >= 48;
-  const title = past ? `View ${event.title} wrap` : `Wrap it up`;
-```
-
-  Keep its existing "hide when my checklist is done" behaviour.
-
-- [ ] **Step 2: Variant B — the rail.** Create `WrapRail.tsx`: a horizontal
-      `FlatList` of wrap cards reusing `WrapCard`
-      (`src/components/wrap/WrapCard.tsx`), fed by `useWrapEntry` plus recent
-      wrapped events. Same CTA phrase.
-
-- [ ] **Step 3: Trial them.** In `app/(tabs)/index.tsx`, render one at a time —
-      a module-level constant, not a setting, because this is a decision to make
-      and remove, not a feature to ship:
+- [ ] **Step 1: Show the group's progress, not just yours.** In
+      `WrapEntryCard.tsx`, the subtitle currently reads
+      `` `${done}/${total} done · rate people, drop photos, vote awards` ``.
+      Once you have finished your own steps, that line has nothing left to say —
+      replace it with what everyone else is doing:
 
 ```tsx
-// TEMPORARY. Flip to compare on device, then delete the loser and this constant.
-// See docs/superpowers/specs/2026-08-07-wrap-social-gate-design.md §7.3.
-const HOME_WRAP_VARIANT: 'card' | 'rail' = 'card';
+  const mine = done >= total;
+  const sub = mine
+    ? `${status.contributorCount} of ${status.contributorsNeeded} contributed`
+    : `${done}/${total} done · rate people, drop photos, vote awards`;
 ```
 
-- [ ] **Step 4: Compare on a device with a realistic feed** — several plans,
-      several events. The question is whether the wrap earns the top of the
-      feed, which an empty account cannot answer.
+- [ ] **Step 2: Flip the copy past the deal window.**
 
-- [ ] **Step 5: Delete the loser**, the constant, and the unused component.
+```tsx
+  // Past 48h the row stops being a summons and becomes a way back in. The row
+  // itself stays for seven days — getLatestWrappableEvent's window, unchanged.
+  const past = (status.hoursSinceEnd ?? 0) >= 48;
+  const title = past ? `View the ${event.title} wrap` : 'Wrap it up';
+```
+
+  **"Wrap it up"** is the same phrase as the launch card and the chat pin
+  (Global Constraints) — one action, one verb, three surfaces.
+
+- [ ] **Step 3: Fix the hide rule.** The card currently returns `null` when
+      `done >= total` (`WrapEntryCard.tsx:24`). That is now wrong: finishing your
+      own steps no longer ends your involvement, because the recap is still
+      locked until the group arrives. Hide it only once there is genuinely
+      nothing left:
+
+```tsx
+  // Gone when the wrap is actually open to you — not merely when your own
+  // checklist is clear. Under the old rule, the one person who finished first
+  // lost their way back to a wrap that had not opened yet.
+  if (mine && wrapGateState(status) === 'open') return null;
+```
+
+  Import `wrapGateState` from `@/utils/wrapGate` (Phase 1 Task 4).
+
+- [ ] **Step 4: Point it at the flow.** Its `onPress` currently pushes
+      `/events/wrap/${event.id}`. Send an unfinished wrap to the flow instead,
+      and a finished one to the hub:
+
+```tsx
+    onPress={() =>
+      router.push(
+        mine ? `/events/wrap/${event.id}` : `/events/wrap/flow/${event.id}`
+      )
+    }
+```
+
+- [ ] **Step 5: Verify** on device with a realistic feed: the row reads
+      "Wrap it up" before 48h and "View the … wrap" after; the subtitle switches
+      from your steps to the group's count once your own are done; the row
+      disappears only when the recap actually opens; tapping goes to the flow,
+      then to the hub once you have contributed.
 
 - [ ] **Step 6: Typecheck, test, lint, commit**
 
 ```bash
 npm run typecheck && npm test && npm run lint
-git add src/components/wrap/ "app/(tabs)/index.tsx"
-git commit -m "feat(wrap): the home treatment, chosen on a device"
+git add src/components/wrap/WrapEntryCard.tsx
+git commit -m "feat(wrap): the home row follows the group, not just you"
 ```
 
 ---
@@ -469,10 +493,12 @@ Phases 1, 2a and 2b must be in. ⚠️ rows check reasoning, not an observed bug
 ## 4. Home
 | | iOS | Android |
 |---|---|---|
-| Chosen variant renders with a realistic feed | | |
-| Copy flips at 48h | | |
-| Card hides once your checklist is done | | |
-| ⚠️ **Only one variant remains in the tree** | | |
+| Row renders correctly in a realistic feed | | |
+| Copy flips from "Wrap it up" to "View the … wrap" at 48h | | |
+| ⚠️ Subtitle switches from your steps to the group's count once yours are done | | |
+| ⚠️ Row stays visible after you finish, while the recap is still locked | | |
+| ⚠️ Row disappears only once the recap actually opens | | |
+| Tapping goes to the flow, then to the hub once you have contributed | | |
 
 ## 5. Android-specific
 | | Android |
@@ -496,7 +522,7 @@ git commit -m "docs(wrap): device sheet for the wrap surfaces"
 - `npm run typecheck` → 0
 - `npm test` → green (6 new in `wrapDeal.test.ts`; all earlier phases still pass)
 - `npm run lint` → 0 errors, no new warnings
-- **Only one Home variant remains** — `HOME_WRAP_VARIANT` and the loser deleted
+- No new Home component was created — Task 5 edits `WrapEntryCard` only
 - The device sheet is filled in, or its gaps stated plainly
 
 ## What can break silently
@@ -505,8 +531,10 @@ git commit -m "docs(wrap): device sheet for the wrap surfaces"
    must not render — otherwise every dismissed card flashes on launch.
 2. **A new SecureStore key format instead of `seenFlags`.** Loses the sanitising
    and the fail-open try/catch, and drifts from the existing one.
-3. **Both Home variants left in the tree.** Permanent forked duplication, which
-   is exactly what `AGENTS.md` exists to prevent.
+3. **The Home row's old hide rule left alone.** `return null` on
+   `done >= total` (`WrapEntryCard.tsx:24`) predates the group gate. Left as-is,
+   the person who finishes first loses their way back to a wrap that has not
+   opened yet — and nothing errors.
 4. **`WrapSheet` deleted along with the auto-open.** The pin still opens it; only
    the automatic call goes.
 5. **The CTA phrase drifting per surface.** Three verbs for one action reads as
@@ -514,7 +542,7 @@ git commit -m "docs(wrap): device sheet for the wrap surfaces"
 
 ## After this phase
 
-The spec's §7.3 open question is closed by Task 5. **No design questions
-remain** — the logo question closed on 2026-08-07 with `MelloPin` as the mark,
-so Lottie L1 can be commissioned whenever you want it. Everything ships without
-it; the card just lands flat until it exists.
+**No design questions remain.** Both of the spec's open items closed on
+2026-08-07: `MelloPin` is the mark, and the Home row is `WrapEntryCard` with no
+second variant. Lottie L1 and L2 can be commissioned whenever you want them —
+everything ships without them, just flatter.

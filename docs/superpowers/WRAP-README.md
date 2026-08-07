@@ -138,13 +138,15 @@ bug is invisible on iOS.
 
 ## Still outstanding
 
-**One thing, and it needs a device rather than a decision.**
+**Nothing.** Both open questions closed on 2026-08-07:
 
-- **Which Home treatment survives** (§7.3). Both get built and compared on a
-  real feed; the loser is deleted before merge. If both are still in the tree at
-  review, Phase 3 Task 5 is not finished.
+- **The mark** is `MelloPin` (`@/components/ui`) on the launch card. Note the
+  file `MelloLogo.tsx` exports `MelloPin` and `MelloWordmark` — **there is no
+  component called `MelloLogo`**, and its gradient is reserved for the pin.
+- **The Home surface** is the existing `WrapEntryCard`, upgraded. A second
+  variant was cut unbuilt: a rail is a shelf for a plural thing and the wrap is
+  singular. Spec §7.3.
 
-The logo question is **closed** — `MelloPin` (`@/components/ui`) is the mark on
-the launch card. Note the file `MelloLogo.tsx` exports `MelloPin` and
-`MelloWordmark`; **there is no component called `MelloLogo`**. Nothing in these
-plans is blocked, including Lottie L1.
+Every phase is buildable start to finish. The Lottie assets are the only thing
+outstanding and **none of them block** — each surface ships without its
+animation, just flatter.

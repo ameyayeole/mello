@@ -493,15 +493,28 @@ sheet. Adding the launch card would give the same event two takeovers. The dealt
 card is the one takeover; the chat keeps a quiet permanent pin. `WrapSheet`
 still opens on tap.
 
-### 7.3 Home — build both, then choose
+### 7.3 Home — the existing banner row, upgraded
 
-Deliberately two variants, to be compared on device and one deleted:
+`WrapEntryCard` (`src/components/wrap/WrapEntryCard.tsx`, rendered at
+`app/(tabs)/index.tsx:572`) stays. It gains the contributor count beside its
+progress pill, and past 48 hours its copy flips from **"Wrap it up"** to
+**"View wrap"**. It keeps hiding itself once your own checklist is done.
 
-- **A:** the existing `WrapEntryCard`, upgraded with contributor progress
-- **B:** a horizontal rail reusing `WrapCard` (`src/components/wrap/WrapCard.tsx`)
+**Decided 2026-08-07.** An earlier draft called for building a second variant —
+a horizontal rail of photo cards — and choosing between them on a device. That
+was cut without building it, because the question answers itself:
 
-This is the one place the design intentionally ships duplication. It is
-temporary; the losing variant is removed before the branch merges.
+**a rail is a shelf for a plural thing, and the wrap is singular.**
+`getLatestWrappableEvent` (`wrap.service.ts:534`) returns **one** event. A
+horizontal rail holding one card is strictly a worse row — it costs more
+vertical space, competes with "Your plans" for the top of the feed, and buys
+nothing. It would only earn its space if people routinely had three or more
+unwrapped events at once, and if that were happening the 48-hour urgency would
+already have failed.
+
+This also removes the one place this design was going to ship deliberate
+duplication against `AGENTS.md`'s anti-fork rule. Nothing now needs to be built
+twice and deleted.
 
 ---
 
@@ -582,9 +595,9 @@ The split is along a real seam: 2a **moves** working screens and changes
 structure; 2b **changes behaviour** inside them. Keeping those in one commit
 range would mean a regression could not be bisected to either.
 
-**Phase 3 — the surfaces.** The launch dealt card and its SecureStore flag;
-chat banner upgrade and auto-open removal; both Home variants, compared on
-device, loser deleted.
+**Phase 3 — the surfaces.** The launch dealt card and its seen-flag (via
+`seenFlags.ts`, not a new key format); the chat banner upgrade and the removal
+of its auto-open; and the Home row's copy, hide rule and destination.
 
 Phase 1 must land before 2 and 3 — both read `contributorCount`. Phases 2 and 3
 are independent of each other.
@@ -618,14 +631,19 @@ tested without a renderer — the pattern `participationMutations` uses in
 
 ## 13. Open questions
 
-**None blocking.** Event feedback — the last item held open — was resolved on
-2026-08-07: it sits between Rewind and Done, guests only. See §5.5.
+**None.** All three closed on 2026-08-07:
 
-The logo question closed the same day: **`MelloPin` is the mark** (§5.0), so
-nothing — including Lottie L1 — is waiting on an asset.
+| Question | Resolution |
+|---|---|
+| Where event feedback sits | Between Rewind and Done, guests only — §5.5 |
+| What the launch card's face shows | `MelloPin` — §5.0 |
+| Which Home treatment ships | The existing `WrapEntryCard`, upgraded — §7.3 |
 
-One thing remains open, and it needs a device rather than a decision:
+The last two were both *"build it and decide later"* items, and both were closed
+by argument instead. That is the cheaper answer whenever it is available: a
+rail was going to lose to a row because the wrap is singular, and a placeholder
+logo was standing in for a mark the app already had. Neither needed a device to
+work out.
 
-- **Which Home treatment survives** (§7.3). Deliberately deferred to a device
-  comparison — whether the wrap earns the top of a real feed cannot be judged
-  in a browser or against an empty account.
+Nothing here is waiting on an asset. The Lottie assets in the manifest are all
+optional — every surface ships without its animation, just flatter.
