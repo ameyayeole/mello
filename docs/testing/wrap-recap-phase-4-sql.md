@@ -67,6 +67,14 @@ Paste this whole block. It picks its own photo and its own actor, so there is
 nothing to fill in, and it deletes everything it created before it finishes.
 
 ```sql
+DROP TABLE IF EXISTS _a4_log;
+CREATE TEMP TABLE _a4_log (
+  seq        INT GENERATED ALWAYS AS IDENTITY,
+  check_name TEXT,
+  value      TEXT,
+  expected   TEXT
+);
+
 DO $$
 DECLARE
   v_photo   UUID;
