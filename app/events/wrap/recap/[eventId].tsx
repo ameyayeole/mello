@@ -16,13 +16,12 @@ import { useWrap, useWrapSummary } from '@/hooks/useWrap';
 import { useWrapGallery } from '@/hooks/useWrapGallery';
 import { useWrapNotes } from '@/hooks/useWrapNotes';
 import { SealedNoteRow } from '@/components/wrap/SealedNoteRow';
+import SuperlativeBadge from '@/components/wrap/SuperlativeBadge';
 import { recapSections } from '@/utils/wrapRecap';
 import { getEventDetail } from '@/services/events.service';
-import { SUPERLATIVE_MAP } from '@/constants/superlatives';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Avatar, Loader, NavButton, PressableScale } from '@/components/ui';
-import { SuperlativeWinner } from '@/types/models';
+import { Loader, NavButton, PressableScale } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
 function StatCard({
@@ -38,25 +37,6 @@ function StatCard({
     <View style={[styles.statCard, { backgroundColor: color }]}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function AwardCard({ winner }: { winner: SuperlativeWinner }) {
-  const meta = SUPERLATIVE_MAP[winner.category];
-  return (
-    <View style={styles.awardCard}>
-      <Avatar
-        name={winner.winner_name}
-        photoUrl={winner.winner_photo_url}
-        size={52}
-      />
-      <Text style={styles.awardName} numberOfLines={1}>
-        {winner.winner_name ?? '—'}
-      </Text>
-      <Text style={styles.awardLabel} numberOfLines={1}>
-        {meta?.label?.toUpperCase() ?? ''}
-      </Text>
     </View>
   );
 }
@@ -176,8 +156,8 @@ export default function WrapRecapScreen() {
                   as blank cards with no name. */}
               {sections.shared.superlatives.length > 0 ? (
                 <View style={styles.awardRow}>
-                  {sections.shared.superlatives.slice(0, 2).map((w) => (
-                    <AwardCard key={w.category} winner={w} />
+                  {sections.shared.superlatives.map((w) => (
+                    <SuperlativeBadge key={w.category} winner={w} tone="onDark" />
                   ))}
                 </View>
               ) : (
@@ -345,37 +325,27 @@ const styles = themedStyles(() => ({
     fontSize: TYPE_SIZE.micro,
     letterSpacing: 1.6,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.4)',
+    color: COLORS.textOnDarkMuted,
   },
   encoreLine: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(255,255,255,0.7)',
+    color: COLORS.textOnDark,
   },
   yours: { gap: SPACING[3] },
   yoursLine: {
     fontFamily: FONTS.heading,
     fontSize: TYPE_SIZE.bodyMd,
-    color: '#fff',
+    color: COLORS.white,
   },
   noteList: { gap: SPACING[2] },
-  awardRow: { flexDirection: 'row', gap: SPACING[2.5] },
-  awardCard: {
-    flex: 1,
-    alignItems: 'center',
-    gap: SPACING[2],
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: RADIUS.xl,
-    padding: SPACING[3.5],
-  },
-  awardName: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodySm, color: '#fff' },
-  awardLabel: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.nano, color: COLORS.primary },
+  // A stack, not a 2-up row: SuperlativeBadge is a full-width row, and all four
+  // categories can be decided rather than the two the old card grid showed.
+  awardRow: { gap: SPACING[2.5] },
   noVotes: {
     fontFamily: FONTS.medium,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(255,255,255,0.6)',
+    color: COLORS.textOnDarkMuted,
   },
   photoStrip: { flexDirection: 'row', gap: SPACING[2] },
   photoTile: {
