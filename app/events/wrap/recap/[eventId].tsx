@@ -271,7 +271,7 @@ export default function WrapRecapScreen() {
 }
 
 const styles = themedStyles(() => ({
-  container: { flex: 1, backgroundColor: '#141018' },
+  container: { flex: 1, backgroundColor: COLORS.canvasDark },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   confetti: {
     position: 'absolute',
@@ -295,28 +295,28 @@ const styles = themedStyles(() => ({
     fontSize: TYPE_SIZE.display,
     lineHeight: 35,
     letterSpacing: -1,
-    color: '#fff',
+    color: COLORS.white,
     marginTop: SPACING[2],
   },
   subtitle: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.bodySm,
-    color: 'rgba(255,255,255,0.5)',
+    color: COLORS.textOnDarkMuted,
     marginTop: SPACING[2],
   },
   stats: { flexDirection: 'row', gap: SPACING[2.5] },
   statCard: { flex: 1, borderRadius: RADIUS['2xl'], paddingVertical: SPACING[4], paddingHorizontal: SPACING[3.5] },
-  statValue: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.h1, color: '#fff' },
+  statValue: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.h1, color: COLORS.white },
   statLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.micro,
-    color: 'rgba(255,255,255,0.85)',
+    color: COLORS.textOnDark,
     marginTop: SPACING[0.5],
   },
   sectionTitle: {
     fontFamily: FONTS.heading,
     fontSize: TYPE_SIZE.body,
-    color: '#fff',
+    color: COLORS.white,
     marginBottom: SPACING[3],
   },
   // The line between what everyone sees and what only you do.
@@ -353,7 +353,7 @@ const styles = themedStyles(() => ({
     height: 60,
     borderRadius: RADIUS.sm,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: COLORS.fillOnDark,
   },
   photoMore: {
     position: 'absolute',
@@ -361,11 +361,11 @@ const styles = themedStyles(() => ({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(20,16,24,0.55)',
+    backgroundColor: COLORS.scrimOnPhoto,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoMoreText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.body, color: '#fff' },
+  photoMoreText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.body, color: COLORS.white },
   footer: {
     flexDirection: 'row',
     gap: SPACING[2.5],
@@ -380,7 +380,7 @@ const styles = themedStyles(() => ({
     paddingVertical: SPACING[3.5],
     borderRadius: RADIUS.md,
   },
-  footerBtnGhost: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  footerBtnGhost: { backgroundColor: COLORS.fillOnDarkStrong },
   footerBtnPrimary: { backgroundColor: COLORS.primary },
-  footerBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodyMd, color: '#fff' },
+  footerBtnText: { fontFamily: FONTS.heading, fontSize: TYPE_SIZE.bodyMd, color: COLORS.white },
 }));

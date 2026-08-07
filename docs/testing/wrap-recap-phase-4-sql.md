@@ -63,24 +63,80 @@ without dropping it first.
 
 ### A4. Reacting notifies, re-reacting does not
 
+Paste this whole block. It picks its own photo and its own actor, so there is
+nothing to fill in, and it deletes everything it created before it finishes.
+
 ```sql
--- As a user who is NOT the photo's uploader:
-INSERT INTO photo_reactions (photo_id, user_id, emoji)
-VALUES ('<a photo you did not upload>', auth.uid(), '👍');
+DO $$
+DECLARE
+  v_photo   UUID;
+  v_actor   UUID;
+  v_started TIMESTAMPTZ := NOW();
+  v_before  INT;
+  v_insert  INT;
+  v_update  INT;
+BEGIN
+  -- A photo, and an approved attendee of that event who did NOT upload it and
+  -- has not already reacted to it.
+  SELECT p.id, ep.user_id INTO v_photo, v_actor
+    FROM event_photos p
+    JOIN event_participants ep
+      ON ep.event_id = p.event_id AND ep.status = 'approved'
+   WHERE ep.user_id <> p.uploader_id
+     AND NOT EXISTS (
+       SELECT 1 FROM photo_reactions r
+        WHERE r.photo_id = p.id AND r.user_id = ep.user_id
+     )
+   LIMIT 1;
 
-SELECT COUNT(*) FROM notifications
- WHERE type = 'photo_liked' AND sender_id = auth.uid();
--- note the number, then change your mind:
+  IF v_photo IS NULL THEN
+    RAISE NOTICE 'No photo/attendee pair available — cannot run A4 yet.';
+    RETURN;
+  END IF;
 
-UPDATE photo_reactions SET emoji = '😂'
- WHERE photo_id = '<same photo>' AND user_id = auth.uid();
+  SELECT COUNT(*) INTO v_before FROM notifications
+   WHERE type = 'photo_liked' AND sender_id = v_actor;
 
-SELECT COUNT(*) FROM notifications
- WHERE type = 'photo_liked' AND sender_id = auth.uid();
+  INSERT INTO photo_reactions (photo_id, user_id, emoji)
+  VALUES (v_photo, v_actor, '👍');
+
+  SELECT COUNT(*) INTO v_insert FROM notifications
+   WHERE type = 'photo_liked' AND sender_id = v_actor;
+
+  -- Change of mind. Goes through the same unique index the app's upsert uses.
+  UPDATE photo_reactions SET emoji = '😂'
+   WHERE photo_id = v_photo AND user_id = v_actor;
+
+  SELECT COUNT(*) INTO v_update FROM notifications
+   WHERE type = 'photo_liked' AND sender_id = v_actor;
+
+  RAISE NOTICE 'before=%  after_insert=%  after_update=%', v_before, v_insert, v_update;
+  RAISE NOTICE 'PASS if after_insert = before + 1 AND after_update = after_insert';
+
+  -- Leave the table as it was found.
+  DELETE FROM photo_reactions WHERE photo_id = v_photo AND user_id = v_actor;
+  DELETE FROM notifications
+   WHERE type = 'photo_liked' AND sender_id = v_actor AND created_at >= v_started;
+END $$;
 ```
 
-**Expected:** the count goes up by exactly 1 on the insert and is **unchanged**
-by the update. Re-notifying on every change of mind is the failure here.
+**Expected** in the Messages/Notices pane:
+`after_insert = before + 1` and `after_update = after_insert`.
+
+Re-notifying on every change of mind is the failure this catches. If
+`after_update` is higher, `photo_reactions_notify` is firing on UPDATE and needs
+its `AFTER INSERT` restored.
+
+> **Why a `DO` block rather than plain statements:** in the SQL editor you run as
+> `postgres`, so `auth.uid()` is **NULL** — there is no JWT to read a subject
+> from. Any check written as `... = auth.uid()` silently matches nothing rather
+> than erroring, which is worse than the UUID cast error you would get from a
+> leftover `<placeholder>`. This block picks a real `user_id` from the data
+> instead. The same applies to B3/B4 in the Phase 1 bundle.
+>
+> Note it also runs as `postgres`, which **bypasses RLS** — that is fine here
+> because this tests the trigger, not the policies. RLS is only truly exercised
+> from the app.
 
 ---
 
@@ -112,15 +168,42 @@ delete several. That would need the column dropped and re-added.
 
 ### B2. One person can now comment twice
 
+Self-selecting and self-cleaning, same reason as A4.
+
 ```sql
-INSERT INTO wrap_photo_comments (photo_id, user_id, content)
-VALUES ('<a photo>', auth.uid(), 'first'),
-       ('<same photo>', auth.uid(), 'second');
+DO $$
+DECLARE
+  v_photo UUID;
+  v_actor UUID;
+  v_n     INT;
+BEGIN
+  SELECT p.id, ep.user_id INTO v_photo, v_actor
+    FROM event_photos p
+    JOIN event_participants ep
+      ON ep.event_id = p.event_id AND ep.status = 'approved'
+   LIMIT 1;
+
+  IF v_photo IS NULL THEN
+    RAISE NOTICE 'No photo available — skip B2.';
+    RETURN;
+  END IF;
+
+  INSERT INTO wrap_photo_comments (photo_id, user_id, content)
+  VALUES (v_photo, v_actor, '__b2_first'),
+         (v_photo, v_actor, '__b2_second');
+
+  SELECT COUNT(*) INTO v_n FROM wrap_photo_comments
+   WHERE photo_id = v_photo AND user_id = v_actor
+     AND content LIKE '__b2_%';
+
+  RAISE NOTICE 'inserted % of 2 — PASS if 2', v_n;
+
+  DELETE FROM wrap_photo_comments WHERE content LIKE '__b2_%';
+END $$;
 ```
 
-**Expected:** both insert. Under the old composite key the second was a
-violation. Clean up with
-`DELETE FROM wrap_photo_comments WHERE content IN ('first','second');`.
+**Expected:** `inserted 2 of 2`. Under the old composite key the second row was
+a primary-key violation and the whole block would abort.
 
 ---
 

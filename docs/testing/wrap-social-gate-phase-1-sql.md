@@ -6,7 +6,7 @@ cannot run DDL). This file is the handoff: run each block in the Supabase SQL
 editor **in order** and paste the output back.
 
 Two of these are the places the plan says a silent wrong answer is possible:
-**B2** (the threshold table) and **C3** (the notification count). Do not skip
+**B2** (the threshold table) and **C1** (the notification count). Do not skip
 them.
 
 ---
@@ -17,12 +17,17 @@ Paste `supabase/migrations/074_wrap_contributions.sql` whole-file.
 
 **Expected:** `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE`, two policies. No errors.
 
-### A1. Verify RLS reads back
+### A1. Verify the table reads back
 
 ```sql
--- Run as an attendee of that event. 0 rows is the pass; an ERROR is the fail.
-SELECT * FROM wrap_contributions WHERE event_id = '<an event you attended>';
+SELECT COUNT(*) AS rows_so_far FROM wrap_contributions;
 ```
+
+**Expected:** `0` — and no error. Nothing writes this table until Phase 2a.
+
+Note this does **not** test the RLS policies: as `postgres` you bypass them
+entirely. The policies are only genuinely exercised from the app, which is what
+the device sheet's section 5 covers.
 
 ---
 
@@ -64,24 +69,74 @@ and matches all 13 rows; this query is what proves Postgres agrees.
 **If any row differs, stop.** Every unlock decision in the app is downstream of
 this.
 
+> ⚠️ **`auth.uid()` is NULL in the SQL editor.** You run as `postgres`, not as a
+> logged-in user, so there is no JWT to read a subject from. A check written
+> `... = auth.uid()` therefore matches **nothing** and reports a cheerful,
+> meaningless pass. B3 and B4 below pick a real user id from the data instead.
+
 ### B3. The non-attendee guard
 
+Self-selecting — it finds an event the chosen user did **not** attend.
+
 ```sql
-SELECT * FROM get_wrap_gate('<event you did NOT attend>', auth.uid());
+DO $$
+DECLARE
+  v_user  UUID;
+  v_event UUID;
+BEGIN
+  SELECT ep.user_id INTO v_user
+    FROM event_participants ep WHERE ep.status = 'approved' LIMIT 1;
+
+  SELECT e.id INTO v_event
+    FROM events e
+   WHERE e.host_id <> v_user
+     AND NOT EXISTS (
+       SELECT 1 FROM event_participants ep
+        WHERE ep.event_id = e.id AND ep.user_id = v_user
+          AND ep.status = 'approved'
+     )
+   LIMIT 1;
+
+  IF v_event IS NULL THEN
+    RAISE NOTICE 'No non-attended event available — skip B3.';
+    RETURN;
+  END IF;
+
+  BEGIN
+    PERFORM * FROM get_wrap_gate(v_event, v_user);
+    RAISE NOTICE 'FAIL — returned rows for a non-attendee. Contributor lists leak.';
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'PASS — guard raised: %', SQLERRM;
+  END;
+END $$;
 ```
 
-**Expected:** `ERROR: not an attendee of this event`.
-If it returns rows, the guard is broken and contributor lists leak — stop.
+**Expected:** `PASS — guard raised: not an attendee of this event`.
+If it says FAIL, stop — the function leaks contributor lists for events the
+caller never attended.
 
 ### B4. The happy path
 
 ```sql
-SELECT * FROM get_wrap_gate('<event you DID attend>', auth.uid());
+DO $$
+DECLARE
+  v_user  UUID;
+  v_event UUID;
+  r       RECORD;
+BEGIN
+  SELECT ep.user_id, ep.event_id INTO v_user, v_event
+    FROM event_participants ep WHERE ep.status = 'approved' LIMIT 1;
+
+  FOR r IN SELECT * FROM get_wrap_gate(v_event, v_user) LOOP
+    RAISE NOTICE 'count=%  needed=%  contributors=%  hours_since_end=%',
+      r.contributor_count, r.contributors_needed, r.contributors, r.hours_since_end;
+  END LOOP;
+END $$;
 ```
 
-**Expected:** one row. `contributor_count` 0, `contributors_needed` per the
-table above for that event's size, `contributors` `[]`, `hours_since_end` a
-plausible number (negative if it has not ended yet — that is correct).
+**Expected:** one notice. `count` 0, `needed` per the table above for that
+event's size, `contributors` `[]`, `hours_since_end` a plausible number —
+negative if the event has not ended yet, which is correct and not a bug.
 
 ---
 
@@ -94,72 +149,103 @@ Paste `supabase/migrations/076_wrap_unlocked_notification.sql` whole-file.
 If the editor rejects `ALTER TYPE ... ADD VALUE` inside its transaction block,
 run that **first line alone**, then the rest of the file.
 
-### C1. Set up a test event
+### C1. ⚠️ The notification count — the other silent-wrong-answer spot
+
+Paste this whole block. It picks a clean event, adds contributors one at a time,
+reports the notification count after each, and deletes everything it made.
 
 ```sql
--- Pick an event and note its size and threshold before inserting anything.
-SELECT e.id, e.title,
-       1 + (SELECT COUNT(*) FROM event_participants ep
-             WHERE ep.event_id = e.id AND ep.status = 'approved'
-               AND ep.user_id <> e.host_id) AS size
-  FROM events e WHERE e.id = '<test event>';
+DO $$
+DECLARE
+  v_event   UUID;
+  v_size    INT;
+  v_needed  INT;
+  v_user    UUID;
+  v_i       INT := 0;
+  v_count   INT;
+  v_bad     INT;
+BEGIN
+  -- An event with 2+ approved attendees that nobody has contributed to yet.
+  SELECT e.id INTO v_event
+    FROM events e
+   WHERE (SELECT COUNT(*) FROM event_participants ep
+           WHERE ep.event_id = e.id AND ep.status = 'approved') >= 2
+     AND NOT EXISTS (
+       SELECT 1 FROM wrap_contributions wc WHERE wc.event_id = e.id
+     )
+   LIMIT 1;
+
+  IF v_event IS NULL THEN
+    RAISE NOTICE 'No clean event with 2+ approved attendees — cannot run C1.';
+    RETURN;
+  END IF;
+
+  SELECT 1 + (SELECT COUNT(*) FROM event_participants ep
+               WHERE ep.event_id = e.id AND ep.status = 'approved'
+                 AND ep.user_id <> e.host_id)
+    INTO v_size FROM events e WHERE e.id = v_event;
+
+  v_needed := LEAST(v_size, GREATEST(2, LEAST(5, CEIL(v_size / 2.0)::INT)));
+  RAISE NOTICE 'event=%  size=%  threshold=%', v_event, v_size, v_needed;
+
+  -- One contributor at a time, one past the threshold to prove it stops.
+  FOR v_user IN
+    SELECT ep.user_id FROM event_participants ep
+     WHERE ep.event_id = v_event AND ep.status = 'approved'
+     ORDER BY ep.user_id
+     LIMIT v_needed + 1
+  LOOP
+    v_i := v_i + 1;
+    INSERT INTO wrap_contributions (event_id, user_id)
+    VALUES (v_event, v_user) ON CONFLICT DO NOTHING;
+
+    SELECT COUNT(*) INTO v_count FROM notifications
+     WHERE event_id = v_event AND type = 'wrap_unlocked';
+
+    RAISE NOTICE 'contributor % of % -> % notification(s)  [expect % ]',
+      v_i, v_needed, v_count,
+      CASE WHEN v_i < v_needed THEN 0 ELSE v_needed END;
+  END LOOP;
+
+  -- Nobody who did not contribute may have been notified.
+  SELECT COUNT(*) INTO v_bad
+    FROM notifications n
+   WHERE n.event_id = v_event AND n.type = 'wrap_unlocked'
+     AND n.recipient_id NOT IN (
+       SELECT wc.user_id FROM wrap_contributions wc WHERE wc.event_id = v_event
+     );
+  RAISE NOTICE 'notifications sent to non-contributors = %  [expect 0]', v_bad;
+
+  -- Leave the database as it was found.
+  DELETE FROM notifications WHERE event_id = v_event AND type = 'wrap_unlocked';
+  DELETE FROM wrap_contributions WHERE event_id = v_event;
+  UPDATE events SET wrap_unlocked_notified = FALSE WHERE id = v_event;
+END $$;
 ```
 
-### C2. Insert contributors one at a time
+**Expected** in the Messages/Notices pane, for a threshold of 3:
 
-Insert **one row**, then run C3. Repeat. The count must stay 0 until the row
-that reaches the threshold.
-
-```sql
-INSERT INTO wrap_contributions (event_id, user_id)
-VALUES ('<test event>', '<a user who attended>');
-```
-
-### C3. ⚠️ The notification count — the other silent-wrong-answer spot
-
-```sql
-SELECT type, COUNT(*) FROM notifications
- WHERE event_id = '<test event>' AND type = 'wrap_unlocked'
- GROUP BY type;
-```
-
-**Expected sequence** for a 6-person event (threshold 3):
-
-| after inserting contributor # | rows from C3 |
+| line | count |
 |---|---|
-| 1 | 0 (no rows returned at all) |
-| 2 | 0 |
-| 3 | **3** — one per contributor, fired at the threshold |
-| 4 | 3 — unchanged, the once-only flag held |
-| 5 | 3 — still unchanged |
+| contributor 1 of 3 | 0 |
+| contributor 2 of 3 | 0 |
+| contributor 3 of 3 | **3** — one per contributor, fired at the threshold |
+| contributor 4 of 3 | 3 — unchanged, the once-only flag held |
+| non-contributors | **0** |
 
-Three ways this fails, all silent:
-- **Count climbs before the threshold** → the threshold arithmetic in the
-  trigger disagrees with 075.
+Four ways this fails, all silent:
+- **Count climbs before the threshold** → the trigger's threshold arithmetic
+  disagrees with 075.
 - **Count keeps climbing after** → `wrap_unlocked_notified` is not being set.
-- **Non-contributors got one** → the `INSERT ... SELECT` is reading the wrong
-  table; only `wrap_contributions` rows should receive.
+- **Non-contributors got one** → the `INSERT ... SELECT` reads the wrong table.
+- **The block errors on the insert** → the notifications column list is wrong;
+  the live table is `(recipient_id, sender_id, type, event_id, is_read, payload,
+  created_at)`, not `(user_id, actor_id, ...)`.
 
-### C4. Confirm non-contributors got nothing
-
-```sql
-SELECT n.recipient_id,
-       (n.recipient_id IN (SELECT user_id FROM wrap_contributions
-                            WHERE event_id = '<test event>')) AS is_contributor
-  FROM notifications n
- WHERE n.event_id = '<test event>' AND n.type = 'wrap_unlocked';
-```
-
-**Expected:** every row `is_contributor = true`.
-
-### C5. Clean up the test rows
-
-```sql
-DELETE FROM notifications
- WHERE event_id = '<test event>' AND type = 'wrap_unlocked';
-DELETE FROM wrap_contributions WHERE event_id = '<test event>';
-UPDATE events SET wrap_unlocked_notified = FALSE WHERE id = '<test event>';
-```
+Note this runs as `postgres`, so RLS — including `wrap_window_open` on the
+insert policy — is bypassed. That is deliberate: it lets the trigger be tested
+on any event rather than only one inside its 7-day window. The policy itself is
+only exercised from the app.
 
 ---
 
@@ -179,5 +265,6 @@ supabase functions deploy send-push-notification
 
 Phase 1 writes no `wrap_contributions` rows — Phase 2a does. To exercise
 sections 1–4 of `wrap-social-gate-phase-1.md` before 2a lands, insert rows by
-hand with C2 and delete them with C5. Re-run those rows after 2a, since a
+hand — C1's block inserts and then removes them, so copy its INSERT and skip its
+cleanup if you want them to persist. Re-run those rows after 2a, since a
 hand-inserted row does not prove the flow writes one.
