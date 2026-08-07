@@ -237,9 +237,18 @@ the same deck of co-attendees you are already swiping through.
 
 The deck itself ships (`app/events/wrap/rate/[eventId].tsx`). Two changes:
 
+**The card is the person.** Their profile photo fills the whole card edge to
+edge — no avatar sitting on a panel. `RateCard` already builds it this way
+(`photoArea: { flex: 1 }`, `photo` at 100%×100%), so this is a statement of what
+to preserve, not new work. Name, age and meta sit *on* the photo in `onPhoto`
+glass (`rgba(15,24,44,0.46)`, white contents) — the one dark tier, which exists
+precisely so text stays legible over a bright photo and a dark one alike.
+
 **"Leave a note" moves onto the card**, along its bottom edge, rather than
 living in a header or an action row. A thumb reaching a card reaches its bottom;
-the existing `NoteComposer` opens over the deck.
+the existing `NoteComposer` opens over the deck. On a full-bleed photo this
+button is `onPhoto` glass too — never a white chip, which would punch a hole in
+the portrait.
 
 **A Skip appears only when the event had more than 15 people.** Below that it
 stays hidden.
@@ -265,15 +274,38 @@ presented as a centred glyph the user must **press and hold** for ~1.2s.
   as a different picture on Android, which is exactly where this repo's
   invisible bugs live.
 
-**Why a hold rather than a tap.** Rewind tells other people something about you.
-A hold cannot be done by accident, and the effort is proportionate to the claim.
+**Why a hold rather than a tap.** Rewind is visible to everyone who came (see
+below). A hold cannot be done by accident, and the effort is proportionate to a
+claim other people will read.
 
-Success copy forks:
+#### Rewind is public, and the count is the point
 
-| Role | Copy |
+`encore_requests_select` is `USING (is_event_attendee(event_id, auth.uid()))`
+(`supabase/migrations/032_wrap.sql:464`) — **every attendee can already read the
+whole table**, `user_id` included. The wrap hub renders the tally today at
+`app/events/wrap/[eventId].tsx:206`: *"N people want this again"*.
+
+So the step must **show the live count**, before and after you commit:
+
+- Before: "4 people want to run it back" — this is the social proof that makes
+  holding feel worth it.
+- After: the count including you, and `encoreCount` is already on `WrapStatus`,
+  so no new field is needed.
+
+| Role | Copy after the hold |
 |---|---|
-| Guest | "We told **{host name}** you want to run it back." |
-| Host | "We will let everyone who came know you want to **run it back**." |
+| Guest | "You and **4 others** want to run it back. **{host name}** has been told." |
+| Host | "Everyone who came will know you want to run it back." |
+
+**Do not describe this step as private anywhere.** An earlier draft of this spec
+and the interactive prototype both said "tells {host} privately"; that was wrong
+and contradicted by the RLS above. Copy that promises privacy the schema does
+not provide is worse than no copy.
+
+**Names are available but not shown.** RLS exposes `user_id`, so a face pile is
+possible. The shipping hub shows a count only, and this spec keeps it that way —
+a tally invites you to join it, whereas a list of names invites you to work out
+who is missing. Revisit only with a reason.
 
 **Rewind is never a gate.** It is a yes/no preference, and you cannot force
 someone to say yes. Skipping it still completes the flow.
