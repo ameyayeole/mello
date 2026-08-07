@@ -62,10 +62,18 @@ is the correction.
 2. A server-side `get_wrap_status` RPC (§4.4) — the client cannot count other
    people's completion
 3. The 48-hour clock and the force-unlock path (§4.3)
-4. Superlatives folded into the rating step (§5)
-5. Optional thumbs-down reasons, split into two pipelines (§6)
-6. The launch dealt card (§7.1)
-7. A `thumbsDown` glyph on the `Icon` primitive (§8)
+4. The turn: card flip → **scale-to-fill** entry into the flow (§5.0)
+5. The 4:5 photo carousel with an edge peek (§5.1)
+6. Superlatives folded into the rating step (§5.2)
+7. "Leave a note" moved onto the card; Skip above 15 people (§5.3)
+8. Rewind as a **press-and-hold** with role-forked copy (§5.4)
+9. Optional thumbs-down reasons, split into two pipelines (§6)
+10. The launch dealt card (§7.1)
+11. A `thumbsDown` glyph on the `Icon` primitive (§8)
+
+Motion assets are tracked separately in
+**`2026-08-07-wrap-lottie-manifest.md`** — two of them (the card reveal and the
+rewind hold) are P0 and one is blocked on the logo.
 
 ---
 
@@ -182,30 +190,100 @@ Today the four steps are four routes reached from a checklist. They become **one
 flow**, entered from a single "Contribute to the Wrap" CTA.
 
 ```
-Photos  →  Rate people (swipe + superlatives + notes)  →  Rewind  →  Done
-                                                                      │
-                                                    writes wrap_contributions
+Turn  →  Photos  →  Rate people (swipe + superlatives + notes)  →  Rewind  →  Done
+                                                                               │
+                                                             writes wrap_contributions
 ```
 
-### 5.1 Superlatives move into the rating step
+Every step is **centre-weighted** — the content sits in the middle of the
+viewport, not stacked from the top. Walked and approved as an interactive
+prototype on 2026-08-07; the prototype source is
+`.superpowers/brainstorm/*/content/contribution-flow.html` (gitignored — treat
+this section as the record, not that file).
+
+### 5.0 The turn — entering the flow
+
+Tapping **Contribute to the Wrap** flips the dealt card to its logo face, holds,
+then scales that face up until it fills the viewport and *becomes* the flow.
+One continuous gesture carries you in: no navigation push, no modal seam.
+
+- Flip ≈ 650ms, hold ≈ 150ms, scale-to-fill ≈ 550ms; the first step is
+  interactive by ~1.5s.
+- `DealtCard` already owns the turn and the tilt. **Only the scale-to-fill is
+  new.**
+- The logo is user-supplied and not yet delivered — `MelloLogo` stands in.
+
+### 5.1 Photos — a fixed-ratio carousel
+
+Five slots, centred, **4:5 only**. The next frame sits just past the screen edge
+so the swipe is self-evident without an instruction. Horizontally swipeable;
+tapping the centre frame opens the picker.
+
+**Why the ratio is locked.** Every downstream surface — the wrap grid, the
+shared-wrap card's `top_photos`, the recap — inherits one shape. Allowing mixed
+ratios means every one of those has to letterbox or crop later, and that
+decision would be made independently in four places.
+
+The flow will not advance on an empty grid: a wrap with no photos is not worth
+unlocking.
+
+### 5.2 Superlatives move into the rating step
 
 Per decision: superlatives are voted **while rating people**, not as a separate
 screen. The four categories (`src/constants/superlatives.ts`) are cast against
 the same deck of co-attendees you are already swiping through.
 
-### 5.2 Rewind is a screen, not a gate
+### 5.3 The rating deck — note on the card, skip on big events
 
-"Rewind" is the existing **encore** (`requestEncore` / `withdrawEncore`). It is a
-yes/no preference and therefore **cannot be a required step** — you cannot force
-someone to say yes.
+The deck itself ships (`app/events/wrap/rate/[eventId].tsx`). Two changes:
 
-It is also not currently answerable in the negative in a durable way:
+**"Leave a note" moves onto the card**, along its bottom edge, rather than
+living in a header or an action row. A thumb reaching a card reaches its bottom;
+the existing `NoteComposer` opens over the deck.
+
+**A Skip appears only when the event had more than 15 people.** Below that it
+stays hidden.
+
+> **Why gate Skip on size.** The flow is mandatory to unlock the wrap. A
+> twenty-person deck standing in front of a gate gets *rushed* — and a rushed
+> rating is worse than a skipped one, because it looks like signal. Skipping
+> still completes the flow. This is the same reasoning as §6: never make the
+> honest path the expensive one.
+
+The exact threshold (15) is a judgement call, not a measurement. It is the point
+where the deck stops being a nice review of the night and starts being a chore.
+
+### 5.4 Rewind — press and hold, and it forks by role
+
+"Rewind" is the existing **encore** (`requestEncore` / `withdrawEncore`),
+presented as a centred glyph the user must **press and hold** for ~1.2s.
+
+- The ring closes and the screen floods coral under the thumb as the hold
+  progresses; releasing early drains it back.
+- Haptic on start and on completion.
+- **The glyph is Solar's rewind icon, not the iOS ⏪ emoji** — an emoji renders
+  as a different picture on Android, which is exactly where this repo's
+  invisible bugs live.
+
+**Why a hold rather than a tap.** Rewind tells other people something about you.
+A hold cannot be done by accident, and the effort is proportionate to the claim.
+
+Success copy forks:
+
+| Role | Copy |
+|---|---|
+| Guest | "We told **{host name}** you want to run it back." |
+| Host | "We will let everyone who came know you want to **run it back**." |
+
+**Rewind is never a gate.** It is a yes/no preference, and you cannot force
+someone to say yes. Skipping it still completes the flow.
+
+It is also not answerable in the negative in a durable way today:
 `encore_requests` stores only *requests*, so "no" writes nothing and is
-indistinguishable from "not asked". Rewind therefore sits in the flow as a
-screen you pass through, and completion is marked by reaching Done — not by
-answering it.
+indistinguishable from "not asked". Completion is marked by reaching Done, never
+by answering this.
 
-### 5.3 Checklist arithmetic
+### 5.5 Checklist arithmetic
 
 `wrapStepsDone` / `wrapStepTotal` (`src/hooks/useWrap.ts:19-32`) become:
 
