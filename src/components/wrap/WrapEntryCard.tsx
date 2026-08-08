@@ -7,11 +7,11 @@ import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Icon, PressableScale } from '@/components/ui';
 import { useWrap, useWrapEntry, wrapStepsDone, wrapStepTotal } from '@/hooks/useWrap';
+import { wrapGateState } from '@/utils/wrapGate';
 import { themedStyles } from '@/theme';
 
 // "Wrap up last night" banner for Home and Explore. Shows the most recently
-// ended attended event still inside its wrap window; hides itself when the
-// checklist is complete or there's nothing to wrap.
+// ended attended event still inside its wrap window.
 export default function WrapEntryCard({ style }: { style?: object }) {
   const router = useRouter();
   const { data: event } = useWrapEntry();
@@ -21,33 +21,60 @@ export default function WrapEntryCard({ style }: { style?: object }) {
 
   const done = wrapStepsDone(status);
   const total = wrapStepTotal(status);
-  if (done >= total) return null;
+  const mine = done >= total;
+
+  // Gone when the wrap is actually open to you — not merely when your own
+  // checklist is clear. Under the old rule (`done >= total`), the one person
+  // who finished first lost their way back to a wrap that had not opened yet.
+  if (mine && wrapGateState(status) === 'open') return null;
+
+  // Past 48h the row stops being a summons and becomes a way back in. The row
+  // itself stays for seven days — getLatestWrappableEvent's window, unchanged.
+  const past = (status.hoursSinceEnd ?? 0) >= 48;
+  const title = past ? `View the ${event.title} wrap` : 'Wrap it up';
+
+  // Once your own steps are done that count has nothing left to say, so the
+  // line switches to what everyone else is doing.
+  const sub = mine
+    ? `${status.contributorCount} of ${status.contributorsNeeded} contributed`
+    : `${done}/${total} done · rate people, drop photos, vote awards`;
 
   return (
     <Animated.View entering={FadeInDown.duration(350)} style={style}>
       <PressableScale
         scaleTo={0.98}
         style={styles.card}
-        onPress={() => router.push(`/events/wrap/${event.id}`)}
+        // An unfinished wrap goes to the flow — only the flow writes the
+        // contributor marker. A finished one goes to the hub, where the gallery,
+        // the encore and the recap are.
+        onPress={() =>
+          router.push(
+            mine
+              ? `/events/wrap/${event.id}`
+              : `/events/wrap/flow/${event.id}`
+          )
+        }
         accessibilityRole="button"
-        accessibilityLabel={`Wrap up ${event.title}`}
+        accessibilityLabel={`${title} — ${event.title}`}
       >
         <View style={styles.iconTile}>
           <Icon name="camera" size={21} color={COLORS.primary} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title} numberOfLines={1}>
-            Wrap up {event.title}
+            {title}
           </Text>
           <Text style={styles.sub} numberOfLines={1}>
-            {done}/{total} done · rate people, drop photos, vote awards
+            {sub}
           </Text>
         </View>
-        <View style={styles.progressPill}>
-          <Text style={styles.progressText}>
-            {done}/{total}
-          </Text>
-        </View>
+        {!mine && (
+          <View style={styles.progressPill}>
+            <Text style={styles.progressText}>
+              {done}/{total}
+            </Text>
+          </View>
+        )}
         <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
       </PressableScale>
     </Animated.View>
