@@ -70,6 +70,7 @@ const SOLAR = {
   logout: 'Logout2',
   mic: 'Microphone',
   moon: 'Moon',
+  penNewSquare: 'PenNewSquare',
   phone: 'Phone',
   pin: 'MapPoint',
   qr: 'QrCode',

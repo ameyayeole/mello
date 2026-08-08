@@ -330,6 +330,10 @@ export const StepRate = memo(function StepRate() {
                           setRequestedIds((s) => new Set(s).add(attendee.id));
                           sendRequest.mutate(attendee.id);
                         }}
+                        // Nested inside the card's own PressableScale, the same
+                        // way Add friend already is — the inner press wins the
+                        // responder, so this does not also open the profile.
+                        onLeaveNote={() => setNoteFor(attendee)}
                       />
                       <Animated.View
                         pointerEvents="none"
