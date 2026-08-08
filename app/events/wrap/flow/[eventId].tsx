@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Loader, Screen, ScreenHeader } from '@/components/ui';
+import { AppBackground, Loader, Screen, ScreenHeader } from '@/components/ui';
 import { FlowProgress, FlowShell } from '@/components/wrap/flow/FlowShell';
 import { StepPhotos } from '@/components/wrap/flow/steps/StepPhotos';
 import { StepRate } from '@/components/wrap/flow/steps/StepRate';
@@ -52,36 +52,52 @@ export default function WrapFlowScreen() {
 
   if (eventQuery.isLoading || !event) {
     return (
-      <Screen>
-        <Loader inline />
-      </Screen>
+      <View style={styles.root}>
+        <AppBackground />
+        <Screen background="transparent">
+          <Loader inline />
+        </Screen>
+      </View>
     );
   }
 
   return (
-    <Screen>
-      <ScreenHeader
-        title="Wrap it up"
-        subtitle={event.title}
-        backIcon="chevronDown"
-        tone="transparent"
-      />
-      <FlowProgress total={steps.length} index={index} />
-      <View style={{ flex: 1 }}>
-        <FlowShell key={step}>
-          {step === 'photos' ? (
-            <StepPhotos />
-          ) : step === 'rate' ? (
-            <StepRate />
-          ) : step === 'rewind' ? (
-            <StepRewind />
-          ) : step === 'feedback' ? (
-            <StepFeedback />
-          ) : (
-            <StepDone />
-          )}
-        </FlowShell>
-      </View>
-    </Screen>
+    // `AppBackground` is mounted once behind the *tab* navigator, and this route
+    // lives outside that tree — so without its own copy the flow was the one
+    // part of the wrap sitting on flat paper while everything it links to sits
+    // on the drifting field. Screen goes transparent so there is something to
+    // reveal (DESIGN.md §2).
+    <View style={styles.root}>
+      <AppBackground />
+      <Screen background="transparent">
+        <ScreenHeader
+          title="Wrap it up"
+          subtitle={event.title}
+          backIcon="chevronDown"
+          tone="transparent"
+        />
+        <FlowProgress total={steps.length} index={index} />
+        <View style={{ flex: 1 }}>
+          <FlowShell key={step}>
+            {step === 'photos' ? (
+              <StepPhotos />
+            ) : step === 'rate' ? (
+              <StepRate />
+            ) : step === 'rewind' ? (
+              <StepRewind />
+            ) : step === 'feedback' ? (
+              <StepFeedback />
+            ) : (
+              <StepDone />
+            )}
+          </FlowShell>
+        </View>
+      </Screen>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  // No colour of its own — AppBackground paints the floor.
+  root: { flex: 1 },
+});

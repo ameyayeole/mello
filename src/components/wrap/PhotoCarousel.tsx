@@ -13,7 +13,8 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { Icon, PressableScale } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
-// Five 4:5 frames, centre-locked, with the next one peeking past the edge.
+// The photos you are adding, one 4:5 frame at a time, with the next one peeking
+// past the edge.
 //
 // The ratio is fixed rather than free because every surface downstream — the
 // wrap grid, a shared_wrap card's top_photos, the recap — inherits whatever
@@ -25,54 +26,77 @@ import { themedStyles } from '@/theme';
 // has to hold against store churn.
 const GAP = SPACING[3];
 
+// How much of the finger's travel the track actually takes.
+//
+// At 1:1 a normal thumb flick threw the strip two or three frames and it read
+// as loose — you aimed at the next photo and landed somewhere past it. Damped,
+// the strip follows your finger a little behind, which is what makes it feel
+// like it has weight instead of ice under it.
+const DRAG_FACTOR = 0.55;
+
+// Travel past the first or last frame, before resistance. Without a cap the
+// strip could be dragged into empty space and sprung back from it.
+const OVERSCROLL = 48;
+
 export const PhotoCarousel = memo(function PhotoCarousel({
   uris,
   index,
   onIndexChange,
-  onPick,
+  onDelete,
 }: {
-  uris: (string | null)[];
+  uris: string[];
   index: number;
   onIndexChange: (i: number) => void;
-  onPick: (i: number) => void;
+  onDelete?: (i: number) => void;
 }) {
   const { width } = useWindowDimensions();
-  // The frame is 4:5, sized so a slice of the next one stays on screen. 0.62 is
-  // a layout number, not a token — it is "wide enough to be the subject, narrow
-  // enough that the neighbour reads as swipeable".
-  const W = Math.round(width * 0.62);
+  // 0.78 of the screen, up from 0.62 — the photo is the subject of this step,
+  // and at the smaller size it read as a thumbnail with furniture around it.
+  // Still short of full width, because the slice of the next frame is what
+  // says the strip is swipeable without an instruction.
+  const W = Math.round(width * 0.78);
   const H = Math.round(W * 1.25);
   const STRIDE = W + GAP;
   const REST = (width - W) / 2;
 
   const tx = useSharedValue(0);
   const start = useSharedValue(0);
+  const maxIndex = Math.max(0, uris.length - 1);
 
   // Keeps the track in step with an index changed from outside the gesture —
-  // tapping a neighbour, or the store being reset. Without this the frames
-  // would stay where the last drag left them while `index` said otherwise.
+  // adding a photo, or the store being reset. Without this the frames would
+  // stay where the last drag left them while `index` said otherwise.
   useEffect(() => {
-    tx.value = withSpring(-index * STRIDE, { damping: 18, stiffness: 160 });
+    tx.value = withSpring(-index * STRIDE, { damping: 22, stiffness: 170 });
   }, [index, STRIDE, tx]);
 
   const pan = Gesture.Pan()
+    // Vertical drags belong to the scroll view this sits inside.
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-14, 14])
     .onBegin(() => {
       start.value = tx.value;
     })
     .onUpdate((e) => {
-      tx.value = start.value + e.translationX;
+      const next = start.value + e.translationX * DRAG_FACTOR;
+      const min = -maxIndex * STRIDE - OVERSCROLL;
+      tx.value = Math.max(min, Math.min(OVERSCROLL, next));
     })
     .onEnd((e) => {
       const moved = -(tx.value - start.value);
-      const flung = Math.abs(moved) > W * 0.25 || Math.abs(e.velocityX) > 600;
+      // One frame per gesture, whatever the distance — the old rule let a hard
+      // flick commit and the spring carry on past its target.
+      const flung = Math.abs(moved) > W * 0.18 || Math.abs(e.velocityX) > 500;
       const dir = moved > 0 ? 1 : -1;
       const nextIndex = Math.max(
         0,
-        Math.min(uris.length - 1, index + (flung ? dir : 0))
+        Math.min(maxIndex, index + (flung ? dir : 0))
       );
+      // Damping well above the usual 18: this strip should arrive and stop.
+      // A visible overshoot on a photo the size of the screen reads as a bounce.
       tx.value = withSpring(-nextIndex * STRIDE, {
-        damping: 18,
-        stiffness: 160,
+        damping: 22,
+        stiffness: 170,
       });
       if (nextIndex !== index) runOnJS(onIndexChange)(nextIndex);
     });
@@ -85,26 +109,24 @@ export const PhotoCarousel = memo(function PhotoCarousel({
     <GestureDetector gesture={pan}>
       <Animated.View style={[styles.track, trackStyle, { gap: GAP }]}>
         {uris.map((uri, i) => (
-          <PressableScale
-            key={i}
-            scaleTo={0.98}
-            onPress={() => (i === index ? onPick(i) : onIndexChange(i))}
-            style={[
-              styles.slide,
-              { width: W, height: H },
-              i !== index && styles.slideOff,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={uri ? `Photo ${i + 1}` : `Add photo ${i + 1}`}
+          <View
+            key={`${uri}-${i}`}
+            style={[styles.slide, { width: W, height: H }, i !== index && styles.slideOff]}
           >
-            {uri ? (
-              <Image source={{ uri }} style={styles.img} contentFit="cover" />
-            ) : (
-              <View style={styles.empty}>
-                <Icon name="galleryAdd" size={30} color={COLORS.primary} />
-              </View>
-            )}
-          </PressableScale>
+            <Image source={{ uri }} style={styles.img} contentFit="cover" />
+            {onDelete && i === index ? (
+              <PressableScale
+                scaleTo={0.9}
+                style={styles.trash}
+                hitSlop={10}
+                onPress={() => onDelete(i)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove photo ${i + 1}`}
+              >
+                <Icon name="trash" size={16} color={COLORS.white} strokeWidth={2.2} />
+              </PressableScale>
+            ) : null}
+          </View>
         ))}
       </Animated.View>
     </GestureDetector>
@@ -120,5 +142,17 @@ const styles = themedStyles(() => ({
   },
   slideOff: { opacity: 0.45 },
   img: { width: '100%', height: '100%' },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // Only on the centred frame: a trash button on a photo you have not chosen
+  // yet is an invitation to delete the wrong one.
+  trash: {
+    position: 'absolute',
+    top: SPACING[2.5],
+    right: SPACING[2.5],
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.scrimOnPhoto,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 }));

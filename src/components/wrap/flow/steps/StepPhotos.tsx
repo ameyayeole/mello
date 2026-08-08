@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   ScrollView,
@@ -16,7 +17,11 @@ import { PhotoCarousel } from '@/components/wrap/PhotoCarousel';
 import { CompleteMoment } from '@/components/wrap/CompleteMoment';
 import { useWrapGallery } from '@/hooks/useWrapGallery';
 import { useWrap } from '@/hooks/useWrap';
-import { getCoAttendees, addWrapPhoto } from '@/services/wrap.service';
+import {
+  getCoAttendees,
+  addWrapPhoto,
+  deleteWrapPhoto,
+} from '@/services/wrap.service';
 import { uploadWrapPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useWrapFlowStore } from '@/stores/wrapFlowStore';
@@ -26,11 +31,21 @@ import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
 
-// Five slots, matching the carousel and the checklist's "Up to 5".
 const MAX_PHOTOS = 5;
 
-// Add your best photos to the pool. Caption + tags apply to this batch;
-// the 6 most-liked photos of the event go public on Explore.
+// One picked photo and the caption and tags that belong to *it*.
+//
+// Caption and tags used to be one pair applied to the whole batch, which meant
+// four photos of four different people all carried the same words and tagged
+// the same person. They travel with the photo now.
+interface Draft {
+  uri: string;
+  caption: string;
+  tagged: string[];
+}
+
+// Add your best photos to the pool. Each one carries its own caption and its
+// own tags.
 //
 // No props — that is what lets memo hold this against the flow's re-renders.
 // See AGENTS.md: adding a single prop undoes it with no error and no failing
@@ -44,9 +59,7 @@ export const StepPhotos = memo(function StepPhotos() {
   const { sortedPhotos, photosQuery } = useWrapGallery(eventId);
   const { invalidate } = useWrap(eventId);
 
-  const [picked, setPicked] = useState<string[]>([]);
-  const [caption, setCaption] = useState('');
-  const [tagged, setTagged] = useState<Set<string>>(new Set());
+  const [drafts, setDrafts] = useState<Draft[]>([]);
   const [uploading, setUploading] = useState(false);
   const [justUploaded, setJustUploaded] = useState(0);
 
@@ -60,63 +73,98 @@ export const StepPhotos = memo(function StepPhotos() {
     () => sortedPhotos.filter((p) => p.uploader_id === user?.id),
     [sortedPhotos, user?.id]
   );
-  const slotsLeft = Math.max(0, MAX_PHOTOS - myPhotos.length - picked.length);
+  const slotsLeft = Math.max(0, MAX_PHOTOS - myPhotos.length - drafts.length);
 
-  // Already in the pool, then this batch, then empty frames to five. The
-  // carousel always shows five slots so the shape of the step does not change
-  // as you fill it.
-  const slots = useMemo(() => {
-    const filled: (string | null)[] = [
-      ...myPhotos.map((p) => p.url),
-      ...picked,
-    ];
-    while (filled.length < MAX_PHOTOS) filled.push(null);
-    return filled.slice(0, MAX_PHOTOS);
-  }, [myPhotos, picked]);
-
+  // Already in the pool first, then the ones being added. No empty frames: a
+  // placeholder you tap to open a picker made the strip mostly furniture, and
+  // there is a button for that.
+  const slots = useMemo(
+    () => [...myPhotos.map((p) => p.url), ...drafts.map((d) => d.uri)],
+    [myPhotos, drafts]
+  );
   const uploadedCount = myPhotos.length;
 
-  async function handleSlotPress(i: number) {
-    // An uploaded photo is already in the pool — deleting it is the gallery's
-    // job, not a side effect of tapping it here.
-    if (i < uploadedCount) return;
-    const localIndex = i - uploadedCount;
-    if (localIndex < picked.length) {
-      setPicked((p) => p.filter((_, n) => n !== localIndex));
-      return;
-    }
+  const draftIndex = index - uploadedCount;
+  const draft: Draft | undefined = drafts[draftIndex];
+
+  async function addPhotos() {
     if (slotsLeft <= 0) return;
-    setPicked(await pickPhotos(picked, MAX_PHOTOS - uploadedCount));
+    const uris = await pickPhotos(
+      drafts.map((d) => d.uri),
+      MAX_PHOTOS - uploadedCount
+    );
+    const added = uris
+      .filter((uri) => !drafts.some((d) => d.uri === uri))
+      .map((uri) => ({ uri, caption: '', tagged: [] as string[] }));
+    if (added.length === 0) return;
+    setDrafts((d) => [...d, ...added]);
+    // Land on the first one just added, so the strip comes across to what you
+    // picked rather than leaving you to find it.
+    setIndex(uploadedCount + drafts.length);
+  }
+
+  function patchDraft(patch: Partial<Draft>) {
+    if (draftIndex < 0) return;
+    setDrafts((d) =>
+      d.map((item, i) => (i === draftIndex ? { ...item, ...patch } : item))
+    );
   }
 
   function toggleTag(id: string) {
-    setTagged((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+    if (!draft) return;
+    const on = draft.tagged.includes(id);
+    patchDraft({
+      tagged: on
+        ? draft.tagged.filter((t) => t !== id)
+        : [...draft.tagged, id],
     });
   }
 
+  function removeAt(i: number) {
+    // An already-uploaded photo leaves the pool for everyone, so it asks first —
+    // the same confirmation the gallery uses for the same action.
+    if (i < uploadedCount) {
+      const photo = myPhotos[i];
+      Alert.alert('Delete photo?', 'It leaves the pool for everyone.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteWrapPhoto(photo.id);
+              setIndex(Math.max(0, i - 1));
+              photosQuery.refetch();
+              invalidate();
+            } catch (e) {
+              showError(e);
+            }
+          },
+        },
+      ]);
+      return;
+    }
+    const at = i - uploadedCount;
+    setDrafts((d) => d.filter((_, n) => n !== at));
+    setIndex(Math.max(0, i - 1));
+  }
+
   async function handleUpload() {
-    if (!user || !eventId || picked.length === 0) return;
+    if (!user || !eventId || drafts.length === 0) return;
     try {
       setUploading(true);
-      const mentions = Array.from(tagged);
-      for (const uri of picked) {
-        const url = await uploadWrapPhoto(user.id, eventId, uri);
+      for (const d of drafts) {
+        const url = await uploadWrapPhoto(user.id, eventId, d.uri);
         await addWrapPhoto({
           eventId,
           uploaderId: user.id,
           url,
-          caption,
-          mentions,
+          caption: d.caption,
+          mentions: d.tagged,
         });
       }
-      setJustUploaded(picked.length);
-      setPicked([]);
-      setCaption('');
-      setTagged(new Set());
+      setJustUploaded(drafts.length);
+      setDrafts([]);
       setIndex(0);
       photosQuery.refetch();
       invalidate();
@@ -132,12 +180,9 @@ export const StepPhotos = memo(function StepPhotos() {
       <View style={styles.completeWrap}>
         <CompleteMoment
           title={justUploaded === 1 ? 'Photo in the pool!' : 'Photos in the pool!'}
-          sub="Likes decide the top 6. May the best shots win."
+          sub="Everyone who came can see them."
         >
           <View style={styles.completeActions}>
-            {/* Was "See the gallery" as a router.replace. Inside the flow the
-                onward move is the next step — the gallery is still one tap away
-                from the hub afterwards. */}
             <Button variant="tertiary" label="Continue" height={44} onPress={next} />
             {MAX_PHOTOS - myPhotos.length > 0 && (
               <PressableScale scaleTo={0.96} onPress={() => setJustUploaded(0)} hitSlop={8}>
@@ -162,92 +207,110 @@ export const StepPhotos = memo(function StepPhotos() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* The competition stake, announced up front */}
-        <Animated.View entering={FadeInDown.duration(350)} style={styles.stakeBanner}>
-          <Icon name="crown" size={18} color={COLORS.primary} strokeWidth={2} />
-          <Text style={styles.stakeText}>
-            The 6 most-liked photos go public on Explore as the event&apos;s
-            official wrap. Friendly competition, bring your best.
-          </Text>
-        </Animated.View>
-
-        <View style={styles.carouselWrap}>
-          <PhotoCarousel
-            uris={slots}
-            index={index}
-            onIndexChange={setIndex}
-            onPick={handleSlotPress}
-          />
-        </View>
-
-        <Text style={styles.carouselHint}>
-          {index < uploadedCount
-            ? 'Already in the pool. Swap it out from the gallery.'
-            : slots[index]
-              ? 'Tap to remove · swipe for the next slot'
-              : 'Tap the frame to pick a photo'}
-        </Text>
-
-        <Animated.View entering={FadeInDown.delay(140).duration(350)}>
-          <Text style={styles.sectionLabel}>CAPTION (OPTIONAL)</Text>
-          <TextInput
-            style={styles.captionInput}
-            placeholder="That golden hour though…"
-            placeholderTextColor={inkAlpha(0.40)}
-            value={caption}
-            onChangeText={(t) => setCaption(t.slice(0, 300))}
-            multiline
-          />
-        </Animated.View>
-
-        {(attendeesQuery.data?.length ?? 0) > 0 && (
-          <Animated.View entering={FadeInDown.delay(180).duration(350)}>
-            <Text style={styles.sectionLabel}>TAG WHO&apos;S IN THEM</Text>
-            <Text style={styles.tagHint}>
-              Tagged people see these photos first.
-            </Text>
-            <View style={styles.tagRow}>
-              {(attendeesQuery.data ?? []).map((a) => {
-                const on = tagged.has(a.id);
-                return (
-                  <PressableScale
-                    key={a.id}
-                    scaleTo={0.95}
-                    style={[styles.tagChip, on && styles.tagChipOn]}
-                    onPress={() => toggleTag(a.id)}
-                  >
-                    <Avatar name={a.name} photoUrl={a.photo_url} size={22} />
-                    <Text style={[styles.tagText, on && styles.tagTextOn]}>
-                      {a.name.split(' ')[0]}
-                    </Text>
-                    {on && (
-                      <Icon name="check" size={13} color={COLORS.primary} strokeWidth={2.6} />
-                    )}
-                  </PressableScale>
-                );
-              })}
+        {slots.length === 0 ? (
+          <Animated.View entering={FadeInDown.duration(320)} style={styles.empty}>
+            <View style={styles.emptyGlyph}>
+              <Icon name="galleryAdd" size={34} color={COLORS.primary} />
             </View>
+            <Text style={styles.emptyTitle}>Add your photos</Text>
+            <Text style={styles.emptyText}>
+              Up to {MAX_PHOTOS}. Each one gets its own caption and tags.
+            </Text>
           </Animated.View>
+        ) : (
+          <>
+            <View style={styles.carouselWrap}>
+              <PhotoCarousel
+                uris={slots}
+                index={Math.min(index, slots.length - 1)}
+                onIndexChange={setIndex}
+                onDelete={removeAt}
+              />
+            </View>
+
+            <Text style={styles.counter}>
+              {Math.min(index, slots.length - 1) + 1} of {slots.length}
+            </Text>
+
+            {draft ? (
+              <>
+                <View>
+                  <Text style={styles.sectionLabel}>CAPTION FOR THIS PHOTO</Text>
+                  <TextInput
+                    style={styles.captionInput}
+                    placeholder="That golden hour though…"
+                    placeholderTextColor={inkAlpha(0.40)}
+                    value={draft.caption}
+                    onChangeText={(t) => patchDraft({ caption: t.slice(0, 300) })}
+                    multiline
+                  />
+                </View>
+
+                {(attendeesQuery.data?.length ?? 0) > 0 && (
+                  <View>
+                    <Text style={styles.sectionLabel}>WHO&apos;S IN THIS ONE</Text>
+                    <Text style={styles.tagHint}>
+                      Tagged people see this photo first.
+                    </Text>
+                    <View style={styles.tagRow}>
+                      {(attendeesQuery.data ?? []).map((a) => {
+                        const on = draft.tagged.includes(a.id);
+                        return (
+                          <PressableScale
+                            key={a.id}
+                            scaleTo={0.95}
+                            style={[styles.tagChip, on && styles.tagChipOn]}
+                            onPress={() => toggleTag(a.id)}
+                          >
+                            <Avatar name={a.name} photoUrl={a.photo_url} size={22} />
+                            <Text style={[styles.tagText, on && styles.tagTextOn]}>
+                              {a.name.split(' ')[0]}
+                            </Text>
+                            {on && (
+                              <Icon name="check" size={13} color={COLORS.primary} strokeWidth={2.6} />
+                            )}
+                          </PressableScale>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.poolNote}>
+                <Icon name="check" size={16} color={COLORS.success} strokeWidth={2.4} />
+                <Text style={styles.poolNoteText}>
+                  Already in the pool — its caption and tags are set.
+                </Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 
-      {/* The standalone screen's footer only ever uploaded, because leaving was
-          the header's job. A step has to hand over to the next one, so once you
-          have a photo in the pool the same button becomes the way forward. */}
       <View style={styles.footer}>
-        {picked.length > 0 || myPhotos.length === 0 ? (
+        {slotsLeft > 0 && (
           <Button
-            label={
-              picked.length > 0
-                ? `Upload ${picked.length} ${picked.length === 1 ? 'photo' : 'photos'}`
-                : 'Pick photos to upload'
-            }
+            variant={slots.length === 0 ? 'primary' : 'tertiary'}
+            label={slots.length === 0 ? 'Add photos' : `Add more (${slotsLeft} left)`}
+            icon="galleryAdd"
+            onPress={addPhotos}
+          />
+        )}
+        {drafts.length > 0 ? (
+          <Button
+            label={`Upload ${drafts.length} ${drafts.length === 1 ? 'photo' : 'photos'}`}
             onPress={handleUpload}
             loading={uploading}
-            disabled={picked.length === 0}
           />
         ) : (
-          <Button label="Continue" onPress={next} />
+          // Nothing staged: the way on. Photos are not mandatory here — the
+          // checklist counts them, the flow does not block on them.
+          <Button
+            variant={slots.length === 0 ? 'tertiary' : 'primary'}
+            label={slots.length === 0 ? 'Skip for now' : 'Continue'}
+            onPress={next}
+          />
         )}
       </View>
     </KeyboardAvoidingView>
@@ -255,7 +318,12 @@ export const StepPhotos = memo(function StepPhotos() {
 });
 
 const styles = themedStyles(() => ({
-  scroll: { padding: SPACING[4], paddingTop: SPACING[2], gap: SPACING[4], paddingBottom: SPACING[6] },
+  scroll: {
+    paddingHorizontal: SPACING[4],
+    paddingTop: SPACING[2],
+    gap: SPACING[4],
+    paddingBottom: SPACING[6],
+  },
   completeWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   completeActions: { marginTop: SPACING[3.5], gap: SPACING[3], alignSelf: 'stretch' },
   addMore: {
@@ -264,28 +332,40 @@ const styles = themedStyles(() => ({
     color: COLORS.primary,
     textAlign: 'center',
   },
-  stakeBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING[2.5],
-    backgroundColor: COLORS.primaryTint,
-    borderWidth: 1,
-    borderColor: 'rgba(255,94,91,0.25)',
-    borderRadius: RADIUS.lg,
-    padding: SPACING[3.5],
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING[2],
+    paddingTop: SPACING[8],
+    paddingHorizontal: SPACING[4],
   },
-  stakeText: {
-    flex: 1,
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    lineHeight: 18,
+  emptyGlyph: {
+    width: 88,
+    height: 88,
+    borderRadius: RADIUS['3xl'],
+    backgroundColor: COLORS.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING[2],
+  },
+  emptyTitle: {
+    fontFamily: FONTS.heavy,
+    fontSize: TYPE_SIZE.titleLg,
+    letterSpacing: -0.48,
     color: COLORS.textPrimary,
+  },
+  emptyText: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.bodySm,
+    lineHeight: 19,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
   // The carousel is centre-locked and wider than the scroll's padding, so it
   // bleeds to the screen edges — that is what lets the next frame peek.
   carouselWrap: { marginHorizontal: -SPACING[4] },
-  carouselHint: {
-    fontFamily: FONTS.medium,
+  counter: {
+    fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.caption,
     color: COLORS.textMuted,
     textAlign: 'center',
@@ -340,10 +420,24 @@ const styles = themedStyles(() => ({
     color: inkAlpha(0.7),
   },
   tagTextOn: { color: COLORS.primary },
+  poolNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2],
+    backgroundColor: 'rgba(31,164,99,0.09)',
+    borderRadius: RADIUS.md,
+    padding: SPACING[3],
+  },
+  poolNoteText: {
+    flex: 1,
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.caption,
+    color: inkAlpha(0.65),
+  },
   footer: {
     paddingHorizontal: SPACING[4],
     paddingTop: SPACING[2.5],
     paddingBottom: SPACING[2.5],
-    backgroundColor: COLORS.background,
+    gap: SPACING[2],
   },
 }));

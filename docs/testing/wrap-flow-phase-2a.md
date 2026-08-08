@@ -31,6 +31,7 @@ nothing about whether any of this renders.
 |---|---|---|
 | Photos pick, upload, tag | | |
 | ⚠️ Post-upload "Continue" advances instead of jumping to the gallery | | |
+| ⚠️ With no photos at all, the footer offers "Skip for now" and the step still advances | | |
 | ⚠️ With photos already in the pool, the footer offers Continue, not a dead upload button | | |
 | Deck swipes, stamps, undo | | |
 | Awards castable, labelled **Awards** not "superlatives" | | |
@@ -65,4 +66,5 @@ nothing about whether any of this renders.
 | ⚠️ Step transitions do not flash white between steps | |
 | ⚠️ The gesture deck still works inside the flow's frame | |
 | ⚠️ The progress rail's off-state dots are visible in **both** themes | |
+| ⚠️ The gradient blobs render behind every step (no flat grey floor) | |
 | ⚠️ KeyboardAvoidingView on photos/feedback behaves (behavior is undefined on Android by design) | |

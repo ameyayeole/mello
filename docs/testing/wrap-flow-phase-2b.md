@@ -34,14 +34,27 @@ whether any of it renders.
 ## 3. Carousel
 | | iOS | Android |
 |---|---|---|
-| Five frames; next one visibly peeking | | |
+| Only real photos in the strip — no empty "add" frames | | |
 | ⚠️ Every frame is 4:5 regardless of the source photo's shape | | |
-| Drag snaps to the nearest frame; a flick advances one | | |
-| ⚠️ Tapping a neighbour centres it **and the track actually moves** | | |
+| ⚠️ A flick advances exactly **one** frame, never two or three | | |
+| ⚠️ It stops where it lands — no visible bounce past the frame | | |
+| ⚠️ Dragging past the first or last frame resists and springs back | | |
+| ⚠️ A vertical drag starting on a photo scrolls the page, not the strip | | |
+| ⚠️ Adding photos brings the strip across to the first new one | | |
 | ⚠️ A very wide and a very tall photo both fill without distorting | | |
-| ⚠️ Tapping an already-uploaded frame does nothing (deleting is the gallery's job) | | |
-| ⚠️ Tapping a picked-but-not-uploaded frame removes it | | |
 | ⚠️ The carousel bleeds to both screen edges, not just one | | |
+| Trash button appears only on the centred frame | | |
+| ⚠️ Trash on a staged photo removes it with no confirm | | |
+| ⚠️ Trash on an already-uploaded photo asks first, then deletes for everyone | | |
+
+## 3b. Per-photo caption and tags
+| | iOS | Android |
+|---|---|---|
+| ⚠️ Typing a caption on photo 1, swiping to photo 2, shows an **empty** caption | | |
+| ⚠️ Swiping back to photo 1 shows what you typed | | |
+| ⚠️ Tagging differs per photo and does not bleed across | | |
+| ⚠️ Uploading three photos writes three different captions/mention sets | | |
+| An already-uploaded frame shows the "already in the pool" note, no editor | | |
 
 ## 4. Note on the card
 | | iOS | Android |
