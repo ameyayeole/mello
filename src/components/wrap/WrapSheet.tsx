@@ -9,7 +9,7 @@ import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { Button, Icon, PressableScale, Sheet } from '@/components/ui';
-import { WrapChecklist, WrapStep } from './WrapChecklist';
+import { WrapChecklist } from './WrapChecklist';
 import { useWrap } from '@/hooks/useWrap';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { NearbyEvent } from '@/types/models';
@@ -38,15 +38,13 @@ export function WrapSheet({
   const { status } = useWrap(event.id);
   const emoji = ACTIVITY_MAP[event.activity]?.emoji ?? '📍';
 
-  // A tapped card leaves the sheet and opens its step — you came here to do the
+  // A tapped card leaves the sheet and opens the flow — you came here to do the
   // thing, so get out of the way and let the chat be there when you're back.
-  function openStep(step: WrapStep) {
+  // Every row goes to the same place: only the flow writes the contributor
+  // marker the recap unlocks on.
+  function openStep() {
     onClose();
-    if (step === 'rate') router.push(`/events/wrap/rate/${event.id}`);
-    if (step === 'photos') router.push(`/events/wrap/photos/${event.id}`);
-    if (step === 'superlatives')
-      router.push(`/events/wrap/superlatives/${event.id}`);
-    if (step === 'feedback') router.push(`/events/wrap/feedback/${event.id}`);
+    router.push(`/events/wrap/flow/${event.id}`);
   }
 
   function openFullRecap() {
