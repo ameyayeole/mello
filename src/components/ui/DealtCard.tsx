@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -68,6 +75,14 @@ export interface DealtCardProps {
   onPass: () => void;
   onSave: () => void;
   onDismiss: () => void;
+  // Fired the moment the card crosses edge-on onto its back face, and again
+  // (with `false`) if it is turned back. Added for the wrap's launch card,
+  // where the turn IS the action — it reveals the mark and then hands off to
+  // the flow — rather than a way to read more about the thing on the front.
+  //
+  // A prop on the primitive, not a fork of it: AGENTS.md records what forking
+  // this codebase's primitives has already cost.
+  onFaceChange?: (backShowing: boolean) => void;
 }
 
 export const DEALT_CARD_WIDTH_RATIO = 0.78;
@@ -168,6 +183,7 @@ export function DealtCard({
   onPass,
   onSave,
   onDismiss,
+  onFaceChange,
 }: DealtCardProps) {
   const { width, height } = useWindowDimensions();
   const cardW = Math.round(width * DEALT_CARD_WIDTH_RATIO);
@@ -186,6 +202,16 @@ export function DealtCard({
   // Nothing else reads this; `flip` itself remains the single source of truth
   // for anything worklet-side.
   const [backShowing, setBackShowing] = useState(false);
+
+  // Kept in a ref so the flip reaction below does not have to be rebuilt when a
+  // caller passes a new closure each render.
+  const faceChangeRef = useRef(onFaceChange);
+  useEffect(() => {
+    faceChangeRef.current = onFaceChange;
+  }, [onFaceChange]);
+  const announceFace = useCallback((back: boolean) => {
+    faceChangeRef.current?.(back);
+  }, []);
 
   // Where a card starts, relative to its landed position at screen centre.
   // Per-depth when the opener handed over one rect per card; otherwise every
@@ -238,6 +264,7 @@ export function DealtCard({
       if (crossed) {
         runOnJS(haptic)('flip');
         runOnJS(setBackShowing)(now >= 0.5);
+        runOnJS(announceFace)(now >= 0.5);
       }
     }
   );
