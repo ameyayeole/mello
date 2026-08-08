@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Loader, Screen, ScreenHeader } from '@/components/ui';
 import { FlowProgress, FlowShell } from '@/components/wrap/flow/FlowShell';
+import { StepPhotos } from '@/components/wrap/flow/steps/StepPhotos';
 import { useWrapFlowStore, wrapFlowSteps } from '@/stores/wrapFlowStore';
 import { getEventDetail } from '@/services/events.service';
 import { queryKeys } from '@/constants/queryKeys';
@@ -64,8 +65,7 @@ export default function WrapFlowScreen() {
       <FlowProgress total={steps.length} index={index} />
       <View style={{ flex: 1 }}>
         <FlowShell key={step}>
-          {/* Replaced task by task — Tasks 5-8. */}
-          <Text>{step}</Text>
+          {step === 'photos' ? <StepPhotos /> : <Text>{step}</Text>}
         </FlowShell>
       </View>
     </Screen>
