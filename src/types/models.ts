@@ -376,6 +376,10 @@ export interface WrapStatus {
   // wrap is unlocked.
   contributorsNeeded: number;
   contributors: WrapContributor[];
+  // Whether *I* finished the flow. Read straight from wrap_contributions rather
+  // than inferred from the count above — the count says the group showed up, not
+  // that you did, and Phase 3's launch card has to tell those two apart.
+  iContributed: boolean;
   // Negative before the event ends. Only compared against 48 (see wrapGate.ts).
   hoursSinceEnd: number;
 }

@@ -6,6 +6,7 @@ import {
   getLatestWrappableEvent,
   getWrapStatus,
   getWrapSummary,
+  markWrapContributed,
   requestEncore,
   submitEventFeedback,
   voteSuperlative,
@@ -94,7 +95,23 @@ export function useWrap(eventId: string | undefined) {
     onSettled: invalidate,
   });
 
-  return { status: statusQuery.data, statusQuery, vote, feedback, encore, invalidate };
+  // The flow's final act. Invalidation matters more than usual here: the gate's
+  // contributor count lives on the same query, so skipping it leaves everyone
+  // looking at a stale "waiting on N more people" after they just contributed.
+  const contribute = useMutation({
+    mutationFn: () => markWrapContributed(eventId!, user!.id),
+    onSuccess: invalidate,
+  });
+
+  return {
+    status: statusQuery.data,
+    statusQuery,
+    vote,
+    feedback,
+    encore,
+    contribute,
+    invalidate,
+  };
 }
 
 // Bumps the server-side view counter once per mount of the hub screen.
