@@ -9,7 +9,6 @@ import {
   Platform,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { pickPhotos } from '@/components/PhotoGridPicker';
@@ -31,7 +30,11 @@ import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
 
-const MAX_PHOTOS = 5;
+// Must match `enforce_photo_cap()` (migration 080). The cap is enforced by a
+// BEFORE INSERT trigger, so a client number higher than the server's does not
+// raise the limit — it just moves the failure to mid-upload, after some photos
+// have already landed.
+const MAX_PHOTOS = 6;
 
 // One picked photo and the caption and tags that belong to *it*.
 //
@@ -208,7 +211,7 @@ export const StepPhotos = memo(function StepPhotos() {
         keyboardShouldPersistTaps="handled"
       >
         {slots.length === 0 ? (
-          <Animated.View entering={FadeInDown.duration(320)} style={styles.empty}>
+          <View style={styles.empty}>
             <View style={styles.emptyGlyph}>
               <Icon name="galleryAdd" size={34} color={COLORS.primary} />
             </View>
@@ -216,7 +219,7 @@ export const StepPhotos = memo(function StepPhotos() {
             <Text style={styles.emptyText}>
               Up to {MAX_PHOTOS}. Each one gets its own caption and tags.
             </Text>
-          </Animated.View>
+          </View>
         ) : (
           <>
             <View style={styles.carouselWrap}>

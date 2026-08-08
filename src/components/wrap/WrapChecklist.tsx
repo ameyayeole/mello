@@ -32,8 +32,8 @@ function buildSteps(status: WrapStatus): StepRow[] {
       title: 'Add your best photos',
       sub:
         status.myPhotoCount > 0
-          ? `${status.myPhotoCount}/5 added`
-          : 'Up to 5 · top 6 go to Explore',
+          ? `${status.myPhotoCount}/6 added`
+          : 'Up to 6 — the night as you saw it',
       done: status.myPhotoCount > 0,
     },
     {

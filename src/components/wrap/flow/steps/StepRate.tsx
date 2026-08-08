@@ -5,7 +5,6 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   Extrapolation,
-  FadeInDown,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -249,7 +248,7 @@ export const StepRate = memo(function StepRate() {
         contentContainerStyle={styles.doneScroll}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInDown.duration(300)}>
+        <View>
           <Text style={styles.awardsTitle}>
             {total === 0 ? 'No one else was there' : 'Hand out the awards'}
           </Text>
@@ -258,17 +257,14 @@ export const StepRate = memo(function StepRate() {
               ? 'Ratings unlock when an event has other attendees.'
               : 'Optional, and anonymous. Winners show once an award has 3 votes.'}
           </Text>
-        </Animated.View>
+        </View>
 
         {total > 0 &&
-          SUPERLATIVES.map((s, i) => {
+          SUPERLATIVES.map((s) => {
             const votedFor = myVotes.get(s.id);
             const votee = votedFor ? attendeeById.get(votedFor) : null;
             return (
-              <Animated.View
-                key={s.id}
-                entering={FadeInDown.delay(60 + i * 60).duration(300)}
-              >
+              <View key={s.id}>
                 <PressableScale
                   scaleTo={0.98}
                   style={[styles.card, votedFor && styles.cardVoted]}
@@ -296,7 +292,7 @@ export const StepRate = memo(function StepRate() {
                     <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
                   )}
                 </PressableScale>
-              </Animated.View>
+              </View>
             );
           })}
 

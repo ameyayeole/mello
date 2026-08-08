@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { View, Text } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SPACING } from '@/constants/spacing';
 import { queryKeys } from '@/constants/queryKeys';
 import { COLORS } from '@/constants/colors';
@@ -49,7 +48,7 @@ export const StepRewind = memo(function StepRewind() {
 
   return (
     <View style={styles.wrap}>
-      <Animated.View entering={FadeInDown.duration(320)} style={styles.body}>
+      <View style={styles.body}>
         {done ? (
           <View style={styles.doneGlyph}>
             <Icon name="check" size={38} color={COLORS.success} strokeWidth={2.4} />
@@ -77,7 +76,7 @@ export const StepRewind = memo(function StepRewind() {
             : 'Be the first to run it back'}
         </Text>
         <Text style={styles.public}>Everyone who came can see this count.</Text>
-      </Animated.View>
+      </View>
 
       <View style={styles.footer}>
         <Button

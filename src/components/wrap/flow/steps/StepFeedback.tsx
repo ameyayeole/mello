@@ -7,7 +7,6 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
@@ -67,17 +66,14 @@ export const StepFeedback = memo(function StepFeedback() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View entering={FadeInDown.duration(300)}>
+        <View>
           <Text style={styles.title}>How was it?</Text>
           <Text style={styles.sub}>
             Goes privately to the host. Your name is never attached.
           </Text>
-        </Animated.View>
+        </View>
 
-        <Animated.View
-          entering={FadeInDown.delay(80).duration(300)}
-          style={styles.thumbRow}
-        >
+        <View style={styles.thumbRow}>
           <PressableScale
             scaleTo={0.94}
             style={[styles.thumbBtn, rating === 'up' && styles.thumbBtnUp]}
@@ -102,9 +98,9 @@ export const StepFeedback = memo(function StepFeedback() {
               Not great
             </Text>
           </PressableScale>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.delay(140).duration(300)}>
+        <View>
           <TextInput
             style={styles.noteInput}
             placeholder="Anything the host should know? (optional)"
@@ -113,7 +109,7 @@ export const StepFeedback = memo(function StepFeedback() {
             onChangeText={(t) => setNote(t.slice(0, 300))}
             multiline
           />
-        </Animated.View>
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>

@@ -11,10 +11,15 @@ import { themedStyles } from '@/theme';
 //
 // Module scope, not a render body — these are builder objects, and rebuilding
 // them per render hands Reanimated a new animation identity every time.
-const ENTERING = FadeInDown.duration(260)
+//
+// This is the ONLY entrance in the flow. Each step used to animate its own
+// contents in as well, so a step slid up and then everything inside it slid up
+// again — two motions saying the same thing, which is what read as fussy on
+// device. The steps are plain now; the frame does the moving.
+const ENTERING = FadeInDown.duration(200)
   .easing(Easing.out(Easing.cubic))
-  .withInitialValues({ transform: [{ translateY: 14 }] });
-const EXITING = FadeOut.duration(120).easing(Easing.in(Easing.quad));
+  .withInitialValues({ transform: [{ translateY: 8 }] });
+const EXITING = FadeOut.duration(100).easing(Easing.in(Easing.quad));
 
 export function FlowProgress({ total, index }: { total: number; index: number }) {
   return (

@@ -190,7 +190,7 @@ export default function WrapHubScreen() {
             >
               <Icon name="camera" size={22} color={COLORS.primary} strokeWidth={2} />
               <Text style={styles.emptyPoolText}>
-                No photos yet. Be the first, the 6 most-liked go to Explore.
+                No photos yet. Be the first.
               </Text>
             </PressableScale>
           )}
