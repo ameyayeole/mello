@@ -60,6 +60,7 @@ const SOLAR = {
   eyeOff: 'EyeClosed',
   filter: 'Tuning4',
   flag: 'Flag',
+  galleryAdd: 'GalleryAdd',
   globe: 'Global',
   heart: 'Heart',
   help: 'QuestionCircle',
