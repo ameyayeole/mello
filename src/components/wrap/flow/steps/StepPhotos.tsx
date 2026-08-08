@@ -7,6 +7,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { RADIUS, SPACING } from '@/constants/spacing';
@@ -35,6 +36,11 @@ import { themedStyles } from '@/theme';
 // raise the limit — it just moves the failure to mid-upload, after some photos
 // have already landed.
 const MAX_PHOTOS = 6;
+
+// How much of the screen width one frame takes in the hero layout. The rest is
+// the sliver of the neighbouring photo, which is the only thing saying the
+// strip can be swiped.
+const HERO_WIDTH_RATIO = 0.9;
 
 // One picked photo and the caption and tags that belong to *it*.
 //
@@ -68,6 +74,14 @@ export const StepPhotos = memo(function StepPhotos() {
   const [uploading, setUploading] = useState(false);
   const [justUploaded, setJustUploaded] = useState(0);
   const [heroH, setHeroH] = useState(0);
+  const { width } = useWindowDimensions();
+
+  // The frame the carousel will actually draw, recomputed here so the caption
+  // and tags can sit on the photo's bottom edge rather than the step's. 4:5,
+  // capped by whatever height the step has.
+  const frameW = Math.round(Math.min(width * HERO_WIDTH_RATIO, heroH / 1.25));
+  const frameH = Math.round(frameW * 1.25);
+  const frameInset = Math.max(0, Math.round((heroH - frameH) / 2));
 
   const attendeesQuery = useQuery({
     queryKey: queryKeys.wrapAttendees.of(eventId, user?.id),
@@ -232,6 +246,7 @@ export const StepPhotos = memo(function StepPhotos() {
         onLayout={(e) => setHeroH(e.nativeEvent.layout.height)}
       >
         {heroH > 0 && (
+          <>
           <PhotoCarousel
             uris={slots}
             index={safeIndex}
@@ -239,15 +254,17 @@ export const StepPhotos = memo(function StepPhotos() {
             onDelete={removeAt}
             // Nearly full-bleed. The last sliver of the neighbour is the only
             // thing telling you there is another photo, so it stays.
-            widthRatio={0.9}
-            height={heroH}
+            widthRatio={HERO_WIDTH_RATIO}
+            maxHeight={heroH}
           />
-        )}
 
         {/* Caption and tags sit OUTSIDE the carousel's track on purpose — inside
             it, a text field would pan away with the photo while you were typing
             in it. They read the centred index instead. */}
-        <View style={styles.overlay} pointerEvents="box-none">
+        <View
+          style={[styles.overlay, { bottom: frameInset + SPACING[4] }]}
+          pointerEvents="box-none"
+        >
           {draft ? (
             <Glass tier="onPhoto" radius={RADIUS.xl} style={styles.captionGlass}>
               <TextInput
@@ -307,11 +324,16 @@ export const StepPhotos = memo(function StepPhotos() {
         {/* Which of yours you are looking at. Dots rather than "2 of 3": at six
             photos a counter is a number to read, dots are a glance. */}
         {slots.length > 1 && (
-          <View style={styles.dots} pointerEvents="none">
+          <View
+            style={[styles.dots, { top: frameInset + SPACING[3] }]}
+            pointerEvents="none"
+          >
             {slots.map((_, i) => (
               <View key={i} style={[styles.dot, i === safeIndex && styles.dotOn]} />
             ))}
           </View>
+        )}
+          </>
         )}
       </View>
 
@@ -340,11 +362,12 @@ export const StepPhotos = memo(function StepPhotos() {
 
 const styles = themedStyles(() => ({
   hero: { flex: 1, justifyContent: 'center' },
+  // `bottom` and `top` are set inline from the measured frame — these sit on
+  // the photo's edges, not the step's.
   overlay: {
     position: 'absolute',
     left: SPACING[6],
     right: SPACING[6],
-    bottom: SPACING[4],
     gap: SPACING[2.5],
   },
   captionGlass: { paddingHorizontal: SPACING[3.5], paddingVertical: SPACING[1] },
@@ -380,7 +403,6 @@ const styles = themedStyles(() => ({
   },
   dots: {
     position: 'absolute',
-    top: SPACING[3],
     left: 0,
     right: 0,
     flexDirection: 'row',

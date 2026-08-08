@@ -44,7 +44,7 @@ export const PhotoCarousel = memo(function PhotoCarousel({
   onIndexChange,
   onDelete,
   widthRatio = 0.78,
-  height,
+  maxHeight,
 }: {
   uris: string[];
   index: number;
@@ -54,13 +54,21 @@ export const PhotoCarousel = memo(function PhotoCarousel({
   // of the next frame is what says the strip is swipeable without an
   // instruction.
   widthRatio?: number;
-  // Given, the frame fills it — for the hero layout, where the photo takes the
-  // height the step has rather than a ratio of its own width. Omitted, 4:5.
-  height?: number;
+  // The tallest the frame may be. It does NOT set the height — the frame is
+  // always 4:5, and this only pulls the WIDTH in when the space available is
+  // shorter than 4:5 would need. An earlier version passed the step's whole
+  // height straight through as `height`, which stretched the photo to whatever
+  // was left over instead of keeping the ratio.
+  maxHeight?: number;
 }) {
   const { width } = useWindowDimensions();
-  const W = Math.round(width * widthRatio);
-  const H = height ?? Math.round(W * 1.25);
+  // 4:5, always. Every surface downstream — the wrap grid, a shared_wrap card's
+  // top_photos, the recap — inherits this shape, so it is not negotiable per
+  // layout.
+  const W = Math.round(
+    Math.min(width * widthRatio, maxHeight ? maxHeight / 1.25 : Infinity)
+  );
+  const H = Math.round(W * 1.25);
   const STRIDE = W + GAP;
   const REST = (width - W) / 2;
 
