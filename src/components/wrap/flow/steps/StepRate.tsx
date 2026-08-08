@@ -21,7 +21,14 @@ import { useFriends } from '@/hooks/useFriends';
 import { useWrap } from '@/hooks/useWrap';
 import { useWrapFlowStore } from '@/stores/wrapFlowStore';
 import { useAuthStore } from '@/stores/authStore';
-import { getCoAttendees, getMyVotes } from '@/services/wrap.service';
+import {
+  getCoAttendees,
+  getMyVotes,
+  reportAttendee,
+} from '@/services/wrap.service';
+import { DownReason, isSafetyReason } from '@/utils/wrapRating';
+import { ReasonChips } from '@/components/wrap/ReasonChips';
+import { showError } from '@/utils/errors';
 import RateCard from '@/components/wrap/RateCard';
 import { NoteComposer } from '@/components/wrap/NoteComposer';
 import { SUPERLATIVES } from '@/constants/superlatives';
@@ -67,6 +74,24 @@ export const StepRate = memo(function StepRate() {
   const [noteFor, setNoteFor] = useState<CoAttendee | null>(null);
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState<SuperlativeCategory | null>(null);
+  // Who was just thumbed down, and so who the reason chips are about.
+  const [downFor, setDownFor] = useState<CoAttendee | null>(null);
+
+  function handleReason(reason: DownReason | null) {
+    const about = downFor;
+    setDownFor(null);
+    if (!reason || !about || !user) return;
+    // Taste is recorded nowhere. Only a safety signal files a report — routing
+    // "not my vibe" into a moderation queue would treat a preference as a
+    // concern about someone's conduct.
+    if (!isSafetyReason(reason)) return;
+    reportAttendee({
+      eventId: eventId!,
+      reporterId: user.id,
+      reportedId: about.id,
+      reason,
+    }).catch((e) => showError(e, 'Could not send that'));
+  }
 
   const top = deck[0];
   const topId = top?.id;
@@ -79,7 +104,10 @@ export const StepRate = memo(function StepRate() {
     (attendee: CoAttendee, rating: 'up' | 'down') => {
       tx.value = 0;
       ty.value = 0;
+      // The rating saves FIRST, before any chip is offered. Ask first and
+      // dismissing the row would silently drop the rating.
       rate.mutate({ attendee, rating });
+      if (rating === 'down') setDownFor(attendee);
     },
     // tx/ty are listed where the rate route omitted them. Shared values have a
     // stable identity, so this changes nothing at runtime — it just keeps the
@@ -385,6 +413,9 @@ export const StepRate = memo(function StepRate() {
         )}
       </View>
 
+      {downFor ? (
+        <ReasonChips name={downFor.name} onPick={handleReason} />
+      ) : (
       <View style={styles.actions}>
         <PressableScale
           scaleTo={0.85}
@@ -423,6 +454,7 @@ export const StepRate = memo(function StepRate() {
           <Icon name="thumbsUp" size={26} color={COLORS.success} strokeWidth={2.4} />
         </PressableScale>
       </View>
+      )}
 
       {/* Only offered on a deck long enough to become a chore. Skipping still
           completes the flow — it does not block the contributor marker. */}

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { DownReason } from '@/utils/wrapRating';
 import {
   CoAttendee,
   EventFeedbackSummary,
@@ -114,6 +115,28 @@ export async function rateAttendee(
   });
 
   if (error && error.code !== '23505') throw error; // already rated is fine
+}
+
+// A safety-flagged thumbs-down. Writes the app's ordinary `reports` row
+// (migration 014_blocks_and_reports) — moderation already reads that table
+// out-of-band with the service role, so this needs no new pipeline.
+//
+// The `wrap_rating:` prefix keeps these separable from profile reports in the
+// moderation queue, which is a different judgement with different urgency.
+export async function reportAttendee(args: {
+  eventId: string;
+  reporterId: string;
+  reportedId: string;
+  reason: DownReason;
+}): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_id: args.reporterId,
+    reported_id: args.reportedId,
+    reason: `wrap_rating:${args.reason}`,
+    details: `event:${args.eventId}`,
+  });
+
+  if (error) throw error;
 }
 
 // Undo in the rating deck.

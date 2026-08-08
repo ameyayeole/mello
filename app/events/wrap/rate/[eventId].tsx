@@ -159,7 +159,7 @@ export default function RatePeopleScreen() {
     <Screen>
       <ScreenHeader
         title="Who did you meet?"
-        subtitle={`Right up · left down (always private) · ${ratedCount}/${total} rated`}
+        subtitle={`Right up · left down · only you see your ratings · ${ratedCount}/${total} rated`}
         backIcon="chevronDown"
         tone="transparent"
       />
@@ -171,7 +171,10 @@ export default function RatePeopleScreen() {
           <View style={styles.doneWrap}>
             <CompleteMoment
               title="Everyone rated!"
-              sub="Thumbs up land on their profile. Thumbs down stay between you and no one."
+              // Was "Thumbs down stay between you and no one" — false once a
+              // reason chip can file a report. Copy that promises privacy the
+              // schema does not provide is worse than no copy.
+              sub="Thumbs up land on their profile. Thumbs down never do."
             >
               <Button
                 variant="tertiary"
@@ -266,7 +269,7 @@ variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
             style={[styles.actionBtn, !top && styles.actionDisabled]}
             onPress={() => flingOut('down')}
             accessibilityRole="button"
-            accessibilityLabel="Thumbs down, stays private"
+            accessibilityLabel="Thumbs down"
           >
             <Icon
               name="thumbsDown"
