@@ -84,7 +84,12 @@ function composeCopy(
     case 'wrap_ready':
       return {
         title: `How was ${eventTitle}?`,
-        body: 'Rate the people, drop your best photos, vote superlatives',
+        body: 'Add your photos and the people you met — wrap it up',
+      };
+    case 'wrap_unlocked':
+      return {
+        title: 'The wrap is open',
+        body: `Enough of you showed up for ${eventTitle} — go see it`,
       };
     case 'note_received':
       return {
@@ -94,7 +99,7 @@ function composeCopy(
     case 'photo_liked':
       return {
         title: `${eventTitle}`,
-        body: `${senderName} liked your photo`,
+        body: `${senderName} reacted to your photo`,
       };
     case 'photo_commented':
       return {

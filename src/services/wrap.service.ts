@@ -11,6 +11,7 @@ import {
   WrapNote,
   WrapPhoto,
   WrapPhotoComment,
+  WrapContributor,
   WrapStatus,
   WrapSummary,
 } from '@/types/models';
@@ -47,7 +48,13 @@ export async function getCoAttendees(
         .single(),
       supabase
         .from('event_participants')
-        .select('user_id, status, profile:profiles(*)')
+        // `profiles!user_id`, not plain `profiles`: event_participants has TWO
+        // foreign keys to profiles — user_id and checked_in_by — so an
+        // unqualified embed is ambiguous and PostgREST answers 300 PGRST201
+        // rather than 200. That rejected this whole Promise.all, so the wrap
+        // hub sat on a spinner with no checklist and no error. The check-in
+        // feature added the second FK; nothing in TypeScript can see this.
+        .select('user_id, status, profile:profiles!user_id(*)')
         .eq('event_id', eventId)
         .eq('status', 'approved'),
     ]);
@@ -200,7 +207,7 @@ export async function markNoteOpened(noteId: string): Promise<void> {
 export async function getWrapPhotos(eventId: string): Promise<WrapPhoto[]> {
   const { data, error } = await supabase
     .from('event_photos')
-    .select('*, uploader:profiles!uploader_id(*)')
+    .select('*, uploader:profiles!uploader_id(*), reactions:photo_reactions(*)')
     .eq('event_id', eventId)
     .order('like_count', { ascending: false })
     .order('created_at', { ascending: true });
@@ -236,34 +243,31 @@ export async function deleteWrapPhoto(photoId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function getMyPhotoLikes(
-  eventId: string,
-  userId: string
-): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('wrap_photo_likes')
-    .select('photo_id, photo:event_photos!inner(event_id)')
-    .eq('user_id', userId)
-    .eq('photo.event_id', eventId);
+// One reaction per person per photo — upsert on the unique index (077) so
+// tapping a second emoji replaces the first rather than stacking, the way chat
+// does it. The onConflict target must name that index's columns exactly; get it
+// wrong and reactions stack with no error.
+export async function reactToPhoto(
+  photoId: string,
+  userId: string,
+  emoji: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('photo_reactions')
+    .upsert(
+      { photo_id: photoId, user_id: userId, emoji },
+      { onConflict: 'photo_id,user_id' }
+    );
 
   if (error) throw error;
-  return (data ?? []).map((r: any) => r.photo_id);
 }
 
-export async function likePhoto(photoId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('wrap_photo_likes')
-    .insert({ photo_id: photoId, user_id: userId });
-
-  if (error && error.code !== '23505') throw error;
-}
-
-export async function unlikePhoto(
+export async function unreactPhoto(
   photoId: string,
   userId: string
 ): Promise<void> {
   const { error } = await supabase
-    .from('wrap_photo_likes')
+    .from('photo_reactions')
     .delete()
     .eq('photo_id', photoId)
     .eq('user_id', userId);
@@ -297,6 +301,15 @@ export async function commentPhoto(args: {
     content: args.content.trim(),
     mentions: args.mentions ?? [],
   });
+
+  if (error) throw error;
+}
+
+export async function deletePhotoComment(commentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('wrap_photo_comments')
+    .delete()
+    .eq('id', commentId);
 
   if (error) throw error;
 }
@@ -413,6 +426,51 @@ export async function withdrawEncore(
 
 // ── Status, views, recap ─────────────────────────────────────────────────────
 
+interface WrapGateRow {
+  contributor_count: number;
+  contributors_needed: number;
+  contributors: WrapContributor[];
+  hours_since_end: number;
+}
+
+// The part of the wrap's state the client cannot derive: how many other people
+// finished the flow, and the threshold. Counting other people's completion is
+// impossible client-side under RLS — hence an RPC. The threshold comes back
+// from the server rather than being recomputed here on purpose.
+async function getWrapGate(
+  eventId: string,
+  userId: string
+): Promise<WrapGateRow> {
+  // Locked, not open: if the gate cannot be read we must not guess the group
+  // showed up. The 48h escape hatch still releases the recap either way.
+  const locked: WrapGateRow = {
+    contributor_count: 0,
+    contributors_needed: 2,
+    contributors: [],
+    hours_since_end: 0,
+  };
+
+  const { data, error } = await supabase.rpc('get_wrap_gate', {
+    p_event_id: eventId,
+    p_user_id: userId,
+  });
+
+  // Deliberately swallowed. getWrapStatus is a single Promise.all, so throwing
+  // here takes the other eight queries down with it and the wrap hub sits on a
+  // spinner forever — no checklist, no photos, no error, nothing to act on.
+  // That is not hypothetical: it happened on 2026-08-08, when PostgREST was
+  // still serving a schema cache from before migration 075 and every rpc() call
+  // 404'd. One new RPC should not be able to brick a screen that has eight
+  // working queries on it.
+  if (error) {
+    console.warn('[wrap] get_wrap_gate unavailable, treating as locked:', error.message);
+    return locked;
+  }
+
+  const rows = (data ?? []) as WrapGateRow[];
+  return rows[0] ?? locked;
+}
+
 // Everything the checklist needs, fetched in parallel.
 export async function getWrapStatus(
   eventId: string,
@@ -427,6 +485,7 @@ export async function getWrapStatus(
     { data: view, error: viewErr },
     { data: encores, error: encoreErr },
     { data: event, error: eventErr },
+    gate,
   ] = await Promise.all([
     getCoAttendees(eventId, userId),
     getMyRatings(eventId, userId),
@@ -450,6 +509,7 @@ export async function getWrapStatus(
       .maybeSingle(),
     supabase.from('encore_requests').select('user_id').eq('event_id', eventId),
     supabase.from('events').select('host_id').eq('id', eventId).single(),
+    getWrapGate(eventId, userId),
   ]);
 
   if (photosErr) throw photosErr;
@@ -468,6 +528,10 @@ export async function getWrapStatus(
     viewCount: (view as any)?.view_count ?? 0,
     encoreRequested: (encores ?? []).some((e: any) => e.user_id === userId),
     encoreCount: (encores ?? []).length,
+    contributorCount: Number(gate.contributor_count ?? 0),
+    contributorsNeeded: gate.contributors_needed ?? 2,
+    contributors: gate.contributors ?? [],
+    hoursSinceEnd: gate.hours_since_end ?? 0,
   };
 }
 

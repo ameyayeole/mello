@@ -78,15 +78,23 @@ export function notificationCopy(
     case 'wrap_ready':
       return {
         title: `How was ${eventTitle}?`,
-        body: 'Rate the people, drop your best photos, vote superlatives',
+        body: 'Add your photos and the people you met — wrap it up',
+      };
+    case 'wrap_unlocked':
+      return {
+        title: 'The wrap is open',
+        body: `Enough of you showed up for ${eventTitle} — go see it`,
       };
     case 'note_received':
       return {
         title: 'You got a note 💌',
         body: `Someone from ${eventTitle} left you a note`,
       };
+    // The enum value keeps its name: renaming a notification_type means a
+    // migration and a backfill of existing rows, for a string. Only the copy
+    // changes — there are no likes any more (077).
     case 'photo_liked':
-      return { title: eventTitle, body: `${senderName} liked your photo` };
+      return { title: eventTitle, body: `${senderName} reacted to your photo` };
     case 'photo_commented':
       return { title: eventTitle, body: `${senderName} commented on your photo` };
     case 'encore_requested':

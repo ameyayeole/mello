@@ -173,6 +173,13 @@ export const LIGHT = {
   fillOnDark: 'rgba(255, 255, 255, 0.08)',
   fillOnDarkStrong: 'rgba(255, 255, 255, 0.16)',
   borderOnDark: 'rgba(255, 255, 255, 0.14)',
+  // The canvas the whole ramp above is measured against — an opaque screen that
+  // is dark in BOTH themes, as opposed to `glassOnPhoto`, which is translucent
+  // and sits over an image. The wrap recap is the first of these. It existed as
+  // a bare '#141018' in that file, which is why the page also grew its own
+  // hardcoded card and text colours: with no token for the floor, nothing on it
+  // could be tokenised either.
+  canvasDark: '#141018',
 
   // ── Skeletons ────────────────────────────────────────────────────────────
   // The placeholder fill, and the light that sweeps it. Stronger than
@@ -361,6 +368,7 @@ export const DARK: Palette = {
   fillOnDark: 'rgba(255, 255, 255, 0.08)',
   fillOnDarkStrong: 'rgba(255, 255, 255, 0.16)',
   borderOnDark: 'rgba(255, 255, 255, 0.14)',
+  canvasDark: '#141018',
 
   // ── Skeletons ────────────────────────────────────────────────────────────
   // Inverted: the bone is a white lift off the dark surface, matching how this

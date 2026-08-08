@@ -21,7 +21,9 @@ import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
+  Avatar,
   Button,
+  ConfirmDialog,
   Icon,
   IconButton,
   Loader,
@@ -29,6 +31,7 @@ import {
   Screen,
   ScreenHeader,
 } from '@/components/ui';
+import { wrapGateState } from '@/utils/wrapGate';
 import { ShareWrapSheet } from '@/components/community/ShareWrapSheet';
 import { themedStyles } from '@/theme';
 
@@ -39,6 +42,11 @@ export default function WrapHubScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const user = useAuthStore((s) => s.user);
   const [shareOpen, setShareOpen] = useState(false);
+  // Session-scoped on purpose: re-confirming on a later visit is one tap, and
+  // it keeps restating that the wrap is thin. Promote to SecureStore (the
+  // pattern in themeStore.ts) only if that proves annoying on device.
+  const [forceUnlocked, setForceUnlocked] = useState(false);
+  const [forcePromptOpen, setForcePromptOpen] = useState(false);
 
   const eventQuery = useQuery({
     queryKey: queryKeys.eventDetail.of(eventId),
@@ -62,7 +70,10 @@ export default function WrapHubScreen() {
   const ended = event ? hasWrapped(event) : true;
   const done = wrapStepsDone(status);
   const total = wrapStepTotal(status);
-  const recapUnlocked = !!status && done >= total;
+  // The recap now opens on the GROUP's progress, not just yours — see
+  // src/utils/wrapGate.ts for why the 48h escape hatch is not optional.
+  const gate = wrapGateState(status);
+  const recapUnlocked = gate === 'open' || forceUnlocked;
   const emoji = event ? (ACTIVITY_MAP[event.activity]?.emoji ?? '📍') : '📍';
 
   function openStep(step: WrapStep) {
@@ -214,15 +225,41 @@ export default function WrapHubScreen() {
           </PressableScale>
         </Animated.View>
 
+        {/* Who has already contributed. This is the incentive — a tally with
+            faces invites you to join it. Names of who has NOT contributed are
+            deliberately never shown. */}
+        {status && status.contributors.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(230).duration(350)}>
+            <View style={styles.contribRow}>
+              <View style={styles.contribFaces}>
+                {status.contributors.slice(0, 5).map((c) => (
+                  <Avatar
+                    key={c.id}
+                    photoUrl={c.photo_url}
+                    name={c.name}
+                    size={26}
+                    style={styles.contribFace}
+                  />
+                ))}
+              </View>
+              <Text style={styles.contribText}>
+                {status.contributorCount} of {status.contributorsNeeded}{' '}
+                contributed
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Night in numbers */}
         <Animated.View entering={FadeInDown.delay(260).duration(350)}>
           <PressableScale
             scaleTo={0.98}
             style={[styles.recapCard, !recapUnlocked && styles.recapLocked]}
-            onPress={() =>
-              recapUnlocked && router.push(`/events/wrap/recap/${eventId}`)
-            }
-            disabled={!recapUnlocked}
+            onPress={() => {
+              if (recapUnlocked) router.push(`/events/wrap/recap/${eventId}`);
+              else if (gate === 'unlockable') setForcePromptOpen(true);
+            }}
+            disabled={gate === 'locked'}
             accessibilityRole="button"
             accessibilityLabel="Your night in numbers"
           >
@@ -236,10 +273,31 @@ export default function WrapHubScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.recapTitle}>Your night in numbers</Text>
+              {/* Two distinct locked messages: "finish your steps" and
+                  "waiting on other people" are different problems with
+                  different fixes — one message for both would be a lie in one
+                  of the cases. */}
               <Text style={styles.recapSub}>
                 {recapUnlocked
                   ? 'Winners, thumbs and totals from the night'
-                  : `Finish ${total - done} more ${total - done === 1 ? 'step' : 'steps'} to unlock`}
+                  : gate === 'unlockable'
+                    ? `Only ${status?.contributorCount ?? 0} of ${
+                        status?.contributorsNeeded ?? 0
+                      } contributed — open it anyway`
+                    : done < total
+                      ? `Finish ${total - done} more ${
+                          total - done === 1 ? 'step' : 'steps'
+                        } to unlock`
+                      : `Waiting on ${
+                          (status?.contributorsNeeded ?? 0) -
+                          (status?.contributorCount ?? 0)
+                        } more ${
+                          (status?.contributorsNeeded ?? 0) -
+                            (status?.contributorCount ?? 0) ===
+                          1
+                            ? 'person'
+                            : 'people'
+                        }`}
               </Text>
             </View>
             <Icon name="chevronRight" size={18} color="rgba(255,255,255,0.7)" />
@@ -252,11 +310,41 @@ export default function WrapHubScreen() {
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
       />
+
+      <ConfirmDialog
+        visible={forcePromptOpen}
+        onClose={() => setForcePromptOpen(false)}
+        icon="lock"
+        title="Not everyone showed up"
+        body={`Only ${status?.contributorCount ?? 0} of ${
+          status?.contributorsNeeded ?? 0
+        } people added to this wrap. You can open it anyway — it will just be a thinner night.`}
+        confirmLabel="Open it anyway"
+        cancelLabel="Wait a bit"
+        onConfirm={() => {
+          setForceUnlocked(true);
+          setForcePromptOpen(false);
+          router.push(`/events/wrap/recap/${eventId}`);
+        }}
+      />
     </Screen>
   );
 }
 
 const styles = themedStyles(() => ({
+  contribRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[2.5],
+    paddingHorizontal: SPACING[1],
+  },
+  contribFaces: { flexDirection: 'row' },
+  contribFace: { marginRight: -SPACING[2] },
+  contribText: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textSecondary,
+  },
   center: { alignItems: 'center', justifyContent: 'center', padding: SPACING[7] },
   guardTitle: {
     fontFamily: FONTS.bold,
