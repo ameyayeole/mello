@@ -62,6 +62,7 @@ The wrap changes from a **private checklist** into a **group artifact**:
 | Read | For |
 | --- | --- |
 | **[spec](specs/2026-08-07-wrap-social-gate-design.md)** | the design and every *why*. Read before any plan. |
+| **[build status](#build-status)** | what is already coded — read before starting a phase |
 | [Lottie manifest](specs/2026-08-07-wrap-lottie-manifest.md) | the 7 motion assets — none blocking |
 | [Phase 1 plan](plans/2026-08-07-wrap-social-gate-phase-1.md) | the gate — migrations, RPC, unlock rule |
 | [Phase 2a plan](plans/2026-08-07-wrap-social-gate-phase-2a.md) | the flow shell + the marker write |
@@ -160,6 +161,35 @@ true backdrop blur so `Glass` falls back to a flat fill, and that whole class of
 bug is invisible on iOS.
 
 ---
+
+## Build status
+
+**All five phases are coded as of 2026-08-08.** The plans' checkboxes are all
+still unticked and are **not** a status signal — Phases 1 and 4 shipped with
+theirs untouched too. Read the git log and the code.
+
+| Phase | State | Device sheet |
+| --- | --- | --- |
+| 1 — the gate | shipped, plus fixes in 079 | `wrap-social-gate-phase-1.md` (run) |
+| 2a — the flow | coded, **untested on device** | `wrap-flow-phase-2a.md` (blank) |
+| 2b — interactions | coded, **untested on device** | `wrap-flow-phase-2b.md` (blank) |
+| 3 — the surfaces | coded, **untested on device** | `wrap-surfaces-phase-3.md` (blank) |
+| 4 — the recap | shipped, two device bugs fixed | `wrap-recap-phase-4.md` (run) |
+
+Where the build knowingly departs from a plan, the reason is in the commit
+message for that task. The three that matter:
+
+- **`WrapStatus.iContributed`** is read straight from `wrap_contributions`.
+  Phase 3's plan approximated it and expected `get_wrap_gate` to need a new
+  column; 074's select policy already allows the exact read.
+- **Awards do not gate the rating step.** Phase 2a Task 6's verify line said
+  they should; its own Step 2, spec §5.2 and the device sheet all say they must
+  not. The spec won.
+- **`DealtCard` gained an `onFaceChange` prop** rather than being forked, so the
+  launch card can act on its own turn.
+
+**Lint baseline is 2 errors / 64 warnings, not 0 / 65.** The two errors
+(`CommentSheet.tsx`, `PressableScale.tsx`) predate all of this work.
 
 ## Still outstanding
 
