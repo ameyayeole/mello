@@ -55,6 +55,7 @@ import {
   startsTimeBlock,
 } from '@/utils/messageGroups';
 import {
+  AttendeeStack,
   CategoryTile,
   Glass,
   Icon,
@@ -63,6 +64,7 @@ import {
   PressableScale,
   SkeletonGroup,
 } from '@/components/ui';
+import { useWrap } from '@/hooks/useWrap';
 import {
   MoneyGuardBanner,
   useMoneyGuard,
@@ -243,18 +245,18 @@ function GroupChatScreen() {
     staleTime: 60_000,
   });
 
-  // The wrap, met from the chat. Once the event has ended, opening its chat
-  // presents the post-event sheet first — rate people, drop photos, vote the
-  // awards — with a way through to the thread. Auto-opens once per visit (the
-  // ref guards against the event query resolving twice); the banner below
-  // reopens it after you've viewed the chat.
+  // The wrap, met from the chat — opened from the pin below, never on its own.
+  //
+  // The wrap no longer ambushes you here. The launch card (WrapDealtCard) is
+  // the one takeover per event; the chat keeps a permanent pin you open when
+  // you want it. Two full-screen interruptions for the same event was one too
+  // many.
   const [wrapSheetOpen, setWrapSheetOpen] = useState(false);
-  const wrapAutoShown = useRef(false);
-  useEffect(() => {
-    if (wrapAutoShown.current || !event || !hasWrapped(event)) return;
-    wrapAutoShown.current = true;
-    setWrapSheetOpen(true);
-  }, [event]);
+  // Only asked for once the event has ended — before that the pin is not shown
+  // and there is nothing to count.
+  const { status: wrapStatus } = useWrap(
+    event && hasWrapped(event) ? eventId : undefined
+  );
 
   const prefsQuery = useQuery({
     queryKey: queryKeys.chatPrefs.of(user?.id),
@@ -719,10 +721,9 @@ function GroupChatScreen() {
         />
       </Glass>
 
-      {/* Post-event: reopen the wrap sheet from the chat, once it's been
-          dismissed. Opens the sheet now rather than pushing the full hub — the
-          sheet is the chat's own front door to the wrap, and carries a link on
-          through to the hub. */}
+      {/* Post-event: a permanent pin, opened when you want it. Opens the sheet
+          rather than pushing the full hub — the sheet is the chat's own front
+          door to the wrap, and carries a link on through to the hub. */}
       {event && hasWrapped(event) && (
         <PressableScale
           scaleTo={0.98}
@@ -732,9 +733,24 @@ function GroupChatScreen() {
           accessibilityLabel="Open the event wrap"
         >
           <Icon name="camera" size={18} color={COLORS.primary} />
-          <Text style={styles.wrapBannerText}>
-            This one&apos;s a wrap. Rate people, drop photos, vote awards.
-          </Text>
+          <View style={styles.wrapBannerBody}>
+            {/* One phrase across the launch card, this pin and the Home row.
+                Three verbs for one action reads as three features. */}
+            <Text style={styles.wrapBannerText}>
+              {wrapStatus?.iContributed ? 'View wrap' : 'Wrap it up'}
+            </Text>
+            <View style={styles.wrapBannerRow}>
+              <AttendeeStack
+                people={(wrapStatus?.contributors ?? []).slice(0, 4)}
+                count={wrapStatus?.contributorCount ?? 0}
+                size={22}
+              />
+              <Text style={styles.wrapBannerCount}>
+                {wrapStatus?.contributorCount ?? 0} of{' '}
+                {wrapStatus?.contributorsNeeded ?? 0} contributed
+              </Text>
+            </View>
+          </View>
           <Icon name="chevronRight" size={16} color={COLORS.primary} />
         </PressableScale>
       )}
@@ -1242,11 +1258,17 @@ const styles = themedStyles(() => ({
     borderWidth: 1,
     borderColor: 'rgba(255,94,91,0.25)',
   },
+  wrapBannerBody: { flex: 1, gap: SPACING[1] },
   wrapBannerText: {
-    flex: 1,
     fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.caption,
+    fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
+  },
+  wrapBannerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[2] },
+  wrapBannerCount: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.caption,
+    color: COLORS.textSecondary,
   },
   lockedText: {
     fontFamily: FONTS.semibold,
