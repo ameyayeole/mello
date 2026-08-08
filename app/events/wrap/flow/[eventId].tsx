@@ -6,6 +6,7 @@ import { Loader, Screen, ScreenHeader } from '@/components/ui';
 import { FlowProgress, FlowShell } from '@/components/wrap/flow/FlowShell';
 import { StepPhotos } from '@/components/wrap/flow/steps/StepPhotos';
 import { StepRate } from '@/components/wrap/flow/steps/StepRate';
+import { StepRewind } from '@/components/wrap/flow/steps/StepRewind';
 import { useWrapFlowStore, wrapFlowSteps } from '@/stores/wrapFlowStore';
 import { getEventDetail } from '@/services/events.service';
 import { queryKeys } from '@/constants/queryKeys';
@@ -70,6 +71,8 @@ export default function WrapFlowScreen() {
             <StepPhotos />
           ) : step === 'rate' ? (
             <StepRate />
+          ) : step === 'rewind' ? (
+            <StepRewind />
           ) : (
             <Text>{step}</Text>
           )}

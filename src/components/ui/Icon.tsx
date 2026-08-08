@@ -74,6 +74,7 @@ const SOLAR = {
   qr: 'QrCode',
   refresh: 'Refresh',
   reply: 'Reply',
+  rewind: 'RewindBack',
   scan: 'Scanner',
   search: 'Magnifer',
   send: 'Plain2',
