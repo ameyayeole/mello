@@ -3,7 +3,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { RADIUS, SPACING } from '@/constants/spacing';
 import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { PressableScale } from '@/components/ui';
+import { Glass, PressableScale } from '@/components/ui';
 import { DOWN_REASONS, DownReason } from '@/utils/wrapRating';
 import { themedStyles } from '@/theme';
 
@@ -29,16 +29,17 @@ export function ReasonChips({
 
       <View style={styles.chips}>
         {DOWN_REASONS.map((r) => (
-          <PressableScale
-            key={r.id}
-            scaleTo={0.96}
-            style={styles.chip}
-            onPress={() => onPick(r.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`${r.label}, about ${name}`}
-          >
-            <Text style={styles.chipText}>{r.label}</Text>
-          </PressableScale>
+          <Glass key={r.id} radius={RADIUS.full} shadow={false}>
+            <PressableScale
+              scaleTo={0.96}
+              style={styles.chip}
+              onPress={() => onPick(r.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`${r.label}, about ${name}`}
+            >
+              <Text style={styles.chipText}>{r.label}</Text>
+            </PressableScale>
+          </Glass>
         ))}
         <PressableScale
           scaleTo={0.96}
@@ -78,17 +79,13 @@ const styles = themedStyles(() => ({
     paddingHorizontal: SPACING[3.5],
     height: 36,
     justifyContent: 'center',
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   chipText: {
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.textPrimary,
   },
-  skipChip: { backgroundColor: 'transparent', borderColor: 'transparent' },
+  skipChip: { paddingHorizontal: SPACING[3.5], height: 36, justifyContent: 'center' },
   skipText: { color: COLORS.textMuted },
   footnote: {
     fontFamily: FONTS.medium,

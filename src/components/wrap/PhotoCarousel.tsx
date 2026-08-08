@@ -43,19 +43,24 @@ export const PhotoCarousel = memo(function PhotoCarousel({
   index,
   onIndexChange,
   onDelete,
+  widthRatio = 0.78,
+  height,
 }: {
   uris: string[];
   index: number;
   onIndexChange: (i: number) => void;
   onDelete?: (i: number) => void;
+  // How much of the screen one frame takes. Short of 1 on purpose: the sliver
+  // of the next frame is what says the strip is swipeable without an
+  // instruction.
+  widthRatio?: number;
+  // Given, the frame fills it — for the hero layout, where the photo takes the
+  // height the step has rather than a ratio of its own width. Omitted, 4:5.
+  height?: number;
 }) {
   const { width } = useWindowDimensions();
-  // 0.78 of the screen, up from 0.62 — the photo is the subject of this step,
-  // and at the smaller size it read as a thumbnail with furniture around it.
-  // Still short of full width, because the slice of the next frame is what
-  // says the strip is swipeable without an instruction.
-  const W = Math.round(width * 0.78);
-  const H = Math.round(W * 1.25);
+  const W = Math.round(width * widthRatio);
+  const H = height ?? Math.round(W * 1.25);
   const STRIDE = W + GAP;
   const REST = (width - W) / 2;
 

@@ -12,7 +12,7 @@ import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import { useWrap } from '@/hooks/useWrap';
 import { useWrapFlowStore } from '@/stores/wrapFlowStore';
-import { Button, Icon, PressableScale } from '@/components/ui';
+import { Button, Glass, Icon, PressableScale } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
 // Private event feedback for the host: thumbs + optional note, anonymous.
@@ -74,33 +74,43 @@ export const StepFeedback = memo(function StepFeedback() {
         </View>
 
         <View style={styles.thumbRow}>
-          <PressableScale
-            scaleTo={0.94}
-            style={[styles.thumbBtn, rating === 'up' && styles.thumbBtnUp]}
-            onPress={() => setRating('up')}
-            accessibilityRole="button"
-            accessibilityLabel="Good event"
+          <Glass
+            radius={RADIUS['2xl']}
+            style={[styles.thumbPane, rating === 'up' && styles.thumbPaneUp]}
           >
-            <Icon name="thumbsUp" size={26} color={COLORS.success} strokeWidth={2.4} />
-            <Text style={[styles.thumbLabel, rating === 'up' && styles.thumbLabelOn]}>
-              Loved it
-            </Text>
-          </PressableScale>
-          <PressableScale
-            scaleTo={0.94}
-            style={[styles.thumbBtn, rating === 'down' && styles.thumbBtnDown]}
-            onPress={() => setRating('down')}
-            accessibilityRole="button"
-            accessibilityLabel="Not great"
+            <PressableScale
+              scaleTo={0.94}
+              style={styles.thumbBtn}
+              onPress={() => setRating('up')}
+              accessibilityRole="button"
+              accessibilityLabel="Good event"
+            >
+              <Icon name="thumbsUp" size={26} color={COLORS.success} strokeWidth={2.4} />
+              <Text style={[styles.thumbLabel, rating === 'up' && styles.thumbLabelOn]}>
+                Loved it
+              </Text>
+            </PressableScale>
+          </Glass>
+          <Glass
+            radius={RADIUS['2xl']}
+            style={[styles.thumbPane, rating === 'down' && styles.thumbPaneDown]}
           >
-            <Icon name="thumbsDown" size={26} color={COLORS.error} strokeWidth={2.4} />
-            <Text style={[styles.thumbLabel, rating === 'down' && styles.thumbLabelOn]}>
-              Not great
-            </Text>
-          </PressableScale>
+            <PressableScale
+              scaleTo={0.94}
+              style={styles.thumbBtn}
+              onPress={() => setRating('down')}
+              accessibilityRole="button"
+              accessibilityLabel="Not great"
+            >
+              <Icon name="thumbsDown" size={26} color={COLORS.error} strokeWidth={2.4} />
+              <Text style={[styles.thumbLabel, rating === 'down' && styles.thumbLabelOn]}>
+                Not great
+              </Text>
+            </PressableScale>
+          </Glass>
         </View>
 
-        <View>
+        <Glass radius={RADIUS.lg} style={styles.notePane}>
           <TextInput
             style={styles.noteInput}
             placeholder="Anything the host should know? (optional)"
@@ -109,7 +119,7 @@ export const StepFeedback = memo(function StepFeedback() {
             onChangeText={(t) => setNote(t.slice(0, 300))}
             multiline
           />
-        </View>
+        </Glass>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -134,36 +144,30 @@ const styles = themedStyles(() => ({
     paddingHorizontal: SPACING[6],
   },
   title: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.titleLg,
-    letterSpacing: -0.48,
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.display,
+    letterSpacing: -0.6,
+    lineHeight: 38,
     color: COLORS.textPrimary,
   },
   sub: {
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
+    fontSize: TYPE_SIZE.body,
+    lineHeight: 22,
     color: COLORS.textSecondary,
-    marginTop: SPACING[1.5],
-    textAlign: 'center',
+    marginTop: SPACING[2],
   },
   thumbRow: { flexDirection: 'row', gap: SPACING[3] },
+  // Glass panes over the drifting background, not opaque cards on top of it.
+  // The selected state is carried by the border alone — a fill would put the
+  // colour back over the thing the glass exists to reveal.
+  thumbPane: { flex: 1 },
+  thumbPaneUp: { borderColor: COLORS.success, borderWidth: 1.5 },
+  thumbPaneDown: { borderColor: COLORS.error, borderWidth: 1.5 },
   thumbBtn: {
-    flex: 1,
     alignItems: 'center',
     gap: SPACING[2],
     paddingVertical: SPACING[5],
-    borderRadius: RADIUS['2xl'],
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-  },
-  thumbBtnUp: {
-    borderColor: COLORS.success,
-    backgroundColor: 'rgba(31,164,99,0.07)',
-  },
-  thumbBtnDown: {
-    borderColor: COLORS.error,
-    backgroundColor: 'rgba(239,68,68,0.06)',
   },
   thumbLabel: {
     fontFamily: FONTS.bold,
@@ -171,17 +175,14 @@ const styles = themedStyles(() => ({
     color: COLORS.textSecondary,
   },
   thumbLabelOn: { color: COLORS.textPrimary },
+  notePane: {},
   noteInput: {
     minHeight: 90,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
     padding: SPACING[3.5],
     fontFamily: FONTS.semibold,
     fontSize: TYPE_SIZE.bodyMd,
     color: COLORS.textPrimary,
     textAlignVertical: 'top',
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   footer: { padding: SPACING[4], paddingTop: SPACING[2] },
 }));

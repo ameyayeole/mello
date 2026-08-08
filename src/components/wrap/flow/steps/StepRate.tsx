@@ -37,6 +37,7 @@ import { CoAttendee, SuperlativeCategory } from '@/types/models';
 import {
   Avatar,
   Button,
+  Glass,
   Icon,
   Loader,
   PressableScale,
@@ -264,10 +265,14 @@ export const StepRate = memo(function StepRate() {
             const votedFor = myVotes.get(s.id);
             const votee = votedFor ? attendeeById.get(votedFor) : null;
             return (
-              <View key={s.id}>
+              <Glass
+                key={s.id}
+                radius={RADIUS.xl}
+                style={votedFor ? styles.cardVoted : undefined}
+              >
                 <PressableScale
                   scaleTo={0.98}
-                  style={[styles.card, votedFor && styles.cardVoted]}
+                  style={styles.card}
                   onPress={() => setPicking(s.id)}
                   accessibilityRole="button"
                   accessibilityLabel={s.label}
@@ -292,7 +297,7 @@ export const StepRate = memo(function StepRate() {
                     <Icon name="chevronRight" size={18} color={inkAlpha(0.35)} />
                   )}
                 </PressableScale>
-              </View>
+              </Glass>
             );
           })}
 
@@ -528,32 +533,28 @@ const styles = themedStyles(() => ({
     paddingBottom: SPACING[7],
   },
   awardsTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.title,
-    letterSpacing: -0.44,
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.display,
+    letterSpacing: -0.6,
+    lineHeight: 38,
     color: COLORS.textPrimary,
   },
   awardsSub: {
     fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    lineHeight: 19,
+    fontSize: TYPE_SIZE.body,
+    lineHeight: 22,
     color: COLORS.textSecondary,
-    marginTop: SPACING[1.5],
+    marginTop: SPACING[2],
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING[3],
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     padding: SPACING[4],
   },
-  cardVoted: {
-    borderColor: 'rgba(31,164,99,0.35)',
-    backgroundColor: 'rgba(31,164,99,0.05)',
-  },
+  // Border only. A fill here would put colour back over the background the
+  // glass exists to reveal.
+  cardVoted: { borderColor: 'rgba(31,164,99,0.45)', borderWidth: 1.5 },
   cardEmoji: { fontSize: TYPE_SIZE.h1 },
   cardTitle: {
     fontFamily: FONTS.bold,

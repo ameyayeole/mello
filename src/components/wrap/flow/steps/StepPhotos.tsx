@@ -24,9 +24,9 @@ import {
 import { uploadWrapPhoto } from '@/services/storage.service';
 import { useAuthStore } from '@/stores/authStore';
 import { useWrapFlowStore } from '@/stores/wrapFlowStore';
-import { COLORS, inkAlpha } from '@/constants/colors';
+import { COLORS } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Avatar, Button, Icon, PressableScale } from '@/components/ui';
+import { Avatar, Button, Glass, Icon, PressableScale } from '@/components/ui';
 import { showError } from '@/utils/errors';
 import { themedStyles } from '@/theme';
 
@@ -47,8 +47,10 @@ interface Draft {
   tagged: string[];
 }
 
-// Add your best photos to the pool. Each one carries its own caption and its
-// own tags.
+// The photo IS the step. It fills the frame and the caption and tags float on
+// it in `onPhoto` glass, rather than sitting in a card with form fields stacked
+// underneath — which is what made this read as a form about a photo instead of
+// the photo itself.
 //
 // No props — that is what lets memo hold this against the flow's re-renders.
 // See AGENTS.md: adding a single prop undoes it with no error and no failing
@@ -65,6 +67,7 @@ export const StepPhotos = memo(function StepPhotos() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [uploading, setUploading] = useState(false);
   const [justUploaded, setJustUploaded] = useState(0);
+  const [heroH, setHeroH] = useState(0);
 
   const attendeesQuery = useQuery({
     queryKey: queryKeys.wrapAttendees.of(eventId, user?.id),
@@ -87,7 +90,8 @@ export const StepPhotos = memo(function StepPhotos() {
   );
   const uploadedCount = myPhotos.length;
 
-  const draftIndex = index - uploadedCount;
+  const safeIndex = slots.length ? Math.min(index, slots.length - 1) : 0;
+  const draftIndex = safeIndex - uploadedCount;
   const draft: Draft | undefined = drafts[draftIndex];
 
   async function addPhotos() {
@@ -117,9 +121,7 @@ export const StepPhotos = memo(function StepPhotos() {
     if (!draft) return;
     const on = draft.tagged.includes(id);
     patchDraft({
-      tagged: on
-        ? draft.tagged.filter((t) => t !== id)
-        : [...draft.tagged, id],
+      tagged: on ? draft.tagged.filter((t) => t !== id) : [...draft.tagged, id],
     });
   }
 
@@ -200,102 +202,124 @@ export const StepPhotos = memo(function StepPhotos() {
     );
   }
 
+  if (slots.length === 0) {
+    return (
+      <View style={styles.emptyRoot}>
+        <View style={styles.empty}>
+          <View style={styles.emptyGlyph}>
+            <Icon name="galleryAdd" size={38} color={COLORS.primary} />
+          </View>
+          <Text style={styles.heroTitle}>What did the night look like?</Text>
+          <Text style={styles.heroSub}>
+            Up to {MAX_PHOTOS}. Each one gets its own words.
+          </Text>
+        </View>
+        <View style={styles.footer}>
+          <Button label="Add photos" icon="galleryAdd" onPress={addPhotos} />
+          <Button variant="tertiary" label="Skip for now" onPress={next} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1 }}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <View
+        style={styles.hero}
+        onLayout={(e) => setHeroH(e.nativeEvent.layout.height)}
       >
-        {slots.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyGlyph}>
-              <Icon name="galleryAdd" size={34} color={COLORS.primary} />
-            </View>
-            <Text style={styles.emptyTitle}>Add your photos</Text>
-            <Text style={styles.emptyText}>
-              Up to {MAX_PHOTOS}. Each one gets its own caption and tags.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.carouselWrap}>
-              <PhotoCarousel
-                uris={slots}
-                index={Math.min(index, slots.length - 1)}
-                onIndexChange={setIndex}
-                onDelete={removeAt}
-              />
-            </View>
-
-            <Text style={styles.counter}>
-              {Math.min(index, slots.length - 1) + 1} of {slots.length}
-            </Text>
-
-            {draft ? (
-              <>
-                <View>
-                  <Text style={styles.sectionLabel}>CAPTION FOR THIS PHOTO</Text>
-                  <TextInput
-                    style={styles.captionInput}
-                    placeholder="That golden hour though…"
-                    placeholderTextColor={inkAlpha(0.40)}
-                    value={draft.caption}
-                    onChangeText={(t) => patchDraft({ caption: t.slice(0, 300) })}
-                    multiline
-                  />
-                </View>
-
-                {(attendeesQuery.data?.length ?? 0) > 0 && (
-                  <View>
-                    <Text style={styles.sectionLabel}>WHO&apos;S IN THIS ONE</Text>
-                    <Text style={styles.tagHint}>
-                      Tagged people see this photo first.
-                    </Text>
-                    <View style={styles.tagRow}>
-                      {(attendeesQuery.data ?? []).map((a) => {
-                        const on = draft.tagged.includes(a.id);
-                        return (
-                          <PressableScale
-                            key={a.id}
-                            scaleTo={0.95}
-                            style={[styles.tagChip, on && styles.tagChipOn]}
-                            onPress={() => toggleTag(a.id)}
-                          >
-                            <Avatar name={a.name} photoUrl={a.photo_url} size={22} />
-                            <Text style={[styles.tagText, on && styles.tagTextOn]}>
-                              {a.name.split(' ')[0]}
-                            </Text>
-                            {on && (
-                              <Icon name="check" size={13} color={COLORS.primary} strokeWidth={2.6} />
-                            )}
-                          </PressableScale>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-              </>
-            ) : (
-              <View style={styles.poolNote}>
-                <Icon name="check" size={16} color={COLORS.success} strokeWidth={2.4} />
-                <Text style={styles.poolNoteText}>
-                  Already in the pool — its caption and tags are set.
-                </Text>
-              </View>
-            )}
-          </>
+        {heroH > 0 && (
+          <PhotoCarousel
+            uris={slots}
+            index={safeIndex}
+            onIndexChange={setIndex}
+            onDelete={removeAt}
+            // Nearly full-bleed. The last sliver of the neighbour is the only
+            // thing telling you there is another photo, so it stays.
+            widthRatio={0.9}
+            height={heroH}
+          />
         )}
-      </ScrollView>
+
+        {/* Caption and tags sit OUTSIDE the carousel's track on purpose — inside
+            it, a text field would pan away with the photo while you were typing
+            in it. They read the centred index instead. */}
+        <View style={styles.overlay} pointerEvents="box-none">
+          {draft ? (
+            <Glass tier="onPhoto" radius={RADIUS.xl} style={styles.captionGlass}>
+              <TextInput
+                style={styles.captionInput}
+                placeholder="Say something about this one…"
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                value={draft.caption}
+                onChangeText={(t) => patchDraft({ caption: t.slice(0, 300) })}
+                multiline
+              />
+            </Glass>
+          ) : (
+            <Glass tier="onPhoto" radius={RADIUS.xl} style={styles.captionGlass}>
+              <Text style={styles.poolNoteText}>
+                Already in the pool — its words are set.
+              </Text>
+            </Glass>
+          )}
+
+          {draft && (attendeesQuery.data?.length ?? 0) > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tagRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {(attendeesQuery.data ?? []).map((a) => {
+                const on = draft.tagged.includes(a.id);
+                return (
+                  <Glass
+                    key={a.id}
+                    tier="onPhoto"
+                    radius={RADIUS.full}
+                    shadow={false}
+                    style={on ? styles.tagChipOn : undefined}
+                  >
+                    <PressableScale
+                      scaleTo={0.95}
+                      style={styles.tagChip}
+                      onPress={() => toggleTag(a.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Tag ${a.name} in this photo`}
+                    >
+                      <Avatar name={a.name} photoUrl={a.photo_url} size={22} />
+                      <Text style={styles.tagText}>{a.name.split(' ')[0]}</Text>
+                      {on && (
+                        <Icon name="check" size={13} color={COLORS.white} strokeWidth={2.8} />
+                      )}
+                    </PressableScale>
+                  </Glass>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Which of yours you are looking at. Dots rather than "2 of 3": at six
+            photos a counter is a number to read, dots are a glance. */}
+        {slots.length > 1 && (
+          <View style={styles.dots} pointerEvents="none">
+            {slots.map((_, i) => (
+              <View key={i} style={[styles.dot, i === safeIndex && styles.dotOn]} />
+            ))}
+          </View>
+        )}
+      </View>
 
       <View style={styles.footer}>
         {slotsLeft > 0 && (
           <Button
-            variant={slots.length === 0 ? 'primary' : 'tertiary'}
-            label={slots.length === 0 ? 'Add photos' : `Add more (${slotsLeft} left)`}
+            variant="tertiary"
+            label={`Add more (${slotsLeft} left)`}
             icon="galleryAdd"
             onPress={addPhotos}
           />
@@ -307,13 +331,7 @@ export const StepPhotos = memo(function StepPhotos() {
             loading={uploading}
           />
         ) : (
-          // Nothing staged: the way on. Photos are not mandatory here — the
-          // checklist counts them, the flow does not block on them.
-          <Button
-            variant={slots.length === 0 ? 'tertiary' : 'primary'}
-            label={slots.length === 0 ? 'Skip for now' : 'Continue'}
-            onPress={next}
-          />
+          <Button label="Continue" onPress={next} />
         )}
       </View>
     </KeyboardAvoidingView>
@@ -321,11 +339,93 @@ export const StepPhotos = memo(function StepPhotos() {
 });
 
 const styles = themedStyles(() => ({
-  scroll: {
-    paddingHorizontal: SPACING[4],
-    paddingTop: SPACING[2],
-    gap: SPACING[4],
-    paddingBottom: SPACING[6],
+  hero: { flex: 1, justifyContent: 'center' },
+  overlay: {
+    position: 'absolute',
+    left: SPACING[6],
+    right: SPACING[6],
+    bottom: SPACING[4],
+    gap: SPACING[2.5],
+  },
+  captionGlass: { paddingHorizontal: SPACING[3.5], paddingVertical: SPACING[1] },
+  captionInput: {
+    minHeight: 46,
+    maxHeight: 96,
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodyMd,
+    color: COLORS.white,
+    textAlignVertical: 'center',
+  },
+  poolNoteText: {
+    paddingVertical: SPACING[3],
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.white,
+    textAlign: 'center',
+  },
+  tagRow: { gap: SPACING[2], paddingRight: SPACING[2] },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING[1.5],
+    paddingLeft: SPACING[1.5],
+    paddingRight: SPACING[3],
+    height: 36,
+  },
+  tagChipOn: { borderColor: COLORS.white },
+  tagText: {
+    fontFamily: FONTS.bold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.white,
+  },
+  dots: {
+    position: 'absolute',
+    top: SPACING[3],
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING[1.5],
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  dotOn: { backgroundColor: COLORS.white },
+
+  emptyRoot: { flex: 1 },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING[2],
+    paddingHorizontal: SPACING[6],
+  },
+  emptyGlyph: {
+    width: 96,
+    height: 96,
+    borderRadius: RADIUS['3xl'],
+    backgroundColor: COLORS.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING[3],
+  },
+  heroTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: TYPE_SIZE.display,
+    letterSpacing: -0.6,
+    lineHeight: 38,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  heroSub: {
+    fontFamily: FONTS.medium,
+    fontSize: TYPE_SIZE.body,
+    lineHeight: 22,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
   completeWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   completeActions: { marginTop: SPACING[3.5], gap: SPACING[3], alignSelf: 'stretch' },
@@ -334,108 +434,6 @@ const styles = themedStyles(() => ({
     fontSize: TYPE_SIZE.bodySm,
     color: COLORS.primary,
     textAlign: 'center',
-  },
-  empty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING[2],
-    paddingTop: SPACING[8],
-    paddingHorizontal: SPACING[4],
-  },
-  emptyGlyph: {
-    width: 88,
-    height: 88,
-    borderRadius: RADIUS['3xl'],
-    backgroundColor: COLORS.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING[2],
-  },
-  emptyTitle: {
-    fontFamily: FONTS.heavy,
-    fontSize: TYPE_SIZE.titleLg,
-    letterSpacing: -0.48,
-    color: COLORS.textPrimary,
-  },
-  emptyText: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.bodySm,
-    lineHeight: 19,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  // The carousel is centre-locked and wider than the scroll's padding, so it
-  // bleeds to the screen edges — that is what lets the next frame peek.
-  carouselWrap: { marginHorizontal: -SPACING[4] },
-  counter: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: -SPACING[2],
-  },
-  sectionLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.micro,
-    letterSpacing: 0.3,
-    color: inkAlpha(0.5),
-    marginBottom: SPACING[2],
-  },
-  captionInput: {
-    minHeight: 64,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING[3],
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.bodyMd,
-    color: COLORS.textPrimary,
-    textAlignVertical: 'top',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  tagHint: {
-    fontFamily: FONTS.medium,
-    fontSize: TYPE_SIZE.caption,
-    color: COLORS.textMuted,
-    marginTop: -4,
-    marginBottom: SPACING[2.5],
-  },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING[2] },
-  tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[1.5],
-    paddingLeft: SPACING[1.5],
-    paddingRight: SPACING[3],
-    height: 36,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  tagChipOn: {
-    backgroundColor: COLORS.primaryTint,
-    borderColor: 'rgba(255,94,91,0.4)',
-  },
-  tagText: {
-    fontFamily: FONTS.bold,
-    fontSize: TYPE_SIZE.bodySm,
-    color: inkAlpha(0.7),
-  },
-  tagTextOn: { color: COLORS.primary },
-  poolNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING[2],
-    backgroundColor: 'rgba(31,164,99,0.09)',
-    borderRadius: RADIUS.md,
-    padding: SPACING[3],
-  },
-  poolNoteText: {
-    flex: 1,
-    fontFamily: FONTS.semibold,
-    fontSize: TYPE_SIZE.caption,
-    color: inkAlpha(0.65),
   },
   footer: {
     paddingHorizontal: SPACING[4],

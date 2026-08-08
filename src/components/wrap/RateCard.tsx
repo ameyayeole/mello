@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Glass, Icon, PressableScale, VerifiedBadge } from '@/components/ui';
+import { Glass, Icon, PressableScale, ProfileIdentity } from '@/components/ui';
 import { CoAttendee } from '@/types/models';
 import { themedStyles } from '@/theme';
 
@@ -75,21 +75,16 @@ export default function RateCard({
       </View>
 
       <View style={styles.body}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {attendee.name}
-            {attendee.age ? `, ${attendee.age}` : ''}
-          </Text>
-          {attendee.kyc_status === 'approved' && <VerifiedBadge size={16} />}
-        </View>
-        {attendee.username ? (
-          <Text style={styles.username}>@{attendee.username}</Text>
-        ) : null}
-        {attendee.bio ? (
-          <Text style={styles.bio} numberOfLines={2}>
-            {attendee.bio}
-          </Text>
-        ) : null}
+        {/* Shared with the profile screen — see ProfileIdentity for why these
+            two stopped being independent copies. */}
+        <ProfileIdentity
+          name={attendee.name}
+          age={attendee.age}
+          username={attendee.username}
+          bio={attendee.bio}
+          verified={attendee.kyc_status === 'approved'}
+          bioLines={2}
+        />
 
         <View style={styles.footer}>
           <View style={styles.thumbsPill}>
