@@ -82,6 +82,7 @@ const SOLAR = {
   shield: 'Shield',
   shieldAlert: 'ShieldWarning',
   thumbsUp: 'Like',
+  thumbsDown: 'Dislike',
   trash: 'TrashBinMinimalistic',
   user: 'User',
   userPlus: 'UserPlus',
@@ -91,7 +92,7 @@ const SOLAR = {
 // Names the design consistently shows filled — default them to the Bold style.
 const BOLD_DEFAULTS = new Set([
   'location', 'pin', 'bell', 'camera', 'calendar', 'flag', 'shield',
-  'crown', 'thumbsUp', 'gps', 'crosshair',
+  'crown', 'thumbsUp', 'thumbsDown', 'gps', 'crosshair',
   // "Filled" names exist precisely to render solid — without this they map to
   // the same Solar glyph as their outline twin and look identical.
   'bookmarkFilled',

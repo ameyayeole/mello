@@ -16,6 +16,7 @@ import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
 import {
   Button,
+  Icon,
   PressableScale,
   Screen,
   ScreenHeader,
@@ -89,7 +90,12 @@ export default function EventFeedbackScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Good event"
                 >
-                  <Text style={styles.thumbEmoji}>👍</Text>
+                  <Icon
+                    name="thumbsUp"
+                    size={26}
+                    color={COLORS.success}
+                    strokeWidth={2.4}
+                  />
                   <Text style={[styles.thumbLabel, rating === 'up' && styles.thumbLabelOn]}>
                     Loved it
                   </Text>
@@ -101,7 +107,12 @@ export default function EventFeedbackScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Not great"
                 >
-                  <Text style={styles.thumbEmoji}>👎</Text>
+                  <Icon
+                    name="thumbsDown"
+                    size={26}
+                    color={COLORS.error}
+                    strokeWidth={2.4}
+                  />
                   <Text style={[styles.thumbLabel, rating === 'down' && styles.thumbLabelOn]}>
                     Not great
                   </Text>
@@ -171,7 +182,6 @@ const styles = themedStyles(() => ({
     borderColor: COLORS.error,
     backgroundColor: 'rgba(239,68,68,0.06)',
   },
-  thumbEmoji: { fontSize: TYPE_SIZE.display },
   thumbLabel: {
     fontFamily: FONTS.bold,
     fontSize: TYPE_SIZE.bodyMd,

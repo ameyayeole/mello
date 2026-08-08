@@ -731,7 +731,7 @@ function GroupChatScreen() {
           accessibilityRole="button"
           accessibilityLabel="Open the event wrap"
         >
-          <Text style={styles.wrapBannerEmoji}>📸</Text>
+          <Icon name="camera" size={18} color={COLORS.primary} />
           <Text style={styles.wrapBannerText}>
             This one&apos;s a wrap. Rate people, drop photos, vote awards.
           </Text>
@@ -1242,7 +1242,6 @@ const styles = themedStyles(() => ({
     borderWidth: 1,
     borderColor: 'rgba(255,94,91,0.25)',
   },
-  wrapBannerEmoji: { fontSize: TYPE_SIZE.body },
   wrapBannerText: {
     flex: 1,
     fontFamily: FONTS.bold,
