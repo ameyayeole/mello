@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Loader, Screen, ScreenHeader } from '@/components/ui';
@@ -7,6 +7,8 @@ import { FlowProgress, FlowShell } from '@/components/wrap/flow/FlowShell';
 import { StepPhotos } from '@/components/wrap/flow/steps/StepPhotos';
 import { StepRate } from '@/components/wrap/flow/steps/StepRate';
 import { StepRewind } from '@/components/wrap/flow/steps/StepRewind';
+import { StepFeedback } from '@/components/wrap/flow/steps/StepFeedback';
+import { StepDone } from '@/components/wrap/flow/steps/StepDone';
 import { useWrapFlowStore, wrapFlowSteps } from '@/stores/wrapFlowStore';
 import { getEventDetail } from '@/services/events.service';
 import { queryKeys } from '@/constants/queryKeys';
@@ -73,8 +75,10 @@ export default function WrapFlowScreen() {
             <StepRate />
           ) : step === 'rewind' ? (
             <StepRewind />
+          ) : step === 'feedback' ? (
+            <StepFeedback />
           ) : (
-            <Text>{step}</Text>
+            <StepDone />
           )}
         </FlowShell>
       </View>

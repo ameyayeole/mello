@@ -70,7 +70,10 @@ export const StepRate = memo(function StepRate() {
       ty.value = 0;
       rate.mutate({ attendee, rating });
     },
-    [rate]
+    // tx/ty are listed where the rate route omitted them. Shared values have a
+    // stable identity, so this changes nothing at runtime — it just keeps the
+    // moved copy from adding two lint warnings the original already carries.
+    [rate, tx, ty]
   );
 
   const pan = useMemo(
@@ -101,7 +104,7 @@ export const StepRate = memo(function StepRate() {
             ty.value = withSpring(0, { damping: 16, stiffness: 180 });
           }
         }),
-    [topId, top, width, threshold, commitRate]
+    [topId, top, width, threshold, commitRate, tx, ty]
   );
 
   function flingOut(rating: 'up' | 'down') {
