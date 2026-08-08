@@ -38,6 +38,17 @@ import {
 } from '@/components/ui';
 import { themedStyles } from '@/theme';
 
+// Above this many people the deck stops being a nice review of the night and
+// starts being a chore.
+//
+// The flow is mandatory to unlock the wrap, and a chore standing in front of a
+// gate gets RUSHED — people thumbs-up everyone to get through. A rushed rating
+// is worse than a skipped one, because it looks like signal. So the escape is
+// offered rather than the deck shortened.
+//
+// 15 is a judgement call, not a measurement.
+const SKIP_ABOVE = 15;
+
 // Rate the people you met: swipe right = thumbs up, left = thumbs down.
 // Once the deck empties, the night's awards appear under it — same step,
 // because they are the same question asked twice about the same people.
@@ -413,6 +424,14 @@ export const StepRate = memo(function StepRate() {
         </PressableScale>
       </View>
 
+      {/* Only offered on a deck long enough to become a chore. Skipping still
+          completes the flow — it does not block the contributor marker. */}
+      {total + 1 > SKIP_ABOVE && (
+        <View style={styles.skipRow}>
+          <Button variant="tertiary" label="Skip the rest" height={40} onPress={next} />
+        </View>
+      )}
+
       <NoteComposer
         eventId={eventId!}
         recipient={noteFor}
@@ -472,6 +491,7 @@ const styles = themedStyles(() => ({
   },
   smallActionBtn: { width: 50, height: 50, borderRadius: 25 },
   actionDisabled: { opacity: 0.4 },
+  skipRow: { paddingHorizontal: SPACING[4], paddingBottom: SPACING[3] },
 
   doneScroll: {
     padding: SPACING[4],
