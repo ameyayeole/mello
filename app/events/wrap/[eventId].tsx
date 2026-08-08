@@ -183,7 +183,10 @@ export default function WrapHubScreen() {
             <PressableScale
               scaleTo={0.98}
               style={styles.emptyPool}
-              onPress={() => router.push(`/events/wrap/photos/${eventId}`)}
+              // The flow, not the standalone photos route: adding a photo
+              // outside the flow leaves you a non-contributor, which is exactly
+              // the hole this phase closes.
+              onPress={() => router.push(`/events/wrap/flow/${eventId}`)}
             >
               <Icon name="camera" size={22} color={COLORS.primary} strokeWidth={2} />
               <Text style={styles.emptyPoolText}>

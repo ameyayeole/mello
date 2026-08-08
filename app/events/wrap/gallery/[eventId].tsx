@@ -161,7 +161,9 @@ export default function WrapGalleryScreen() {
             <PressableScale
               scaleTo={0.96}
               style={styles.emptyBtn}
-              onPress={() => router.push(`/events/wrap/photos/${eventId}`)}
+              // The flow, not the standalone photos route — see the note on the
+              // hub's empty-pool card.
+              onPress={() => router.push(`/events/wrap/flow/${eventId}`)}
             >
               <Text style={styles.emptyBtnText}>Add yours</Text>
             </PressableScale>
