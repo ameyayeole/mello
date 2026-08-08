@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { DownReason } from '@/utils/wrapRating';
 import {
   CoAttendee,
   EventFeedbackSummary,
@@ -114,6 +115,28 @@ export async function rateAttendee(
   });
 
   if (error && error.code !== '23505') throw error; // already rated is fine
+}
+
+// A safety-flagged thumbs-down. Writes the app's ordinary `reports` row
+// (migration 014_blocks_and_reports) — moderation already reads that table
+// out-of-band with the service role, so this needs no new pipeline.
+//
+// The `wrap_rating:` prefix keeps these separable from profile reports in the
+// moderation queue, which is a different judgement with different urgency.
+export async function reportAttendee(args: {
+  eventId: string;
+  reporterId: string;
+  reportedId: string;
+  reason: DownReason;
+}): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_id: args.reporterId,
+    reported_id: args.reportedId,
+    reason: `wrap_rating:${args.reason}`,
+    details: `event:${args.eventId}`,
+  });
+
+  if (error) throw error;
 }
 
 // Undo in the rating deck.
@@ -471,6 +494,43 @@ async function getWrapGate(
   return rows[0] ?? locked;
 }
 
+// Marks the whole contribution flow finished. This single row is what the gate
+// counts (migration 075) — so it is written once, at the end, never per step.
+// A duplicate is not an error: 23505 means you already contributed, which is
+// the desired end state either way.
+export async function markWrapContributed(
+  eventId: string,
+  userId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('wrap_contributions')
+    .insert({ event_id: eventId, user_id: userId });
+
+  if (error && error.code !== '23505') throw error;
+}
+
+// Whether *I* have finished the flow for this event.
+//
+// The gate RPC returns a count and a face list, not your own membership, and
+// Phase 3's launch card needs the per-viewer answer to decide whether to deal
+// itself. Reading the row directly is exact where inferring from the count is
+// not: `wrap_contributions_select` is USING (is_event_attendee(...)) — migration
+// 074 — so an attendee can read their own marker.
+export async function hasContributedToWrap(
+  eventId: string,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('wrap_contributions')
+    .select('user_id')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
 // Everything the checklist needs, fetched in parallel.
 export async function getWrapStatus(
   eventId: string,
@@ -486,6 +546,7 @@ export async function getWrapStatus(
     { data: encores, error: encoreErr },
     { data: event, error: eventErr },
     gate,
+    iContributed,
   ] = await Promise.all([
     getCoAttendees(eventId, userId),
     getMyRatings(eventId, userId),
@@ -510,6 +571,7 @@ export async function getWrapStatus(
     supabase.from('encore_requests').select('user_id').eq('event_id', eventId),
     supabase.from('events').select('host_id').eq('id', eventId).single(),
     getWrapGate(eventId, userId),
+    hasContributedToWrap(eventId, userId),
   ]);
 
   if (photosErr) throw photosErr;
@@ -531,6 +593,7 @@ export async function getWrapStatus(
     contributorCount: Number(gate.contributor_count ?? 0),
     contributorsNeeded: gate.contributors_needed ?? 2,
     contributors: gate.contributors ?? [],
+    iContributed,
     hoursSinceEnd: gate.hours_since_end ?? 0,
   };
 }

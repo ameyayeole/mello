@@ -7,6 +7,11 @@ Running list of every Lottie the wrap needs. Keep it updated as the flow moves â
 this is the brief you hand a motion designer, and the checklist for what still
 blocks a phase.
 
+**Copy-pasteable generation prompts:**
+[`2026-08-08-wrap-lottie-prompts.md`](2026-08-08-wrap-lottie-prompts.md) â€” one
+per asset, brand values already filled in. This file says what each asset is
+for; that one says what to ask for.
+
 ## What already exists
 
 | File | Used by |

@@ -1,0 +1,103 @@
+import { useEffect, useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { AppBackground, Loader, Screen, ScreenHeader } from '@/components/ui';
+import { FlowProgress, FlowShell } from '@/components/wrap/flow/FlowShell';
+import { StepPhotos } from '@/components/wrap/flow/steps/StepPhotos';
+import { StepRate } from '@/components/wrap/flow/steps/StepRate';
+import { StepRewind } from '@/components/wrap/flow/steps/StepRewind';
+import { StepFeedback } from '@/components/wrap/flow/steps/StepFeedback';
+import { StepDone } from '@/components/wrap/flow/steps/StepDone';
+import { useWrapFlowStore, wrapFlowSteps } from '@/stores/wrapFlowStore';
+import { getEventDetail } from '@/services/events.service';
+import { queryKeys } from '@/constants/queryKeys';
+import { useAuthStore } from '@/stores/authStore';
+
+// The contribution flow: photos, the people you met, rewind, how the event was.
+// One route with a step pointer rather than four routes, so finishing feels
+// like one journey and so a single `wrap_contributions` row can be written at
+// the end — that row is what the gate counts (migration 075).
+export default function WrapFlowScreen() {
+  const { eventId } = useLocalSearchParams<{ eventId: string }>();
+  const user = useAuthStore((s) => s.user);
+
+  const step = useWrapFlowStore((s) => s.step);
+  const start = useWrapFlowStore((s) => s.start);
+  const reset = useWrapFlowStore((s) => s.reset);
+
+  const eventQuery = useQuery({
+    queryKey: queryKeys.eventDetail.of(eventId),
+    queryFn: () => getEventDetail(eventId!),
+    enabled: !!eventId,
+  });
+  const event = eventQuery.data;
+  const isHost = !!event && !!user && event.host_id === user.id;
+
+  // Start on mount, clear on unmount — otherwise opening a second event's flow
+  // resumes wherever the first one was left.
+  //
+  // Depends on `event.id`, never on `event`. React Query hands back a new object
+  // identity on every refetch, and a refetch mid-flow would re-run `start` and
+  // throw the user back to step one. That failure needs a background refetch to
+  // reproduce, so it will not show up while you are clicking through.
+  const eventKey = event?.id;
+  useEffect(() => {
+    if (eventId && eventKey) start(eventId, isHost);
+    return reset;
+  }, [eventId, eventKey, isHost, start, reset]);
+
+  const steps = useMemo(() => wrapFlowSteps(isHost), [isHost]);
+  const index = steps.indexOf(step);
+
+  if (eventQuery.isLoading || !event) {
+    return (
+      <View style={styles.root}>
+        <AppBackground />
+        <Screen background="transparent">
+          <Loader inline />
+        </Screen>
+      </View>
+    );
+  }
+
+  return (
+    // `AppBackground` is mounted once behind the *tab* navigator, and this route
+    // lives outside that tree — so without its own copy the flow was the one
+    // part of the wrap sitting on flat paper while everything it links to sits
+    // on the drifting field. Screen goes transparent so there is something to
+    // reveal (DESIGN.md §2).
+    <View style={styles.root}>
+      <AppBackground />
+      <Screen background="transparent">
+        <ScreenHeader
+          title="Wrap it up"
+          subtitle={event.title}
+          backIcon="chevronDown"
+          tone="transparent"
+        />
+        <FlowProgress total={steps.length} index={index} />
+        <View style={{ flex: 1 }}>
+          <FlowShell key={step}>
+            {step === 'photos' ? (
+              <StepPhotos />
+            ) : step === 'rate' ? (
+              <StepRate />
+            ) : step === 'rewind' ? (
+              <StepRewind />
+            ) : step === 'feedback' ? (
+              <StepFeedback />
+            ) : (
+              <StepDone />
+            )}
+          </FlowShell>
+        </View>
+      </Screen>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  // No colour of its own — AppBackground paints the floor.
+  root: { flex: 1 },
+});

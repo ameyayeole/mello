@@ -20,6 +20,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
 import InAppNotification from '@/components/InAppNotification';
 import { EventDealtCard } from '@/components/events/EventDealtCard';
+import { WrapDealtCard } from '@/components/wrap/WrapDealtCard';
 import { useThemeName, useThemeStore } from '@/stores/themeStore';
 
 SplashScreen.preventAutoHideAsync();
@@ -149,6 +150,12 @@ function RootLayoutInner() {
           whatever that produced, so there's no cold-start ref-not-ready race
           to retry around. It renders nothing until a card is dealt. */}
       <EventDealtCard />
+      {/* The wrap's launch card, mounted here for the same reason: it deals
+          itself on app open, whatever route the app resumed on, and CardPortal
+          has to lift it above anything already presented. It renders nothing
+          unless `useWrapDeal` says this user has an unwrapped event inside the
+          48h window that they have not already been dealt. */}
+      <WrapDealtCard />
       {/* The map's "Up for it?" fan and the swipe deck it opens, as one
           component that never unmounts between the two sizes — see that
           file's own header comment and design doc

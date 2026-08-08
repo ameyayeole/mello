@@ -8,7 +8,11 @@ import { WrapStatus } from '@/types/models';
 import { wrapStepsDone, wrapStepTotal } from '@/hooks/useWrap';
 import { themedStyles } from '@/theme';
 
-export type WrapStep = 'rate' | 'photos' | 'superlatives' | 'feedback';
+// Awards are gone from here on purpose. They are optional (spec §5.2), and an
+// optional row on a completion checklist reads as a required one. `wrapStepsDone`
+// and `wrapStepTotal` dropped the same clause — all three must move together or
+// the hub disagrees with itself, with no type error to catch it.
+export type WrapStep = 'rate' | 'photos' | 'feedback';
 
 interface StepRow {
   id: WrapStep;
@@ -18,8 +22,20 @@ interface StepRow {
   done: boolean;
 }
 
+// Listed in the order the contribution flow walks them, so the checklist and
+// the flow do not describe the same three steps in two different sequences.
 function buildSteps(status: WrapStatus): StepRow[] {
   const steps: StepRow[] = [
+    {
+      id: 'photos',
+      icon: 'camera',
+      title: 'Add your best photos',
+      sub:
+        status.myPhotoCount > 0
+          ? `${status.myPhotoCount}/6 added`
+          : 'Up to 6 — the night as you saw it',
+      done: status.myPhotoCount > 0,
+    },
     {
       id: 'rate',
       icon: 'thumbsUp',
@@ -31,23 +47,6 @@ function buildSteps(status: WrapStatus): StepRow[] {
       done:
         status.coAttendeeCount > 0 &&
         status.ratedCount >= status.coAttendeeCount,
-    },
-    {
-      id: 'photos',
-      icon: 'camera',
-      title: 'Add your best photos',
-      sub:
-        status.myPhotoCount > 0
-          ? `${status.myPhotoCount}/4 added`
-          : 'Up to 4 · top 6 go to Explore',
-      done: status.myPhotoCount > 0,
-    },
-    {
-      id: 'superlatives',
-      icon: 'crown',
-      title: 'Vote the superlatives',
-      sub: `${status.votedCategories.length}/4 categories voted`,
-      done: status.votedCategories.length >= 4,
     },
   ];
   if (!status.isHost) {

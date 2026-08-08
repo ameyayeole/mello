@@ -15,7 +15,7 @@ import { hasWrapped } from '@/services/wrap.service';
 import { useWrap, useWrapViewBump, wrapStepsDone, wrapStepTotal } from '@/hooks/useWrap';
 import { useWrapGallery } from '@/hooks/useWrapGallery';
 import { useAuthStore } from '@/stores/authStore';
-import { WrapChecklist, WrapStep } from '@/components/wrap/WrapChecklist';
+import { WrapChecklist } from '@/components/wrap/WrapChecklist';
 import WrapPhotoTile from '@/components/wrap/WrapPhotoTile';
 import { ACTIVITY_MAP } from '@/constants/activities';
 import { COLORS } from '@/constants/colors';
@@ -76,12 +76,13 @@ export default function WrapHubScreen() {
   const recapUnlocked = gate === 'open' || forceUnlocked;
   const emoji = event ? (ACTIVITY_MAP[event.activity]?.emoji ?? '📍') : '📍';
 
-  function openStep(step: WrapStep) {
+  // Every row opens the same flow rather than its own screen. The four old
+  // routes still exist and are still reachable by deep link — deleting them is
+  // a separate, riskier change — but nothing in the app aims at them any more,
+  // because only the flow ends by writing the contributor marker.
+  function openStep() {
     if (!eventId) return;
-    if (step === 'rate') router.push(`/events/wrap/rate/${eventId}`);
-    if (step === 'photos') router.push(`/events/wrap/photos/${eventId}`);
-    if (step === 'superlatives') router.push(`/events/wrap/superlatives/${eventId}`);
-    if (step === 'feedback') router.push(`/events/wrap/feedback/${eventId}`);
+    router.push(`/events/wrap/flow/${eventId}`);
   }
 
   if (eventQuery.isLoading || !event) {
@@ -182,11 +183,14 @@ export default function WrapHubScreen() {
             <PressableScale
               scaleTo={0.98}
               style={styles.emptyPool}
-              onPress={() => router.push(`/events/wrap/photos/${eventId}`)}
+              // The flow, not the standalone photos route: adding a photo
+              // outside the flow leaves you a non-contributor, which is exactly
+              // the hole this phase closes.
+              onPress={() => router.push(`/events/wrap/flow/${eventId}`)}
             >
               <Icon name="camera" size={22} color={COLORS.primary} strokeWidth={2} />
               <Text style={styles.emptyPoolText}>
-                No photos yet. Be the first, the 6 most-liked go to Explore.
+                No photos yet. Be the first.
               </Text>
             </PressableScale>
           )}

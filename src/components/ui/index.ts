@@ -28,6 +28,7 @@ export {
   TAB_BAR_SIDE_INSET,
 } from './TabBar';
 export { AppBackground } from './AppBackground';
+export { ProfileIdentity } from './ProfileIdentity';
 export { Glass } from './Glass';
 export type { GlassTier } from './Glass';
 export { CategoryTile } from './CategoryTile';

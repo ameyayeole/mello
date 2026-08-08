@@ -54,9 +54,8 @@ import {
   Icon,
   Loader,
   NavButton,
-  PremiumBadge,
   PressableScale,
-  VerifiedBadge,
+  ProfileIdentity,
 } from '@/components/ui';
 import EventRow from '@/components/events/EventRow';
 import {
@@ -312,12 +311,6 @@ export default function UserProfileScreen() {
       : [];
   const mainPhoto = gallery[0] ?? null;
 
-  const metaBits = [
-    profile.username ? `@${profile.username}` : null,
-    profile.age != null ? String(profile.age) : null,
-    profile.city ?? null,
-  ].filter(Boolean);
-
   function openViewer(index: number) {
     if (gallery.length === 0) return;
     setViewerIndex(index);
@@ -485,17 +478,19 @@ export default function UserProfileScreen() {
           <View style={styles.grabber} />
 
           <Animated.View entering={FadeInDown.duration(400)}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name} numberOfLines={1}>
-                {profile.name}
-              </Text>
-              {profile.kyc_status === 'approved' && <VerifiedBadge size={20} />}
-              {isPremium(profile) && <PremiumBadge size={20} />}
-            </View>
-            {metaBits.length > 0 && (
-              <Text style={styles.handle}>{metaBits.join(' · ')}</Text>
-            )}
-            {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+            {/* The same block the wrap deck's RateCard draws, so tapping a
+                card and landing here shows one person described one way. */}
+            <ProfileIdentity
+              name={profile.name}
+              age={profile.age}
+              username={profile.username}
+              city={profile.city}
+              bio={profile.bio}
+              verified={profile.kyc_status === 'approved'}
+              premium={isPremium(profile)}
+              tone="onPhoto"
+              size="lg"
+            />
           </Animated.View>
 
           {/* The one coral CTA on the screen is whichever friend action is

@@ -159,7 +159,7 @@ export default function RatePeopleScreen() {
     <Screen>
       <ScreenHeader
         title="Who did you meet?"
-        subtitle={`Right 👍 · left 👎 (always private) · ${ratedCount}/${total} rated`}
+        subtitle={`Right up · left down · only you see your ratings · ${ratedCount}/${total} rated`}
         backIcon="chevronDown"
         tone="transparent"
       />
@@ -171,7 +171,10 @@ export default function RatePeopleScreen() {
           <View style={styles.doneWrap}>
             <CompleteMoment
               title="Everyone rated!"
-              sub="Thumbs up land on their profile. Thumbs down stay between you and no one."
+              // Was "Thumbs down stay between you and no one" — false once a
+              // reason chip can file a report. Copy that promises privacy the
+              // schema does not provide is worse than no copy.
+              sub="Thumbs up land on their profile. Thumbs down never do."
             >
               <Button
                 variant="tertiary"
@@ -214,13 +217,23 @@ variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
                         pointerEvents="none"
                         style={[styles.stamp, styles.upStamp, upStampStyle]}
                       >
-                        <Text style={styles.stampEmoji}>👍</Text>
+                        <Icon
+                          name="thumbsUp"
+                          size={30}
+                          color={COLORS.success}
+                          strokeWidth={2.4}
+                        />
                       </Animated.View>
                       <Animated.View
                         pointerEvents="none"
                         style={[styles.stamp, styles.downStamp, downStampStyle]}
                       >
-                        <Text style={styles.stampEmoji}>👎</Text>
+                        <Icon
+                          name="thumbsDown"
+                          size={30}
+                          color={COLORS.error}
+                          strokeWidth={2.4}
+                        />
                       </Animated.View>
                     </Animated.View>
                   </GestureDetector>
@@ -256,9 +269,14 @@ variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
             style={[styles.actionBtn, !top && styles.actionDisabled]}
             onPress={() => flingOut('down')}
             accessibilityRole="button"
-            accessibilityLabel="Thumbs down, stays private"
+            accessibilityLabel="Thumbs down"
           >
-            <Text style={styles.actionEmoji}>👎</Text>
+            <Icon
+              name="thumbsDown"
+              size={26}
+              color={COLORS.error}
+              strokeWidth={2.4}
+            />
           </PressableScale>
           <PressableScale
             scaleTo={0.85}
@@ -276,7 +294,12 @@ variant="tertiary" label="Go back" height={44} onPress={() => router.back()} />
             accessibilityRole="button"
             accessibilityLabel="Thumbs up"
           >
-            <Text style={styles.actionEmoji}>👍</Text>
+            <Icon
+              name="thumbsUp"
+              size={26}
+              color={COLORS.success}
+              strokeWidth={2.4}
+            />
           </PressableScale>
         </View>
       )}
@@ -316,7 +339,6 @@ const styles = themedStyles(() => ({
   },
   upStamp: { left: 20, borderColor: COLORS.success },
   downStamp: { right: 20, borderColor: COLORS.error },
-  stampEmoji: { fontSize: TYPE_SIZE.display },
   doneWrap: {
     flex: 1,
     alignItems: 'center',
@@ -361,5 +383,4 @@ const styles = themedStyles(() => ({
   },
   smallActionBtn: { width: 50, height: 50, borderRadius: 25 },
   actionDisabled: { opacity: 0.4 },
-  actionEmoji: { fontSize: TYPE_SIZE.h1 },
 }));

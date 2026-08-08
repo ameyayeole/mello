@@ -14,6 +14,7 @@ const base: WrapStatus = {
   contributorCount: 0,
   contributorsNeeded: 3,
   contributors: [],
+  iContributed: false,
   hoursSinceEnd: 1,
 };
 

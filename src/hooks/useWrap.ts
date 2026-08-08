@@ -6,6 +6,7 @@ import {
   getLatestWrappableEvent,
   getWrapStatus,
   getWrapSummary,
+  markWrapContributed,
   requestEncore,
   submitEventFeedback,
   voteSuperlative,
@@ -14,19 +15,22 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { SuperlativeCategory, WrapStatus } from '@/types/models';
 
-// The number of checklist steps a non-host attendee sees (host skips the
-// "rate the event" step, so theirs is 3).
+// Photos, the people you met, and — guests only — how the event was.
+//
+// Rewind is deliberately absent: it is a preference, and a preference cannot be
+// a required step. Awards are absent for the same reason (spec §5.2) — the old
+// `votedCategories.length >= 4` clause is REMOVED, not moved. An optional thing
+// that still gates completion is not optional.
 export function wrapStepTotal(status: WrapStatus | undefined): number {
-  return status?.isHost ? 3 : 4;
+  return status?.isHost ? 2 : 3;
 }
 
 export function wrapStepsDone(status: WrapStatus | undefined): number {
   if (!status) return 0;
   let done = 0;
+  if (status.myPhotoCount > 0) done += 1;
   if (status.coAttendeeCount > 0 && status.ratedCount >= status.coAttendeeCount)
     done += 1;
-  if (status.myPhotoCount > 0) done += 1;
-  if (status.votedCategories.length >= 4) done += 1;
   if (!status.isHost && status.feedbackDone) done += 1;
   return done;
 }
@@ -94,7 +98,23 @@ export function useWrap(eventId: string | undefined) {
     onSettled: invalidate,
   });
 
-  return { status: statusQuery.data, statusQuery, vote, feedback, encore, invalidate };
+  // The flow's final act. Invalidation matters more than usual here: the gate's
+  // contributor count lives on the same query, so skipping it leaves everyone
+  // looking at a stale "waiting on N more people" after they just contributed.
+  const contribute = useMutation({
+    mutationFn: () => markWrapContributed(eventId!, user!.id),
+    onSuccess: invalidate,
+  });
+
+  return {
+    status: statusQuery.data,
+    statusQuery,
+    vote,
+    feedback,
+    encore,
+    contribute,
+    invalidate,
+  };
 }
 
 // Bumps the server-side view counter once per mount of the hub screen.

@@ -20,23 +20,26 @@ export function CompleteMoment({
 }) {
   return (
     <View style={styles.wrap}>
+      {/* Halved from a four-stage cascade that took ~640ms to finish. The
+          sequence still reads as circle-then-tick-then-words; it just stops
+          making you wait through it. */}
       <Animated.View
-        entering={FadeIn.duration(320).easing(Easing.out(Easing.cubic))}
+        entering={FadeIn.duration(200).easing(Easing.out(Easing.cubic))}
         style={styles.circle}
       >
-        <Animated.View entering={FadeIn.delay(180).duration(280)}>
+        <Animated.View entering={FadeIn.delay(100).duration(160)}>
           <Icon name="check" size={40} color="#fff" strokeWidth={3} />
         </Animated.View>
       </Animated.View>
       <Animated.Text
-        entering={FadeIn.delay(260).duration(300)}
+        entering={FadeIn.delay(150).duration(180)}
         style={styles.title}
       >
         {title}
       </Animated.Text>
       {sub ? (
         <Animated.Text
-          entering={FadeIn.delay(340).duration(300)}
+          entering={FadeIn.delay(200).duration(180)}
           style={styles.sub}
         >
           {sub}

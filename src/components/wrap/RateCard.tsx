@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { COLORS, inkAlpha } from '@/constants/colors';
 import { FONTS, TYPE_SIZE } from '@/constants/typography';
-import { Icon, PressableScale, VerifiedBadge } from '@/components/ui';
+import { Glass, Icon, PressableScale, ProfileIdentity } from '@/components/ui';
 import { CoAttendee } from '@/types/models';
 import { themedStyles } from '@/theme';
 
@@ -14,10 +14,12 @@ import { themedStyles } from '@/theme';
 export default function RateCard({
   attendee,
   onAddFriend,
+  onLeaveNote,
   friendState,
 }: {
   attendee: CoAttendee;
   onAddFriend?: () => void;
+  onLeaveNote?: () => void;
   friendState?: 'none' | 'request_sent' | 'request_received' | 'friends';
 }) {
   const router = useRouter();
@@ -50,24 +52,39 @@ export default function RateCard({
             <Text style={styles.hostChipText}>Host</Text>
           </View>
         )}
+
+        {/* On the photo, at the bottom of it — the plan put this at the card's
+            absolute bottom, but that is the name/bio block and the chip would
+            have landed on the Add friend button. The tier is what matters:
+            `onPhoto` and not `panel`, because a white chip on a portrait
+            punches a hole in the face (DESIGN.md §3). */}
+        {onLeaveNote ? (
+          <Glass tier="onPhoto" radius={RADIUS.lg} style={styles.noteBtn}>
+            <PressableScale
+              scaleTo={0.97}
+              onPress={onLeaveNote}
+              style={styles.noteInner}
+              accessibilityRole="button"
+              accessibilityLabel={`Leave a note for ${attendee.name}`}
+            >
+              <Icon name="penNewSquare" size={16} color={COLORS.white} />
+              <Text style={styles.noteText}>Leave a note</Text>
+            </PressableScale>
+          </Glass>
+        ) : null}
       </View>
 
       <View style={styles.body}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {attendee.name}
-            {attendee.age ? `, ${attendee.age}` : ''}
-          </Text>
-          {attendee.kyc_status === 'approved' && <VerifiedBadge size={16} />}
-        </View>
-        {attendee.username ? (
-          <Text style={styles.username}>@{attendee.username}</Text>
-        ) : null}
-        {attendee.bio ? (
-          <Text style={styles.bio} numberOfLines={2}>
-            {attendee.bio}
-          </Text>
-        ) : null}
+        {/* Shared with the profile screen — see ProfileIdentity for why these
+            two stopped being independent copies. */}
+        <ProfileIdentity
+          name={attendee.name}
+          age={attendee.age}
+          username={attendee.username}
+          bio={attendee.bio}
+          verified={attendee.kyc_status === 'approved'}
+          bioLines={2}
+        />
 
         <View style={styles.footer}>
           <View style={styles.thumbsPill}>
@@ -161,6 +178,24 @@ const styles = themedStyles(() => ({
     backgroundColor: COLORS.accent,
   },
   hostChipText: { fontFamily: FONTS.bold, fontSize: TYPE_SIZE.micro, color: '#fff' },
+  noteBtn: {
+    position: 'absolute',
+    left: SPACING[3],
+    right: SPACING[3],
+    bottom: SPACING[3],
+  },
+  noteInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING[2],
+    paddingVertical: SPACING[2.5],
+  },
+  noteText: {
+    fontFamily: FONTS.semibold,
+    fontSize: TYPE_SIZE.bodySm,
+    color: COLORS.white,
+  },
   body: { padding: SPACING[4], paddingTop: SPACING[3] },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING[1.5] },
   name: {
